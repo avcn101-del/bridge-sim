@@ -1,0 +1,31 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.sublime-*
+
+# Logs and temp
+*.log
+*.tmp
+.cache/
+
+# Local tooling that must not be committed (no build step in this project)
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+dist/
+build/
+
+# Test output
+playwright-report/
+test-results/
+screenshots/
+
+# Local save exports
+*.bridgesim-save.json
