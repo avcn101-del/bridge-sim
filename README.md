@@ -34,8 +34,11 @@ online and falls back to a system font otherwise).
 - Destroy the enemy to win. Lose your hull and you're defeated. Restart from
   the result screen.
 
-Tips: Red alert first. Weapons power + target Weapons wins faster; Shields
-power + Come about survives longer. Torpedoes hit hardest at close range.
+Tips: Red alert first, then Attack pattern and Fire at will. Weapons power +
+Target weapons wins faster; Shields power + Come about survives longer.
+Torpedoes only fire from the forward arc, so Attack pattern turns in for a
+pass whenever the tubes are loaded. Come about with your aft shield means no
+weapons on target. A battle should take 3–5 minutes.
 
 ## Tweaking balance
 
@@ -50,8 +53,13 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `weapons.photon_mk1.damage / reload / speed` | Torpedo strength, reload time, flight speed |
 | `powerPresets` | How much each preset favours weapons/shields/engines |
 | `balance.shieldBleedThrough` | Fraction of damage that leaks through shields to hull |
+| `balance.hullRepairRate` | Hull patched per second once all subsystems are repaired |
+| `balance.destroyedEndDelay` | Seconds the explosion plays before the result screen |
 | `crew.orderDelays` | Seconds each order takes before execution |
 | `enemyAI.default` | Enemy accuracy, reaction, stat multiplier, retreat thresholds |
+| `weapons.disruptor_mk1`, `weapons.klingon_torpedo` | Enemy weapon strength |
+| `shipClasses.bird_of_prey.hull / shields` | Enemy toughness (also scaled by `enemyAI.default.statMult`) |
+| `crew.reports`, `crew.hailReplies` | All officer dialogue |
 
 Later features (campaign, shipyard upgrades, more ship classes, crew XP) have
 their data shapes defined in the same file. See `DESIGN.md`.

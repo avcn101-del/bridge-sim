@@ -2,9 +2,9 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
-## [0.1.0] — planned (MVP)
+## [0.1.0] — 2026-10-04 (MVP)
 
-### Planned
+### Added
 - Start screen, battle screen, result screen with Restart.
 - LCARS style interface: left ship status, centre tactical canvas, right
   order panel grouped by officer, bottom comms log (newest on top).
@@ -22,6 +22,21 @@ All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 - Real-time with Pause; orders accepted while paused.
 - All stats data-driven in `js/data.js`; data shapes for campaign, shipyard,
   ship classes, crew XP and save files defined for later versions.
+- Officer order queues are FIFO (one executing + four pending).
+- Attack pattern turns in for a torpedo pass whenever tubes are loaded.
+- Damage control patches hull slowly once all subsystems are repaired.
+- Left panel shows phaser charge, torpedo reload and enemy sensor readout
+  (hull, facing shield, range band, AI state).
+
+### Balance
+- Tuned with an accelerated headless simulation so an attentive captain wins
+  in 3–5 minutes with 60–80% hull, and a ship given no orders is lost in
+  about 3 minutes. See `DESIGN.md` section 8.
+
+### Known limitations
+- No audio. Google Fonts "Antonio" needs internet; otherwise a condensed
+  system font is used.
+- Single enemy type and single player ship class.
 
 ## [0.0.1] — 2026-10-04
 
