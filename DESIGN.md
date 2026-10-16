@@ -74,8 +74,17 @@ target choice (weapons/engines/shields), when to open/close range.
   quarter speed. Helm warns if that facing is aft ("no weapons on target").
 
 **Tactical**
-- Target: Weapons / Engines / Shields — subsystem focus on hits that bleed
-  through (and a share of direct hull damage goes there).
+- Target subsystem: Phasers / Torpedoes / Engines / Shields / Sensors /
+  Bridge — damage that bleeds through the shields also hits that part.
+  Targeting a part costs 15% hit chance (`subsystemEffects.targetAccuracyMult`).
+  Clicking the active button again, or clicking the enemy's hull on the
+  display, returns to hull targeting at full accuracy.
+- Click targeting on the tactical display: hovering the enemy shows its
+  hardpoints (rings coloured by health, label with percentage); clicking one
+  gives the matching Tactical order. The selected part carries a pulsing
+  bracket reticle. Hardpoints are defined per ship class in
+  `visual.hardpoints` (ship-local coordinates), so a sprite ship just needs
+  its own list.
 - Fire phasers — one phaser volley if in range and charged.
 - Fire torpedoes — one torpedo spread if loaded and in arc.
 - Fire at will (toggle) — auto-fire all weapons as they become ready.
@@ -108,10 +117,19 @@ target choice (weapons/engines/shields), when to open/close range.
   angle of the incoming shot relative to the ship's heading.
 - Regeneration per facing per second, scaled by shield power and shield
   subsystem health.
-- `subsystems`: `weapons`, `engines`, `shields`, each 0..100 health.
-  - weapons health scales damage and recharge speed
-  - engines health scales speed and turn rate
-  - shields health scales regen and max effective shield
+- `subsystems`: six parts, each 0..100 health, listed in `BS.Data.subsystems`
+  (order there is the order of buttons and status rows). Multiplier =
+  `subsystemFloor` + (1 − floor) × health/100 unless noted.
+  - weapons (Phasers): phaser damage and recharge speed
+  - torpedoes: torpedo reload speed
+  - engines: speed and turn rate
+  - shields: shield regeneration
+  - sensors: weapon accuracy (floor `sensorsAccuracyFloor`, 0.7)
+  - bridge: order delays (player) / reaction delay (enemy), up to
+    `bridgeDelayMaxMult` (1.8×) at zero health
+  Untargeted hull hits damage a random part with `subsystemHitChance`.
+  Repair priority (one button per part, or Auto = most damaged) repairs that
+  part at full rate and the others at a quarter rate.
 - `power`: fractions for weapons/shields/engines summing to 1 (presets in data).
   - weapons power → recharge speed and damage multiplier
   - shields power → regen rate
@@ -188,10 +206,11 @@ BS.Data = {
     simStep: 1/60,
     shieldBleedThrough: 0.15,       // fraction of absorbed shield damage that leaks to hull
     hullRepairRate: 0.8,
-    subsystemHitChance: 0.6,        // chance a hull hit also damages a subsystem
-    hullSmokeThreshold: 0.5,
-    cameraLerp: 0.08,
+    subsystemHitChance: 0.5, subsystemDamageFactor: 0.45,
   },
+  subsystemFloor: 0.4,
+  subsystems: { weapons: { label, short, effect, targetReport, damaged, repaired }, torpedoes: {...}, engines, shields, sensors, bridge },
+  subsystemEffects: { sensorsAccuracyFloor: 0.7, bridgeDelayMaxMult: 1.8, targetAccuracyMult: 0.85 },
 
   shipClasses: {
     constitution: {
@@ -200,12 +219,13 @@ BS.Data = {
       hull: 1000,
       shields: { max: 380, regen: 7 },           // per facing, per second at balanced power
       speed: 95, turnRate: 65,                   // px/s, deg/s
-      subsystems: { weapons: 100, engines: 100, shields: 100 },
+      subsystems: { weapons: 100, torpedoes: 100, engines: 100, shields: 100, sensors: 100, bridge: 100 },
       weapons: { phasers: "phaser_mk1", torpedoes: "photon_mk1" },
-      phaserMounts: 2, torpedoTubes: 2,
-      repairRate: 4,                             // subsystem hp/s at full damage control
+      phaserMounts: [ {x, y} ], torpedoTubes: [ {x, y} ],
+      repairRate: 3.5,                           // subsystem hp/s at full damage control
       visual: { kind: "vector", drawer: "federation_constitution",
-                sprite: null, scale: 1.0, length: 110 },
+                sprite: null, scale: 1.0, length: 112, width: 70,
+                hardpoints: { weapons: [ {x, y, r} ], torpedoes: [...], engines: [...], shields: [...], sensors: [...], bridge: [...] } },
     },
     // later: miranda, defiant, excelsior, galaxy, sovereign — same shape
     bird_of_prey: { ... faction: "klingon", purchasable: false, ... },
@@ -274,13 +294,13 @@ BS.Data = {
   pos: {x,y}, prevPos: {x,y}, heading, prevHeading, speed,
   hull, hullMax,
   shields: { fore, aft, port, starboard }, shieldMax,
-  subsystems: { weapons, engines, shields },     // 0..100
+  subsystems: { weapons, torpedoes, engines, shields, sensors, bridge },   // 0..100
   power: { weapons, shields, engines },
   phaserCooldown, torpedoReload,
   flags: { alert: "none"|"yellow"|"red", fireAtWill, evasive, destroyed },
-  target: shipId|null, targetSubsystem: null|"weapons"|"engines"|"shields",
+  target: shipId|null, targetSubsystem: null | one of BS.Data.subsystems keys (null = hull),
   helm: { mode: "attack"|"evasive"|"close"|"open"|"comeAbout"|"idle", desiredHeading, desiredSpeed },
-  repairPriority: null|"weapons"|"engines"|"shields",
+  repairPriority: null | subsystem key (null = auto, most damaged first),
   visual: { kind, drawer, sprite, scale, length },
   stats: { damageDealt, damageTaken },
   mods: { damageMult, shieldMult, ... }   // from upgrades + crew XP, applied at creation
@@ -315,20 +335,21 @@ logic never calls them directly.
   class (Constitution), full visual style, pause, result screen, restart.
 - No campaign, no shipyard, no saving, no sound, no science station.
 
-Measured balance (accelerated simulation, 4 runs each, v0.1.0):
+Measured balance (accelerated simulation, 6 runs each, v0.2.0):
 
 | Captain behaviour | Outcome |
 |---|---|
-| Attentive (red alert, attack pattern, fire at will, weapons power, comes about when a facing drops) | Wins in 2:45–3:30 with 60–80% hull |
-| Passive (red alert, attack pattern, fire at will, nothing else) | Usually wins in 4–6 min with 0–50% hull, sometimes loses |
-| Stationary (yellow alert, fire at will, no helm orders) | Coin flip |
-| No orders | Loses in about 3 min |
+| Attentive (red alert, attack pattern, fire at will, weapons power, target phasers, comes about when a facing drops, repairs sensors) | Wins in 3:05–4:10 with 52–67% hull |
+| Passive (red alert, attack pattern, fire at will, nothing else) | Wins in 3:40–5:00 with 10–56% hull |
+| Stationary (yellow alert, fire at will, no helm orders) | Coin flip, 5–7 min |
+| No orders | Loses in 2:40–4:30 |
 
 ## 9. Roadmap
 
 | Version | Feature |
 |---|---|
-| 0.2 | Audio via Web Audio hooks; difficulty selector; polish pass |
+| 0.2 | Six targetable subsystems with click targeting on the display (done) |
+| 0.2.x | Audio via Web Audio hooks; difficulty selector; polish pass |
 | 0.3 | Campaign: credits per battle, mission list, save to localStorage |
 | 0.4 | Shipyard: 7 upgrade tracks × 3 tiers |
 | 0.5 | Buyable ship classes: Miranda, Constitution, Defiant, Excelsior, Galaxy, Sovereign with distinct silhouettes |

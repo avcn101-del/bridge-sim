@@ -11,22 +11,28 @@ BS.UI = (function () {
 
   function init(gameRef) {
     game = gameRef;
-    ["hull-fill", "hull-val", "sub-weapons", "sub-engines", "sub-shields", "sub-weapons-val", "sub-engines-val", "sub-shields-val",
+    ["hull-fill", "hull-val",
      "pow-weapons", "pow-shields", "pow-engines", "pow-weapons-val", "pow-shields-val", "pow-engines-val",
      "wpn-phasers", "wpn-torps", "wpn-phasers-val", "wpn-torps-val", "en-hull", "en-hull-val", "en-shield", "en-shield-val", "en-range", "en-state",
      "clock", "alert-label", "btn-pause", "pause-overlay", "start-screen", "result-screen", "result-title", "result-sub", "result-head",
      "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-torps", "btn-fireatwill", "ship-name",
-     "busy-helm", "busy-tactical", "busy-engineering"].forEach(function (id) { el[id] = $(id); });
+     "busy-helm", "busy-tactical", "busy-engineering", "view", "own-subsystems", "enemy-subsystems", "target-buttons", "repair-buttons"].forEach(function (id) { el[id] = $(id); });
+    buildSubsystemWidgets();
     BS.Ships.FACINGS.forEach(function (f) { el["sh-" + f] = $("sh-" + f); el["sh-" + f + "-val"] = $("sh-" + f + "-val"); });
     logList = $("log");
 
     // officer names from data
     Object.keys(BS.Data.crew.officers).forEach(function (o) { var n = $("off-" + o); if (n) n.textContent = BS.Data.crew.officers[o].name; });
 
-    // order buttons
+    // order buttons (a target button clicked while already active returns to hull targeting)
     document.querySelectorAll("[data-order]").forEach(function (btn) {
-      btn.addEventListener("click", function () { game.giveOrder(btn.getAttribute("data-order")); btn.blur(); });
+      btn.addEventListener("click", function () {
+        var order = btn.getAttribute("data-order"), t = btn.getAttribute("data-target");
+        if (t && game.state.player && game.state.player.targetSubsystem === t) order = "targetHull";
+        game.giveOrder(order); btn.blur();
+      });
     });
+    bindCanvasTargeting();
     el["btn-pause"].addEventListener("click", function () { game.togglePause(); el["btn-pause"].blur(); });
     $("btn-start").addEventListener("click", function () { game.startBattle(); });
     $("btn-restart").addEventListener("click", function () { game.startBattle(); });
@@ -35,6 +41,54 @@ BS.UI = (function () {
     });
 
     if (!subscribed) { subscribe(); subscribed = true; }
+  }
+
+  // ---- generated widgets from BS.Data.subsystems ------------------------
+  function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+  function buildSubsystemWidgets() {
+    var subs = BS.Data.subsystems, ids = Object.keys(subs);
+    el["own-subsystems"].innerHTML = ""; el["enemy-subsystems"].innerHTML = ""; el["target-buttons"].innerHTML = ""; el["repair-buttons"].innerHTML = "";
+    ids.forEach(function (sys) {
+      var d = subs[sys];
+      var row = document.createElement("div"); row.className = "row"; row.title = d.label + ": " + d.effect;
+      row.innerHTML = '<label>' + d.label + '</label><div class="bar sub"><div class="fill"></div></div><span class="num">100</span>';
+      el["own-subsystems"].appendChild(row);
+      el["sub-" + sys] = row.querySelector(".fill"); el["sub-" + sys + "-val"] = row.querySelector(".num");
+      var chip = document.createElement("span"); chip.className = "chip"; chip.textContent = d.short; chip.title = "Enemy " + d.label.toLowerCase();
+      el["enemy-subsystems"].appendChild(chip); el["en-" + sys] = chip;
+      var tb = document.createElement("button"); tb.className = "lcars-btn c-orange mode-target"; tb.setAttribute("data-order", "target" + cap(sys)); tb.setAttribute("data-target", sys); tb.textContent = d.label; tb.title = "Target their " + d.label.toLowerCase() + " (" + d.effect + "). Click again to target the hull.";
+      el["target-buttons"].appendChild(tb);
+      var rb = document.createElement("button"); rb.className = "lcars-btn c-lilac mode-repair"; rb.setAttribute("data-order", "repair" + cap(sys)); rb.setAttribute("data-repair", sys); rb.textContent = d.label;
+      el["repair-buttons"].appendChild(rb);
+    });
+    var auto = document.createElement("button"); auto.className = "lcars-btn c-lilac mode-repair wide"; auto.setAttribute("data-order", "repairAuto"); auto.setAttribute("data-repair", "auto"); auto.textContent = "Auto · most damaged first";
+    el["repair-buttons"].appendChild(auto);
+  }
+
+  // ---- click a part of the enemy ship on the tactical display -----------
+  function bindCanvasTargeting() {
+    var view = el["view"];
+    function hoverAt(ev) {
+      var s = game.state;
+      if (s.phase !== "battle" || !s.enemy || s.enemy.flags.destroyed) { game.setHover(null); return null; }
+      var r = view.getBoundingClientRect();
+      var w = BS.Renderer.screenToWorld(ev.clientX - r.left, ev.clientY - r.top);
+      var h = BS.Ships.hardpointAt(s.enemy, w.x, w.y, 5);
+      game.setHover(h);
+      return h;
+    }
+    view.addEventListener("mousemove", function (ev) {
+      var h = hoverAt(ev);
+      view.classList.toggle("can-target", !!h);
+      view.classList.toggle("on-hardpoint", !!(h && h.sys));
+    });
+    view.addEventListener("mouseleave", function () { game.setHover(null); view.classList.remove("can-target", "on-hardpoint"); });
+    view.addEventListener("click", function (ev) {
+      var h = hoverAt(ev);
+      if (!h) return;
+      var p = game.state.player;
+      if (!h.sys || p.targetSubsystem === h.sys) game.giveOrder("targetHull"); else game.giveOrder("target" + cap(h.sys));
+    });
   }
 
   function subscribe() {
@@ -108,9 +162,12 @@ BS.UI = (function () {
       fill.style.backgroundColor = pctColor(frac);
       el["sh-" + f + "-val"].textContent = Math.round(frac * 100);
     });
-    ["weapons", "engines", "shields"].forEach(function (s) {
+    BS.Ships.subsystemIds().forEach(function (s) {
       var v = p.subsystems[s] / 100;
       setBar(el["sub-" + s], v, hullColor(v)); el["sub-" + s + "-val"].textContent = Math.round(v * 100);
+      if (e) { var ev = e.subsystems[s] / 100; el["en-" + s].style.backgroundColor = e.flags.destroyed ? "#15162a" : hullColor(ev); el["en-" + s].textContent = BS.Data.subsystems[s].short + " " + Math.round(ev * 100); }
+    });
+    ["weapons", "engines", "shields"].forEach(function (s) {
       setBar(el["pow-" + s], p.power[s] / 0.6); el["pow-" + s + "-val"].textContent = Math.round(p.power[s] * 100);
     });
     var pc = p.phaserDef.cooldown, pr = p.torpedoDef.reload;

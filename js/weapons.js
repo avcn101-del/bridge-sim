@@ -11,6 +11,8 @@ BS.Weapons = (function () {
   function accuracyFor(ship, target, def) {
     var B = BS.Data.balance;
     var acc = def.accuracy + ship.mods.accuracyBonus;
+    acc *= S.sensorsMult(ship);
+    if (ship.targetSubsystem) acc *= BS.Data.subsystemEffects.targetAccuracyMult;
     if (ship.aiProfile) acc *= ship.aiProfile.accuracyMult;
     if (ship.flags.evasive) acc *= B.evasiveOwnAccuracy;
     if (target.flags.evasive) acc *= B.evasiveIncomingAccuracy;

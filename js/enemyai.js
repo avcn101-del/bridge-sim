@@ -34,7 +34,7 @@ BS.EnemyAI = (function () {
     var ai = ship.ai, p = ship.aiProfile;
     ai.timer += dt; ai.decision -= dt;
     if (ai.decision > 0) return;
-    ai.decision = p.reactionDelay;
+    ai.decision = p.reactionDelay * S.bridgeDelayMult(ship);
 
     var hullPct = ship.hull / ship.hullMax;
     var facing = S.facingToward(ship, player.pos.x, player.pos.y);

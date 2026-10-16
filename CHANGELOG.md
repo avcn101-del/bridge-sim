@@ -2,6 +2,27 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.2.0] — 2026-10-16
+
+### Added
+- Six targetable subsystems: Phasers, Torpedoes, Engines, Shields, Sensors,
+  Bridge. Each has its own effect (sensors lower accuracy, bridge slows
+  crew reaction, torpedoes slow reload). Defined in `BS.Data.subsystems`;
+  buttons, status rows and enemy readout are generated from it.
+- Click targeting on the tactical display: hover the enemy to see its
+  hardpoints and health, click one to target it, click again or click the
+  hull to return to hull targeting. Pulsing reticle marks the current target.
+- Targeting a part costs 15% hit chance (`subsystemEffects.targetAccuracyMult`).
+- Repair priority for every part, plus Auto.
+- Enemy subsystem readout chips in the sensors panel. Subsystem hits spark
+  at the part that was hit.
+
+### Changed
+- Enemy AI targets any of the six parts (weighted) and suffers the same
+  accuracy penalty.
+- Balance retuned: random subsystem hits 50% (was 60%), subsystem floor 0.4,
+  enemy hull 900 / shields 330, enemy weapons slightly stronger.
+
 ## [0.1.1] — 2026-10-16
 
 ### Fixed

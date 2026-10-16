@@ -17,22 +17,37 @@ BS.Crew = (function () {
     if (!subscribed) { subscribe(); subscribed = true; }
   }
 
+  // Map an order id to its data key: targetWeapons → "target", repairBridge → "repair".
+  function orderKey(id) {
+    if (D().orderDelays[id] !== undefined) return id;
+    if (/^target/.test(id)) return "target";
+    if (/^repair/.test(id)) return "repair";
+    return id;
+  }
+  function orderSubsystem(id) {
+    var m = /^(target|repair)(\w+)$/.exec(id);
+    if (!m) return null;
+    var sys = m[2].charAt(0).toLowerCase() + m[2].slice(1);
+    return BS.Data.subsystems[sys] ? sys : null;
+  }
+
   function say(officer, text, cls) {
     BS.Events.emit("log", { speaker: officer, text: text, cls: cls || "report" });
   }
   function report(key, vars) {
     var str = D().reports[key];
     if (!str) return;
-    var officer = D().orderOfficer[key.split("_")[0]];
+    var officer = D().orderOfficer[orderKey(key.split("_")[0])];
     say(officer, U.template(str, vars || {}));
   }
 
   // ---- giving orders ----------------------------------------------------
   function give(orderId) {
-    var officer = D().orderOfficer[orderId];
+    var key = orderKey(orderId);
+    var officer = D().orderOfficer[key];
     if (!officer || !ship || ship.flags.destroyed) return;
     var q = officers[officer];
-    var delay = D().orderDelays[orderId] * ship.mods.delayMult;
+    var delay = D().orderDelays[key] * ship.mods.delayMult * S.bridgeDelayMult(ship);
     if (ship.flags.alert === "red") delay *= D().redAlertDelayMult;
     var order = { id: orderId, officer: officer, delay: delay, timer: delay };
     BS.Events.emit("orderGiven", order);
@@ -45,6 +60,17 @@ BS.Crew = (function () {
   function execute(order) {
     var id = order.id;
     var vars = {};
+    var sys = orderSubsystem(id);
+    if (sys && /^target/.test(id)) {
+      ship.targetSubsystem = sys;
+      say("tactical", BS.Data.subsystems[sys].targetReport || U.template(D().reports.target, { label: BS.Data.subsystems[sys].label.toLowerCase() }));
+      BS.Events.emit("orderExecuted", order); return;
+    }
+    if (sys && /^repair/.test(id)) {
+      ship.repairPriority = sys;
+      report("repair", { label: BS.Data.subsystems[sys].label.toLowerCase() });
+      BS.Events.emit("orderExecuted", order); return;
+    }
     switch (id) {
       case "attackPattern": S.setHelmMode(ship, "attack"); break;
       case "evasive": S.setHelmMode(ship, "evasive"); break;
@@ -57,9 +83,7 @@ BS.Crew = (function () {
         if (vars.facing === "aft") { report("comeAbout_aft", vars); BS.Events.emit("orderExecuted", order); return; }
         break;
       }
-      case "targetWeapons": ship.targetSubsystem = "weapons"; break;
-      case "targetEngines": ship.targetSubsystem = "engines"; break;
-      case "targetShields": ship.targetSubsystem = "shields"; break;
+      case "targetHull": ship.targetSubsystem = null; break;
       case "firePhasers": {
         var c = W.canFirePhasers(ship, enemy);
         if (c === "ok") { W.firePhasers(ship, enemy); report("firePhasers"); }
@@ -86,9 +110,6 @@ BS.Crew = (function () {
       case "powerWeapons": S.setPowerPreset(ship, "weapons"); break;
       case "powerShields": S.setPowerPreset(ship, "shields"); break;
       case "powerEngines": S.setPowerPreset(ship, "engines"); break;
-      case "repairWeapons": ship.repairPriority = "weapons"; break;
-      case "repairEngines": ship.repairPriority = "engines"; break;
-      case "repairShields": ship.repairPriority = "shields"; break;
       case "repairAuto": ship.repairPriority = null; break;
       case "reinforceShields": {
         var r = S.startReinforce(ship);
@@ -144,11 +165,11 @@ BS.Crew = (function () {
     BS.Events.on("subsystemDamaged", function (e) {
       if (e.ship !== ship) return;
       var rs = ship.reportState.subsystemLow;
-      if (ship.subsystems[e.subsystem] < 60 && !rs[e.subsystem]) { rs[e.subsystem] = true; say("engineering", D().events.subsystemDamaged[e.subsystem], "warn"); }
+      if (ship.subsystems[e.subsystem] < 60 && !rs[e.subsystem]) { rs[e.subsystem] = true; say("engineering", BS.Data.subsystems[e.subsystem].damaged, "warn"); }
     });
     BS.Events.on("subsystemRepaired", function (e) {
       if (e.ship !== ship) return;
-      if (ship.reportState.subsystemLow[e.subsystem]) { ship.reportState.subsystemLow[e.subsystem] = false; say("engineering", D().events.subsystemRepaired[e.subsystem]); }
+      if (ship.reportState.subsystemLow[e.subsystem]) { ship.reportState.subsystemLow[e.subsystem] = false; say("engineering", BS.Data.subsystems[e.subsystem].repaired); }
     });
     BS.Events.on("torpedoHit", function (e) {
       if (!e.torpedo || e.torpedo.source !== ship || !e.result) return;

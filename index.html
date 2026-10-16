@@ -53,9 +53,7 @@
         </div>
 
         <h3>Subsystems</h3>
-        <div class="row"><label>Weapons</label><div class="bar sub"><div class="fill" id="sub-weapons"></div></div><span class="num" id="sub-weapons-val">100</span></div>
-        <div class="row"><label>Engines</label><div class="bar sub"><div class="fill" id="sub-engines"></div></div><span class="num" id="sub-engines-val">100</span></div>
-        <div class="row"><label>Shields</label><div class="bar sub"><div class="fill" id="sub-shields"></div></div><span class="num" id="sub-shields-val">100</span></div>
+        <div class="sub-grid" id="own-subsystems"></div>
 
         <h3>Power allocation</h3>
         <div class="row"><label>Weapons</label><div class="bar pow"><div class="fill c-orange-bg" id="pow-weapons"></div></div><span class="num" id="pow-weapons-val">34</span></div>
@@ -69,6 +67,7 @@
         <h3>Sensors · enemy</h3>
         <div class="row"><label>Hull</label><div class="bar enemy"><div class="fill" id="en-hull"></div></div><span class="num" id="en-hull-val">100</span></div>
         <div class="row"><label>Facing</label><div class="bar enemy"><div class="fill" id="en-shield"></div></div><span class="num" id="en-shield-val">100</span></div>
+        <div class="chips" id="enemy-subsystems" title="Enemy subsystems"></div>
         <div class="row"><label>Range</label><span class="num wide" id="en-range">—</span></div>
         <div class="row"><label>Status</label><span class="num wide" id="en-state">—</span></div>
       </div>
@@ -101,12 +100,8 @@
         </div>
 
         <h3 class="officer tactical">Tactical · <span id="off-tactical">Lt. Worf</span><span class="busy" id="busy-tactical"></span></h3>
-        <div class="sub-label">Target subsystem</div>
-        <div class="btn-grid three">
-          <button class="lcars-btn c-orange mode-target" data-order="targetWeapons" data-target="weapons">Weapons</button>
-          <button class="lcars-btn c-orange mode-target" data-order="targetEngines" data-target="engines">Engines</button>
-          <button class="lcars-btn c-orange mode-target" data-order="targetShields" data-target="shields">Shields</button>
-        </div>
+        <div class="sub-label">Target subsystem · or click a part of the enemy ship · again for hull</div>
+        <div class="btn-grid three" id="target-buttons"></div>
         <div class="btn-grid">
           <button class="lcars-btn c-peach" data-order="firePhasers">Fire phasers</button>
           <button class="lcars-btn c-peach" data-order="fireTorpedoes">Fire torpedoes</button>
@@ -123,12 +118,7 @@
           <button class="lcars-btn c-purple mode-power" data-order="powerEngines" data-power="engines">Engines</button>
         </div>
         <div class="sub-label">Repair priority</div>
-        <div class="btn-grid">
-          <button class="lcars-btn c-lilac mode-repair" data-order="repairWeapons" data-repair="weapons">Weapons</button>
-          <button class="lcars-btn c-lilac mode-repair" data-order="repairEngines" data-repair="engines">Engines</button>
-          <button class="lcars-btn c-lilac mode-repair" data-order="repairShields" data-repair="shields">Shields</button>
-          <button class="lcars-btn c-lilac mode-repair" data-order="repairAuto" data-repair="auto">Auto</button>
-        </div>
+        <div class="btn-grid three" id="repair-buttons"></div>
         <div class="btn-grid">
           <button class="lcars-btn c-purple wide" data-order="reinforceShields">Reinforce weakest shield</button>
         </div>

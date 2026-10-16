@@ -78,6 +78,18 @@ BS.Ships = (function () {
     return (c.base + ship.power[sys] * ship.mods.totalPower * c.slope);
   }
   function weaponsMult(ship) { return powerMult(ship, "weapons") * subMult(ship, "weapons"); }
+  function torpedoMult(ship) { return (0.6 + 0.4 * powerMult(ship, "weapons")) * subMult(ship, "torpedoes"); }
+  // accuracy multiplier from sensor health (1 at full, floor at 0)
+  function sensorsMult(ship) {
+    var f = BS.Data.subsystemEffects.sensorsAccuracyFloor;
+    return f + (1 - f) * U.clamp(ship.subsystems.sensors, 0, 100) / 100;
+  }
+  // order / reaction delay multiplier from bridge health (1 at full, max at 0)
+  function bridgeDelayMult(ship) {
+    var m = BS.Data.subsystemEffects.bridgeDelayMaxMult;
+    return 1 + (m - 1) * (1 - U.clamp(ship.subsystems.bridge, 0, 100) / 100);
+  }
+  function subsystemIds() { return Object.keys(BS.Data.subsystems); }
   function enginesMult(ship) { return powerMult(ship, "engines") * subMult(ship, "engines"); }
   function shieldsMult(ship) {
     var m = powerMult(ship, "shields") * subMult(ship, "shields");
@@ -114,6 +126,32 @@ BS.Ships = (function () {
   function distanceTo(ship, other) { return U.dist(ship.pos.x, ship.pos.y, other.pos.x, other.pos.y); }
   function bearingTo(ship, other) { return U.normAngle(U.angleTo(ship.pos.x, ship.pos.y, other.pos.x, other.pos.y) - ship.heading); }
   function inArc(ship, other, arcDeg) { return Math.abs(bearingTo(ship, other)) <= (arcDeg / 2) * U.DEG; }
+
+  // ---- hardpoints -------------------------------------------------------
+  // World position of a subsystem's (first) hardpoint, or null.
+  function hardpointWorld(ship, sys) {
+    var hps = ship.visual.hardpoints && ship.visual.hardpoints[sys];
+    if (!hps || !hps.length) return null;
+    var h = hps[Math.floor(Math.random() * hps.length)];
+    return U.localToWorld(ship, h.x, h.y);
+  }
+  // Which subsystem hardpoint is under a world point? Returns { sys, x, y, r } or null.
+  // Also returns { sys: null } when the point is on the hull but not on a hardpoint.
+  function hardpointAt(ship, wx, wy, slack) {
+    var hps = ship.visual.hardpoints;
+    if (!hps) return null;
+    var sc = ship.visual.scale || 1, best = null, bestD = Infinity;
+    Object.keys(hps).forEach(function (sys) {
+      hps[sys].forEach(function (h) {
+        var w = U.localToWorld(ship, h.x, h.y);
+        var d = U.dist(wx, wy, w.x, w.y), r = h.r * sc + (slack || 0);
+        if (d <= r && d < bestD) { bestD = d; best = { sys: sys, x: w.x, y: w.y, r: h.r * sc }; }
+      });
+    });
+    if (best) return best;
+    if (U.dist(wx, wy, ship.pos.x, ship.pos.y) <= ship.visual.length * 0.55) return { sys: null, x: ship.pos.x, y: ship.pos.y, r: 0 };
+    return null;
+  }
 
   // ---- orders applied to a ship ----------------------------------------
   function setHelmMode(ship, mode) {
@@ -158,7 +196,7 @@ BS.Ships = (function () {
       ship.stats.damageTaken += hullDamage;
       if (attacker) attacker.stats.damageDealt += hullDamage;
       var sys = targetSubsystem;
-      if (!sys && Math.random() < B.subsystemHitChance) sys = U.pick(["weapons", "engines", "shields"]);
+      if (!sys && Math.random() < B.subsystemHitChance) sys = U.pick(subsystemIds());
       if (sys) {
         var before = ship.subsystems[sys];
         ship.subsystems[sys] = Math.max(0, before - hullDamage * B.subsystemDamageFactor);
@@ -169,6 +207,7 @@ BS.Ships = (function () {
     var ang = U.angleTo(ship.pos.x, ship.pos.y, fromX, fromY);
     var impact = { x: ship.pos.x + Math.cos(ang) * ship.visual.length * 0.5, y: ship.pos.y + Math.sin(ang) * ship.visual.length * 0.5 };
     var result = { ship: ship, facing: facing, absorbed: absorbed, hullDamage: hullDamage, subsystem: subsystem, shieldsDown: shieldsDown, impact: impact, angle: ang, kind: kind, amount: amount };
+    if (subsystem) { var hp = hardpointWorld(ship, subsystem); if (hp) result.subsystemPoint = hp; }
     if (absorbed > 0) BS.Events.emit("shieldHit", result);
     if (hullDamage > 0) BS.Events.emit("hullHit", result);
     if (subsystem) BS.Events.emit("subsystemDamaged", result);
@@ -272,25 +311,26 @@ BS.Ships = (function () {
     // repairs
     var rate = ship.cls.repairRate * ship.mods.repairMult * dt;
     var prio = ship.repairPriority;
+    var ids = subsystemIds();
     if (!prio) {
       var worst = null;
-      ["weapons", "engines", "shields"].forEach(function (s) { if (ship.subsystems[s] < 100 && (worst === null || ship.subsystems[s] < ship.subsystems[worst])) worst = s; });
+      ids.forEach(function (s) { if (ship.subsystems[s] < 100 && (worst === null || ship.subsystems[s] < ship.subsystems[worst])) worst = s; });
       prio = worst;
     }
-    ["weapons", "engines", "shields"].forEach(function (s) {
+    ids.forEach(function (s) {
       if (ship.subsystems[s] >= 100) return;
       var before = ship.subsystems[s];
       ship.subsystems[s] = Math.min(100, before + (s === prio ? rate : rate * 0.25));
       if (before < 100 && ship.subsystems[s] >= 100) BS.Events.emit("subsystemRepaired", { ship: ship, subsystem: s });
     });
     // hull patching once damage control has nothing else to do
-    if (ship.hull < ship.hullMax && ship.subsystems.weapons >= 100 && ship.subsystems.engines >= 100 && ship.subsystems.shields >= 100) {
+    if (ship.hull < ship.hullMax && subsystemIds().every(function (s) { return ship.subsystems[s] >= 100; })) {
       ship.hull = Math.min(ship.hullMax, ship.hull + BS.Data.balance.hullRepairRate * ship.mods.repairMult * dt);
     }
     // weapon timers
     var wm = weaponsMult(ship);
     if (ship.phaserCooldown > 0) ship.phaserCooldown -= dt * wm;
-    if (ship.torpedoReload > 0) ship.torpedoReload -= dt * (0.6 + 0.4 * wm);
+    if (ship.torpedoReload > 0) ship.torpedoReload -= dt * torpedoMult(ship);
   }
 
   function update(ship, target, dt) {
@@ -317,6 +357,12 @@ BS.Ships = (function () {
     setAlert: setAlert,
     startReinforce: startReinforce,
     weaponsMult: weaponsMult,
+    torpedoMult: torpedoMult,
+    sensorsMult: sensorsMult,
+    bridgeDelayMult: bridgeDelayMult,
+    subsystemIds: subsystemIds,
+    hardpointWorld: hardpointWorld,
+    hardpointAt: hardpointAt,
     enginesMult: enginesMult,
     shieldsMult: shieldsMult,
     subMult: subMult,

@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.1.1",
+  version: "0.2.0",
 
   // ---------------------------------------------------------------- balance
   balance: {
@@ -11,7 +11,7 @@ BS.Data = {
     maxFrameTime: 0.1,
     shieldBleedThrough: 0.15,     // fraction of absorbed shield damage that still leaks to hull
     subsystemDamageFactor: 0.45,  // hull damage × this = subsystem damage when a subsystem is hit
-    subsystemHitChance: 0.6,      // chance an untargeted hull hit also damages a random subsystem
+    subsystemHitChance: 0.5,      // chance an untargeted hull hit also damages a random subsystem
     hullSmokeThreshold: 0.5,      // below this hull fraction the ship vents/burns
     hullRepairRate: 0.8,          // hull hp/s patched by damage control once every subsystem is at 100
     cameraLerp: 0.06,
@@ -24,6 +24,35 @@ BS.Data = {
     reinforceDuration: 3.0,        // seconds the transfer takes
     hitRadiusFactor: 0.42,         // ship length × this = torpedo hit radius
     arenaStartDistance: 760,       // enemy spawn distance from player
+  },
+
+  // ------------------------------------------------------------ subsystems
+  // Order here is the order of buttons and status rows. Each ship class has
+  // health 0..100 for every id listed. Effects are applied in ships.js.
+  subsystems: {
+    weapons:   { label: "Phasers",   short: "PHA", effect: "phaser damage and recharge",
+                 targetReport: "Locking phasers on their phaser banks.",
+                 damaged: "Phaser banks hit! Our phaser power is dropping.", repaired: "Phaser banks repaired, Captain." },
+    torpedoes: { label: "Torpedoes", short: "TOR", effect: "torpedo reload speed",
+                 targetReport: "Targeting their torpedo launcher, Captain.",
+                 damaged: "Torpedo launcher damaged! Reload times are up.", repaired: "Torpedo launcher back online." },
+    engines:   { label: "Engines",   short: "ENG", effect: "speed and turn rate",
+                 targetReport: "Targeting their engines, Captain.",
+                 damaged: "Impulse engines damaged! We're losing maneuverability.", repaired: "Impulse engines back to full, Captain." },
+    shields:   { label: "Shields",   short: "SHD", effect: "shield regeneration",
+                 targetReport: "Targeting their shield generators.",
+                 damaged: "Shield generators hit! Regeneration is down.", repaired: "Shield generators repaired." },
+    sensors:   { label: "Sensors",   short: "SEN", effect: "weapon accuracy",
+                 targetReport: "Targeting their sensor array. That'll spoil their aim.",
+                 damaged: "Sensor array damaged! Targeting accuracy is degraded.", repaired: "Sensors recalibrated, Captain." },
+    bridge:    { label: "Bridge",    short: "BRG", effect: "crew reaction time",
+                 targetReport: "Targeting their bridge, Captain. Precision shot.",
+                 damaged: "Direct hit on the bridge! Casualties reported, orders are getting through slowly.", repaired: "Bridge systems restored, Captain." },
+  },
+  subsystemEffects: {
+    sensorsAccuracyFloor: 0.7,   // accuracy multiplier at 0 sensor health
+    bridgeDelayMaxMult: 1.8,     // order / reaction delay multiplier at 0 bridge health
+    targetAccuracyMult: 0.85,    // hit chance multiplier while a subsystem is targeted
   },
 
   // ---------------------------------------------------------- power presets
@@ -40,7 +69,7 @@ BS.Data = {
     engines: { base: 0.6, slope: 1.2 },   // speed, turn rate
   },
   // subsystem health 0..100 → multiplier = floor + (1-floor) × health/100
-  subsystemFloor: 0.35,
+  subsystemFloor: 0.4,
 
   // ---------------------------------------------------------------- weapons
   weapons: {
@@ -58,13 +87,13 @@ BS.Data = {
     },
     disruptor_mk1: {
       type: "phaser", name: "Disruptor cannon",
-      damage: 40, cooldown: 2.6, range: 420, optimalRange: 240, falloff: 0.5,
+      damage: 44, cooldown: 2.6, range: 420, optimalRange: 240, falloff: 0.5,
       arc: 200, accuracy: 0.88, beamLife: 0.35,
       color: "#5cff6a", coreColor: "#e8ffe8",
     },
     klingon_torpedo: {
       type: "torpedo", name: "Klingon photon torpedo",
-      damage: 140, reload: 12, speed: 220, range: 600, arc: 80,
+      damage: 150, reload: 12, speed: 220, range: 600, arc: 80,
       accuracy: 0.72, spread: 1, spreadDelay: 0.3, turnRate: 140,
       color: "#ff4d4d", coreColor: "#ffe6e6",
     },
@@ -80,34 +109,51 @@ BS.Data = {
       hull: 1000,
       shields: { max: 380, regen: 7 },
       speed: 95, turnRate: 65,
-      subsystems: { weapons: 100, engines: 100, shields: 100 },
+      subsystems: { weapons: 100, torpedoes: 100, engines: 100, shields: 100, sensors: 100, bridge: 100 },
       weapons: { phasers: "phaser_mk1", torpedoes: "photon_mk1" },
       phaserMounts: [ { x: 34, y: -14 }, { x: 34, y: 14 } ],
       torpedoTubes: [ { x: 4, y: 0 } ],
       repairRate: 3.5,
       preferredRange: 250, closeRange: 150, openRange: 470,
-      visual: { kind: "vector", drawer: "federation_constitution", sprite: null, scale: 1.0, length: 112, width: 70 },
+      visual: { kind: "vector", drawer: "federation_constitution", sprite: null, scale: 1.0, length: 112, width: 70,
+        // clickable hardpoints in ship-local coordinates (x forward, y starboard)
+        hardpoints: {
+          weapons:   [ { x: 30, y: -20, r: 8 }, { x: 30, y: 20, r: 8 } ],
+          torpedoes: [ { x: 0, y: 0, r: 7 } ],
+          engines:   [ { x: -26, y: -30, r: 9 }, { x: -26, y: 30, r: 9 } ],
+          shields:   [ { x: -26, y: 0, r: 8 } ],
+          sensors:   [ { x: 13, y: 0, r: 6 } ],
+          bridge:    [ { x: 30, y: 0, r: 7 } ],
+        } },
     },
     bird_of_prey: {
       id: "bird_of_prey", name: "IKS Rotarran", className: "B'rel class Bird-of-Prey",
       role: "Raider", faction: "klingon", cost: 0, purchasable: false,
-      hull: 1100,
-      shields: { max: 360, regen: 6 },
+      hull: 900,
+      shields: { max: 330, regen: 6 },
       speed: 105, turnRate: 80,
-      subsystems: { weapons: 100, engines: 100, shields: 100 },
+      subsystems: { weapons: 100, torpedoes: 100, engines: 100, shields: 100, sensors: 100, bridge: 100 },
       weapons: { phasers: "disruptor_mk1", torpedoes: "klingon_torpedo" },
       phaserMounts: [ { x: -30, y: -46 }, { x: -30, y: 46 } ],
       torpedoTubes: [ { x: 44, y: 0 } ],
       repairRate: 2.5,
       preferredRange: 240, closeRange: 140, openRange: 520,
-      visual: { kind: "vector", drawer: "klingon_bird_of_prey", sprite: null, scale: 1.0, length: 100, width: 96 },
+      visual: { kind: "vector", drawer: "klingon_bird_of_prey", sprite: null, scale: 1.0, length: 100, width: 96,
+        hardpoints: {
+          weapons:   [ { x: -30, y: -46, r: 9 }, { x: -30, y: 46, r: 9 } ],
+          torpedoes: [ { x: 52, y: 0, r: 7 } ],
+          engines:   [ { x: -32, y: 0, r: 9 } ],
+          shields:   [ { x: -8, y: 0, r: 9 } ],
+          sensors:   [ { x: 24, y: 0, r: 7 } ],
+          bridge:    [ { x: 40, y: 0, r: 7 } ],
+        } },
     },
     // --- stubs for v0.5 (stats only, drawers fall back to constitution) ---
-    miranda:   { id: "miranda", name: "USS Reliant", className: "Miranda class", role: "Light cruiser", faction: "federation", cost: 800, purchasable: true, hull: 800, shields: { max: 320, regen: 7 }, speed: 100, turnRate: 75, subsystems: { weapons: 100, engines: 100, shields: 100 }, weapons: { phasers: "phaser_mk1", torpedoes: "photon_mk1" }, phaserMounts: [ { x: 30, y: -12 }, { x: 30, y: 12 } ], torpedoTubes: [ { x: 0, y: 0 } ], repairRate: 3, preferredRange: 250, closeRange: 150, openRange: 470, visual: { kind: "vector", drawer: "federation_constitution", sprite: null, scale: 0.9, length: 100, width: 64 } },
-    defiant:   { id: "defiant", name: "USS Defiant", className: "Defiant class", role: "Escort", faction: "federation", cost: 2400, purchasable: true, hull: 900, shields: { max: 300, regen: 8 }, speed: 130, turnRate: 110, subsystems: { weapons: 100, engines: 100, shields: 100 }, weapons: { phasers: "phaser_mk1", torpedoes: "photon_mk1" }, phaserMounts: [ { x: 30, y: -12 }, { x: 30, y: 12 } ], torpedoTubes: [ { x: 30, y: 0 } ], repairRate: 3, preferredRange: 200, closeRange: 120, openRange: 420, visual: { kind: "vector", drawer: "federation_constitution", sprite: null, scale: 0.7, length: 80, width: 50 } },
-    excelsior: { id: "excelsior", name: "USS Excelsior", className: "Excelsior class", role: "Heavy cruiser", faction: "federation", cost: 3200, purchasable: true, hull: 1300, shields: { max: 450, regen: 8 }, speed: 95, turnRate: 55, subsystems: { weapons: 100, engines: 100, shields: 100 }, weapons: { phasers: "phaser_mk1", torpedoes: "photon_mk1" }, phaserMounts: [ { x: 36, y: -14 }, { x: 36, y: 14 } ], torpedoTubes: [ { x: 4, y: 0 } ], repairRate: 4, preferredRange: 260, closeRange: 160, openRange: 480, visual: { kind: "vector", drawer: "federation_constitution", sprite: null, scale: 1.1, length: 124, width: 74 } },
-    galaxy:    { id: "galaxy", name: "USS Galaxy", className: "Galaxy class", role: "Explorer", faction: "federation", cost: 5600, purchasable: true, hull: 1800, shields: { max: 600, regen: 10 }, speed: 85, turnRate: 45, subsystems: { weapons: 100, engines: 100, shields: 100 }, weapons: { phasers: "phaser_mk1", torpedoes: "photon_mk1" }, phaserMounts: [ { x: 40, y: -18 }, { x: 40, y: 18 } ], torpedoTubes: [ { x: 4, y: 0 } ], repairRate: 5, preferredRange: 280, closeRange: 170, openRange: 500, visual: { kind: "vector", drawer: "federation_constitution", sprite: null, scale: 1.3, length: 146, width: 90 } },
-    sovereign: { id: "sovereign", name: "USS Sovereign", className: "Sovereign class", role: "Battleship", faction: "federation", cost: 8000, purchasable: true, hull: 2000, shields: { max: 650, regen: 11 }, speed: 100, turnRate: 55, subsystems: { weapons: 100, engines: 100, shields: 100 }, weapons: { phasers: "phaser_mk1", torpedoes: "photon_mk1" }, phaserMounts: [ { x: 40, y: -16 }, { x: 40, y: 16 } ], torpedoTubes: [ { x: 8, y: 0 } ], repairRate: 5, preferredRange: 280, closeRange: 170, openRange: 500, visual: { kind: "vector", drawer: "federation_constitution", sprite: null, scale: 1.25, length: 140, width: 80 } },
+    miranda:   { id: "miranda", name: "USS Reliant", className: "Miranda class", role: "Light cruiser", faction: "federation", cost: 800, purchasable: true, hull: 800, shields: { max: 320, regen: 7 }, speed: 100, turnRate: 75, subsystems: { weapons: 100, torpedoes: 100, engines: 100, shields: 100, sensors: 100, bridge: 100 }, weapons: { phasers: "phaser_mk1", torpedoes: "photon_mk1" }, phaserMounts: [ { x: 30, y: -12 }, { x: 30, y: 12 } ], torpedoTubes: [ { x: 0, y: 0 } ], repairRate: 3, preferredRange: 250, closeRange: 150, openRange: 470, visual: { kind: "vector", drawer: "federation_constitution", sprite: null, scale: 0.9, length: 100, width: 64 } },
+    defiant:   { id: "defiant", name: "USS Defiant", className: "Defiant class", role: "Escort", faction: "federation", cost: 2400, purchasable: true, hull: 900, shields: { max: 300, regen: 8 }, speed: 130, turnRate: 110, subsystems: { weapons: 100, torpedoes: 100, engines: 100, shields: 100, sensors: 100, bridge: 100 }, weapons: { phasers: "phaser_mk1", torpedoes: "photon_mk1" }, phaserMounts: [ { x: 30, y: -12 }, { x: 30, y: 12 } ], torpedoTubes: [ { x: 30, y: 0 } ], repairRate: 3, preferredRange: 200, closeRange: 120, openRange: 420, visual: { kind: "vector", drawer: "federation_constitution", sprite: null, scale: 0.7, length: 80, width: 50 } },
+    excelsior: { id: "excelsior", name: "USS Excelsior", className: "Excelsior class", role: "Heavy cruiser", faction: "federation", cost: 3200, purchasable: true, hull: 1300, shields: { max: 450, regen: 8 }, speed: 95, turnRate: 55, subsystems: { weapons: 100, torpedoes: 100, engines: 100, shields: 100, sensors: 100, bridge: 100 }, weapons: { phasers: "phaser_mk1", torpedoes: "photon_mk1" }, phaserMounts: [ { x: 36, y: -14 }, { x: 36, y: 14 } ], torpedoTubes: [ { x: 4, y: 0 } ], repairRate: 4, preferredRange: 260, closeRange: 160, openRange: 480, visual: { kind: "vector", drawer: "federation_constitution", sprite: null, scale: 1.1, length: 124, width: 74 } },
+    galaxy:    { id: "galaxy", name: "USS Galaxy", className: "Galaxy class", role: "Explorer", faction: "federation", cost: 5600, purchasable: true, hull: 1800, shields: { max: 600, regen: 10 }, speed: 85, turnRate: 45, subsystems: { weapons: 100, torpedoes: 100, engines: 100, shields: 100, sensors: 100, bridge: 100 }, weapons: { phasers: "phaser_mk1", torpedoes: "photon_mk1" }, phaserMounts: [ { x: 40, y: -18 }, { x: 40, y: 18 } ], torpedoTubes: [ { x: 4, y: 0 } ], repairRate: 5, preferredRange: 280, closeRange: 170, openRange: 500, visual: { kind: "vector", drawer: "federation_constitution", sprite: null, scale: 1.3, length: 146, width: 90 } },
+    sovereign: { id: "sovereign", name: "USS Sovereign", className: "Sovereign class", role: "Battleship", faction: "federation", cost: 8000, purchasable: true, hull: 2000, shields: { max: 650, regen: 11 }, speed: 100, turnRate: 55, subsystems: { weapons: 100, torpedoes: 100, engines: 100, shields: 100, sensors: 100, bridge: 100 }, weapons: { phasers: "phaser_mk1", torpedoes: "photon_mk1" }, phaserMounts: [ { x: 40, y: -16 }, { x: 40, y: 16 } ], torpedoTubes: [ { x: 8, y: 0 } ], repairRate: 5, preferredRange: 280, closeRange: 170, openRange: 500, visual: { kind: "vector", drawer: "federation_constitution", sprite: null, scale: 1.25, length: 140, width: 80 } },
   },
 
   // ------------------------------------------------------------------- crew
@@ -127,10 +173,10 @@ BS.Data = {
     // seconds from acknowledgement to execution
     orderDelays: {
       attackPattern: 1.0, evasive: 0.8, closeRange: 0.9, openRange: 0.9, comeAbout: 1.2,
-      targetWeapons: 0.6, targetEngines: 0.6, targetShields: 0.6,
+      target: 0.6, targetHull: 0.4,
       firePhasers: 0.5, fireTorpedoes: 0.8, fireAtWill: 0.6, holdFire: 0.4,
       powerBalanced: 1.2, powerWeapons: 1.2, powerShields: 1.2, powerEngines: 1.2,
-      repairWeapons: 1.0, repairEngines: 1.0, repairShields: 1.0, repairAuto: 1.0,
+      repair: 1.0, repairAuto: 1.0,
       reinforceShields: 1.4,
       redAlert: 0.5, yellowAlert: 0.5, hail: 1.5,
     },
@@ -143,9 +189,8 @@ BS.Data = {
       comeAbout: "Coming about, presenting our {facing} shields to the enemy.",
       comeAbout_aft: "Coming about, presenting our aft shields. Captain, we'll have no weapons on target like this.",
       comeAbout_already: "We're already presenting our strongest shield, Captain. Holding position.",
-      targetWeapons: "Locking phasers on their weapons array.",
-      targetEngines: "Targeting their engines, Captain.",
-      targetShields: "Targeting their shield generators.",
+      target: "Targeting their {label}, Captain.",      // fallback; subsystems[x].targetReport wins
+      targetHull: "Targeting their hull, Captain. Full accuracy.",
       firePhasers: "Phasers firing.",
       firePhasers_charging: "Phasers recharging. Firing as soon as they're ready.",
       firePhasers_notArmed: "Weapons aren't armed, Captain. Recommend we go to alert status.",
@@ -161,9 +206,7 @@ BS.Data = {
       powerWeapons: "Diverting power to weapons. Phasers will hit harder and recharge faster.",
       powerShields: "Routing extra power to the shield grid.",
       powerEngines: "Power to engines. She'll turn like a shuttlecraft now.",
-      repairWeapons: "Damage control teams to the weapons array.",
-      repairEngines: "Damage control to engineering, impulse systems first.",
-      repairShields: "Damage control working on the shield generators.",
+      repair: "Damage control teams to the {label}, Captain.",
       repairAuto: "Damage control on automatic priority, Captain.",
       reinforceShields: "Reinforcing the {weak} shield from the {strong} grid.",
       reinforceShields_none: "Shields are already balanced, Captain.",
@@ -175,10 +218,10 @@ BS.Data = {
     // officer who reports each order
     orderOfficer: {
       attackPattern: "helm", evasive: "helm", closeRange: "helm", openRange: "helm", comeAbout: "helm",
-      targetWeapons: "tactical", targetEngines: "tactical", targetShields: "tactical",
+      target: "tactical", targetHull: "tactical",
       firePhasers: "tactical", fireTorpedoes: "tactical", fireAtWill: "tactical", holdFire: "tactical",
       powerBalanced: "engineering", powerWeapons: "engineering", powerShields: "engineering", powerEngines: "engineering",
-      repairWeapons: "engineering", repairEngines: "engineering", repairShields: "engineering", repairAuto: "engineering",
+      repair: "engineering", repairAuto: "engineering",
       reinforceShields: "engineering",
       redAlert: "tactical", yellowAlert: "tactical", hail: "comms",
     },
@@ -191,8 +234,6 @@ BS.Data = {
       shieldLow: "{facing} shields down to {pct} percent, Captain!",
       shieldDown: "{facing} shields have collapsed!",
       shieldRestored: "{facing} shields back above fifty percent.",
-      subsystemDamaged: { weapons: "Weapons array hit! Phaser power is dropping.", engines: "Impulse engines damaged! We're losing maneuverability.", shields: "Shield generators hit! Regeneration is down." },
-      subsystemRepaired: { weapons: "Weapons array repaired, Captain.", engines: "Impulse engines back to full, Captain.", shields: "Shield generators repaired." },
       hullCritical: "Hull breach on decks seven through nine! We can't take much more.",
       torpedoHit: ["Direct hit, Captain!", "Torpedo hit on their {facing} shields.", "That one got through, Captain!"],
       torpedoHitShieldsDown: "Direct hit, Captain! Their {facing} shields are down!",
@@ -217,7 +258,7 @@ BS.Data = {
       retreatHull: 0.28, retreatMinTime: 9, retreatMaxTime: 22,
       repositionShield: 0.22, repositionDuration: 5,
       preferredRange: 240,
-      targetWeights: { weapons: 0.5, shields: 0.3, engines: 0.2 },
+      targetWeights: { weapons: 0.3, shields: 0.2, engines: 0.15, torpedoes: 0.1, sensors: 0.15, bridge: 0.1 },
       taunts: ["The Klingon captain laughs over an open channel."],
     },
     // v0.2 difficulty selector will add easy / hard profiles here.

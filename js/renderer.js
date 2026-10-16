@@ -403,6 +403,52 @@ BS.Renderer = (function () {
     ctx.restore();
   }
 
+  // ------------------------------------------------- targeting overlay
+  function hullColorRGB(frac) { return frac > 0.6 ? "127,216,160" : frac > 0.3 ? "242,193,78" : "224,70,60"; }
+  function drawTargeting(state, alpha, t) {
+    var p = state.player, e = state.enemy;
+    if (!p || !e || e.flags.destroyed || !e.visual.hardpoints) return;
+    var hover = state.hover, target = p.targetSubsystem;
+    var x = U.lerp(e.prevPos.x, e.pos.x, alpha), y = U.lerp(e.prevPos.y, e.pos.y, alpha);
+    var h = U.lerpAngle(e.prevHeading, e.heading, alpha), sc = e.visual.scale || 1;
+    var c = Math.cos(h), si = Math.sin(h);
+    ctx.save();
+    ctx.font = "bold 12px Antonio, 'Arial Narrow', sans-serif"; ctx.textBaseline = "middle";
+    Object.keys(e.visual.hardpoints).forEach(function (sys) {
+      var showAll = !!hover, isHover = hover && hover.sys === sys, isTarget = target === sys;
+      if (!showAll && !isTarget) return;
+      var frac = e.subsystems[sys] / 100, col = hullColorRGB(frac);
+      e.visual.hardpoints[sys].forEach(function (hp) {
+        var wx = x + (hp.x * c - hp.y * si) * sc, wy = y + (hp.x * si + hp.y * c) * sc, r = hp.r * sc;
+        if (showAll) {
+          ctx.lineWidth = isHover ? 2 : 1;
+          ctx.strokeStyle = "rgba(" + col + "," + (isHover ? 1 : 0.55) + ")";
+          ctx.beginPath(); ctx.arc(wx, wy, r + (isHover ? 3 : 0), 0, U.TAU); ctx.stroke();
+          ctx.fillStyle = "rgba(" + col + "," + (isHover ? 0.25 : 0.08) + ")"; ctx.fill();
+        }
+        if (isTarget) {
+          // pulsing bracket reticle
+          var k = r + 5 + Math.sin(t * 5) * 1.5, L = Math.max(4, k * 0.5);
+          ctx.strokeStyle = "rgba(255,120,80,0.95)"; ctx.lineWidth = 2;
+          [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(function (q) {
+            ctx.beginPath(); ctx.moveTo(wx + q[0] * k, wy + q[1] * (k - L)); ctx.lineTo(wx + q[0] * k, wy + q[1] * k); ctx.lineTo(wx + q[0] * (k - L), wy + q[1] * k); ctx.stroke();
+          });
+        }
+      });
+    });
+    // label for the hovered hardpoint, or the hull
+    if (hover) {
+      var label = hover.sys ? BS.Data.subsystems[hover.sys].label.toUpperCase() + " " + Math.round(e.subsystems[hover.sys]) + "%" : "HULL " + Math.round(100 * e.hull / e.hullMax) + "%";
+      var hint = hover.sys ? (target === hover.sys ? "click: target hull" : "click: target") : (target ? "click: target hull" : "");
+      var lx = hover.x + 14, ly = hover.y - 14;
+      var w = Math.max(ctx.measureText(label).width, ctx.measureText(hint).width) + 12;
+      ctx.fillStyle = "rgba(0,0,0,0.7)"; roundRect(lx - 4, ly - 10, w, hint ? 32 : 20, 4); ctx.fill();
+      ctx.fillStyle = "#ffd9b3"; ctx.fillText(label, lx + 2, ly);
+      if (hint) { ctx.fillStyle = "#9a9ab5"; ctx.font = "11px Antonio, 'Arial Narrow', sans-serif"; ctx.fillText(hint, lx + 2, ly + 13); }
+    }
+    ctx.restore();
+  }
+
   // ----------------------------------------------------------- main draw
   function draw(state, alpha, dt) {
     if (!ctx) return;
@@ -421,6 +467,7 @@ BS.Renderer = (function () {
     for (var j = 0; j < ships.length; j++) drawShields(ships[j], alpha, time);
     drawBeams(alpha, time);
     drawTorpedoes(alpha, time);
+    if (state.enemy) drawTargeting(state, alpha, time);
     ctx.restore();
     // subtle vignette
     var vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);

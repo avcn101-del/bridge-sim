@@ -74,7 +74,10 @@ BS.Effects = (function () {
       if (e.ship.isPlayer) addShake(big ? 9 : 3);
       else if (big) addShake(2);
     });
-    BS.Events.on("subsystemDamaged", function (e) { sparks(e.impact.x, e.impact.y, 6, 140, [255, 255, 200]); });
+    BS.Events.on("subsystemDamaged", function (e) {
+      var pt = e.subsystemPoint || e.impact;
+      sparks(pt.x, pt.y, 8, 140, [255, 255, 200]); smoke(pt.x, pt.y, 2); flash(pt.x, pt.y, 9, [255, 240, 200], 0.2);
+    });
     BS.Events.on("shipDestroyed", function (e) {
       var s = e.ship;
       flash(s.pos.x, s.pos.y, s.visual.length * 1.6, [255, 230, 180], 0.9);

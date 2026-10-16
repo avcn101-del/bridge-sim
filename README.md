@@ -21,8 +21,11 @@ online and falls back to a system font otherwise).
 - Click **Take the bridge** on the start screen.
 - The enemy ship approaches. Give orders from the right-hand panel:
   - **Helm**: Attack pattern, Evasive, Close range, Open range, Come about.
-  - **Tactical**: pick a target subsystem, Fire phasers, Fire torpedoes,
-    Fire at will (auto), Hold fire.
+  - **Tactical**: pick a target part (Phasers, Torpedoes, Engines, Shields,
+    Sensors, Bridge), Fire phasers, Fire torpedoes, Fire at will (auto),
+    Hold fire. You can also hover the enemy ship on the display and click a
+    part directly. Targeting a part costs 15% accuracy; click the active
+    part again (or the enemy's hull) to go back to hull shots.
   - **Engineering**: power preset, repair priority, Reinforce weakest shield.
   - **Ship-wide**: Red alert, Yellow alert, Hail enemy.
 - Officers answer "Aye, Captain", execute after a short delay, then report.
@@ -53,6 +56,12 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `weapons.photon_mk1.damage / reload / speed` | Torpedo strength, reload time, flight speed |
 | `powerPresets` | How much each preset favours weapons/shields/engines |
 | `balance.shieldBleedThrough` | Fraction of damage that leaks through shields to hull |
+| `balance.subsystemHitChance / subsystemDamageFactor` | How often and how hard untargeted hits damage a random part |
+| `subsystems.*` | The six targetable parts: labels, officer lines |
+| `subsystemEffects.targetAccuracyMult` | Accuracy cost of targeting a part (0.85 = −15%) |
+| `subsystemEffects.sensorsAccuracyFloor / bridgeDelayMaxMult` | How much damaged sensors / bridge hurt |
+| `subsystemFloor` | Performance left when a part is at 0 health |
+| `shipClasses.*.visual.hardpoints` | Where each part sits on the silhouette for click targeting |
 | `balance.hullRepairRate` | Hull patched per second once all subsystems are repaired |
 | `balance.destroyedEndDelay` | Seconds the explosion plays before the result screen |
 | `crew.orderDelays` | Seconds each order takes before execution |

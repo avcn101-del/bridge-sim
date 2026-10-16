@@ -3,7 +3,7 @@ window.BS = window.BS || {};
 
 BS.Game = (function () {
   var U = BS.Util;
-  var state = { phase: "start", time: 0, paused: false, player: null, enemy: null, ships: [], result: null, endTimer: 0 };
+  var state = { phase: "start", time: 0, paused: false, player: null, enemy: null, ships: [], result: null, endTimer: 0, hover: null };
   var accumulator = 0, lastFrame = 0, running = false;
   var subscribed = false;
 
@@ -33,7 +33,7 @@ BS.Game = (function () {
     BS.Renderer.resetCamera();
     BS.UI.clearLog();
     BS.UI.hideOverlays();
-    state.time = 0; state.paused = false; state.result = null; state.endTimer = 0;
+    state.time = 0; state.paused = false; state.result = null; state.endTimer = 0; state.hover = null;
     var player = BS.Ships.create("constitution", { isPlayer: true, pos: { x: 0, y: 0 }, heading: -Math.PI / 2 });
     var ang = U.rand(-0.6, 0.6) - Math.PI / 2;
     var profile = BS.Data.enemyAI.default;
@@ -49,6 +49,8 @@ BS.Game = (function () {
     BS.UI.addLog("computer", "Simulation running. You have the conn, Captain.", "system");
     BS.Crew.battleStart();
   }
+
+  function setHover(h) { state.hover = h; }
 
   function giveOrder(id) {
     if (state.phase !== "battle") return;
@@ -103,6 +105,6 @@ BS.Game = (function () {
     requestAnimationFrame(frame);
   }
 
-  var api = { init: init, startBattle: startBattle, giveOrder: giveOrder, togglePause: togglePause, state: state, step: step };
+  var api = { init: init, startBattle: startBattle, giveOrder: giveOrder, togglePause: togglePause, setHover: setHover, state: state, step: step };
   return api;
 })();
