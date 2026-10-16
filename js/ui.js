@@ -17,7 +17,7 @@ BS.UI = (function () {
     ["own-speed", "own-cmd", "own-subsystems", "enemy-subsystems", "gauge", "help-screen", "btn-help", "btn-help-close",
      "target-none", "target-info", "tg-name", "tg-hull", "tg-hull-val", "tg-shield", "tg-shield-val", "tg-range", "tg-angular", "tg-chance", "tg-aim",
      "clock", "alert-label", "btn-pause", "btn-redalert", "btn-zoom-in", "btn-zoom-out", "pause-overlay", "start-screen", "result-screen", "result-title", "result-sub", "result-head",
-     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "ship-name", "view", "module-bar", "overview", "sel-name", "orbit-buttons", "keep-buttons"]
+     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "rs-credits", "ship-name", "view", "module-bar", "overview", "sel-name", "orbit-buttons", "keep-buttons"]
       .forEach(function (id) { el[id] = $(id); });
     logList = $("log");
     buildGauge();
@@ -35,10 +35,10 @@ BS.UI = (function () {
     el["btn-redalert"].addEventListener("click", function () { game.command("redAlert"); el["btn-redalert"].blur(); });
     el["btn-zoom-in"].addEventListener("click", function () { game.setZoom(game.state.zoom + BS.Data.balance.zoom.step); });
     el["btn-zoom-out"].addEventListener("click", function () { game.setZoom(game.state.zoom - BS.Data.balance.zoom.step); });
-    $("btn-start").addEventListener("click", function () { game.startBattle(); });
+    $("btn-start").addEventListener("click", function () { game.openHangar(); });
     el["btn-help"].addEventListener("click", function () { el["help-screen"].classList.remove("hidden"); });
     el["btn-help-close"].addEventListener("click", function () { el["help-screen"].classList.add("hidden"); });
-    $("btn-restart").addEventListener("click", function () { game.startBattle(); });
+    $("btn-restart").addEventListener("click", function () { game.openHangar(); });
     bindCanvas();
     bindKeys();
     if (!subscribed) { subscribe(); subscribed = true; }
@@ -237,6 +237,8 @@ BS.UI = (function () {
     el["rs-hull"].textContent = Math.round(100 * p.hull / p.hullMax) + "%";
     el["rs-phasers"].textContent = p.stats.phaserHits + " / " + p.stats.phasersFired;
     el["rs-torps"].textContent = p.stats.torpedoHits + " / " + p.stats.torpedoesFired;
+    var rw = state.reward;
+    el["rs-credits"].textContent = rw ? "+" + rw.earned + " cr" + (rw.streak > 1 ? " (streak " + rw.streak + ")" : "") + " · " + BS.Campaign.get().credits.toLocaleString() + " cr total" : "—";
   }
 
   // ---- per-frame update ---------------------------------------------------

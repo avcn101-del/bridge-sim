@@ -33,7 +33,7 @@ BS.Weapons = (function () {
     var mount = mounts[m.mountIndex % mounts.length];
     var chance = turretHitChance(ship, target, def);
     var hit = Math.random() < chance;
-    var dmg = def.damage * ship.mods.damageMult * ship.fitEffects.turretDamageMult * S.subMult(ship, def.subsystem || "weapons");
+    var dmg = def.damage * ship.mods.damageMult * ship.mods.turretDamageMult * ship.fitEffects.turretDamageMult * S.subMult(ship, def.subsystem || "weapons");
     beams.push({ source: ship, mount: mount, target: target, hit: hit, missOffset: U.rand(-1, 1) * target.visual.length * 0.9, life: def.beamLife, maxLife: def.beamLife, def: def, damage: dmg, damageApplied: false });
     ship.stats.phasersFired++;
     if (hit) ship.stats.phaserHits++;
@@ -52,7 +52,7 @@ BS.Weapons = (function () {
     var tubes = ship.cls.torpedoTubes;
     var tube = tubes[ship.stats.torpedoesFired % tubes.length];
     var p = U.localToWorld(ship, tube.x, tube.y);
-    var dmg = def.damage * ship.mods.damageMult * ship.fitEffects.launcherDamageMult;
+    var dmg = def.damage * ship.mods.damageMult * ship.mods.launcherDamageMult * ship.fitEffects.launcherDamageMult;
     var t = { source: ship, target: target, x: p.x, y: p.y, prevX: p.x, prevY: p.y, heading: ship.heading, speed: S.px(def.speedKmS), life: def.rangeKm / def.speedKmS + 2, def: def, dead: false, age: 0, damage: dmg };
     torpedoes.push(t);
     ship.stats.torpedoesFired++;

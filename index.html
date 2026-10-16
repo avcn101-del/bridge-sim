@@ -120,14 +120,14 @@
       <div class="lcars-bar c-orange head"><span class="bar-label">STARFLEET TACTICAL SIMULATOR</span></div>
       <h1>Bridge Sim</h1>
       <p class="brief">A Klingon Bird-of-Prey is raiding the Archanis sector. You have the conn.</p>
-      <p>You fly the ship EVE-style: select a target, lock it, give the helm an orbit or a range to hold, and run your fitted modules. Every module cycle costs capacitor, so you choose what runs. Your officers report what's happening.</p>
+      <p>You fly the ship EVE-style: select a target, lock it, give the helm an orbit or a range to hold, and run your fitted modules. Every module cycle costs capacitor, so you choose what runs. Between battles you fit your ship in the hangar, buy modules and ships with the credits you earn, and train skills in real time. Progress is saved in this browser.</p>
       <ul class="tips">
         <li><b>Click the Klingon</b> to select and lock. Then <b>Orbit 6 km</b>.</li>
         <li>Click the <b>module buttons</b> at the bottom (or F1–F8): phasers, torpedoes, shield booster, hardener, afterburner.</li>
         <li>Phasers lose hits against fast-moving targets and beyond 8 km. Torpedoes hit hard but slow ships hardest. Watch the <b>capacitor</b>.</li>
         <li>Hover a locked enemy to see its parts; click one to aim at it. <b>Space</b> pauses.</li>
       </ul>
-      <button id="btn-start" class="lcars-btn c-orange big">Take the bridge</button>
+      <button id="btn-start" class="lcars-btn c-orange big">Enter the hangar</button>
     </div>
   </div>
 
@@ -147,6 +147,46 @@
     </div>
   </div>
 
+  <div id="hangar-screen" class="overlay hidden">
+    <div class="hangar-card">
+      <div class="lcars-bar c-orange head"><span class="bar-label">STARBASE 11 · HANGAR</span><span class="hg-head-right"><span id="hg-record">0 won · 0 lost</span> · <span id="hg-threat"></span> · <b id="hg-credits">0 cr</b></span></div>
+      <div class="hangar-grid">
+        <section class="hg-col">
+          <h3>Your ship</h3>
+          <div id="hg-ship" class="hg-ship"></div>
+          <h3>Shipyard</h3>
+          <div id="hg-ships" class="hg-list"></div>
+          <h3>Skills <small>real-time training</small></h3>
+          <div id="hg-training" class="dim hg-training"></div>
+          <div id="hg-skills" class="hg-list"></div>
+        </section>
+        <section class="hg-col hg-fit">
+          <h3>Fitting <small>click a slot, then Fit from storage · right-click unfits</small></h3>
+          <div id="hg-slots"></div>
+          <div class="row"><label>Power grid</label><div class="bar res"><div class="fill c-orange-bg" id="hg-pg"></div></div><span class="num wide" id="hg-pg-val"></span></div>
+          <div class="row"><label>CPU</label><div class="bar res"><div class="fill c-blue-bg" id="hg-cpu"></div></div><span class="num wide" id="hg-cpu-val"></span></div>
+          <div id="hg-stats" class="hg-stats"></div>
+          <div id="hg-msg" class="hg-msg"></div>
+          <div class="btn-grid">
+            <button id="btn-undock" class="lcars-btn c-orange big">Undock · engage the raider</button>
+          </div>
+          <div class="btn-grid three">
+            <button id="btn-export" class="lcars-btn c-blue">Export save</button>
+            <button id="btn-import" class="lcars-btn c-blue">Import save</button>
+            <button id="btn-reset" class="lcars-btn c-red">Reset progress</button>
+          </div>
+          <input type="file" id="hg-import-file" accept="application/json,.json" class="hidden">
+        </section>
+        <section class="hg-col">
+          <h3>Storage</h3>
+          <div id="hg-inventory" class="hg-list"></div>
+          <h3>Market</h3>
+          <div id="hg-market" class="hg-list"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
   <div id="result-screen" class="overlay hidden">
     <div class="overlay-card">
       <div class="lcars-bar c-blue head"><span class="bar-label" id="result-head">BATTLE REPORT</span></div>
@@ -159,8 +199,9 @@
         <tr><td>Hull remaining</td><td id="rs-hull">0%</td></tr>
         <tr><td>Phaser hits</td><td id="rs-phasers">0 / 0</td></tr>
         <tr><td>Torpedo hits</td><td id="rs-torps">0 / 0</td></tr>
+        <tr><td>Credits earned</td><td id="rs-credits">—</td></tr>
       </table>
-      <button id="btn-restart" class="lcars-btn c-orange big">Restart</button>
+      <button id="btn-restart" class="lcars-btn c-orange big">Return to hangar</button>
     </div>
   </div>
 
@@ -175,6 +216,8 @@
   <script src="js/enemyai.js"></script>
   <script src="js/effects.js"></script>
   <script src="js/renderer.js"></script>
+  <script src="js/campaign.js"></script>
+  <script src="js/hangar.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/game.js"></script>
   <script src="js/main.js"></script>

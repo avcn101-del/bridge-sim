@@ -3,13 +3,15 @@ window.BS = window.BS || {};
 
 BS.Game = (function () {
   var U = BS.Util;
-  var state = { phase: "start", time: 0, paused: false, player: null, enemy: null, ships: [], result: null, endTimer: 0, hover: null, zoom: 1 };
+  var state = { phase: "start", time: 0, paused: false, player: null, enemy: null, ships: [], result: null, endTimer: 0, hover: null, zoom: 1, reward: null };
   var accumulator = 0, lastFrame = 0, running = false;
   var subscribed = false;
 
   function init() {
     state.zoom = BS.Data.balance.zoom.start;
     BS.Renderer.init(document.getElementById("view"));
+    BS.Campaign.load();
+    BS.Hangar.init(api);
     BS.UI.init(api);
     BS.Effects.reset();
     if (!subscribed) { subscribe(); subscribed = true; }
@@ -34,12 +36,13 @@ BS.Game = (function () {
     BS.Renderer.resetCamera();
     BS.UI.clearLog();
     BS.UI.hideOverlays();
-    state.time = 0; state.paused = false; state.result = null; state.endTimer = 0; state.hover = null;
-    var player = BS.Ships.create("constitution", { isPlayer: true, pos: { x: 0, y: 0 }, heading: -Math.PI / 2 });
+    state.time = 0; state.paused = false; state.result = null; state.endTimer = 0; state.hover = null; state.reward = null;
+    state.zoom = BS.Data.balance.zoom.start;
+    var save = BS.Campaign.get();
+    var player = BS.Ships.create(save.shipClass, { isPlayer: true, pos: { x: 0, y: 0 }, heading: -Math.PI / 2, fit: BS.Campaign.battleFit(save.shipClass), mods: BS.Campaign.skillMods() });
     var ang = U.rand(-0.6, 0.6) - Math.PI / 2;
-    var profile = BS.Data.enemyAI.default;
     var dist = BS.Ships.px(B.arenaStartDistanceKm);
-    var enemy = BS.Ships.create("bird_of_prey", { pos: { x: Math.cos(ang) * dist, y: Math.sin(ang) * dist }, heading: ang + Math.PI, statMult: profile.statMult });
+    var enemy = BS.Ships.create("bird_of_prey", { pos: { x: Math.cos(ang) * dist, y: Math.sin(ang) * dist }, heading: ang + Math.PI, statMult: BS.Campaign.enemyStatMult() });
     BS.EnemyAI.attach(enemy, player, "default");
     player.selected = enemy;
     state.player = player; state.enemy = enemy; state.ships = [player, enemy];
@@ -77,7 +80,7 @@ BS.Game = (function () {
     if (state.phase === "battle") state.time += dt;
     if (state.phase === "ending") {
       state.endTimer -= dt;
-      if (state.endTimer <= 0) { state.phase = "ended"; BS.UI.showResult(state); }
+      if (state.endTimer <= 0) { state.phase = "ended"; state.reward = BS.Campaign.settleBattle(state); BS.UI.showResult(state); }
     }
   }
 
@@ -105,6 +108,8 @@ BS.Game = (function () {
     requestAnimationFrame(frame);
   }
 
-  var api = { init: init, startBattle: startBattle, command: command, togglePause: togglePause, setHover: setHover, setZoom: setZoom, state: state, step: step };
+  function openHangar() { BS.UI.hideOverlays(); state.phase = state.player ? "ended" : "start"; BS.Hangar.show(); }
+
+  var api = { init: init, startBattle: startBattle, openHangar: openHangar, command: command, togglePause: togglePause, setHover: setHover, setZoom: setZoom, state: state, step: step };
   return api;
 })();
