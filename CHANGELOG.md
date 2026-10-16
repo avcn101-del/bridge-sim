@@ -2,6 +2,14 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.1.1] — 2026-10-16
+
+### Fixed
+- Red alert, Yellow alert and Hail enemy were hidden below the fold of the
+  order panel on screens shorter than about 800 px. The Ship-wide group now
+  sits at the top of the order panel, panels are more compact, and a
+  short-screen layout keeps all orders visible at 1280×720.
+
 ## [0.1.0] — 2026-10-04 (MVP)
 
 ### Added

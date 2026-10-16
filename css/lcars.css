@@ -29,7 +29,7 @@ button { font-family: inherit; }
   display: grid;
   height: 100vh;
   grid-template-columns: 250px minmax(360px, 1fr) 300px;
-  grid-template-rows: 52px minmax(200px, 1fr) 180px;
+  grid-template-rows: 48px minmax(200px, 1fr) 150px;
   grid-template-areas: "top top top" "status tactical orders" "comms comms comms";
   gap: 8px;
   padding: 8px;
@@ -61,7 +61,8 @@ body.alert-red #alert-label { animation: blink 1s steps(2) infinite; }
 .panel.right .panel-side .side-seg:first-child { border-radius: 0 0 var(--radius) 0; }
 .panel-side .side-seg:last-child { border-radius: var(--radius) 0 0 0; }
 .panel.right .panel-side .side-seg:last-child { border-radius: 0 var(--radius) 0 0; }
-.panel-body { flex: 1; min-width: 0; overflow-y: auto; padding: 8px 12px 12px; scrollbar-width: thin; scrollbar-color: var(--c-dim) transparent; }
+.panel-body { flex: 1; min-width: 0; overflow-y: auto; padding: 6px 10px 10px; scrollbar-width: thin; scrollbar-color: var(--c-dim) transparent; }
+.panel-body::-webkit-scrollbar { width: 6px; } .panel-body::-webkit-scrollbar-thumb { background: #3a3a55; border-radius: 3px; }
 
 #status { grid-area: status; }
 #orders { grid-area: orders; }
@@ -79,24 +80,24 @@ body.alert-red #tactical { animation: redpulse 1.6s ease-in-out infinite; }
 #pause-overlay small { color: var(--c-dim); letter-spacing: 0.2em; margin-top: 6px; }
 .hidden { display: none !important; }
 
-h3 { margin: 10px 0 6px; white-space: nowrap; overflow: hidden; font-size: 13px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--c-peach); border-bottom: 1px solid #2a2a40; padding-bottom: 3px; display: flex; align-items: center; }
+h3 { margin: 7px 0 4px; white-space: nowrap; overflow: hidden; font-size: 13px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--c-peach); border-bottom: 1px solid #2a2a40; padding-bottom: 3px; display: flex; align-items: center; }
 h3:first-child { margin-top: 2px; }
 h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-orange); } h3.officer.engineering { color: var(--c-purple); } h3.officer.ship { color: var(--c-peach); }
 .busy { display: inline-block; width: 8px; height: 8px; margin-left: 8px; border-radius: 50%; background: transparent; }
 .busy.on { background: currentColor; animation: blink 0.5s steps(2) infinite; }
-.sub-label { font-size: 11px; letter-spacing: 0.15em; color: var(--c-dim); text-transform: uppercase; margin: 6px 0 3px; }
+.sub-label { font-size: 11px; letter-spacing: 0.15em; color: var(--c-dim); text-transform: uppercase; margin: 4px 0 2px; }
 
 /* --------------------------------------------------------------- bars */
 .bar { position: relative; height: 16px; background: #15162a; border-radius: 8px; overflow: hidden; flex: 1; }
 .bar .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; background: var(--c-blue); border-radius: 8px; transition: width 0.15s linear, background-color 0.3s; }
 .bar.hull { height: 22px; }
 .bar .val { position: absolute; right: 8px; top: 0; line-height: 22px; font-size: 13px; font-weight: 700; color: #000; mix-blend-mode: screen; color: #fff; text-shadow: 0 0 4px #000; }
-.row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+.row { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
 .row label { width: 68px; flex-shrink: 0; font-size: 11px; white-space: nowrap; letter-spacing: 0.1em; text-transform: uppercase; color: var(--c-dim); }
 .row .num { width: 34px; text-align: right; font-size: 13px; font-weight: 700; color: var(--c-peach); }
 .row .num.wide { width: auto; flex: 1; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.shield-grid { display: grid; grid-template-columns: 22px 1fr 22px; grid-template-rows: 22px 70px 22px; gap: 4px; justify-items: center; align-items: center; width: 150px; margin: 4px auto 8px; }
+.shield-grid { display: grid; grid-template-columns: 22px 1fr 22px; grid-template-rows: 20px 60px 20px; gap: 4px; justify-items: center; align-items: center; width: 150px; margin: 2px auto 6px; }
 .sbar { position: relative; background: #15162a; border-radius: 6px; overflow: hidden; }
 .sbar .fill { position: absolute; background: var(--c-blue); transition: background-color 0.3s; }
 .sbar.top { grid-column: 2; grid-row: 1; width: 100%; height: 18px; } .sbar.bottom { grid-column: 2; grid-row: 3; width: 100%; height: 18px; }
@@ -104,10 +105,10 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
 .sbar.top .fill, .sbar.bottom .fill { left: 0; top: 0; bottom: 0; } .sbar.left .fill, .sbar.right .fill { left: 0; right: 0; bottom: 0; }
 .sbar .val { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; text-shadow: 0 0 3px #000; }
 .ship-icon { grid-column: 2; grid-row: 2; height: 100%; display: flex; align-items: center; justify-content: center; }
-.ship-icon svg { height: 64px; filter: drop-shadow(0 0 4px rgba(150, 180, 255, 0.5)); }
+.ship-icon svg { height: 56px; filter: drop-shadow(0 0 4px rgba(150, 180, 255, 0.5)); }
 
 /* ------------------------------------------------------------ buttons */
-.lcars-btn { display: block; border: 0; border-radius: 14px 6px 6px 14px; padding: 6px 10px 6px 14px; min-height: 32px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; text-align: right; color: #000; cursor: pointer; transition: filter 0.1s, transform 0.05s, box-shadow 0.2s; position: relative; line-height: 1.1; }
+.lcars-btn { display: block; border: 0; border-radius: 14px 6px 6px 14px; padding: 4px 10px 4px 14px; min-height: 28px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; text-align: right; color: #000; cursor: pointer; transition: filter 0.1s, transform 0.05s, box-shadow 0.2s; position: relative; line-height: 1.1; }
 .lcars-btn::before { content: ""; position: absolute; left: 6px; top: 50%; width: 4px; height: 55%; transform: translateY(-50%); background: rgba(0, 0, 0, 0.35); border-radius: 2px; }
 .lcars-btn:hover { filter: brightness(1.15); }
 .lcars-btn:active { transform: scale(0.97); filter: brightness(0.9); }
@@ -118,7 +119,7 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
 .lcars-btn.big::before { display: none; }
 #btn-pause { min-width: 100px; border-radius: 6px; }
 #btn-pause.active { background: var(--c-orange); }
-.btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 6px; }
+.btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 4px; }
 .btn-grid.three { grid-template-columns: 1fr 1fr 1fr; } .btn-grid.four { grid-template-columns: repeat(4, 1fr); }
 .btn-grid.three .lcars-btn { padding-left: 10px; padding-right: 6px; font-size: 12px; }
 .lcars-btn.wide { grid-column: 1 / -1; }
@@ -151,6 +152,14 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
 .stats td:last-child { text-align: right; color: var(--c-peach); font-weight: 700; }
 #result-screen.victory h1 { color: #9cff9c; text-shadow: 0 0 20px rgba(100, 255, 100, 0.4); }
 #result-screen.defeat h1 { color: var(--c-red); text-shadow: 0 0 20px rgba(255, 60, 60, 0.4); }
+
+/* ------------------------------------------------------ short screens */
+@media (max-height: 760px) {
+  #app { grid-template-rows: 44px minmax(200px, 1fr) 120px; gap: 6px; padding: 6px; }
+  .lcars-btn { min-height: 26px; font-size: 12px; }
+  h3 { margin: 5px 0 3px; font-size: 12px; }
+  .bar { height: 14px; } .bar.hull { height: 18px; } .bar .val { line-height: 18px; font-size: 12px; }
+}
 
 /* ----------------------------------------------------- small screens */
 @media (max-width: 1100px) {

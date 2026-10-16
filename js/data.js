@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.1.0",
+  version: "0.1.1",
 
   // ---------------------------------------------------------------- balance
   balance: {
