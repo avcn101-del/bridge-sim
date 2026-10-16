@@ -104,15 +104,96 @@ BS.Renderer = (function () {
   }
 
   // ------------------------------------------------------- tactical grid
+  var zoom = 1;
+  function kmLabel(r, text) {
+    ctx.fillStyle = "rgba(150,170,255,0.45)"; ctx.font = (11 / zoom).toFixed(1) + "px Antonio, 'Arial Narrow', sans-serif"; ctx.textBaseline = "bottom";
+    ctx.fillText(text, r * 0.72 + 4 / zoom, -r * 0.69);
+  }
   function drawTacticalOverlay(player) {
     if (!player) return;
+    var pk = BS.Data.units.pxPerKm;
     ctx.save();
-    ctx.strokeStyle = "rgba(120,150,255,0.09)"; ctx.lineWidth = 1;
-    var rings = [player.phaserDef.optimalRange, player.phaserDef.range, player.torpedoDef.range];
-    for (var i = 0; i < rings.length; i++) {
-      ctx.beginPath(); ctx.setLineDash(i === 2 ? [6, 10] : [2, 6]); ctx.arc(0, 0, rings[i], 0, U.TAU); ctx.stroke();
+    ctx.lineWidth = 1 / zoom;
+    // weapon envelopes from the fitted modules
+    var turret = player.modules.filter(function (m) { return m.def.kind === "turret"; })[0];
+    var launcher = player.modules.filter(function (m) { return m.def.kind === "launcher"; })[0];
+    if (turret) {
+      ctx.strokeStyle = "rgba(255,170,110,0.16)"; ctx.setLineDash([3 / zoom, 6 / zoom]);
+      ctx.beginPath(); ctx.arc(0, 0, turret.def.optimalKm * pk, 0, U.TAU); ctx.stroke(); kmLabel(turret.def.optimalKm * pk, "optimal " + turret.def.optimalKm + " km");
+      ctx.strokeStyle = "rgba(255,170,110,0.09)";
+      ctx.beginPath(); ctx.arc(0, 0, (turret.def.optimalKm + turret.def.falloffKm) * pk, 0, U.TAU); ctx.stroke(); kmLabel((turret.def.optimalKm + turret.def.falloffKm) * pk, "falloff " + (turret.def.optimalKm + turret.def.falloffKm) + " km");
+    }
+    if (launcher) {
+      ctx.strokeStyle = "rgba(120,150,255,0.1)"; ctx.setLineDash([8 / zoom, 12 / zoom]);
+      ctx.beginPath(); ctx.arc(0, 0, launcher.def.rangeKm * pk, 0, U.TAU); ctx.stroke(); kmLabel(launcher.def.rangeKm * pk, "torpedo " + launcher.def.rangeKm + " km");
     }
     ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  // ------------------------------------------------ selection / lock / nav
+  function drawNavigation(state, alpha, t) {
+    var p = state.player, e = state.enemy;
+    if (!p) return;
+    var pk = BS.Data.units.pxPerKm;
+    var px = U.lerp(p.prevPos.x, p.pos.x, alpha), py = U.lerp(p.prevPos.y, p.pos.y, alpha);
+    ctx.save();
+    ctx.lineWidth = 1 / zoom;
+    // velocity vector
+    if (p.speed > 1) {
+      ctx.strokeStyle = "rgba(160,200,255,0.5)";
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + p.vel.x * 1.2, py + p.vel.y * 1.2); ctx.stroke();
+    }
+    // command visualisation
+    var c = p.cmd;
+    if ((c.type === "orbit" || c.type === "keep") && c.target && !c.target.flags.destroyed) {
+      var tx = U.lerp(c.target.prevPos.x, c.target.pos.x, alpha), ty = U.lerp(c.target.prevPos.y, c.target.pos.y, alpha);
+      ctx.strokeStyle = c.type === "orbit" ? "rgba(120,200,255,0.35)" : "rgba(200,180,255,0.35)"; ctx.setLineDash([4 / zoom, 6 / zoom]);
+      ctx.beginPath(); ctx.arc(tx, ty, c.range, 0, U.TAU); ctx.stroke(); ctx.setLineDash([]);
+    }
+    if (c.type === "flyTo" && c.point) {
+      ctx.strokeStyle = "rgba(160,200,255,0.6)";
+      ctx.beginPath(); ctx.arc(c.point.x, c.point.y, 6 / zoom, 0, U.TAU); ctx.stroke();
+      ctx.setLineDash([3 / zoom, 5 / zoom]); ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(c.point.x, c.point.y); ctx.stroke(); ctx.setLineDash([]);
+    }
+    if (!e || e.flags.destroyed) { ctx.restore(); return; }
+    var ex = U.lerp(e.prevPos.x, e.pos.x, alpha), ey = U.lerp(e.prevPos.y, e.pos.y, alpha);
+    var R = e.visual.length * 0.75;
+    // enemy velocity vector
+    if (e.speed > 1) { ctx.strokeStyle = "rgba(255,160,160,0.45)"; ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex + e.vel.x * 1.2, ey + e.vel.y * 1.2); ctx.stroke(); }
+    // selection box
+    if (p.selected === e) {
+      ctx.strokeStyle = "rgba(255,255,255,0.35)"; ctx.lineWidth = 1 / zoom;
+      var k = R, L = R * 0.35;
+      [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(function (q) {
+        ctx.beginPath(); ctx.moveTo(ex + q[0] * k, ey + q[1] * (k - L)); ctx.lineTo(ex + q[0] * k, ey + q[1] * k); ctx.lineTo(ex + q[0] * (k - L), ey + q[1] * k); ctx.stroke();
+      });
+    }
+    // lock state
+    var Lk = p.lock;
+    if (Lk.target === e) {
+      if (!Lk.locked) {
+        ctx.strokeStyle = "rgba(255,210,120,0.9)"; ctx.lineWidth = 2 / zoom; ctx.setLineDash([R * 0.3, R * 0.2]); ctx.lineDashOffset = -t * 60;
+        ctx.beginPath(); ctx.arc(ex, ey, R * 1.1, 0, U.TAU); ctx.stroke(); ctx.setLineDash([]);
+        ctx.strokeStyle = "rgba(255,210,120,0.5)"; ctx.lineWidth = 3 / zoom;
+        ctx.beginPath(); ctx.arc(ex, ey, R * 1.1, -Math.PI / 2, -Math.PI / 2 + U.TAU * Lk.progress); ctx.stroke();
+      } else {
+        ctx.strokeStyle = "rgba(255,90,70,0.95)"; ctx.lineWidth = 2 / zoom;
+        var k2 = R * 1.05, L2 = R * 0.3;
+        [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(function (q) {
+          ctx.beginPath(); ctx.moveTo(ex + q[0] * k2, ey + q[1] * (k2 - L2)); ctx.lineTo(ex + q[0] * k2, ey + q[1] * k2); ctx.lineTo(ex + q[0] * (k2 - L2), ey + q[1] * k2); ctx.stroke();
+        });
+      }
+    }
+    // enemy locking us
+    if (e.lock.target === p && e.lock.locked) {
+      ctx.strokeStyle = "rgba(255,90,70,0.5)"; ctx.lineWidth = 1 / zoom; ctx.setLineDash([2 / zoom, 4 / zoom]);
+      ctx.beginPath(); ctx.arc(px, py, p.visual.length * 0.8, 0, U.TAU); ctx.stroke(); ctx.setLineDash([]);
+    }
+    // distance tag
+    var dKm = BS.Ships.km(U.dist(px, py, ex, ey));
+    ctx.fillStyle = "rgba(255,255,255,0.7)"; ctx.font = (12 / zoom).toFixed(1) + "px Antonio, 'Arial Narrow', sans-serif"; ctx.textBaseline = "top";
+    ctx.fillText((dKm < 10 ? dKm.toFixed(1) : Math.round(dKm)) + " km", ex + R * 0.8, ey + R * 0.8);
     ctx.restore();
   }
 
@@ -403,6 +484,54 @@ BS.Renderer = (function () {
     ctx.restore();
   }
 
+  // ------------------------------------------------- targeting overlay
+  function hullColorRGB(frac) { return frac > 0.6 ? "127,216,160" : frac > 0.3 ? "242,193,78" : "224,70,60"; }
+  function drawTargeting(state, alpha, t) {
+    var p = state.player, e = state.enemy;
+    if (!p || !e || e.flags.destroyed || !e.visual.hardpoints) return;
+    var hover = state.hover && state.hover.ship === e ? state.hover : null, target = p.targetSubsystem;
+    var x = U.lerp(e.prevPos.x, e.pos.x, alpha), y = U.lerp(e.prevPos.y, e.pos.y, alpha);
+    var h = U.lerpAngle(e.prevHeading, e.heading, alpha), sc = e.visual.scale || 1;
+    var c = Math.cos(h), si = Math.sin(h);
+    ctx.save();
+    ctx.font = "bold " + (12 / zoom).toFixed(1) + "px Antonio, 'Arial Narrow', sans-serif"; ctx.textBaseline = "middle";
+    Object.keys(e.visual.hardpoints).forEach(function (sys) {
+      var showAll = !!hover, isHover = hover && hover.sys === sys, isTarget = target === sys;
+      if (!showAll && !isTarget) return;
+      var frac = e.subsystems[sys] / 100, col = hullColorRGB(frac);
+      e.visual.hardpoints[sys].forEach(function (hp) {
+        var wx = x + (hp.x * c - hp.y * si) * sc, wy = y + (hp.x * si + hp.y * c) * sc, r = hp.r * sc;
+        if (showAll) {
+          ctx.lineWidth = (isHover ? 2 : 1) / zoom;
+          ctx.strokeStyle = "rgba(" + col + "," + (isHover ? 1 : 0.55) + ")";
+          ctx.beginPath(); ctx.arc(wx, wy, r + (isHover ? 3 : 0), 0, U.TAU); ctx.stroke();
+          ctx.fillStyle = "rgba(" + col + "," + (isHover ? 0.25 : 0.08) + ")"; ctx.fill();
+        }
+        if (isTarget) {
+          // pulsing bracket reticle
+          var k = r + 5 + Math.sin(t * 5) * 1.5, L = Math.max(4, k * 0.5);
+          ctx.strokeStyle = "rgba(255,120,80,0.95)"; ctx.lineWidth = 2 / zoom;
+          [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(function (q) {
+            ctx.beginPath(); ctx.moveTo(wx + q[0] * k, wy + q[1] * (k - L)); ctx.lineTo(wx + q[0] * k, wy + q[1] * k); ctx.lineTo(wx + q[0] * (k - L), wy + q[1] * k); ctx.stroke();
+          });
+        }
+      });
+    });
+    // label for the hovered hardpoint, or the hull
+    if (hover) {
+      var facingPct = e.shields[BS.Ships.facingToward(e, p.pos.x, p.pos.y)] / e.shieldMax;
+      var label = hover.sys ? BS.Data.subsystems[hover.sys].label.toUpperCase() + " " + Math.round(e.subsystems[hover.sys]) + "%" : "HULL " + Math.round(100 * e.hull / e.hullMax) + "%";
+      label += facingPct > 0.05 ? " · SHIELDED " + Math.round(facingPct * 100) + "%" : " · SHIELD DOWN";
+      var hint = p.lock.target !== e ? "click: lock target · right-click: orbit" : hover.sys ? (target === hover.sys ? "click: target hull" : "click: target part") : (target ? "click: target hull" : "right-click: orbit");
+      var lx = hover.x + 14 / zoom, ly = hover.y - 14 / zoom, z = 1 / zoom;
+      var w = Math.max(ctx.measureText(label).width, ctx.measureText(hint).width) + 12 * z;
+      ctx.fillStyle = "rgba(0,0,0,0.7)"; roundRect(lx - 4 * z, ly - 10 * z, w, (hint ? 32 : 20) * z, 4 * z); ctx.fill();
+      ctx.fillStyle = "#ffd9b3"; ctx.fillText(label, lx + 2 * z, ly);
+      if (hint) { ctx.fillStyle = "#9a9ab5"; ctx.font = (11 * z).toFixed(1) + "px Antonio, 'Arial Narrow', sans-serif"; ctx.fillText(hint, lx + 2 * z, ly + 13 * z); }
+    }
+    ctx.restore();
+  }
+
   // ----------------------------------------------------------- main draw
   function draw(state, alpha, dt) {
     if (!ctx) return;
@@ -413,14 +542,19 @@ BS.Renderer = (function () {
     drawSpace();
     var sh = BS.Effects.shake.intensity;
     var sx = sh ? U.rand(-sh, sh) : 0, sy = sh ? U.rand(-sh, sh) : 0;
+    zoom = state.zoom || 1;
     ctx.save();
-    ctx.translate(Math.round(W / 2 - camera.x + sx), Math.round(H / 2 - camera.y + sy));
+    ctx.translate(Math.round(W / 2 + sx), Math.round(H / 2 + sy));
+    ctx.scale(zoom, zoom);
+    ctx.translate(-camera.x, -camera.y);
     if (player) { ctx.save(); ctx.translate(U.lerp(player.prevPos.x, player.pos.x, alpha), U.lerp(player.prevPos.y, player.pos.y, alpha)); drawTacticalOverlay(player); ctx.restore(); }
     drawParticles();
     for (var i = 0; i < ships.length; i++) drawShip(ships[i], alpha, time);
     for (var j = 0; j < ships.length; j++) drawShields(ships[j], alpha, time);
     drawBeams(alpha, time);
     drawTorpedoes(alpha, time);
+    if (player) drawNavigation(state, alpha, time);
+    if (state.enemy) drawTargeting(state, alpha, time);
     ctx.restore();
     // subtle vignette
     var vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
@@ -429,5 +563,6 @@ BS.Renderer = (function () {
   }
 
   return { init: init, draw: draw, resize: resize, resetCamera: resetCamera, drawers: drawers, camera: camera, shieldColor: shieldColor,
-    screenToWorld: function (x, y) { return { x: x - W / 2 + camera.x, y: y - H / 2 + camera.y }; } };
+    screenToWorld: function (x, y) { return { x: (x - W / 2) / zoom + camera.x, y: (y - H / 2) / zoom + camera.y }; },
+    worldToScreen: function (x, y) { return { x: (x - camera.x) * zoom + W / 2, y: (y - camera.y) * zoom + H / 2 }; } };
 })();

@@ -19,6 +19,12 @@
       <div class="lcars-bar c-peach short"><span class="bar-label" id="ship-name">USS CONSTITUTION</span></div>
       <div class="lcars-bar c-blue short"><span class="bar-label">T+ <span id="clock">00:00</span></span></div>
       <div class="lcars-bar c-purple flex"><span class="bar-label" id="alert-label">CONDITION GREEN</span></div>
+      <button class="lcars-btn c-purple" data-cmd="reinforce" title="Move shield strength from the strongest facing to the weakest (20 s cooldown)">REINFORCE</button>
+      <button class="lcars-btn c-peach" data-cmd="hail" title="Hail the enemy">HAIL</button>
+      <button id="btn-redalert" class="lcars-btn c-red" title="Arm weapons, shields to full (R)">RED ALERT</button>
+      <button id="btn-help" class="lcars-btn c-blue sq" title="Controls">?</button>
+      <button id="btn-zoom-out" class="lcars-btn c-blue sq" title="Zoom out (mouse wheel)">−</button>
+      <button id="btn-zoom-in" class="lcars-btn c-blue sq" title="Zoom in (mouse wheel)">+</button>
       <button id="btn-pause" class="lcars-btn c-peach" title="Pause (Space)">PAUSE</button>
       <div class="lcars-cap right"></div>
     </header>
@@ -26,115 +32,72 @@
     <!-- ============================================ left: ship status -->
     <aside id="status" class="panel">
       <div class="panel-side c-orange">
-        <div class="side-seg c-orange">STATUS</div>
+        <div class="side-seg c-orange">SHIP</div>
         <div class="side-seg c-peach"></div>
         <div class="side-seg c-purple"></div>
         <div class="side-seg c-blue flex"></div>
       </div>
       <div class="panel-body">
-        <h3>Hull integrity</h3>
-        <div class="bar hull"><div class="fill" id="hull-fill"></div><span class="val" id="hull-val">100%</span></div>
+        <h3>Ship</h3>
+        <div class="row"><label>Speed</label><span class="num wide" id="own-speed">0.0 km/s</span></div>
+        <div class="row"><label>Helm</label><span class="num wide" id="own-cmd">All stop</span></div>
 
-        <h3>Shields</h3>
-        <div class="shield-grid">
-          <div class="sbar v top"><div class="fill" id="sh-fore"></div><span class="val" id="sh-fore-val">F</span></div>
-          <div class="sbar v left"><div class="fill" id="sh-port"></div><span class="val" id="sh-port-val">P</span></div>
-          <div class="ship-icon">
-            <svg viewBox="0 0 40 60" aria-hidden="true">
-              <ellipse cx="20" cy="16" rx="13" ry="13" fill="#c8ced9"/>
-              <rect x="17" y="26" width="6" height="12" fill="#9aa1b3"/>
-              <ellipse cx="20" cy="42" rx="7" ry="11" fill="#b4bacb"/>
-              <rect x="3" y="34" width="5" height="24" rx="2.5" fill="#8fb6ff"/>
-              <rect x="32" y="34" width="5" height="24" rx="2.5" fill="#8fb6ff"/>
-            </svg>
-          </div>
-          <div class="sbar v right"><div class="fill" id="sh-starboard"></div><span class="val" id="sh-starboard-val">S</span></div>
-          <div class="sbar v bottom"><div class="fill" id="sh-aft"></div><span class="val" id="sh-aft-val">A</span></div>
+        <h3>Subsystems <small>click: repair priority</small></h3>
+        <div class="sub-grid" id="own-subsystems"></div>
+
+        <h3>Target</h3>
+        <div id="target-none" class="dim">No lock. Click the enemy ship or press L.</div>
+        <div id="target-info" class="hidden">
+          <div class="row"><label>Ship</label><span class="num wide" id="tg-name">—</span></div>
+          <div class="row"><label>Hull</label><div class="bar enemy"><div class="fill" id="tg-hull"></div></div><span class="num" id="tg-hull-val">100</span></div>
+          <div class="row"><label>Facing</label><div class="bar enemy"><div class="fill" id="tg-shield"></div></div><span class="num" id="tg-shield-val">100</span></div>
+          <div class="row"><label>Range</label><span class="num wide" id="tg-range">—</span></div>
+          <div class="row"><label>Angular</label><span class="num wide" id="tg-angular">—</span></div>
+          <div class="row"><label>Chance</label><span class="num wide" id="tg-chance">—</span></div>
+          <div class="chips" id="enemy-subsystems" title="Click a part to aim at it; click again for hull"></div>
+          <div class="row"><label>Aim</label><span class="num wide" id="tg-aim">Hull · full accuracy</span></div>
         </div>
-
-        <h3>Subsystems</h3>
-        <div class="row"><label>Weapons</label><div class="bar sub"><div class="fill" id="sub-weapons"></div></div><span class="num" id="sub-weapons-val">100</span></div>
-        <div class="row"><label>Engines</label><div class="bar sub"><div class="fill" id="sub-engines"></div></div><span class="num" id="sub-engines-val">100</span></div>
-        <div class="row"><label>Shields</label><div class="bar sub"><div class="fill" id="sub-shields"></div></div><span class="num" id="sub-shields-val">100</span></div>
-
-        <h3>Power allocation</h3>
-        <div class="row"><label>Weapons</label><div class="bar pow"><div class="fill c-orange-bg" id="pow-weapons"></div></div><span class="num" id="pow-weapons-val">34</span></div>
-        <div class="row"><label>Shields</label><div class="bar pow"><div class="fill c-blue-bg" id="pow-shields"></div></div><span class="num" id="pow-shields-val">33</span></div>
-        <div class="row"><label>Engines</label><div class="bar pow"><div class="fill c-purple-bg" id="pow-engines"></div></div><span class="num" id="pow-engines-val">33</span></div>
-
-        <h3>Weapons</h3>
-        <div class="row"><label>Phasers</label><div class="bar wpn"><div class="fill c-orange-bg" id="wpn-phasers"></div></div><span class="num" id="wpn-phasers-val">RDY</span></div>
-        <div class="row"><label>Torpedoes</label><div class="bar wpn"><div class="fill c-peach-bg" id="wpn-torps"></div></div><span class="num" id="wpn-torps-val">RDY</span></div>
-
-        <h3>Sensors · enemy</h3>
-        <div class="row"><label>Hull</label><div class="bar enemy"><div class="fill" id="en-hull"></div></div><span class="num" id="en-hull-val">100</span></div>
-        <div class="row"><label>Facing</label><div class="bar enemy"><div class="fill" id="en-shield"></div></div><span class="num" id="en-shield-val">100</span></div>
-        <div class="row"><label>Range</label><span class="num wide" id="en-range">—</span></div>
-        <div class="row"><label>Status</label><span class="num wide" id="en-state">—</span></div>
       </div>
     </aside>
 
     <!-- ============================================ centre: tactical display -->
     <main id="tactical">
       <canvas id="view"></canvas>
-      <div id="pause-overlay" class="hidden"><span>SIMULATION PAUSED</span><small>Orders may still be given</small></div>
+      <div id="hud">
+        <div id="gauge" title="Hull (centre), shield facings (middle ring), capacitor (outer ring)"></div>
+        <div id="module-bar" title="Click or press F1–F8 to toggle a module"></div>
+      </div>
+      <div id="pause-overlay" class="hidden"><span>SIMULATION PAUSED</span><small>Commands may still be given</small></div>
       <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
     </main>
 
-    <!-- ============================================ right: orders -->
+    <!-- ============================================ right: overview + commands -->
     <aside id="orders" class="panel right">
       <div class="panel-body">
-        <h3 class="officer helm">Helm · <span id="off-helm">Lt. Sulu</span><span class="busy" id="busy-helm"></span></h3>
+        <h3 class="officer tactical">Overview</h3>
+        <table id="overview">
+          <thead><tr><th>Name</th><th>Dist</th><th>Vel</th><th>Ang</th><th>Status</th></tr></thead>
+          <tbody></tbody>
+        </table>
+
+        <h3 class="officer helm">Selected · <span id="sel-name">nothing</span></h3>
         <div class="btn-grid">
-          <button class="lcars-btn c-blue mode-helm" data-order="attackPattern" data-mode="attack">Attack pattern</button>
-          <button class="lcars-btn c-blue mode-helm" data-order="evasive" data-mode="evasive">Evasive maneuvers</button>
-          <button class="lcars-btn c-blue mode-helm" data-order="closeRange" data-mode="close">Close range</button>
-          <button class="lcars-btn c-blue mode-helm" data-order="openRange" data-mode="open">Open range</button>
-          <button class="lcars-btn c-blue mode-helm wide" data-order="comeAbout" data-mode="comeAbout">Come about · strongest shield</button>
+          <button class="lcars-btn c-orange" data-cmd="lock" title="L">Lock target</button>
+          <button class="lcars-btn c-orange" data-cmd="unlock">Unlock</button>
+          <button class="lcars-btn c-blue" data-cmd="approach" title="A">Approach</button>
+          <button class="lcars-btn c-blue" data-cmd="stop" title="S">Stop ship</button>
+        </div>
+        <div class="sub-label">Orbit at</div>
+        <div class="btn-grid four" id="orbit-buttons"></div>
+        <div class="sub-label">Keep at range</div>
+        <div class="btn-grid three" id="keep-buttons"></div>
+        <div class="btn-grid">
+          <button class="lcars-btn c-blue wide" data-cmd="comeAbout" title="C: hold the strongest shield toward the target at low speed">Come about · strongest shield</button>
         </div>
 
-        <h3 class="officer tactical">Tactical · <span id="off-tactical">Lt. Worf</span><span class="busy" id="busy-tactical"></span></h3>
-        <div class="sub-label">Target subsystem</div>
-        <div class="btn-grid three">
-          <button class="lcars-btn c-orange mode-target" data-order="targetWeapons" data-target="weapons">Weapons</button>
-          <button class="lcars-btn c-orange mode-target" data-order="targetEngines" data-target="engines">Engines</button>
-          <button class="lcars-btn c-orange mode-target" data-order="targetShields" data-target="shields">Shields</button>
-        </div>
-        <div class="btn-grid">
-          <button class="lcars-btn c-peach" data-order="firePhasers">Fire phasers</button>
-          <button class="lcars-btn c-peach" data-order="fireTorpedoes">Fire torpedoes</button>
-          <button class="lcars-btn c-orange" id="btn-fireatwill" data-order="fireAtWill">Fire at will</button>
-          <button class="lcars-btn c-orange" data-order="holdFire">Hold fire</button>
-        </div>
-
-        <h3 class="officer engineering">Engineering · <span id="off-engineering">Cdr. Scott</span><span class="busy" id="busy-engineering"></span></h3>
-        <div class="sub-label">Power preset</div>
-        <div class="btn-grid">
-          <button class="lcars-btn c-purple mode-power" data-order="powerBalanced" data-power="balanced">Balanced</button>
-          <button class="lcars-btn c-purple mode-power" data-order="powerWeapons" data-power="weapons">Weapons</button>
-          <button class="lcars-btn c-purple mode-power" data-order="powerShields" data-power="shields">Shields</button>
-          <button class="lcars-btn c-purple mode-power" data-order="powerEngines" data-power="engines">Engines</button>
-        </div>
-        <div class="sub-label">Repair priority</div>
-        <div class="btn-grid">
-          <button class="lcars-btn c-lilac mode-repair" data-order="repairWeapons" data-repair="weapons">Weapons</button>
-          <button class="lcars-btn c-lilac mode-repair" data-order="repairEngines" data-repair="engines">Engines</button>
-          <button class="lcars-btn c-lilac mode-repair" data-order="repairShields" data-repair="shields">Shields</button>
-          <button class="lcars-btn c-lilac mode-repair" data-order="repairAuto" data-repair="auto">Auto</button>
-        </div>
-        <div class="btn-grid">
-          <button class="lcars-btn c-purple wide" data-order="reinforceShields">Reinforce weakest shield</button>
-        </div>
-
-        <h3 class="officer ship">Ship-wide</h3>
-        <div class="btn-grid">
-          <button class="lcars-btn c-red mode-alert" data-order="redAlert" data-alert="red">Red alert</button>
-          <button class="lcars-btn c-yellow mode-alert" data-order="yellowAlert" data-alert="yellow">Yellow alert</button>
-          <button class="lcars-btn c-peach wide" data-order="hail">Hail enemy</button>
-        </div>
       </div>
       <div class="panel-side c-blue">
-        <div class="side-seg c-blue">ORDERS</div>
+        <div class="side-seg c-blue">TACTICAL</div>
         <div class="side-seg c-orange"></div>
         <div class="side-seg c-purple flex"></div>
         <div class="side-seg c-peach"></div>
@@ -157,13 +120,30 @@
       <div class="lcars-bar c-orange head"><span class="bar-label">STARFLEET TACTICAL SIMULATOR</span></div>
       <h1>Bridge Sim</h1>
       <p class="brief">A Klingon Bird-of-Prey is raiding the Archanis sector. You have the conn.</p>
-      <p>You are the captain. You do not fly the ship or aim the weapons. You give orders from the panel on the right and your officers carry them out and report back. Watch your shield facings, manage power, and bring the enemy down.</p>
+      <p>You fly the ship EVE-style: select a target, lock it, give the helm an orbit or a range to hold, and run your fitted modules. Every module cycle costs capacitor, so you choose what runs. Your officers report what's happening.</p>
       <ul class="tips">
-        <li><b>Red alert</b> arms weapons and raises shields to full strength.</li>
-        <li><b>Attack pattern</b> + <b>Fire at will</b> lets your crew fight. Your decisions on power, target and shields decide the outcome.</li>
-        <li><b>Come about</b> turns your strongest shield toward the enemy. <b>Space</b> pauses.</li>
+        <li><b>Click the Klingon</b> to select and lock. Then <b>Orbit 6 km</b>.</li>
+        <li>Click the <b>module buttons</b> at the bottom (or F1–F8): phasers, torpedoes, shield booster, hardener, afterburner.</li>
+        <li>Phasers lose hits against fast-moving targets and beyond 8 km. Torpedoes hit hard but slow ships hardest. Watch the <b>capacitor</b>.</li>
+        <li>Hover a locked enemy to see its parts; click one to aim at it. <b>Space</b> pauses.</li>
       </ul>
       <button id="btn-start" class="lcars-btn c-orange big">Take the bridge</button>
+    </div>
+  </div>
+
+  <div id="help-screen" class="overlay hidden">
+    <div class="overlay-card">
+      <div class="lcars-bar c-blue head"><span class="bar-label">CONTROLS</span></div>
+      <ul class="tips">
+        <li><b>Click the enemy</b> to select and lock it. Double-click its Overview row does the same.</li>
+        <li><b>Orbit / Keep at range / Approach</b> tell the helm how to fly relative to the target. <b>Right-click</b> the enemy to orbit at 6 km; right-click or double-click empty space to fly there.</li>
+        <li><b>Module bar</b> (bottom of the display, F1–F8): phasers, torpedoes, shield booster, hardener, afterburner. Each cycle costs capacitor; the gauge's outer ring is your capacitor, the middle ring your four shield facings, the centre your hull.</li>
+        <li>Phasers hit best inside 8 km and against slow targets. Torpedoes always home in but lose damage against small fast ships.</li>
+        <li>Hover the locked enemy to see its parts and click one to aim at it (−15% accuracy). Parts only take real damage once that shield facing is down. Click your own subsystem rows to set repair priority.</li>
+        <li>Top bar: <b>Reinforce</b> moves shield strength to the weakest facing, <b>Red alert</b> arms weapons (automatic when you switch a weapon on), <b>+/−</b> zoom.</li>
+        <li>Keys: L lock · A approach · O orbit 6 km · K keep 10 km · C come about · S stop · R red alert · Space pause.</li>
+      </ul>
+      <button id="btn-help-close" class="lcars-btn c-blue big">Back to the bridge</button>
     </div>
   </div>
 
@@ -177,6 +157,7 @@
         <tr><td>Damage dealt</td><td id="rs-dealt">0</td></tr>
         <tr><td>Damage taken</td><td id="rs-taken">0</td></tr>
         <tr><td>Hull remaining</td><td id="rs-hull">0%</td></tr>
+        <tr><td>Phaser hits</td><td id="rs-phasers">0 / 0</td></tr>
         <tr><td>Torpedo hits</td><td id="rs-torps">0 / 0</td></tr>
       </table>
       <button id="btn-restart" class="lcars-btn c-orange big">Restart</button>
@@ -187,6 +168,7 @@
   <script src="js/data.js"></script>
   <script src="js/util.js"></script>
   <script src="js/events.js"></script>
+  <script src="js/modules.js"></script>
   <script src="js/ships.js"></script>
   <script src="js/weapons.js"></script>
   <script src="js/crew.js"></script>

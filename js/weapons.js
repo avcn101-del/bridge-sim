@@ -1,90 +1,62 @@
-// js/weapons.js — phasers (hitscan beams), torpedoes (projectiles), hit resolution.
+// js/weapons.js — turrets (hitscan beams with tracking and falloff) and
+// launchers (homing torpedoes with signature/velocity damage), hit resolution.
 window.BS = window.BS || {};
 
 BS.Weapons = (function () {
   var U = BS.Util, S = BS.Ships;
-  var beams = [];      // { source, mount, target, hit, missOffset, life, maxLife, def }
-  var torpedoes = [];  // { source, target, x, y, prevX, prevY, vx, vy, heading, hit, aimOffset, life, def, dead }
+  var beams = [];      // { source, mount, target, hit, missOffset, life, maxLife, def, damage, damageApplied }
+  var torpedoes = [];  // { source, target, x, y, prevX, prevY, heading, speed, life, def, dead, age, damage }
 
   function reset() { beams.length = 0; torpedoes.length = 0; }
 
-  function accuracyFor(ship, target, def) {
-    var B = BS.Data.balance;
-    var acc = def.accuracy + ship.mods.accuracyBonus;
+  function baseAccuracy(ship, target, def) {
+    var acc = (def.accuracy !== undefined ? def.accuracy : 1) + ship.mods.accuracyBonus;
+    acc *= S.sensorsMult(ship);
+    if (ship.targetSubsystem) acc *= BS.Data.subsystemEffects.targetAccuracyMult;
     if (ship.aiProfile) acc *= ship.aiProfile.accuracyMult;
-    if (ship.flags.evasive) acc *= B.evasiveOwnAccuracy;
-    if (target.flags.evasive) acc *= B.evasiveIncomingAccuracy;
-    return U.clamp(acc, 0.05, 0.99);
+    return U.clamp(acc, 0.05, 1);
   }
 
-  function canFirePhasers(ship, target) {
-    if (!ship.flags.armed) return "notArmed";
-    if (!target || target.flags.destroyed) return "noTarget";
-    if (S.distanceTo(ship, target) > ship.phaserDef.range) return "outOfRange";
-    if (!S.inArc(ship, target, ship.phaserDef.arc)) return "outOfRange";
-    if (ship.phaserCooldown > 0) return "charging";
-    return "ok";
-  }
-  function canFireTorpedoes(ship, target) {
-    if (!ship.flags.armed) return "notArmed";
-    if (!target || target.flags.destroyed) return "noTarget";
-    if (ship.torpedoReload > 0 || ship.pendingSpread > 0) return "loading";
-    if (S.distanceTo(ship, target) > ship.torpedoDef.range) return "noArc";
-    if (!S.inArc(ship, target, ship.torpedoDef.arc)) return "noArc";
-    return "ok";
+  // EVE turret formula: 0.5 ^ ((angular / tracking)^2 + (max(0, d − optimal) / falloff)^2)
+  function turretHitChance(ship, target, def) {
+    var dKm = S.distanceKm(ship, target);
+    var ang = S.angularVelocity(ship, target);
+    var tracking = def.tracking * (ship.activeEffects.trackingMult || 1) * (0.7 + 0.3 * S.sensorsMult(ship));
+    var rangeTerm = Math.max(0, dKm - def.optimalKm) / def.falloffKm;
+    var chance = Math.pow(0.5, Math.pow(ang / tracking, 2) + rangeTerm * rangeTerm);
+    return chance * baseAccuracy(ship, target, def);
   }
 
-  function firePhasers(ship, target) {
-    var def = ship.phaserDef;
+  function fireTurret(ship, m, target) {
+    var def = m.def;
     var mounts = ship.cls.phaserMounts;
-    var d = S.distanceTo(ship, target);
-    var falloff = d > def.optimalRange ? 1 - def.falloff * (d - def.optimalRange) / (def.range - def.optimalRange) : 1;
-    var dmgEach = def.damage * ship.mods.damageMult * S.weaponsMult(ship) * falloff / mounts.length;
-    var acc = accuracyFor(ship, target, def) * (d > def.optimalRange ? 0.9 : 1);
-    var anyHit = false;
-    for (var i = 0; i < mounts.length; i++) {
-      var hit = Math.random() < acc;
-      var beam = { source: ship, mount: mounts[i], target: target, hit: hit, missOffset: U.rand(-1, 1) * target.visual.length * 0.9, life: def.beamLife, maxLife: def.beamLife, def: def, damageApplied: false, damage: dmgEach };
-      beams.push(beam);
-      if (hit) anyHit = true;
-    }
-    ship.phaserCooldown = def.cooldown * ship.mods.cooldownMult;
+    var mount = mounts[m.mountIndex % mounts.length];
+    var chance = turretHitChance(ship, target, def);
+    var hit = Math.random() < chance;
+    var dmg = def.damage * ship.mods.damageMult * ship.fitEffects.turretDamageMult * S.subMult(ship, def.subsystem || "weapons");
+    beams.push({ source: ship, mount: mount, target: target, hit: hit, missOffset: U.rand(-1, 1) * target.visual.length * 0.9, life: def.beamLife, maxLife: def.beamLife, def: def, damage: dmg, damageApplied: false });
     ship.stats.phasersFired++;
-    BS.Events.emit("phaserFired", { ship: ship, target: target, hit: anyHit });
+    if (hit) ship.stats.phaserHits++;
+    BS.Events.emit("phaserFired", { ship: ship, target: target, hit: hit, chance: chance, color: def.color, mount: mount });
   }
 
-  function launchTorpedo(ship, target) {
-    var def = ship.torpedoDef;
-    var tube = ship.cls.torpedoTubes[ship.stats.torpedoesFired % ship.cls.torpedoTubes.length];
+  // EVE missile formula, simplified: min(1, sig/expR, ((sig/expR) × (expVel/targetSpeed))^0.6)
+  function torpedoDamageMult(def, target) {
+    var sigFactor = target.signature / def.explosionRadius;
+    var speedKm = Math.max(0.01, S.speedKmS(target));
+    return Math.min(1, sigFactor, Math.pow(sigFactor * (def.explosionVelocity / speedKm), 0.6));
+  }
+
+  function fireLauncher(ship, m, target) {
+    var def = m.def;
+    var tubes = ship.cls.torpedoTubes;
+    var tube = tubes[ship.stats.torpedoesFired % tubes.length];
     var p = U.localToWorld(ship, tube.x, tube.y);
-    var hit = Math.random() < accuracyFor(ship, target, def);
-    var side = Math.random() < 0.5 ? 1 : -1;
-    var t = { source: ship, target: target, x: p.x, y: p.y, prevX: p.x, prevY: p.y, heading: ship.heading, speed: def.speed, hit: hit, aimOffset: hit ? 0 : side * target.visual.length * 1.1, life: def.range / def.speed + 1.5, def: def, dead: false, age: 0 };
+    var dmg = def.damage * ship.mods.damageMult * ship.fitEffects.launcherDamageMult;
+    var t = { source: ship, target: target, x: p.x, y: p.y, prevX: p.x, prevY: p.y, heading: ship.heading, speed: S.px(def.speedKmS), life: def.rangeKm / def.speedKmS + 2, def: def, dead: false, age: 0, damage: dmg };
     torpedoes.push(t);
     ship.stats.torpedoesFired++;
     BS.Events.emit("torpedoLaunched", { ship: ship, target: target, torpedo: t });
-  }
-
-  // Fire a spread: first torpedo now, the rest staggered.
-  function fireTorpedoSpread(ship, target) {
-    var def = ship.torpedoDef;
-    launchTorpedo(ship, target);
-    ship.pendingSpread = def.spread - 1;
-    ship.spreadTimer = def.spreadDelay;
-    ship.torpedoReload = def.reload * ship.mods.reloadMult;
-  }
-
-  // Called each sim step for each ship: handles fire-at-will and fire-once orders.
-  function updateShipFiring(ship, target, dt) {
-    if (ship.flags.destroyed || !target || target.flags.destroyed) return;
-    if (ship.pendingSpread > 0) {
-      ship.spreadTimer -= dt;
-      if (ship.spreadTimer <= 0) { launchTorpedo(ship, target); ship.pendingSpread--; ship.spreadTimer = ship.torpedoDef.spreadDelay; }
-    }
-    var wantPhasers = ship.flags.fireAtWill || ship.fireOnce.phasers;
-    var wantTorps = ship.flags.fireAtWill || ship.fireOnce.torpedoes;
-    if (wantPhasers && canFirePhasers(ship, target) === "ok") { firePhasers(ship, target); ship.fireOnce.phasers = false; }
-    if (wantTorps && canFireTorpedoes(ship, target) === "ok") { fireTorpedoSpread(ship, target); ship.fireOnce.torpedoes = false; }
   }
 
   function beamEndpoints(beam, alpha) {
@@ -123,20 +95,17 @@ BS.Weapons = (function () {
       t.age += dt; t.life -= dt;
       var tg = t.target;
       if (!t.dead && tg && !tg.flags.destroyed) {
-        // aim point: target, or a point beside it for a miss
-        var perp = Math.atan2(tg.pos.y - t.y, tg.pos.x - t.x) + Math.PI / 2;
-        var ax = tg.pos.x + Math.cos(perp) * t.aimOffset, ay = tg.pos.y + Math.sin(perp) * t.aimOffset;
-        var want = Math.atan2(ay - t.y, ax - t.x);
+        var want = Math.atan2(tg.pos.y - t.y, tg.pos.x - t.x);
         var diff = U.normAngle(want - t.heading);
         var maxTurn = t.def.turnRate * U.DEG * dt * (t.age < 0.4 ? 0.3 : 1);
         t.heading += U.clamp(diff, -maxTurn, maxTurn);
         var hitR = tg.visual.length * BS.Data.balance.hitRadiusFactor;
-        if (t.hit && U.dist(t.x, t.y, tg.pos.x, tg.pos.y) < hitR) {
-          var dmg = t.def.damage * t.source.mods.damageMult * (0.7 + 0.3 * S.weaponsMult(t.source));
-          var res = S.applyDamage(tg, dmg, t.x, t.y, t.source.targetSubsystem, t.source, "torpedo");
+        if (U.dist(t.x, t.y, tg.pos.x, tg.pos.y) < hitR) {
+          var mult = torpedoDamageMult(t.def, tg);
+          var res = S.applyDamage(tg, t.damage * mult, t.x, t.y, t.source.targetSubsystem, t.source, "torpedo");
           t.source.stats.torpedoHits++;
           t.dead = true;
-          BS.Events.emit("torpedoHit", { torpedo: t, ship: tg, result: res });
+          BS.Events.emit("torpedoHit", { torpedo: t, ship: tg, result: res, mult: mult });
         }
       }
       if (!t.dead) {
@@ -148,9 +117,5 @@ BS.Weapons = (function () {
     }
   }
 
-  return {
-    beams: beams, torpedoes: torpedoes, reset: reset, update: update,
-    updateShipFiring: updateShipFiring, canFirePhasers: canFirePhasers, canFireTorpedoes: canFireTorpedoes,
-    beamEndpoints: beamEndpoints, firePhasers: firePhasers, fireTorpedoSpread: fireTorpedoSpread,
-  };
+  return { beams: beams, torpedoes: torpedoes, reset: reset, update: update, fireTurret: fireTurret, fireLauncher: fireLauncher, beamEndpoints: beamEndpoints, turretHitChance: turretHitChance, torpedoDamageMult: torpedoDamageMult };
 })();
