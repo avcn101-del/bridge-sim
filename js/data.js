@@ -10,7 +10,8 @@ BS.Data = {
     simStep: 1 / 60,
     maxFrameTime: 0.1,
     shieldBleedThrough: 0.15,     // fraction of absorbed shield damage that still leaks to hull
-    subsystemDamageFactor: 0.45,  // hull damage × this = subsystem damage when a subsystem is hit
+    subsystemDamageFactor: 0.45,  // hull damage × this = subsystem damage on an untargeted (random) hit
+    targetedSubsystemDamageFactor: 0.7, // same for a hit on the subsystem Tactical is targeting
     subsystemHitChance: 0.5,      // chance an untargeted hull hit also damages a random subsystem
     hullSmokeThreshold: 0.5,      // below this hull fraction the ship vents/burns
     hullRepairRate: 0.8,          // hull hp/s patched by damage control once every subsystem is at 100
@@ -136,7 +137,7 @@ BS.Data = {
       weapons: { phasers: "disruptor_mk1", torpedoes: "klingon_torpedo" },
       phaserMounts: [ { x: -30, y: -46 }, { x: -30, y: 46 } ],
       torpedoTubes: [ { x: 44, y: 0 } ],
-      repairRate: 2.5,
+      repairRate: 2.0,
       preferredRange: 240, closeRange: 140, openRange: 520,
       visual: { kind: "vector", drawer: "klingon_bird_of_prey", sprite: null, scale: 1.0, length: 100, width: 96,
         hardpoints: {
@@ -242,6 +243,8 @@ BS.Data = {
       enemyDestroyed: "Enemy vessel destroyed, Captain.",
       weaponsAutoArm: "Weapons armed, Captain.",
       enemyFiringTorpedo: "Incoming torpedo!",
+      targetShielded: "Their {facing} shields are absorbing it, Captain. We need to drop that shield to reach their {label}.",
+      targetExposed: "Their {facing} shields are down. Hitting their {label} now, Captain!",
     },
     hailReplies: [
       "\"Federation ship! Today is a good day to die... for you.\"",

@@ -199,7 +199,8 @@ BS.Ships = (function () {
       if (!sys && Math.random() < B.subsystemHitChance) sys = U.pick(subsystemIds());
       if (sys) {
         var before = ship.subsystems[sys];
-        ship.subsystems[sys] = Math.max(0, before - hullDamage * B.subsystemDamageFactor);
+        var factor = targetSubsystem ? B.targetedSubsystemDamageFactor : B.subsystemDamageFactor;
+        ship.subsystems[sys] = Math.max(0, before - hullDamage * factor);
         subsystem = sys;
       }
     }

@@ -165,7 +165,7 @@ BS.UI = (function () {
     BS.Ships.subsystemIds().forEach(function (s) {
       var v = p.subsystems[s] / 100;
       setBar(el["sub-" + s], v, hullColor(v)); el["sub-" + s + "-val"].textContent = Math.round(v * 100);
-      if (e) { var ev = e.subsystems[s] / 100; el["en-" + s].style.backgroundColor = e.flags.destroyed ? "#15162a" : hullColor(ev); el["en-" + s].textContent = BS.Data.subsystems[s].short + " " + Math.round(ev * 100); }
+      if (e) { var ev = e.subsystems[s] / 100; el["en-" + s].style.backgroundColor = e.flags.destroyed ? "#15162a" : hullColor(ev); el["en-" + s].textContent = BS.Data.subsystems[s].short + " " + Math.round(ev * 100); el["en-" + s].classList.toggle("targeted", p.targetSubsystem === s); }
     });
     ["weapons", "engines", "shields"].forEach(function (s) {
       setBar(el["pow-" + s], p.power[s] / 0.6); el["pow-" + s + "-val"].textContent = Math.round(p.power[s] * 100);

@@ -2,6 +2,17 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.2.1] — 2026-10-16
+
+### Fixed
+- Targeting a part had no visible effect while the enemy's facing shield was
+  up: only the 15% bleed-through reached the part and the enemy repaired it
+  within a second. Targeted hits now do 0.7× of hull damage to the part
+  (random hits 0.45×), the Bird-of-Prey repairs at 2.0/s (was 2.5), Tactical
+  reports when a shield is absorbing your shots and when the part becomes
+  exposed, the hover label shows "SHIELDED 80%" or "SHIELD DOWN", and the
+  targeted enemy chip is outlined.
+
 ## [0.2.0] — 2026-10-16
 
 ### Added

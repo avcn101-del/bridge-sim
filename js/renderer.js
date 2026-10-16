@@ -438,7 +438,9 @@ BS.Renderer = (function () {
     });
     // label for the hovered hardpoint, or the hull
     if (hover) {
+      var facingPct = e.shields[BS.Ships.facingToward(e, p.pos.x, p.pos.y)] / e.shieldMax;
       var label = hover.sys ? BS.Data.subsystems[hover.sys].label.toUpperCase() + " " + Math.round(e.subsystems[hover.sys]) + "%" : "HULL " + Math.round(100 * e.hull / e.hullMax) + "%";
+      label += facingPct > 0.05 ? " · SHIELDED " + Math.round(facingPct * 100) + "%" : " · SHIELD DOWN";
       var hint = hover.sys ? (target === hover.sys ? "click: target hull" : "click: target") : (target ? "click: target hull" : "");
       var lx = hover.x + 14, ly = hover.y - 14;
       var w = Math.max(ctx.measureText(label).width, ctx.measureText(hint).width) + 12;

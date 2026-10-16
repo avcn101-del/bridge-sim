@@ -112,6 +112,7 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
 .sub-grid .row label { width: 57px; font-size: 9.5px; letter-spacing: 0.04em; }
 .sub-grid .row .num { width: 24px; font-size: 12px; }
 .chips { display: flex; gap: 3px; margin: 4px 0 2px; }
+.chip.targeted { box-shadow: 0 0 0 2px #fff inset; }
 .chip { flex: 1; text-align: center; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; padding: 2px 0; border-radius: 4px; background: #15162a; color: #000; transition: background-color 0.3s; }
 #view.can-target { cursor: crosshair; }
 #view.on-hardpoint { cursor: pointer; }

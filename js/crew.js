@@ -176,6 +176,26 @@ BS.Crew = (function () {
       if (e.result.shieldsDown) say("tactical", U.template(D().events.torpedoHitShieldsDown, { facing: e.result.facing }));
       else say("tactical", U.template(U.pick(D().events.torpedoHit), { facing: e.result.facing }));
     });
+    // Tell the captain when the targeted part is behind an intact shield, and when it becomes exposed.
+    var shieldedState = null, shieldedAt = -99;
+    BS.Events.on("shieldHit", function (e) {
+      if (!ship || e.ship !== enemy || !ship.targetSubsystem) return;
+      var absorbedAll = e.hullDamage < e.amount * 0.3;
+      var now = BS.Game ? BS.Game.state.time : 0;
+      var label = BS.Data.subsystems[ship.targetSubsystem].label.toLowerCase();
+      if (absorbedAll && shieldedState !== "shielded" && now - shieldedAt > 12) {
+        shieldedState = "shielded"; shieldedAt = now;
+        say("tactical", U.template(D().events.targetShielded, { facing: e.facing, label: label }), "warn");
+      }
+    });
+    BS.Events.on("hullHit", function (e) {
+      if (!ship || e.ship !== enemy || !ship.targetSubsystem) return;
+      if (e.absorbed <= 0 && shieldedState === "shielded") {
+        shieldedState = "exposed";
+        say("tactical", U.template(D().events.targetExposed, { facing: e.facing, label: BS.Data.subsystems[ship.targetSubsystem].label.toLowerCase() }));
+      }
+    });
+    BS.Events.on("orderExecuted", function (o) { if (/^target/.test(o.id)) shieldedState = null; });
     BS.Events.on("torpedoLaunched", function (e) {
       if (e.ship === ship && ship.flags.fireAtWill && ship.pendingSpread === 0) report("fireTorpedoes");
       if (e.ship === enemy) say("tactical", D().events.enemyFiringTorpedo, "warn");

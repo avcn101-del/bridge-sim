@@ -127,7 +127,12 @@ target choice (weapons/engines/shields), when to open/close range.
   - sensors: weapon accuracy (floor `sensorsAccuracyFloor`, 0.7)
   - bridge: order delays (player) / reaction delay (enemy), up to
     `bridgeDelayMaxMult` (1.8×) at zero health
-  Untargeted hull hits damage a random part with `subsystemHitChance`.
+  Untargeted hull hits damage a random part with `subsystemHitChance` at
+  `subsystemDamageFactor` (0.45) of the hull damage; hits on the targeted
+  part use `targetedSubsystemDamageFactor` (0.7). Only damage that reaches
+  the hull counts, so a part behind an intact shield facing takes almost
+  nothing: Tactical reports "their shields are absorbing it" and, once the
+  facing collapses, "hitting their engines now".
   Repair priority (one button per part, or Auto = most damaged) repairs that
   part at full rate and the others at a quarter rate.
 - `power`: fractions for weapons/shields/engines summing to 1 (presets in data).
@@ -206,7 +211,7 @@ BS.Data = {
     simStep: 1/60,
     shieldBleedThrough: 0.15,       // fraction of absorbed shield damage that leaks to hull
     hullRepairRate: 0.8,
-    subsystemHitChance: 0.5, subsystemDamageFactor: 0.45,
+    subsystemHitChance: 0.5, subsystemDamageFactor: 0.45, targetedSubsystemDamageFactor: 0.7,
   },
   subsystemFloor: 0.4,
   subsystems: { weapons: { label, short, effect, targetReport, damaged, repaired }, torpedoes: {...}, engines, shields, sensors, bridge },
