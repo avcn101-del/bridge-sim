@@ -1,13 +1,14 @@
-// js/game.js — game state, fixed-timestep loop, pause, battle start/end.
+// js/game.js — game state, fixed-timestep loop, pause, battle start/end, commands.
 window.BS = window.BS || {};
 
 BS.Game = (function () {
   var U = BS.Util;
-  var state = { phase: "start", time: 0, paused: false, player: null, enemy: null, ships: [], result: null, endTimer: 0, hover: null };
+  var state = { phase: "start", time: 0, paused: false, player: null, enemy: null, ships: [], result: null, endTimer: 0, hover: null, zoom: 1 };
   var accumulator = 0, lastFrame = 0, running = false;
   var subscribed = false;
 
   function init() {
+    state.zoom = BS.Data.balance.zoom.start;
     BS.Renderer.init(document.getElementById("view"));
     BS.UI.init(api);
     BS.Effects.reset();
@@ -37,25 +38,27 @@ BS.Game = (function () {
     var player = BS.Ships.create("constitution", { isPlayer: true, pos: { x: 0, y: 0 }, heading: -Math.PI / 2 });
     var ang = U.rand(-0.6, 0.6) - Math.PI / 2;
     var profile = BS.Data.enemyAI.default;
-    var enemy = BS.Ships.create("bird_of_prey", { pos: { x: Math.cos(ang) * B.arenaStartDistance, y: Math.sin(ang) * B.arenaStartDistance }, heading: ang + Math.PI, statMult: profile.statMult });
-    BS.EnemyAI.attach(enemy, "default");
-    player.target = enemy.id; enemy.target = player.id;
+    var dist = BS.Ships.px(B.arenaStartDistanceKm);
+    var enemy = BS.Ships.create("bird_of_prey", { pos: { x: Math.cos(ang) * dist, y: Math.sin(ang) * dist }, heading: ang + Math.PI, statMult: profile.statMult });
+    BS.EnemyAI.attach(enemy, player, "default");
+    player.selected = enemy;
     state.player = player; state.enemy = enemy; state.ships = [player, enemy];
     BS.Crew.reset(player, enemy);
     BS.UI.setAlert("none");
     BS.UI.setShipName(player.name.toUpperCase());
+    BS.UI.buildModuleBar(player);
     state.phase = "battle";
     BS.Events.emit("battleStarted", state);
     BS.UI.addLog("computer", "Simulation running. You have the conn, Captain.", "system");
     BS.Crew.battleStart();
   }
 
-  function setHover(h) { state.hover = h; }
-
-  function giveOrder(id) {
+  function command(id, args) {
     if (state.phase !== "battle") return;
-    BS.Crew.give(id);
+    BS.Crew.command(id, args);
   }
+  function setHover(h) { state.hover = h; }
+  function setZoom(z) { var Z = BS.Data.balance.zoom; state.zoom = U.clamp(z, Z.min, Z.max); }
 
   function togglePause() {
     if (state.phase !== "battle") return;
@@ -67,10 +70,8 @@ BS.Game = (function () {
     var p = state.player, e = state.enemy;
     BS.Crew.update(dt);
     BS.EnemyAI.update(e, p, dt);
-    BS.Ships.update(p, e, dt);
-    BS.Ships.update(e, p, dt);
-    BS.Weapons.updateShipFiring(p, e, dt);
-    BS.Weapons.updateShipFiring(e, p, dt);
+    BS.Ships.update(p, dt);
+    BS.Ships.update(e, dt);
     BS.Weapons.update(dt);
     BS.Effects.update(dt, state.ships, BS.Weapons.torpedoes);
     if (state.phase === "battle") state.time += dt;
@@ -91,7 +92,6 @@ BS.Game = (function () {
       while (accumulator >= B.simStep && steps < 8) { step(B.simStep); accumulator -= B.simStep; steps++; }
       if (steps === 8) accumulator = 0;
     } else {
-      // keep effects alive on the result screen so the explosion finishes
       if (state.phase === "ended") BS.Effects.update(dt, state.ships, []);
       accumulator = 0;
     }
@@ -100,11 +100,11 @@ BS.Game = (function () {
       BS.Renderer.draw(state, alpha, dt);
       BS.UI.update(state);
     } else {
-      BS.Renderer.draw({ player: null, ships: [] }, 1, dt);
+      BS.Renderer.draw({ player: null, ships: [], zoom: state.zoom }, 1, dt);
     }
     requestAnimationFrame(frame);
   }
 
-  var api = { init: init, startBattle: startBattle, giveOrder: giveOrder, togglePause: togglePause, setHover: setHover, state: state, step: step };
+  var api = { init: init, startBattle: startBattle, command: command, togglePause: togglePause, setHover: setHover, setZoom: setZoom, state: state, step: step };
   return api;
 })();

@@ -18,32 +18,34 @@ online and falls back to a system font otherwise).
 
 ## How to play
 
-- Click **Take the bridge** on the start screen.
-- The enemy ship approaches. Give orders from the right-hand panel:
-  - **Helm**: Attack pattern, Evasive, Close range, Open range, Come about.
-  - **Tactical**: pick a target part (Phasers, Torpedoes, Engines, Shields,
-    Sensors, Bridge), Fire phasers, Fire torpedoes, Fire at will (auto),
-    Hold fire. You can also hover the enemy ship on the display and click a
-    part directly. Targeting a part costs 15% accuracy; click the active
-    part again (or the enemy's hull) to go back to hull shots. Parts only
-    take real damage once the shield facing you is down, so break that
-    facing first; Tactical will tell you when the part is exposed.
-  - **Engineering**: power preset, repair priority, Reinforce weakest shield.
-  - **Ship-wide**: Red alert, Yellow alert, Hail enemy.
-- Officers answer "Aye, Captain", execute after a short delay, then report.
-- Watch the left panel: hull, four shield facings, subsystem health, power.
-  Damage hits the shield facing toward the enemy. Turn fresh shields toward
-  them before a facing collapses.
-- **Space** or the PAUSE button pauses. You can still give orders while
-  paused.
-- Destroy the enemy to win. Lose your hull and you're defeated. Restart from
-  the result screen.
+Control is EVE Online style. You never steer directly: you pick a target and
+tell the helm how to fly relative to it, and you switch modules on and off.
 
-Tips: Red alert first, then Attack pattern and Fire at will. Weapons power +
-Target weapons wins faster; Shields power + Come about survives longer.
-Torpedoes only fire from the forward arc, so Attack pattern turns in for a
-pass whenever the tubes are loaded. Come about with your aft shield means no
-weapons on target. A battle should take 3–5 minutes.
+- Click **Take the bridge**.
+- **Click the Klingon ship** on the display (or double-click its row in the
+  Overview). That selects it and starts a lock; "Target locked" appears in
+  the log after about 3 s.
+- Give the helm a command: **Orbit 6 km** is a good default. **Keep at
+  range** holds a distance, **Approach** closes, **Come about** holds your
+  strongest shield toward the enemy at low speed.
+- Switch on modules in the bar at the bottom of the display (click or
+  F1–F8): phaser banks, torpedo launcher, shield booster, shield hardener,
+  afterburner. Every cycle costs **capacitor**: the dashed outer ring of the
+  round gauge next to the module bar. The middle ring shows your four shield
+  facings (top = front), the centre your hull. If the capacitor runs dry,
+  modules shut down. Keep weapons and hardener on; pulse the booster and
+  afterburner.
+- Phasers hit best inside 8 km and against slow targets; orbiting fast and
+  close makes enemy beams miss you (and yours miss them). Torpedoes always
+  home in but do less damage to small fast ships.
+- Damage hits the shield facing toward the enemy. **Reinforce** (top bar)
+  or **Come about** when one facing collapses.
+- Hover the locked enemy to see its parts; click one to aim at it (−15%
+  accuracy). Parts only take real damage once the facing shield is down.
+  Click your own subsystem rows to set repair priority.
+- **Space** pauses; commands still work while paused. Mouse wheel zooms.
+  The **?** button lists all controls.
+- Destroy the enemy to win. Restart from the result screen.
 
 ## Tweaking balance
 
@@ -51,27 +53,19 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 
 | Where | What it changes |
 |---|---|
-| `shipClasses.*.hull` | Hit points of the hull |
-| `shipClasses.*.shields.max / regen` | Shield strength per facing and regen per second |
-| `shipClasses.*.speed / turnRate` | Movement speed and turning |
-| `weapons.phaser_mk1.damage / cooldown / range` | Phaser strength, rate of fire, reach |
-| `weapons.photon_mk1.damage / reload / speed` | Torpedo strength, reload time, flight speed |
-| `powerPresets` | How much each preset favours weapons/shields/engines |
-| `balance.shieldBleedThrough` | Fraction of damage that leaks through shields to hull |
-| `balance.subsystemHitChance / subsystemDamageFactor` | How often and how hard untargeted hits damage a random part |
-| `balance.targetedSubsystemDamageFactor` | How hard hits damage the part you are targeting |
-| `subsystems.*` | The six targetable parts: labels, officer lines |
-| `subsystemEffects.targetAccuracyMult` | Accuracy cost of targeting a part (0.85 = −15%) |
-| `subsystemEffects.sensorsAccuracyFloor / bridgeDelayMaxMult` | How much damaged sensors / bridge hurt |
-| `subsystemFloor` | Performance left when a part is at 0 health |
-| `shipClasses.*.visual.hardpoints` | Where each part sits on the silhouette for click targeting |
-| `balance.hullRepairRate` | Hull patched per second once all subsystems are repaired |
-| `balance.destroyedEndDelay` | Seconds the explosion plays before the result screen |
-| `crew.orderDelays` | Seconds each order takes before execution |
-| `enemyAI.default` | Enemy accuracy, reaction, stat multiplier, retreat thresholds |
-| `weapons.disruptor_mk1`, `weapons.klingon_torpedo` | Enemy weapon strength |
-| `shipClasses.bird_of_prey.hull / shields` | Enemy toughness (also scaled by `enemyAI.default.statMult`) |
-| `crew.reports`, `crew.hailReplies` | All officer dialogue |
+| `units.pxPerKm` | World scale (20 px per km) |
+| `modules.*` | Every weapon and module: damage, cycle, cap cost, optimal / falloff / tracking, torpedo explosion radius and velocity, booster amount |
+| `shipClasses.*.capacitor` | Capacitor size and recharge time |
+| `shipClasses.*.fit` | Which modules each class carries |
+| `shipClasses.*.signature / sensorStrength / lockRangeKm` | Lock times and ranges |
+| `shipClasses.*.hull / shields / speed / turnRate` | Toughness and agility |
+| `balance.capCurve` | Capacitor recharge shape |
+| `balance.lockBase` | Base lock time |
+| `balance.orbitRangesKm / keepRangesKm` | Range buttons |
+| `balance.shieldBleedThrough`, `subsystemHitChance`, `targetedSubsystemDamageFactor` | How damage reaches hull and parts |
+| `subsystemEffects.*`, `subsystemFloor` | How much damaged parts hurt |
+| `enemyAI.default` | Enemy accuracy, reaction, stat multiplier, orbit range, booster and afterburner thresholds |
+| `crew.reports`, `crew.events`, `crew.hailReplies` | All officer dialogue |
 
 Later features (campaign, shipyard upgrades, more ship classes, crew XP) have
 their data shapes defined in the same file. See `DESIGN.md`.
@@ -81,7 +75,7 @@ their data shapes defined in the same file. See `DESIGN.md`.
 ```
 index.html      entry point
 css/            LCARS interface styles
-js/             data, game loop, ships, weapons, crew AI, enemy AI, UI, renderer, effects
+js/             data, game loop, ships, modules, weapons, crew, enemy AI, UI, renderer, effects
 assets/         optional sprites / sounds (empty in MVP)
 DESIGN.md       full game design and data structures
 CHANGELOG.md    version history

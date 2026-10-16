@@ -28,9 +28,10 @@ These rules apply to every session working in this repository.
   - `js/util.js` — math helpers (angles, lerp, seeded random, templates)
   - `js/events.js` — publish/subscribe bus
   - `js/game.js` — game loop, state, pause, win/lose
-  - `js/ships.js` — ship model: hull, shields, subsystems, power, movement
-  - `js/weapons.js` — phasers, torpedoes, hit resolution
-  - `js/crew.js` — crew AI: order queue, delays, officer reports
+  - `js/modules.js` — fitted modules: passive bonuses, active cycling, capacitor use
+  - `js/ships.js` — ship model: hull, shields, subsystems, capacitor, lock, movement commands
+  - `js/weapons.js` — turrets (tracking/falloff) and launchers (signature/velocity), hit resolution
+  - `js/crew.js` — crew voices: instant commands with reports, warnings
   - `js/enemyai.js` — enemy behaviour
   - `js/ui.js` — DOM panels, order buttons, comms log, alert states
   - `js/renderer.js` — canvas drawing (space, ships, weapons, shields)
@@ -41,6 +42,12 @@ These rules apply to every session working in this repository.
   (`"vector"` or `"sprite"`). Game logic never touches the canvas. Swapping
   vector silhouettes for image sprites in `assets/` must not require changes
   outside `renderer.js` and `data.js`.
+- **Controls are EVE-style commands.** The player never steers directly:
+  `BS.Game.command(id, args)` → `BS.Crew.command` executes instantly on the
+  player ship (select, lock, approach, orbit, keep, flyTo, comeAbout, module,
+  targetSubsystem, repair, reinforce, redAlert, hail) and the officer reports.
+  The enemy AI uses the same `BS.Ships.setCommand` / `BS.Modules.setActive`.
+- **Interface shows km and km/s**; the world is pixels (`units.pxPerKm`).
 - **Events, not direct calls, for presentation.** Game logic emits events
   (`BS.Events.emit("shieldHit", {...})`); renderer/effects/UI/audio subscribe.
   This is how sound will be added later without touching logic.
@@ -68,8 +75,10 @@ These rules apply to every session working in this repository.
   game error). Report the result honestly.
 - Balance changes must be checked with an accelerated simulation: start a
   battle, set `BS.Game.state.paused = true`, then call `BS.Game.step(1/60)`
-  in a loop with a scripted captain. Targets: attentive captain wins in
-  3–5 min with 50–80% hull, doing nothing loses in about 3 min.
+  in a loop with a scripted captain that uses `BS.Game.command` and
+  `BS.Modules.setActive`. Targets: attentive captain wins in 3–5 min with
+  60–80% hull, running everything at once should drain the capacitor, a
+  stationary ship and a ship with no orders lose in about 2 min.
 - Keep `README.md` "tweakable values" section in sync with `data.js`.
 - Commit messages: short imperative subject, body explains why.
 - Do not add build tooling, package.json, linters or test frameworks unless

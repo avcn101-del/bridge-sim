@@ -2,6 +2,42 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.3.0] — 2026-10-16 (EVE-style combat, PR A)
+
+### Changed
+- Control model: EVE Online style. Select and lock a target, then give the
+  helm relative commands (Approach, Orbit at 3/6/10/15 km, Keep at range
+  6/10/15 km, Come about, fly to a point). No officer delays; officers now
+  report and warn.
+- Weapons and tactical systems are fitted **modules** on a HUD bar (F1–F8):
+  phaser banks, torpedo launcher, shield booster, shield hardener,
+  afterburner; passive damage amplifier and power relay. Every cycle costs
+  **capacitor** (EVE recharge curve); modules shut down when it runs dry.
+  Power presets are gone.
+- **Lock** before firing (about 3 s). **Turret tracking and falloff**: hit
+  chance falls with the target's angular velocity and beyond optimal range.
+  **Torpedo damage** scales with target signature and speed.
+- Shield passive regen reduced; the booster is the main tank. Reinforce has
+  a 20 s cooldown.
+- Interface streamlined: hull, shield facings and capacitor are one round
+  gauge on the display next to the module bar (F1–F8, cooldown rings); the
+  left panel keeps speed, subsystems and target info; the right panel holds
+  the Overview and the selected-item commands; Reinforce, Hail, Red alert,
+  help (?) and zoom live in the top bar. Target panel shows hit chance and
+  torpedo damage estimates; readouts in km and km/s.
+- Tactical display: km range rings for optimal / falloff / torpedo range,
+  orbit ring, velocity vectors, lock-in-progress ring, locked brackets,
+  enemy-lock indicator, distance tag.
+- Enemy AI drives the same commands and modules (afterburner on approach,
+  booster when a facing drops, hardener while attacking).
+- Data: `units`, `modules`, per-class `capacitor`, `signature`,
+  `sensorStrength`, `slots`, `fit`; skills shape for real-time training;
+  save version 2 with fits and inventory.
+
+### Measured balance
+- Attentive captain wins in about 3:30–4:00 with 70–80% hull; a ship with
+  no orders is lost in about 2 minutes.
+
 ## [0.2.1] — 2026-10-16
 
 ### Fixed

@@ -95,8 +95,11 @@ BS.Effects = (function () {
     });
     BS.Events.on("torpedoExpired", function (e) { var t = e.torpedo; flash(t.x, t.y, 12, hexToRgb(t.def.color), 0.3); });
     BS.Events.on("phaserFired", function (e) {
-      var m = e.ship.cls.phaserMounts;
-      for (var i = 0; i < m.length; i++) { var p = U.localToWorld(e.ship, m[i].x, m[i].y); flash(p.x, p.y, 7, hexToRgb(e.ship.phaserDef.color), 0.15); }
+      var p = U.localToWorld(e.ship, e.mount.x, e.mount.y); flash(p.x, p.y, 7, hexToRgb(e.color), 0.15);
+    });
+    BS.Events.on("shieldBoosted", function (e) {
+      var s = e.ship;
+      ripples.push({ ship: s, angle: s.heading + BS.Ships.facingOffset(e.facing), life: 0.5, maxLife: 0.5, strength: 0.6, facing: e.facing, boost: true });
     });
   }
 

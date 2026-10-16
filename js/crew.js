@@ -1,155 +1,92 @@
-// js/crew.js — crew AI: order queues per officer, delays, acknowledgements,
-// execution on the player ship, and spontaneous situation reports.
+// js/crew.js — crew voices and instant commands. Officers report what the
+// ship does and warn about danger; they no longer delay orders.
 window.BS = window.BS || {};
 
 BS.Crew = (function () {
-  var U = BS.Util, S = BS.Ships, W = BS.Weapons;
+  var U = BS.Util, S = BS.Ships;
   var D = function () { return BS.Data.crew; };
-  var officers = {};   // officer -> { current: order|null, pending: [order] }  (FIFO, bounded)
-  var MAX_PENDING = 4;
   var ship = null, enemy = null;
   var subscribed = false;
+  var shieldedState = null, shieldedAt = -99;
 
   function reset(playerShip, enemyShip) {
     ship = playerShip; enemy = enemyShip;
-    officers = {};
-    Object.keys(D().officers).forEach(function (o) { officers[o] = { current: null, pending: [] }; });
+    shieldedState = null; shieldedAt = -99;
     if (!subscribed) { subscribe(); subscribed = true; }
   }
 
-  // Map an order id to its data key: targetWeapons → "target", repairBridge → "repair".
-  function orderKey(id) {
-    if (D().orderDelays[id] !== undefined) return id;
-    if (/^target/.test(id)) return "target";
-    if (/^repair/.test(id)) return "repair";
-    return id;
-  }
-  function orderSubsystem(id) {
-    var m = /^(target|repair)(\w+)$/.exec(id);
-    if (!m) return null;
-    var sys = m[2].charAt(0).toLowerCase() + m[2].slice(1);
-    return BS.Data.subsystems[sys] ? sys : null;
-  }
-
-  function say(officer, text, cls) {
-    BS.Events.emit("log", { speaker: officer, text: text, cls: cls || "report" });
-  }
-  function report(key, vars) {
+  function now() { return BS.Game ? BS.Game.state.time : 0; }
+  function say(officer, text, cls) { BS.Events.emit("log", { speaker: officer, text: text, cls: cls || "report" }); }
+  function report(officer, key, vars, cls) {
     var str = D().reports[key];
-    if (!str) return;
-    var officer = D().orderOfficer[orderKey(key.split("_")[0])];
-    say(officer, U.template(str, vars || {}));
+    if (str) say(officer, U.template(str, vars || {}), cls);
   }
+  function fmtKm(px) { var k = S.km(px); return k < 10 ? k.toFixed(1) : Math.round(k); }
 
-  // ---- giving orders ----------------------------------------------------
-  function give(orderId) {
-    var key = orderKey(orderId);
-    var officer = D().orderOfficer[key];
-    if (!officer || !ship || ship.flags.destroyed) return;
-    var q = officers[officer];
-    var delay = D().orderDelays[key] * ship.mods.delayMult * S.bridgeDelayMult(ship);
-    if (ship.flags.alert === "red") delay *= D().redAlertDelayMult;
-    var order = { id: orderId, officer: officer, delay: delay, timer: delay };
-    BS.Events.emit("orderGiven", order);
-    say(officer, U.pick(D().acks[officer]), "ack");
-    if (!q.current) q.current = order;
-    else { q.pending.push(order); if (q.pending.length > MAX_PENDING) q.pending.shift(); }
-  }
-
-  // ---- executing orders -------------------------------------------------
-  function execute(order) {
-    var id = order.id;
-    var vars = {};
-    var sys = orderSubsystem(id);
-    if (sys && /^target/.test(id)) {
-      ship.targetSubsystem = sys;
-      say("tactical", BS.Data.subsystems[sys].targetReport || U.template(D().reports.target, { label: BS.Data.subsystems[sys].label.toLowerCase() }));
-      BS.Events.emit("orderExecuted", order); return;
-    }
-    if (sys && /^repair/.test(id)) {
-      ship.repairPriority = sys;
-      report("repair", { label: BS.Data.subsystems[sys].label.toLowerCase() });
-      BS.Events.emit("orderExecuted", order); return;
-    }
+  // ---- commands from the interface ----------------------------------------
+  // All execute immediately on the player ship and are acknowledged by the
+  // responsible officer.
+  function command(id, args) {
+    args = args || {};
+    if (!ship || ship.flags.destroyed) return;
+    var target = args.target || ship.lock.target || ship.selected;
     switch (id) {
-      case "attackPattern": S.setHelmMode(ship, "attack"); break;
-      case "evasive": S.setHelmMode(ship, "evasive"); break;
-      case "closeRange": S.setHelmMode(ship, "close"); break;
-      case "openRange": S.setHelmMode(ship, "open"); break;
+      case "approach": if (!target) return report("tactical", "lockNoTarget"); S.setCommand(ship, "approach", { target: target }); report("helm", "approach"); break;
+      case "orbit": if (!target) return report("tactical", "lockNoTarget"); S.setCommand(ship, "orbit", { target: target, rangeKm: args.rangeKm }); report("helm", "orbit", { range: args.rangeKm }); break;
+      case "keep": if (!target) return report("tactical", "lockNoTarget"); S.setCommand(ship, "keep", { target: target, rangeKm: args.rangeKm }); report("helm", "keepRange", { range: args.rangeKm }); break;
+      case "flyTo": S.setCommand(ship, "flyTo", { point: args.point }); report("helm", "flyTo"); break;
+      case "stop": S.setCommand(ship, "idle"); report("helm", "stop"); break;
       case "comeAbout": {
-        var already = enemy && S.facingToward(ship, enemy.pos.x, enemy.pos.y) === S.strongestFacing(ship) && ship.helm.mode === "comeAbout";
-        S.setHelmMode(ship, "comeAbout"); vars.facing = ship.helm.comeAboutFacing;
-        if (already) { report("comeAbout_already", vars); BS.Events.emit("orderExecuted", order); return; }
-        if (vars.facing === "aft") { report("comeAbout_aft", vars); BS.Events.emit("orderExecuted", order); return; }
+        S.setCommand(ship, "comeAbout", { target: target });
+        var f = ship.cmd.facing;
+        report("helm", f === "aft" ? "comeAbout_aft" : "comeAbout", { facing: f });
         break;
       }
-      case "targetHull": ship.targetSubsystem = null; break;
-      case "firePhasers": {
-        var c = W.canFirePhasers(ship, enemy);
-        if (c === "ok") { W.firePhasers(ship, enemy); report("firePhasers"); }
-        else if (c === "charging") { ship.fireOnce.phasers = true; report("firePhasers_charging"); }
-        else if (c === "notArmed") report("firePhasers_notArmed");
-        else report("firePhasers_outOfRange");
-        BS.Events.emit("orderExecuted", order); return;
+      case "select": ship.selected = args.target || null; break;
+      case "lock": {
+        if (!target) return report("tactical", "lockNoTarget");
+        var r = S.startLock(ship, target);
+        if (r === "ok") report("tactical", "lockStart", { name: target.name });
+        else if (r === "outOfRange") report("tactical", "lockOutOfRange", { range: ship.cls.lockRangeKm });
+        break;
       }
-      case "fireTorpedoes": {
-        var ct = W.canFireTorpedoes(ship, enemy);
-        if (ct === "ok") { W.fireTorpedoSpread(ship, enemy); report("fireTorpedoes"); }
-        else if (ct === "loading") { ship.fireOnce.torpedoes = true; report("fireTorpedoes_loading"); }
-        else if (ct === "notArmed") report("fireTorpedoes_notArmed");
-        else { ship.fireOnce.torpedoes = true; report("fireTorpedoes_noArc"); }
-        BS.Events.emit("orderExecuted", order); return;
+      case "unlock": S.clearLock(ship, "unlock"); report("tactical", "unlock"); break;
+      case "targetSubsystem": {
+        var sys = args.subsystem;
+        if (!sys || ship.targetSubsystem === sys) { ship.targetSubsystem = null; report("tactical", "targetHull"); }
+        else { ship.targetSubsystem = sys; say("tactical", BS.Data.subsystems[sys].targetReport); }
+        shieldedState = null;
+        break;
       }
-      case "fireAtWill":
-        ship.flags.fireAtWill = !ship.flags.fireAtWill;
-        report(ship.flags.fireAtWill ? "fireAtWill_on" : "fireAtWill_off");
-        if (ship.flags.fireAtWill && !ship.flags.armed) report("firePhasers_notArmed");
-        BS.Events.emit("orderExecuted", order); return;
-      case "holdFire": ship.flags.fireAtWill = false; ship.fireOnce.phasers = false; ship.fireOnce.torpedoes = false; break;
-      case "powerBalanced": S.setPowerPreset(ship, "balanced"); break;
-      case "powerWeapons": S.setPowerPreset(ship, "weapons"); break;
-      case "powerShields": S.setPowerPreset(ship, "shields"); break;
-      case "powerEngines": S.setPowerPreset(ship, "engines"); break;
-      case "repairAuto": ship.repairPriority = null; break;
-      case "reinforceShields": {
-        var r = S.startReinforce(ship);
-        if (r) report("reinforceShields", { weak: r.to, strong: r.from }); else report("reinforceShields_none");
-        BS.Events.emit("orderExecuted", order); return;
+      case "module": BS.Modules.toggle(ship, args.module); break;
+      case "repair": {
+        var rs = args.subsystem;
+        if (!rs || ship.repairPriority === rs) { ship.repairPriority = null; report("engineering", "repairAuto"); }
+        else { ship.repairPriority = rs; report("engineering", "repair", { label: BS.Data.subsystems[rs].label.toLowerCase() }); }
+        break;
       }
-      case "redAlert": S.setAlert(ship, "red"); BS.Events.emit("alertChanged", { ship: ship, alert: "red" }); break;
-      case "yellowAlert": S.setAlert(ship, "yellow"); BS.Events.emit("alertChanged", { ship: ship, alert: "yellow" }); break;
+      case "reinforce": {
+        var res = S.startReinforce(ship);
+        if (res === "cooldown") report("engineering", "reinforceShields_cooldown");
+        else if (res) report("engineering", "reinforceShields", { weak: res.to, strong: res.from });
+        else report("engineering", "reinforceShields_none");
+        break;
+      }
+      case "redAlert": S.setAlert(ship, "red"); BS.Events.emit("alertChanged", { ship: ship, alert: "red" }); report("tactical", "redAlert"); break;
       case "hail":
         if (enemy && !enemy.flags.destroyed) {
-          report("hail");
+          report("comms", "hail");
           var reply = U.pick(D().hailReplies);
           setTimeout(function () { BS.Events.emit("log", { speaker: "enemy", text: reply, cls: "enemy" }); }, 900);
-        } else report("hail_noResponse");
-        BS.Events.emit("orderExecuted", order); return;
+        } else report("comms", "hail_noResponse");
+        break;
     }
-    report(id, vars);
-    BS.Events.emit("orderExecuted", order);
+    BS.Events.emit("commandGiven", { id: id, args: args });
   }
-
-  function update(dt) {
-    if (!ship) return;
-    Object.keys(officers).forEach(function (o) {
-      var q = officers[o];
-      if (!q.current) return;
-      q.current.timer -= dt;
-      if (q.current.timer <= 0) {
-        var done = q.current;
-        q.current = q.pending.length ? q.pending.shift() : null;
-        if (!ship.flags.destroyed) execute(done);
-      }
-    });
-    checkSituation(dt);
-  }
-
-  function isBusy(officer) { return !!(officers[officer] && officers[officer].current); }
 
   // ---- spontaneous reports ---------------------------------------------
-  function checkSituation(dt) {
-    if (ship.flags.destroyed) return;
+  function update(dt) {
+    if (!ship || ship.flags.destroyed) return;
     var rs = ship.reportState;
     S.FACINGS.forEach(function (f) {
       var pct = ship.shields[f] / ship.shieldMax;
@@ -159,53 +96,58 @@ BS.Crew = (function () {
       else if (pct > 0.5 && state !== "ok") { rs.shieldLow[f] = "ok"; say("engineering", U.template(D().events.shieldRestored, { facing: U.capitalize(f) })); }
     });
     if (ship.hull / ship.hullMax < 0.25 && !rs.hullCritical) { rs.hullCritical = true; say("engineering", D().events.hullCritical, "warn"); }
+    var cap = ship.capacitor / ship.capMax;
+    if (cap < 0.2 && !rs.capLow) { rs.capLow = true; report("engineering", "capLow", { pct: Math.round(cap * 100) }, "warn"); }
+    else if (cap > 0.4 && rs.capLow) rs.capLow = false;
   }
 
   function subscribe() {
     BS.Events.on("subsystemDamaged", function (e) {
       if (e.ship !== ship) return;
-      var rs = ship.reportState.subsystemLow;
-      if (ship.subsystems[e.subsystem] < 60 && !rs[e.subsystem]) { rs[e.subsystem] = true; say("engineering", BS.Data.subsystems[e.subsystem].damaged, "warn"); }
+      var low = ship.reportState.subsystemLow;
+      if (ship.subsystems[e.subsystem] < 60 && !low[e.subsystem]) { low[e.subsystem] = true; say("engineering", BS.Data.subsystems[e.subsystem].damaged, "warn"); }
     });
     BS.Events.on("subsystemRepaired", function (e) {
       if (e.ship !== ship) return;
       if (ship.reportState.subsystemLow[e.subsystem]) { ship.reportState.subsystemLow[e.subsystem] = false; say("engineering", BS.Data.subsystems[e.subsystem].repaired); }
+    });
+    BS.Events.on("lockAcquired", function (e) { if (e.ship === ship) report("tactical", "lockDone"); else if (e.target === ship) say("tactical", D().events.enemyLocking, "warn"); });
+    BS.Events.on("lockLost", function (e) { if (e.ship === ship && e.reason === "range") report("tactical", "lockLost", {}, "warn"); });
+    BS.Events.on("moduleOffline", function (e) { if (e.ship === ship) say("engineering", U.template(D().reports.moduleNoCap, { module: e.module.def.name }), "warn"); });
+    BS.Events.on("alertChanged", function (e) { if (e.ship === ship && e.auto) report("tactical", "autoArm"); });
+    BS.Events.on("moduleToggled", function (e) {
+      if (e.ship !== ship || !e.on || !BS.Modules.isWeapon(e.module)) return;
+      if (!ship.lock.locked) report("tactical", "moduleNoLock");
     });
     BS.Events.on("torpedoHit", function (e) {
       if (!e.torpedo || e.torpedo.source !== ship || !e.result) return;
       if (e.result.shieldsDown) say("tactical", U.template(D().events.torpedoHitShieldsDown, { facing: e.result.facing }));
       else say("tactical", U.template(U.pick(D().events.torpedoHit), { facing: e.result.facing }));
     });
-    // Tell the captain when the targeted part is behind an intact shield, and when it becomes exposed.
-    var shieldedState = null, shieldedAt = -99;
-    BS.Events.on("shieldHit", function (e) {
-      if (!ship || e.ship !== enemy || !ship.targetSubsystem) return;
-      var absorbedAll = e.hullDamage < e.amount * 0.3;
-      var now = BS.Game ? BS.Game.state.time : 0;
-      var label = BS.Data.subsystems[ship.targetSubsystem].label.toLowerCase();
-      if (absorbedAll && shieldedState !== "shielded" && now - shieldedAt > 12) {
-        shieldedState = "shielded"; shieldedAt = now;
-        say("tactical", U.template(D().events.targetShielded, { facing: e.facing, label: label }), "warn");
-      }
-    });
-    BS.Events.on("hullHit", function (e) {
-      if (!ship || e.ship !== enemy || !ship.targetSubsystem) return;
-      if (e.absorbed <= 0 && shieldedState === "shielded") {
-        shieldedState = "exposed";
-        say("tactical", U.template(D().events.targetExposed, { facing: e.facing, label: BS.Data.subsystems[ship.targetSubsystem].label.toLowerCase() }));
-      }
-    });
-    BS.Events.on("orderExecuted", function (o) { if (/^target/.test(o.id)) shieldedState = null; });
-    BS.Events.on("torpedoLaunched", function (e) {
-      if (e.ship === ship && ship.flags.fireAtWill && ship.pendingSpread === 0) report("fireTorpedoes");
-      if (e.ship === enemy) say("tactical", D().events.enemyFiringTorpedo, "warn");
+    BS.Events.on("torpedoLaunched", function (e) { if (e.ship === enemy) say("tactical", D().events.enemyFiringTorpedo, "warn"); });
+    BS.Events.on("moduleCycle", function (e) {
+      if (e.ship === enemy && e.module.id === "afterburner" && !e.ship._abReported) { e.ship._abReported = true; say("helm", D().events.enemyAfterburner); }
     });
     BS.Events.on("enemyStateChanged", function (e) {
       if (e.state === "retreat") say("tactical", D().events.enemyRetreat);
       else if (e.state === "attack" && e.prev === "retreat") say("tactical", D().events.enemyReturn);
     });
-    BS.Events.on("shipDestroyed", function (e) {
-      if (e.ship === enemy) say("tactical", D().events.enemyDestroyed);
+    BS.Events.on("shipDestroyed", function (e) { if (e.ship === enemy) say("tactical", D().events.enemyDestroyed); });
+    // targeted part behind an intact shield
+    BS.Events.on("shieldHit", function (e) {
+      if (!ship || e.ship !== enemy || !ship.targetSubsystem || e.attacker !== ship) return;
+      var absorbedAll = e.hullDamage < e.amount * 0.3;
+      if (absorbedAll && shieldedState !== "shielded" && now() - shieldedAt > 12) {
+        shieldedState = "shielded"; shieldedAt = now();
+        say("tactical", U.template(D().reports.targetShielded, { facing: e.facing, label: BS.Data.subsystems[ship.targetSubsystem].label.toLowerCase() }), "warn");
+      }
+    });
+    BS.Events.on("hullHit", function (e) {
+      if (!ship || e.ship !== enemy || !ship.targetSubsystem || e.attacker !== ship) return;
+      if (e.absorbed <= 0 && shieldedState === "shielded") {
+        shieldedState = "exposed";
+        say("tactical", U.template(D().reports.targetExposed, { facing: e.facing, label: BS.Data.subsystems[ship.targetSubsystem].label.toLowerCase() }));
+      }
     });
   }
 
@@ -215,5 +157,5 @@ BS.Crew = (function () {
     });
   }
 
-  return { reset: reset, give: give, update: update, isBusy: isBusy, battleStart: battleStart, say: say };
+  return { reset: reset, command: command, update: update, battleStart: battleStart, say: say, fmtKm: fmtKm };
 })();

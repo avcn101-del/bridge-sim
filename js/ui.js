@@ -1,79 +1,146 @@
-// js/ui.js — DOM: status panel, order buttons, comms log, alert lighting, overlays.
+// js/ui.js — DOM: status panel, overview, selected-item commands, module bar,
+// comms log, alert lighting, overlays, mouse and keyboard input.
 window.BS = window.BS || {};
 
 BS.UI = (function () {
-  var U = BS.Util;
+  var U = BS.Util, S = BS.Ships;
   var $ = function (id) { return document.getElementById(id); };
   var el = {};
   var game = null;
-  var logList, logCount = 0, MAX_LOG = 80;
+  var logList, MAX_LOG = 80;
   var subscribed = false;
+  var moduleEls = [];
+  var overviewRows = {};
 
   function init(gameRef) {
     game = gameRef;
-    ["hull-fill", "hull-val",
-     "pow-weapons", "pow-shields", "pow-engines", "pow-weapons-val", "pow-shields-val", "pow-engines-val",
-     "wpn-phasers", "wpn-torps", "wpn-phasers-val", "wpn-torps-val", "en-hull", "en-hull-val", "en-shield", "en-shield-val", "en-range", "en-state",
-     "clock", "alert-label", "btn-pause", "pause-overlay", "start-screen", "result-screen", "result-title", "result-sub", "result-head",
-     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-torps", "btn-fireatwill", "ship-name",
-     "busy-helm", "busy-tactical", "busy-engineering", "view", "own-subsystems", "enemy-subsystems", "target-buttons", "repair-buttons"].forEach(function (id) { el[id] = $(id); });
-    buildSubsystemWidgets();
-    BS.Ships.FACINGS.forEach(function (f) { el["sh-" + f] = $("sh-" + f); el["sh-" + f + "-val"] = $("sh-" + f + "-val"); });
+    ["own-speed", "own-cmd", "own-subsystems", "enemy-subsystems", "gauge", "help-screen", "btn-help", "btn-help-close",
+     "target-none", "target-info", "tg-name", "tg-hull", "tg-hull-val", "tg-shield", "tg-shield-val", "tg-range", "tg-angular", "tg-chance", "tg-aim",
+     "clock", "alert-label", "btn-pause", "btn-redalert", "btn-zoom-in", "btn-zoom-out", "pause-overlay", "start-screen", "result-screen", "result-title", "result-sub", "result-head",
+     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "ship-name", "view", "module-bar", "overview", "sel-name", "orbit-buttons", "keep-buttons"]
+      .forEach(function (id) { el[id] = $(id); });
     logList = $("log");
+    buildGauge();
+    buildSubsystemWidgets();
+    buildRangeButtons();
 
-    // officer names from data
-    Object.keys(BS.Data.crew.officers).forEach(function (o) { var n = $("off-" + o); if (n) n.textContent = BS.Data.crew.officers[o].name; });
-
-    // order buttons (a target button clicked while already active returns to hull targeting)
-    document.querySelectorAll("[data-order]").forEach(function (btn) {
+    document.querySelectorAll("[data-cmd]").forEach(function (btn) {
       btn.addEventListener("click", function () {
-        var order = btn.getAttribute("data-order"), t = btn.getAttribute("data-target");
-        if (t && game.state.player && game.state.player.targetSubsystem === t) order = "targetHull";
-        game.giveOrder(order); btn.blur();
+        var args = {};
+        if (btn.hasAttribute("data-range")) args.rangeKm = parseFloat(btn.getAttribute("data-range"));
+        game.command(btn.getAttribute("data-cmd"), args); btn.blur();
       });
     });
-    bindCanvasTargeting();
     el["btn-pause"].addEventListener("click", function () { game.togglePause(); el["btn-pause"].blur(); });
+    el["btn-redalert"].addEventListener("click", function () { game.command("redAlert"); el["btn-redalert"].blur(); });
+    el["btn-zoom-in"].addEventListener("click", function () { game.setZoom(game.state.zoom + BS.Data.balance.zoom.step); });
+    el["btn-zoom-out"].addEventListener("click", function () { game.setZoom(game.state.zoom - BS.Data.balance.zoom.step); });
     $("btn-start").addEventListener("click", function () { game.startBattle(); });
+    el["btn-help"].addEventListener("click", function () { el["help-screen"].classList.remove("hidden"); });
+    el["btn-help-close"].addEventListener("click", function () { el["help-screen"].classList.add("hidden"); });
     $("btn-restart").addEventListener("click", function () { game.startBattle(); });
-    window.addEventListener("keydown", function (e) {
-      if (e.code === "Space" && game.state.phase === "battle") { e.preventDefault(); game.togglePause(); }
-    });
-
+    bindCanvas();
+    bindKeys();
     if (!subscribed) { subscribe(); subscribed = true; }
   }
 
-  // ---- generated widgets from BS.Data.subsystems ------------------------
-  function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
-  function buildSubsystemWidgets() {
-    var subs = BS.Data.subsystems, ids = Object.keys(subs);
-    el["own-subsystems"].innerHTML = ""; el["enemy-subsystems"].innerHTML = ""; el["target-buttons"].innerHTML = ""; el["repair-buttons"].innerHTML = "";
-    ids.forEach(function (sys) {
-      var d = subs[sys];
-      var row = document.createElement("div"); row.className = "row"; row.title = d.label + ": " + d.effect;
-      row.innerHTML = '<label>' + d.label + '</label><div class="bar sub"><div class="fill"></div></div><span class="num">100</span>';
-      el["own-subsystems"].appendChild(row);
-      el["sub-" + sys] = row.querySelector(".fill"); el["sub-" + sys + "-val"] = row.querySelector(".num");
-      var chip = document.createElement("span"); chip.className = "chip"; chip.textContent = d.short; chip.title = "Enemy " + d.label.toLowerCase();
-      el["enemy-subsystems"].appendChild(chip); el["en-" + sys] = chip;
-      var tb = document.createElement("button"); tb.className = "lcars-btn c-orange mode-target"; tb.setAttribute("data-order", "target" + cap(sys)); tb.setAttribute("data-target", sys); tb.textContent = d.label; tb.title = "Target their " + d.label.toLowerCase() + " (" + d.effect + "). Click again to target the hull.";
-      el["target-buttons"].appendChild(tb);
-      var rb = document.createElement("button"); rb.className = "lcars-btn c-lilac mode-repair"; rb.setAttribute("data-order", "repair" + cap(sys)); rb.setAttribute("data-repair", sys); rb.textContent = d.label;
-      el["repair-buttons"].appendChild(rb);
-    });
-    var auto = document.createElement("button"); auto.className = "lcars-btn c-lilac mode-repair wide"; auto.setAttribute("data-order", "repairAuto"); auto.setAttribute("data-repair", "auto"); auto.textContent = "Auto · most damaged first";
-    el["repair-buttons"].appendChild(auto);
+  function subscribe() {
+    BS.Events.on("log", function (e) { addLog(e.speaker, e.text, e.cls); });
+    BS.Events.on("alertChanged", function (e) { if (e.ship.isPlayer) setAlert(e.alert); });
   }
 
-  // ---- click a part of the enemy ship on the tactical display -----------
-  function bindCanvasTargeting() {
+  // ---- generated widgets ----------------------------------------------
+  function buildSubsystemWidgets() {
+    var subs = BS.Data.subsystems;
+    el["own-subsystems"].innerHTML = ""; el["enemy-subsystems"].innerHTML = "";
+    Object.keys(subs).forEach(function (sys) {
+      var d = subs[sys];
+      var row = document.createElement("div"); row.className = "row"; row.title = d.label + ": " + d.effect + ". Click to make it the repair priority.";
+      row.innerHTML = '<label>' + d.label + '</label><div class="bar sub"><div class="fill"></div></div><span class="num">100</span>';
+      row.addEventListener("click", function () { game.command("repair", { subsystem: sys }); });
+      el["own-subsystems"].appendChild(row);
+      el["sub-" + sys] = row.querySelector(".fill"); el["sub-" + sys + "-val"] = row.querySelector(".num"); el["subrow-" + sys] = row;
+      var chip = document.createElement("span"); chip.className = "chip"; chip.textContent = d.short; chip.title = "Aim at their " + d.label.toLowerCase() + " (" + d.effect + ")";
+      chip.addEventListener("click", function () { game.command("targetSubsystem", { subsystem: sys }); });
+      el["enemy-subsystems"].appendChild(chip); el["en-" + sys] = chip;
+    });
+  }
+  function buildRangeButtons() {
+    var B = BS.Data.balance;
+    el["orbit-buttons"].innerHTML = ""; el["keep-buttons"].innerHTML = "";
+    B.orbitRangesKm.forEach(function (r) {
+      var b = document.createElement("button"); b.className = "lcars-btn c-blue"; b.setAttribute("data-cmd", "orbit"); b.setAttribute("data-range", r); b.textContent = r + " km"; el["orbit-buttons"].appendChild(b);
+    });
+    B.keepRangesKm.forEach(function (r) {
+      var b = document.createElement("button"); b.className = "lcars-btn c-lilac"; b.setAttribute("data-cmd", "keep"); b.setAttribute("data-range", r); b.textContent = r + " km"; el["keep-buttons"].appendChild(b);
+    });
+  }
+
+  // Circular ship gauge: hull (centre), four shield facings (middle), capacitor (outer).
+  var gauge = {};
+  function arcPath(cx, cy, r, a0, a1) {
+    var x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0), x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
+    var large = (a1 - a0) > Math.PI ? 1 : 0;
+    return "M " + x0.toFixed(2) + " " + y0.toFixed(2) + " A " + r + " " + r + " 0 " + large + " 1 " + x1.toFixed(2) + " " + y1.toFixed(2);
+  }
+  function buildGauge() {
+    var NS = "http://www.w3.org/2000/svg", C = 59;
+    var svg = document.createElementNS(NS, "svg"); svg.setAttribute("viewBox", "0 0 118 118");
+    function mk(tag, attrs) { var e = document.createElementNS(NS, tag); Object.keys(attrs).forEach(function (k) { e.setAttribute(k, attrs[k]); }); svg.appendChild(e); return e; }
+    mk("circle", { class: "bg", cx: C, cy: C, r: 50, "stroke-width": 7 });
+    gauge.capbg = mk("path", { class: "capbg", d: arcPath(C, C, 50, -Math.PI / 2, Math.PI * 1.5 - 0.001), "stroke-width": 7 });
+    gauge.cap = mk("path", { class: "cap", d: "", "stroke-width": 7 });
+    mk("circle", { class: "bg", cx: C, cy: C, r: 38, "stroke-width": 8 });
+    // facings: fore top, starboard right, aft bottom, port left; each spans 80° around its centre
+    gauge.sh = {};
+    var centres = { fore: -Math.PI / 2, starboard: 0, aft: Math.PI / 2, port: Math.PI };
+    S.FACINGS.forEach(function (f) { gauge.sh[f] = mk("path", { class: "sh", d: "", "stroke-width": 8, "data-c": centres[f] }); });
+    mk("circle", { class: "bg", cx: C, cy: C, r: 26, "stroke-width": 9 });
+    gauge.hull = mk("path", { class: "hull", d: "", "stroke-width": 9 });
+    gauge.pct = mk("text", { class: "pct", x: C, y: C + 4 }); gauge.pct.textContent = "100%";
+    gauge.lbl = mk("text", { class: "lbl", x: C, y: C + 15 }); gauge.lbl.textContent = "HULL";
+    gauge.capnum = mk("text", { class: "capnum", x: C, y: C + 70 }); gauge.capnum.textContent = "";
+    el["gauge"].innerHTML = ""; el["gauge"].appendChild(svg);
+  }
+  function updateGauge(p) {
+    var C = 59, hf = p.hull / p.hullMax, cf = p.capacitor / p.capMax;
+    gauge.hull.setAttribute("d", hf > 0.002 ? arcPath(C, C, 26, -Math.PI / 2, -Math.PI / 2 + U.TAU * Math.min(0.999, hf)) : "");
+    gauge.hull.style.stroke = hullColor(hf);
+    gauge.pct.textContent = Math.round(hf * 100) + "%";
+    S.FACINGS.forEach(function (f) {
+      var frac = p.shields[f] / p.shieldMax, c = parseFloat(gauge.sh[f].getAttribute("data-c")), half = (80 * U.DEG / 2) * frac;
+      gauge.sh[f].setAttribute("d", frac > 0.01 ? arcPath(C, C, 38, c - half, c + half) : "");
+      gauge.sh[f].style.stroke = pctColor(frac);
+    });
+    gauge.cap.setAttribute("d", cf > 0.002 ? arcPath(C, C, 50, -Math.PI / 2, -Math.PI / 2 + U.TAU * Math.min(0.999, cf)) : "");
+    gauge.cap.style.opacity = cf < 0.2 ? 0.5 + 0.5 * Math.sin(performance.now() / 100) : 1;
+    gauge.capnum.textContent = "CAP " + Math.round(p.capacitor) + " / " + p.capMax;
+  }
+
+  // Module bar: one round button per fitted module, F-key labelled.
+  function buildModuleBar(ship) {
+    el["module-bar"].innerHTML = ""; moduleEls = [];
+    var active = ship.modules.filter(function (m) { return m.def.kind !== "passive"; });
+    active.forEach(function (m, i) {
+      var b = document.createElement("div"); b.className = "module";
+      b.innerHTML = '<span class="key">F' + (i + 1) + '</span><div class="ring"></div><span class="short">' + m.def.short + '</span><span class="capcost">' + m.def.cap + ' cap</span><span class="state"></span>';
+      b.title = m.def.name + " — " + m.def.desc + " Cycle " + m.def.cycle + " s, " + m.def.cap + " capacitor per cycle.";
+      b.addEventListener("click", function () { game.command("module", { module: m }); });
+      el["module-bar"].appendChild(b);
+      moduleEls.push({ el: b, m: m, ring: b.querySelector(".ring"), state: b.querySelector(".state") });
+    });
+  }
+
+  // ---- canvas input --------------------------------------------------------
+  function bindCanvas() {
     var view = el["view"];
+    function worldAt(ev) { var r = view.getBoundingClientRect(); return BS.Renderer.screenToWorld(ev.clientX - r.left, ev.clientY - r.top); }
     function hoverAt(ev) {
       var s = game.state;
       if (s.phase !== "battle" || !s.enemy || s.enemy.flags.destroyed) { game.setHover(null); return null; }
-      var r = view.getBoundingClientRect();
-      var w = BS.Renderer.screenToWorld(ev.clientX - r.left, ev.clientY - r.top);
-      var h = BS.Ships.hardpointAt(s.enemy, w.x, w.y, 5);
+      var w = worldAt(ev);
+      var h = S.hardpointAt(s.enemy, w.x, w.y, 6 / s.zoom);
+      if (h) h.ship = s.enemy;
       game.setHover(h);
       return h;
     }
@@ -84,19 +151,54 @@ BS.UI = (function () {
     });
     view.addEventListener("mouseleave", function () { game.setHover(null); view.classList.remove("can-target", "on-hardpoint"); });
     view.addEventListener("click", function (ev) {
-      var h = hoverAt(ev);
+      var s = game.state, h = hoverAt(ev);
       if (!h) return;
-      var p = game.state.player;
-      if (!h.sys || p.targetSubsystem === h.sys) game.giveOrder("targetHull"); else game.giveOrder("target" + cap(h.sys));
+      var p = s.player, e = s.enemy;
+      if (p.lock.target !== e) { game.command("select", { target: e }); game.command("lock", { target: e }); return; }
+      if (h.sys) game.command("targetSubsystem", { subsystem: h.sys });
+      else if (p.targetSubsystem) game.command("targetSubsystem", { subsystem: null });
+    });
+    view.addEventListener("dblclick", function (ev) {
+      var h = hoverAt(ev);
+      if (h) return;
+      game.command("flyTo", { point: worldAt(ev) });
+    });
+    view.addEventListener("contextmenu", function (ev) {
+      ev.preventDefault();
+      var s = game.state, h = hoverAt(ev);
+      if (s.phase !== "battle") return;
+      if (h) { game.command("select", { target: s.enemy }); game.command("orbit", { target: s.enemy, rangeKm: s.enemy.cls.preferredRangeKm || 6 }); }
+      else game.command("flyTo", { point: worldAt(ev) });
+    });
+    view.addEventListener("wheel", function (ev) {
+      ev.preventDefault();
+      var Z = BS.Data.balance.zoom;
+      game.setZoom(game.state.zoom + (ev.deltaY < 0 ? Z.step : -Z.step));
+    }, { passive: false });
+  }
+
+  function bindKeys() {
+    window.addEventListener("keydown", function (ev) {
+      var s = game.state;
+      if (ev.target && /INPUT|TEXTAREA/.test(ev.target.tagName)) return;
+      if (ev.key === "Escape") { el["help-screen"].classList.add("hidden"); return; }
+      if (ev.code === "Space" && s.phase === "battle") { ev.preventDefault(); game.togglePause(); return; }
+      if (s.phase !== "battle") return;
+      var fk = /^F(\d)$/.exec(ev.key);
+      if (fk) { var i = parseInt(fk[1], 10) - 1; if (moduleEls[i]) { ev.preventDefault(); game.command("module", { module: moduleEls[i].m }); } return; }
+      switch (ev.key.toLowerCase()) {
+        case "l": game.command("lock"); break;
+        case "a": game.command("approach"); break;
+        case "o": game.command("orbit", { rangeKm: BS.Data.balance.orbitRangesKm[1] }); break;
+        case "k": game.command("keep", { rangeKm: BS.Data.balance.keepRangesKm[1] }); break;
+        case "c": game.command("comeAbout"); break;
+        case "s": game.command("stop"); break;
+        case "r": game.command("redAlert"); break;
+      }
     });
   }
 
-  function subscribe() {
-    BS.Events.on("log", function (e) { addLog(e.speaker, e.text, e.cls); });
-    BS.Events.on("alertChanged", function (e) { if (e.ship.isPlayer) setAlert(e.alert); });
-  }
-
-  // ---------------------------------------------------------------- log
+  // ---- log -------------------------------------------------------------
   function addLog(speaker, text, cls) {
     var li = document.createElement("li");
     li.className = cls || "report";
@@ -107,20 +209,19 @@ BS.UI = (function () {
     var m = document.createElement("span"); m.className = "msg"; m.textContent = text;
     li.appendChild(t); li.appendChild(w); li.appendChild(m);
     logList.insertBefore(li, logList.firstChild);
-    logCount++;
     while (logList.children.length > MAX_LOG) logList.removeChild(logList.lastChild);
   }
-  function clearLog() { logList.innerHTML = ""; logCount = 0; }
+  function clearLog() { logList.innerHTML = ""; }
 
-  // -------------------------------------------------------------- alert
+  // ---- alert -----------------------------------------------------------
   function setAlert(level) {
     document.body.classList.remove("alert-none", "alert-yellow", "alert-red");
     document.body.classList.add("alert-" + level);
-    el["alert-label"].textContent = level === "red" ? "RED ALERT" : level === "yellow" ? "YELLOW ALERT" : "CONDITION GREEN";
-    document.querySelectorAll(".mode-alert").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-alert") === level); });
+    el["alert-label"].textContent = level === "red" ? "RED ALERT" : level === "yellow" ? "YELLOW ALERT" : "CONDITION GREEN · WEAPONS SAFE";
+    el["btn-redalert"].classList.toggle("active", level === "red");
   }
 
-  // ------------------------------------------------------------ overlays
+  // ---- overlays --------------------------------------------------------
   function showStart() { el["start-screen"].classList.remove("hidden"); el["result-screen"].classList.add("hidden"); }
   function hideOverlays() { el["start-screen"].classList.add("hidden"); el["result-screen"].classList.add("hidden"); }
   function showResult(state) {
@@ -134,16 +235,26 @@ BS.UI = (function () {
     el["rs-dealt"].textContent = Math.round(p.stats.damageDealt);
     el["rs-taken"].textContent = Math.round(p.stats.damageTaken);
     el["rs-hull"].textContent = Math.round(100 * p.hull / p.hullMax) + "%";
+    el["rs-phasers"].textContent = p.stats.phaserHits + " / " + p.stats.phasersFired;
     el["rs-torps"].textContent = p.stats.torpedoHits + " / " + p.stats.torpedoesFired;
   }
 
-  // ------------------------------------------------------- status panel
-  function pctColor(frac) {
-    var c = BS.Renderer.shieldColor(frac);
-    return "rgb(" + c[0] + "," + c[1] + "," + c[2] + ")";
-  }
+  // ---- per-frame update ---------------------------------------------------
+  function pctColor(frac) { var c = BS.Renderer.shieldColor(frac); return "rgb(" + c[0] + "," + c[1] + "," + c[2] + ")"; }
   function hullColor(frac) { return frac > 0.6 ? "#7fd8a0" : frac > 0.3 ? "#f2c14e" : "#e0463c"; }
   function setBar(fill, frac, color) { fill.style.width = (U.clamp(frac, 0, 1) * 100).toFixed(1) + "%"; if (color) fill.style.backgroundColor = color; }
+  function fmtKm(k) { return (k < 10 ? k.toFixed(1) : Math.round(k)) + " km"; }
+  function cmdText(p) {
+    var c = p.cmd, k = BS.Ships.km(c.range);
+    switch (c.type) {
+      case "approach": return "Approaching";
+      case "orbit": return "Orbit " + fmtKm(k);
+      case "keep": return "Keep " + fmtKm(k);
+      case "flyTo": return "Flying to point";
+      case "comeAbout": return "Presenting " + c.facing + " shield";
+      default: return "All stop";
+    }
+  }
 
   function update(state) {
     var p = state.player, e = state.enemy;
@@ -153,48 +264,89 @@ BS.UI = (function () {
     el["btn-pause"].classList.toggle("active", state.paused);
     el["pause-overlay"].classList.toggle("hidden", !state.paused);
 
-    var hf = p.hull / p.hullMax;
-    setBar(el["hull-fill"], hf, hullColor(hf)); el["hull-val"].textContent = Math.round(hf * 100) + "%";
-    BS.Ships.FACINGS.forEach(function (f) {
-      var frac = p.shields[f] / p.shieldMax;
-      var fill = el["sh-" + f];
-      if (f === "fore" || f === "aft") fill.style.width = (frac * 100).toFixed(1) + "%"; else fill.style.height = (frac * 100).toFixed(1) + "%";
-      fill.style.backgroundColor = pctColor(frac);
-      el["sh-" + f + "-val"].textContent = Math.round(frac * 100);
-    });
-    BS.Ships.subsystemIds().forEach(function (s) {
+    updateGauge(p);
+    el["own-speed"].textContent = S.speedKmS(p).toFixed(1) + " km/s" + (p.activeEffects.speedMult > 1 ? " · AB" : "");
+    el["own-cmd"].textContent = cmdText(p);
+    S.subsystemIds().forEach(function (s) {
       var v = p.subsystems[s] / 100;
       setBar(el["sub-" + s], v, hullColor(v)); el["sub-" + s + "-val"].textContent = Math.round(v * 100);
+      el["subrow-" + s].classList.toggle("prio", p.repairPriority === s);
       if (e) { var ev = e.subsystems[s] / 100; el["en-" + s].style.backgroundColor = e.flags.destroyed ? "#15162a" : hullColor(ev); el["en-" + s].textContent = BS.Data.subsystems[s].short + " " + Math.round(ev * 100); el["en-" + s].classList.toggle("targeted", p.targetSubsystem === s); }
     });
-    ["weapons", "engines", "shields"].forEach(function (s) {
-      setBar(el["pow-" + s], p.power[s] / 0.6); el["pow-" + s + "-val"].textContent = Math.round(p.power[s] * 100);
-    });
-    var pc = p.phaserDef.cooldown, pr = p.torpedoDef.reload;
-    var pf = p.phaserCooldown > 0 ? 1 - p.phaserCooldown / pc : 1, tf = p.torpedoReload > 0 ? 1 - p.torpedoReload / pr : 1;
-    setBar(el["wpn-phasers"], pf); el["wpn-phasers-val"].textContent = !p.flags.armed ? "SAFE" : pf >= 1 ? "RDY" : Math.round(pf * 100) + "%";
-    setBar(el["wpn-torps"], tf); el["wpn-torps-val"].textContent = !p.flags.armed ? "SAFE" : tf >= 1 ? "RDY" : Math.round(tf * 100) + "%";
 
-    if (e) {
-      var ef = e.hull / e.hullMax;
-      setBar(el["en-hull"], ef, hullColor(ef)); el["en-hull-val"].textContent = e.flags.destroyed ? "0" : Math.round(ef * 100);
-      var facing = BS.Ships.facingToward(e, p.pos.x, p.pos.y), sf = e.shields[facing] / e.shieldMax;
-      setBar(el["en-shield"], sf, pctColor(sf)); el["en-shield-val"].textContent = Math.round(sf * 100);
-      var d = BS.Ships.distanceTo(p, e);
-      el["en-range"].textContent = e.flags.destroyed ? "—" : Math.round(d) + (d <= p.phaserDef.optimalRange ? " · optimal" : d <= p.phaserDef.range ? " · phaser range" : d <= p.torpedoDef.range ? " · torpedo range" : " · out of range");
-      el["en-state"].textContent = e.flags.destroyed ? "destroyed" : e.ai ? ({ approach: "closing", attack: "attacking", reposition: "turning", retreat: "retreating" })[e.ai.state] : "—";
+    // target panel
+    var locked = p.lock.target && !p.lock.target.flags.destroyed ? p.lock.target : null;
+    el["target-none"].classList.toggle("hidden", !!locked);
+    el["target-info"].classList.toggle("hidden", !locked);
+    if (locked) {
+      var t = locked;
+      el["tg-name"].textContent = t.name + (p.lock.locked ? "" : " · locking " + Math.round(p.lock.progress * 100) + "%");
+      var ef = t.hull / t.hullMax;
+      setBar(el["tg-hull"], ef, hullColor(ef)); el["tg-hull-val"].textContent = Math.round(ef * 100);
+      var facing = S.facingToward(t, p.pos.x, p.pos.y), sf = t.shields[facing] / t.shieldMax;
+      setBar(el["tg-shield"], sf, pctColor(sf)); el["tg-shield-val"].textContent = Math.round(sf * 100);
+      var dKm = S.distanceKm(p, t);
+      var turret = p.modules.filter(function (m) { return m.def.kind === "turret"; })[0];
+      var band = turret ? (dKm <= turret.def.optimalKm ? "optimal" : dKm <= turret.def.optimalKm + turret.def.falloffKm ? "falloff" : "out of phaser range") : "";
+      el["tg-range"].textContent = fmtKm(dKm) + " · " + band;
+      el["tg-angular"].textContent = S.angularVelocity(p, t).toFixed(2) + " rad/s · " + S.speedKmS(t).toFixed(1) + " km/s";
+      if (turret && p.lock.locked) {
+        var ch = BS.Weapons.turretHitChance(p, t, turret.def);
+        var launcher = p.modules.filter(function (m) { return m.def.kind === "launcher"; })[0];
+        var tm = launcher ? BS.Weapons.torpedoDamageMult(launcher.def, t) : 1;
+        el["tg-chance"].textContent = "PHA " + Math.round(ch * 100) + "% · TOR " + Math.round(tm * 100) + "%";
+      } else el["tg-chance"].textContent = p.lock.locked ? "—" : "locking…";
+      el["tg-aim"].textContent = p.targetSubsystem ? BS.Data.subsystems[p.targetSubsystem].label + " (−15%)" : "Hull";
     }
 
-    // button states
-    document.querySelectorAll(".mode-helm").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-mode") === p.helm.mode); });
-    document.querySelectorAll(".mode-target").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-target") === p.targetSubsystem); });
-    document.querySelectorAll(".mode-power").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-power") === p.powerPreset); });
-    document.querySelectorAll(".mode-repair").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-repair") === (p.repairPriority || "auto")); });
-    el["btn-fireatwill"].classList.toggle("active", p.flags.fireAtWill);
-    ["helm", "tactical", "engineering"].forEach(function (o) { el["busy-" + o].classList.toggle("on", BS.Crew.isBusy(o)); });
+    // overview
+    updateOverview(state);
+    el["sel-name"].textContent = p.selected ? p.selected.name : "nothing";
+    document.querySelectorAll("[data-cmd='orbit'],[data-cmd='keep']").forEach(function (b) {
+      var r = parseFloat(b.getAttribute("data-range"));
+      b.classList.toggle("active", p.cmd.type === b.getAttribute("data-cmd") && Math.abs(S.km(p.cmd.range) - r) < 0.01);
+    });
+    document.querySelectorAll("[data-cmd='approach'],[data-cmd='comeAbout']").forEach(function (b) { b.classList.toggle("active", p.cmd.type === b.getAttribute("data-cmd")); });
+
+    // module bar
+    for (var i = 0; i < moduleEls.length; i++) {
+      var me = moduleEls[i], m = me.m;
+      me.el.classList.toggle("active", m.active);
+      me.el.classList.toggle("running", m.running);
+      ["nocap", "nolock", "range", "notarmed"].forEach(function (st) { me.el.classList.toggle(st, m.active && !m.running && m.state === st); });
+      me.ring.style.setProperty("--p", m.running ? (100 * (1 - m.cycleLeft / m.cycleTime)).toFixed(1) : 0);
+      me.state.textContent = m.active && !m.running && m.state !== "running" && m.state !== "off" ? ({ nocap: "no cap", nolock: "no lock", range: "range", notarmed: "safe" })[m.state] || "" : "";
+    }
+  }
+
+  function updateOverview(state) {
+    var p = state.player, tbody = el["overview"].querySelector("tbody");
+    state.ships.forEach(function (s) {
+      if (s === p) return;
+      var row = overviewRows[s.id];
+      if (!row) {
+        row = document.createElement("tr");
+        row.innerHTML = '<td class="name"></td><td></td><td></td><td></td><td></td>';
+        row.addEventListener("click", function () { game.command("select", { target: s }); });
+        row.addEventListener("dblclick", function () { game.command("select", { target: s }); game.command("lock", { target: s }); });
+        tbody.appendChild(row); overviewRows[s.id] = row;
+      }
+      var cells = row.children;
+      cells[0].textContent = s.name; cells[0].title = s.cls.className;
+      cells[1].textContent = s.flags.destroyed ? "—" : fmtKm(S.distanceKm(p, s));
+      cells[2].textContent = s.flags.destroyed ? "—" : S.speedKmS(s).toFixed(1);
+      cells[3].textContent = s.flags.destroyed ? "—" : S.angularVelocity(p, s).toFixed(2);
+      cells[4].textContent = s.flags.destroyed ? "destroyed" : s.ai ? ({ approach: "closing", attack: "attacking", reposition: "turning", retreat: "retreating" })[s.ai.state] : "";
+      row.classList.toggle("selected", p.selected === s);
+      row.classList.toggle("locked", p.lock.target === s && p.lock.locked);
+    });
+    // drop rows for ships no longer present
+    Object.keys(overviewRows).forEach(function (id) {
+      if (!state.ships.some(function (s) { return String(s.id) === id; })) { tbody.removeChild(overviewRows[id]); delete overviewRows[id]; }
+    });
   }
 
   function setShipName(name) { el["ship-name"].textContent = name; }
 
-  return { init: init, update: update, addLog: addLog, clearLog: clearLog, setAlert: setAlert, showStart: showStart, hideOverlays: hideOverlays, showResult: showResult, setShipName: setShipName };
+  return { init: init, update: update, addLog: addLog, clearLog: clearLog, setAlert: setAlert, showStart: showStart, hideOverlays: hideOverlays, showResult: showResult, setShipName: setShipName, buildModuleBar: buildModuleBar };
 })();

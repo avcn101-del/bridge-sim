@@ -1,18 +1,21 @@
-// js/enemyai.js — enemy behaviour: approach → attack → reposition → retreat.
+// js/enemyai.js — enemy behaviour: approach → attack (orbit) → reposition → retreat.
+// Drives the same commands and modules the player has.
 window.BS = window.BS || {};
 
 BS.EnemyAI = (function () {
-  var U = BS.Util, S = BS.Ships;
+  var U = BS.Util, S = BS.Ships, M = BS.Modules;
 
-  function attach(ship, profileId) {
+  function attach(ship, player, profileId) {
     var p = BS.Data.enemyAI[profileId || "default"];
     ship.aiProfile = p;
-    ship.ai = { state: "approach", timer: 0, decision: 0, canRetreat: true };
-    ship.flags.fireAtWill = true;
+    ship.ai = { state: "approach", timer: 0, decision: 0, canRetreat: true, player: player };
     S.setAlert(ship, "red");
+    ship.selected = player;
     ship.targetSubsystem = pickTarget(p);
-    S.setHelmMode(ship, "attack");
-    ship.helm.phase = "run";
+    S.setCommand(ship, "approach", { target: player });
+    S.startLock(ship, player);
+    // weapons always on; they fire once the lock lands and range allows
+    M.byKind(ship, "turret").concat(M.byKind(ship, "launcher")).forEach(function (m) { M.setActive(ship, m, true); });
   }
 
   function pickTarget(p) {
@@ -29,42 +32,58 @@ BS.EnemyAI = (function () {
     BS.Events.emit("enemyStateChanged", { ship: ship, state: state, prev: prev });
   }
 
+  function setModule(ship, id, on) { M.find(ship, id).forEach(function (m) { if (m.active !== on) M.setActive(ship, m, on); }); }
+
   function update(ship, player, dt) {
     if (!ship.ai || ship.flags.destroyed || !player || player.flags.destroyed) return;
     var ai = ship.ai, p = ship.aiProfile;
     ai.timer += dt; ai.decision -= dt;
     if (ai.decision > 0) return;
-    ai.decision = p.reactionDelay * S.bridgeDelayMult(ship);
+    ai.decision = p.reactionDelay;
+
+    // keep the lock alive
+    if (!ship.lock.target && S.distanceKm(ship, player) <= ship.cls.lockRangeKm) S.startLock(ship, player);
 
     var hullPct = ship.hull / ship.hullMax;
     var facing = S.facingToward(ship, player.pos.x, player.pos.y);
     var facingPct = ship.shields[facing] / ship.shieldMax;
-    var d = S.distanceTo(ship, player);
+    var capPct = ship.capacitor / ship.capMax;
+    var dKm = S.distanceKm(ship, player);
+
+    // module management shared by all states: weapons stay on whenever there is capacitor for them
+    var weaponsOn = capPct > 0.12;
+    M.byKind(ship, "turret").concat(M.byKind(ship, "launcher")).forEach(function (m) { if (m.active !== weaponsOn) M.setActive(ship, m, weaponsOn); });
+    setModule(ship, "shield_booster", facingPct < p.boosterBelow && capPct > p.boosterMinCap);
+    setModule(ship, "shield_hardener", capPct > 0.15 && (ai.state === "attack" || ai.state === "reposition"));
 
     switch (ai.state) {
       case "approach":
-        if (ship.helm.mode !== "attack") S.setHelmMode(ship, "attack");
-        if (d < p.preferredRange * 1.3) setState(ship, "attack");
+        setModule(ship, "afterburner", capPct > p.afterburnerMinCap);
+        if (ship.cmd.type !== "approach") S.setCommand(ship, "approach", { target: player });
+        if (dKm < p.orbitRangeKm * 1.4) { setState(ship, "attack"); S.setCommand(ship, "orbit", { target: player, rangeKm: p.orbitRangeKm }); }
         break;
       case "attack":
-        if (hullPct < p.retreatHull && ai.canRetreat) { setState(ship, "retreat"); S.setHelmMode(ship, "open"); S.setPowerPreset(ship, "shields"); ship.repairPriority = "shields"; break; }
+        if (hullPct < p.retreatHull && ai.canRetreat) { setState(ship, "retreat"); S.setCommand(ship, "keep", { target: player, rangeKm: p.retreatRangeKm }); ship.repairPriority = "shields"; break; }
         if (facingPct < p.repositionShield && S.strongestFacing(ship) !== facing && ship.shields[S.strongestFacing(ship)] > ship.shieldMax * 0.5) {
-          setState(ship, "reposition"); S.setHelmMode(ship, "comeAbout"); break;
+          setState(ship, "reposition"); S.setCommand(ship, "comeAbout", { target: player }); break;
         }
-        if (ship.helm.mode !== "attack") S.setHelmMode(ship, "attack");
-        if (ship.powerPreset !== "weapons" && facingPct > 0.5) S.setPowerPreset(ship, "weapons");
-        else if (ship.powerPreset !== "balanced" && facingPct <= 0.5) S.setPowerPreset(ship, "balanced");
+        if (ship.cmd.type !== "orbit") S.setCommand(ship, "orbit", { target: player, rangeKm: p.orbitRangeKm });
+        // afterburner while the player's beams are landing (angular velocity makes them miss), if cap allows
+        setModule(ship, "afterburner", capPct > 0.45);
         if (ai.timer > 20) { ship.targetSubsystem = pickTarget(p); ai.timer = 0; }
         break;
       case "reposition":
-        if (hullPct < p.retreatHull && ai.canRetreat) { setState(ship, "retreat"); S.setHelmMode(ship, "open"); S.setPowerPreset(ship, "shields"); break; }
-        if (ai.timer > p.repositionDuration || facingPct > 0.5) { setState(ship, "attack"); S.setHelmMode(ship, "attack"); }
+        setModule(ship, "afterburner", false);
+        if (hullPct < p.retreatHull && ai.canRetreat) { setState(ship, "retreat"); S.setCommand(ship, "keep", { target: player, rangeKm: p.retreatRangeKm }); break; }
+        if (ai.timer > p.repositionDuration || facingPct > 0.5) { setState(ship, "attack"); S.setCommand(ship, "orbit", { target: player, rangeKm: p.orbitRangeKm, flipOrbit: true }); }
         break;
       case "retreat":
-        if (ship.helm.mode !== "open") S.setHelmMode(ship, "open");
+        setModule(ship, "afterburner", capPct > p.afterburnerMinCap);
+        if (ship.cmd.type !== "keep") S.setCommand(ship, "keep", { target: player, rangeKm: p.retreatRangeKm });
         var shieldsOk = facingPct > 0.6;
-        // Hull does not regenerate: the Klingon regroups behind fresh shields, then comes back to die with honour.
-        if ((ai.timer > p.retreatMinTime && shieldsOk) || ai.timer > p.retreatMaxTime) { ai.canRetreat = false; setState(ship, "attack"); S.setHelmMode(ship, "attack"); S.setPowerPreset(ship, "weapons"); ship.repairPriority = null; }
+        if ((ai.timer > p.retreatMinTime && shieldsOk) || ai.timer > p.retreatMaxTime) {
+          ai.canRetreat = false; setState(ship, "attack"); S.setCommand(ship, "orbit", { target: player, rangeKm: p.orbitRangeKm }); ship.repairPriority = null;
+        }
         break;
     }
   }

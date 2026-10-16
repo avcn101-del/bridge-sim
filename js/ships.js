@@ -1,4 +1,5 @@
-// js/ships.js — ship model: hull, shields, subsystems, power, helm steering, damage.
+// js/ships.js — ship model: hull, shields, subsystems, capacitor, lock,
+// movement commands, fitted modules, damage.
 window.BS = window.BS || {};
 
 BS.Ships = (function () {
@@ -7,22 +8,21 @@ BS.Ships = (function () {
   var nextId = 1;
 
   function deepCopy(o) { return JSON.parse(JSON.stringify(o)); }
+  function km(px) { return px / BS.Data.units.pxPerKm; }
+  function px(kmv) { return kmv * BS.Data.units.pxPerKm; }
 
   // Build a runtime ship object from a class id. options: { name, pos, heading,
-  // statMult, mods, isPlayer, aiProfile }
+  // statMult, mods, isPlayer, fit }
   function create(classId, options) {
     options = options || {};
     var cls = BS.Data.shipClasses[classId];
     if (!cls) throw new Error("Unknown ship class " + classId);
     var statMult = options.statMult || 1;
     var mods = Object.assign({
-      damageMult: 1, cooldownMult: 1, reloadMult: 1, shieldMaxMult: 1, shieldRegenMult: 1,
-      totalPower: 1, speedMult: 1, turnMult: 1, hullMult: 1, repairMult: 1,
-      accuracyBonus: 0, delayMult: 1,
+      damageMult: 1, cycleMult: 1, shieldMaxMult: 1, shieldRegenMult: 1, capMult: 1, capRechargeMult: 1,
+      speedMult: 1, turnMult: 1, hullMult: 1, repairMult: 1, accuracyBonus: 0, lockMult: 1,
     }, options.mods || {});
 
-    var hullMax = Math.round(cls.hull * statMult * mods.hullMult);
-    var shieldMax = Math.round(cls.shields.max * statMult * mods.shieldMaxMult);
     var ship = {
       id: nextId++,
       classId: classId,
@@ -35,36 +35,42 @@ BS.Ships = (function () {
       heading: options.heading || 0,
       prevHeading: options.heading || 0,
       speed: 0,
-      hull: hullMax, hullMax: hullMax,
-      shields: { fore: shieldMax, aft: shieldMax, port: shieldMax, starboard: shieldMax },
-      shieldMax: shieldMax,
-      shieldRegen: cls.shields.regen * mods.shieldRegenMult,
+      vel: { x: 0, y: 0 },
       subsystems: deepCopy(cls.subsystems),
-      power: Object.assign({}, BS.Data.powerPresets.balanced),
-      powerPreset: "balanced",
-      phaserCooldown: 0,
-      torpedoReload: 0,
-      pendingSpread: 0, spreadTimer: 0,
-      fireOnce: { phasers: false, torpedoes: false },
-      flags: { alert: "none", fireAtWill: false, evasive: false, destroyed: false, armed: false },
-      target: null,
+      flags: { alert: "none", destroyed: false, armed: false },
+      // targeting
+      selected: null,                       // ship selected in the overview / on the display
+      lock: { target: null, progress: 0, locked: false, time: 0 },
       targetSubsystem: null,
-      helm: { mode: "idle", desiredHeading: options.heading || 0, desiredSpeed: 0, phase: "run", phaseTimer: 0, orbitDir: Math.random() < 0.5 ? 1 : -1, comeAboutFacing: null },
+      // movement command
+      cmd: { type: "idle", target: null, range: 0, point: null, orbitDir: Math.random() < 0.5 ? 1 : -1, facing: null },
+      desiredHeading: options.heading || 0, desiredSpeed: 0,
       repairPriority: null,
-      reinforce: null,           // { from, to, perSecond, remaining }
+      reinforce: null, reinforceCooldown: 0,
       visual: Object.assign({}, cls.visual),
-      stats: { damageDealt: 0, damageTaken: 0, torpedoesFired: 0, torpedoHits: 0, phasersFired: 0 },
+      stats: { damageDealt: 0, damageTaken: 0, torpedoesFired: 0, torpedoHits: 0, phasersFired: 0, phaserHits: 0 },
       mods: mods,
       statMult: statMult,
       aiProfile: options.aiProfile || null,
       ai: null,
       destroyedTimer: 0,
       smokeTimer: 0,
-      reportState: { shieldLow: {}, subsystemLow: {}, hullCritical: false },
-      phaserDef: BS.Data.weapons[cls.weapons.phasers],
-      torpedoDef: BS.Data.weapons[cls.weapons.torpedoes],
+      reportState: { shieldLow: {}, subsystemLow: {}, hullCritical: false, capLow: false },
+      modules: [],
+      fitEffects: {},
+      activeEffects: {},
     };
     ship.prevPos.x = ship.pos.x; ship.prevPos.y = ship.pos.y;
+    BS.Modules.fit(ship, options.fit || cls.fit);
+    var hullMax = Math.round((cls.hull + (ship.fitEffects.hullAdd || 0)) * statMult * mods.hullMult);
+    var shieldMax = Math.round(cls.shields.max * statMult * mods.shieldMaxMult);
+    ship.hull = hullMax; ship.hullMax = hullMax;
+    ship.shields = { fore: shieldMax, aft: shieldMax, port: shieldMax, starboard: shieldMax };
+    ship.shieldMax = shieldMax;
+    ship.shieldRegen = cls.shields.regen * mods.shieldRegenMult;
+    ship.capMax = Math.round(cls.capacitor.max * mods.capMult);
+    ship.capacitor = ship.capMax;
+    ship.signature = cls.signature;
     return ship;
   }
 
@@ -73,35 +79,32 @@ BS.Ships = (function () {
     var f = BS.Data.subsystemFloor;
     return f + (1 - f) * U.clamp(ship.subsystems[sys], 0, 100) / 100;
   }
-  function powerMult(ship, sys) {
-    var c = BS.Data.powerCurve[sys];
-    return (c.base + ship.power[sys] * ship.mods.totalPower * c.slope);
-  }
-  function weaponsMult(ship) { return powerMult(ship, "weapons") * subMult(ship, "weapons"); }
-  function torpedoMult(ship) { return (0.6 + 0.4 * powerMult(ship, "weapons")) * subMult(ship, "torpedoes"); }
-  // accuracy multiplier from sensor health (1 at full, floor at 0)
   function sensorsMult(ship) {
     var f = BS.Data.subsystemEffects.sensorsAccuracyFloor;
     return f + (1 - f) * U.clamp(ship.subsystems.sensors, 0, 100) / 100;
   }
-  // order / reaction delay multiplier from bridge health (1 at full, max at 0)
-  function bridgeDelayMult(ship) {
-    var m = BS.Data.subsystemEffects.bridgeDelayMaxMult;
-    return 1 + (m - 1) * (1 - U.clamp(ship.subsystems.bridge, 0, 100) / 100);
+  function lockTimeMult(ship) {
+    var m = BS.Data.subsystemEffects.sensorsLockMaxMult;
+    return (1 + (m - 1) * (1 - U.clamp(ship.subsystems.sensors, 0, 100) / 100)) * (ship.activeEffects.lockMult || 1) * ship.mods.lockMult;
   }
-  function subsystemIds() { return Object.keys(BS.Data.subsystems); }
-  function enginesMult(ship) { return powerMult(ship, "engines") * subMult(ship, "engines"); }
+  function capRechargeMult(ship) {
+    var m = BS.Data.subsystemEffects.bridgeCapMinMult;
+    var bridge = m + (1 - m) * U.clamp(ship.subsystems.bridge, 0, 100) / 100;
+    return bridge * (ship.fitEffects.capRechargeMult || 1) * ship.mods.capRechargeMult;
+  }
   function shieldsMult(ship) {
-    var m = powerMult(ship, "shields") * subMult(ship, "shields");
-    if (ship.flags.alert === "none") m *= BS.Data.balance.noAlertShieldRegenMult;
-    if (ship.flags.alert === "red") m *= BS.Data.balance.redAlertRegenBonus;
+    var m = subMult(ship, "shields");
+    if (!ship.flags.armed) m *= BS.Data.balance.noAlertShieldRegenMult;
     return m;
   }
-  function maxSpeed(ship) { return ship.cls.speed * enginesMult(ship) * ship.mods.speedMult; }
-  function turnRate(ship) { return ship.cls.turnRate * U.DEG * enginesMult(ship) * ship.mods.turnMult; }
+  function enginesMult(ship) { return subMult(ship, "engines"); }
+  function maxSpeed(ship) {
+    return ship.cls.speed * enginesMult(ship) * ship.mods.speedMult * (ship.fitEffects.speedMult || 1) * (ship.activeEffects.speedMult || 1);
+  }
+  function turnRate(ship) { return ship.cls.turnRate * U.DEG * (0.5 + 0.5 * enginesMult(ship)) * ship.mods.turnMult; }
+  function subsystemIds() { return Object.keys(BS.Data.subsystems); }
 
   // ---- geometry ---------------------------------------------------------
-  // Which shield facing faces a world point?
   function facingToward(ship, x, y) {
     var rel = U.normAngle(U.angleTo(ship.pos.x, ship.pos.y, x, y) - ship.heading);
     var a = Math.abs(rel);
@@ -109,10 +112,7 @@ BS.Ships = (function () {
     if (a > 3 * Math.PI / 4) return "aft";
     return rel > 0 ? "starboard" : "port";
   }
-  // Heading offset (radians) of a facing relative to the bow
-  function facingOffset(facing) {
-    return { fore: 0, starboard: Math.PI / 2, aft: Math.PI, port: -Math.PI / 2 }[facing];
-  }
+  function facingOffset(facing) { return { fore: 0, starboard: Math.PI / 2, aft: Math.PI, port: -Math.PI / 2 }[facing]; }
   function strongestFacing(ship) {
     var best = "fore";
     for (var i = 0; i < FACINGS.length; i++) if (ship.shields[FACINGS[i]] > ship.shields[best]) best = FACINGS[i];
@@ -124,19 +124,27 @@ BS.Ships = (function () {
     return worst;
   }
   function distanceTo(ship, other) { return U.dist(ship.pos.x, ship.pos.y, other.pos.x, other.pos.y); }
+  function distanceKm(ship, other) { return km(distanceTo(ship, other)); }
   function bearingTo(ship, other) { return U.normAngle(U.angleTo(ship.pos.x, ship.pos.y, other.pos.x, other.pos.y) - ship.heading); }
   function inArc(ship, other, arcDeg) { return Math.abs(bearingTo(ship, other)) <= (arcDeg / 2) * U.DEG; }
+  // angular velocity of `other` as seen from `ship`, rad/s
+  function angularVelocity(ship, other) {
+    var dx = other.pos.x - ship.pos.x, dy = other.pos.y - ship.pos.y;
+    var d = Math.sqrt(dx * dx + dy * dy);
+    if (d < 1) return 0;
+    var rvx = other.vel.x - ship.vel.x, rvy = other.vel.y - ship.vel.y;
+    var transversal = Math.abs(rvx * (-dy / d) + rvy * (dx / d));
+    return transversal / d;
+  }
+  function speedKmS(ship) { return km(ship.speed); }
 
   // ---- hardpoints -------------------------------------------------------
-  // World position of a subsystem's (first) hardpoint, or null.
   function hardpointWorld(ship, sys) {
     var hps = ship.visual.hardpoints && ship.visual.hardpoints[sys];
     if (!hps || !hps.length) return null;
     var h = hps[Math.floor(Math.random() * hps.length)];
     return U.localToWorld(ship, h.x, h.y);
   }
-  // Which subsystem hardpoint is under a world point? Returns { sys, x, y, r } or null.
-  // Also returns { sys: null } when the point is on the hull but not on a hardpoint.
   function hardpointAt(ship, wx, wy, slack) {
     var hps = ship.visual.hardpoints;
     if (!hps) return null;
@@ -149,46 +157,73 @@ BS.Ships = (function () {
       });
     });
     if (best) return best;
-    if (U.dist(wx, wy, ship.pos.x, ship.pos.y) <= ship.visual.length * 0.55) return { sys: null, x: ship.pos.x, y: ship.pos.y, r: 0 };
+    if (U.dist(wx, wy, ship.pos.x, ship.pos.y) <= ship.visual.length * 0.6) return { sys: null, x: ship.pos.x, y: ship.pos.y, r: 0 };
     return null;
   }
 
-  // ---- orders applied to a ship ----------------------------------------
-  function setHelmMode(ship, mode) {
-    ship.helm.mode = mode;
-    ship.helm.phase = "run";
-    ship.helm.phaseTimer = 0;
-    ship.flags.evasive = (mode === "evasive");
-    if (mode === "comeAbout") ship.helm.comeAboutFacing = strongestFacing(ship);
+  // ---- commands ---------------------------------------------------------
+  function setCommand(ship, type, opts) {
+    opts = opts || {};
+    var c = ship.cmd;
+    c.type = type;
+    c.target = opts.target || null;
+    c.range = opts.rangeKm !== undefined ? px(opts.rangeKm) : c.range;
+    c.point = opts.point || null;
+    if (type === "comeAbout") c.facing = strongestFacing(ship);
+    if (opts.flipOrbit) c.orbitDir = -c.orbitDir;
   }
-  function setPowerPreset(ship, preset) {
-    var p = BS.Data.powerPresets[preset];
-    if (!p) return;
-    ship.power = Object.assign({}, p);
-    ship.powerPreset = preset;
-  }
-  function setAlert(ship, level) {
-    ship.flags.alert = level;
-    ship.flags.armed = level !== "none";
-  }
+  function setAlert(ship, level) { ship.flags.alert = level; ship.flags.armed = level !== "none"; }
   function startReinforce(ship) {
+    if (ship.reinforceCooldown > 0) return "cooldown";
     var from = strongestFacing(ship), to = weakestFacing(ship);
     if (from === to || ship.shields[from] - ship.shields[to] < ship.shieldMax * 0.1) return null;
     var amount = ship.shields[from] * BS.Data.balance.reinforceFraction;
     ship.reinforce = { from: from, to: to, perSecond: amount / BS.Data.balance.reinforceDuration, remaining: amount };
+    ship.reinforceCooldown = BS.Data.balance.reinforceCooldown;
     return ship.reinforce;
   }
 
+  // ---- locking ----------------------------------------------------------
+  function lockTime(ship, target) {
+    var B = BS.Data.balance;
+    return B.lockBase * (B.lockRefSignature / target.signature) * (B.lockRefSensor / ship.cls.sensorStrength) * lockTimeMult(ship);
+  }
+  function startLock(ship, target) {
+    if (!target || target.flags.destroyed) return "noTarget";
+    if (distanceKm(ship, target) > ship.cls.lockRangeKm) return "outOfRange";
+    if (ship.lock.target === target && (ship.lock.locked || ship.lock.progress > 0)) return "already";
+    ship.lock = { target: target, progress: 0, locked: false, time: lockTime(ship, target) };
+    BS.Events.emit("lockStarted", { ship: ship, target: target });
+    return "ok";
+  }
+  function clearLock(ship, reason) {
+    var had = ship.lock.target;
+    ship.lock = { target: null, progress: 0, locked: false, time: 0 };
+    if (had) BS.Events.emit("lockLost", { ship: ship, target: had, reason: reason || "unlock" });
+  }
+  function updateLock(ship, dt) {
+    var L = ship.lock;
+    if (!L.target) return;
+    if (L.target.flags.destroyed || distanceKm(ship, L.target) > ship.cls.lockRangeKm * 1.1) { clearLock(ship, "range"); return; }
+    if (L.locked) return;
+    L.time = lockTime(ship, L.target);
+    L.progress += dt / L.time;
+    if (L.progress >= 1) { L.progress = 1; L.locked = true; BS.Events.emit("lockAcquired", { ship: ship, target: L.target }); }
+  }
+
   // ---- damage -----------------------------------------------------------
-  // Returns { facing, absorbed, hullDamage, subsystem, shieldsDown }
   function applyDamage(ship, amount, fromX, fromY, targetSubsystem, attacker, kind) {
     if (ship.flags.destroyed) return null;
     var B = BS.Data.balance;
     var facing = facingToward(ship, fromX, fromY);
     var shield = ship.shields[facing];
-    var absorbed = Math.min(shield, amount);
+    var resist = ship.activeEffects.shieldResist || 0;
+    var shieldAmount = amount * (1 - resist);
+    var absorbed = Math.min(shield, shieldAmount);
     ship.shields[facing] = shield - absorbed;
-    var hullDamage = (amount - absorbed) + absorbed * B.shieldBleedThrough;
+    var leftover = shieldAmount - absorbed;             // what the (resisted) shield could not take
+    var hullDamage = leftover / Math.max(0.01, 1 - resist) + absorbed * B.shieldBleedThrough;
+    if (absorbed <= 0) hullDamage = amount;             // shield already down: full damage, no resist
     var shieldsDown = ship.shields[facing] <= 0 && shield > 0;
     var subsystem = null;
     if (hullDamage > 0) {
@@ -204,10 +239,9 @@ BS.Ships = (function () {
         subsystem = sys;
       }
     }
-    // impact point on the shield bubble / hull, for effects
     var ang = U.angleTo(ship.pos.x, ship.pos.y, fromX, fromY);
     var impact = { x: ship.pos.x + Math.cos(ang) * ship.visual.length * 0.5, y: ship.pos.y + Math.sin(ang) * ship.visual.length * 0.5 };
-    var result = { ship: ship, facing: facing, absorbed: absorbed, hullDamage: hullDamage, subsystem: subsystem, shieldsDown: shieldsDown, impact: impact, angle: ang, kind: kind, amount: amount };
+    var result = { ship: ship, facing: facing, absorbed: absorbed, hullDamage: hullDamage, subsystem: subsystem, shieldsDown: shieldsDown, impact: impact, angle: ang, kind: kind, amount: amount, attacker: attacker };
     if (subsystem) { var hp = hardpointWorld(ship, subsystem); if (hp) result.subsystemPoint = hp; }
     if (absorbed > 0) BS.Events.emit("shieldHit", result);
     if (hullDamage > 0) BS.Events.emit("hullHit", result);
@@ -220,87 +254,82 @@ BS.Ships = (function () {
     return result;
   }
 
-  // ---- helm steering ----------------------------------------------------
+  // ---- movement from commands ------------------------------------------
   function orbitHeading(ship, target, range, dir) {
     var d = distanceTo(ship, target);
     var toT = U.angleTo(ship.pos.x, ship.pos.y, target.pos.x, target.pos.y);
-    if (d > range * 1.2) return { heading: toT + dir * 0.35, speed: 1 };
-    if (d < range * 0.75) return { heading: toT + dir * (Math.PI / 2 + 0.6), speed: 1 };
-    // tangent, nudged in/out to hold range
-    var nudge = (d - range) / range;  // positive = too far
-    return { heading: toT + dir * (Math.PI / 2 - nudge * 0.9), speed: 0.85 };
+    if (d > range * 1.25) return { heading: toT + dir * 0.3, speed: 1 };
+    if (d < range * 0.7) return { heading: toT + dir * (Math.PI / 2 + 0.7), speed: 1 };
+    var nudge = (d - range) / range;
+    return { heading: toT + dir * (Math.PI / 2 - nudge * 1.0), speed: 1 };
+  }
+  function keepHeading(ship, target, range, dir) {
+    var d = distanceTo(ship, target);
+    var toT = U.angleTo(ship.pos.x, ship.pos.y, target.pos.x, target.pos.y);
+    if (d > range * 1.08) return { heading: toT, speed: 1 };
+    if (d < range * 0.92) return { heading: toT + Math.PI, speed: 1 };
+    // on the ring: drift sideways slowly to keep some angular motion
+    return { heading: toT + dir * Math.PI / 2, speed: 0.35 };
   }
 
-  function updateHelm(ship, target, dt) {
-    var h = ship.helm;
-    var cls = ship.cls;
-    var pr = (ship.aiProfile && ship.aiProfile.preferredRange) || cls.preferredRange;
-    if (!target || target.flags.destroyed) {
-      h.desiredSpeed = 0;
-      return;
+  function updateCommand(ship, dt) {
+    var c = ship.cmd, out;
+    var t = c.target;
+    if (t && t.flags.destroyed) { c.type = "idle"; t = null; }
+    switch (c.type) {
+      case "approach":
+        out = { heading: U.angleTo(ship.pos.x, ship.pos.y, t.pos.x, t.pos.y), speed: distanceTo(ship, t) < ship.visual.length ? 0.2 : 1 };
+        break;
+      case "orbit": out = orbitHeading(ship, t, c.range, c.orbitDir); break;
+      case "keep": out = keepHeading(ship, t, c.range, c.orbitDir); break;
+      case "flyTo": {
+        var d = U.dist(ship.pos.x, ship.pos.y, c.point.x, c.point.y);
+        if (d < 12) { c.type = "idle"; out = { heading: ship.heading, speed: 0 }; }
+        else out = { heading: U.angleTo(ship.pos.x, ship.pos.y, c.point.x, c.point.y), speed: d < 60 ? 0.4 : 1 };
+        break;
+      }
+      case "comeAbout": {
+        var ref = t || ship.lock.target || ship.selected;
+        if (!ref) { out = { heading: ship.heading, speed: 0 }; break; }
+        out = { heading: U.angleTo(ship.pos.x, ship.pos.y, ref.pos.x, ref.pos.y) - facingOffset(c.facing || "fore"), speed: 0.25 };
+        break;
+      }
+      default: out = { heading: ship.heading, speed: 0 };
     }
-    var toT = U.angleTo(ship.pos.x, ship.pos.y, target.pos.x, target.pos.y);
-    var d = distanceTo(ship, target);
-    var out;
-    switch (h.mode) {
-      case "attack":
-        // Orbit at preferred range; turn in for a torpedo pass whenever the tubes
-        // are loaded (or every so often anyway), then break off again.
-        h.phaseTimer += dt;
-        if (h.phase === "run") {
-          out = { heading: toT, speed: 1 };
-          var fired = ship.torpedoReload > 0 && ship.pendingSpread === 0;
-          if ((fired && h.phaseTimer > 1.5) || h.phaseTimer > 9 || d < pr * 0.45) { h.phase = "break"; h.phaseTimer = 0; h.orbitDir = -h.orbitDir; }
-        } else {
-          out = orbitHeading(ship, target, pr, h.orbitDir);
-          var wantTorps = ship.flags.armed && ship.torpedoReload <= 0 && (ship.flags.fireAtWill || ship.fireOnce.torpedoes);
-          if ((wantTorps && h.phaseTimer > 2.5) || h.phaseTimer > 16) { h.phase = "run"; h.phaseTimer = 0; }
-        }
-        break;
-      case "evasive":
-        h.phaseTimer += dt;
-        out = orbitHeading(ship, target, pr * 1.1, h.orbitDir);
-        out.heading += Math.sin(h.phaseTimer * 1.7) * 0.9;
-        out.speed = 1;
-        break;
-      case "close":
-        out = orbitHeading(ship, target, cls.closeRange, h.orbitDir);
-        break;
-      case "open":
-        out = d < cls.openRange * 0.9 ? { heading: toT + Math.PI + h.orbitDir * 0.4, speed: 1 } : orbitHeading(ship, target, cls.openRange, h.orbitDir);
-        break;
-      case "comeAbout":
-        out = { heading: toT - facingOffset(h.comeAboutFacing || "fore"), speed: 0.25 };
-        break;
-      default: // idle: drift to a stop
-        out = { heading: ship.heading, speed: 0 };
-    }
-    h.desiredHeading = out.heading;
-    h.desiredSpeed = out.speed * maxSpeed(ship);
+    ship.desiredHeading = out.heading;
+    ship.desiredSpeed = out.speed * maxSpeed(ship);
   }
 
   function updateMovement(ship, dt) {
     ship.prevPos.x = ship.pos.x; ship.prevPos.y = ship.pos.y; ship.prevHeading = ship.heading;
-    var diff = U.normAngle(ship.helm.desiredHeading - ship.heading);
+    var diff = U.normAngle(ship.desiredHeading - ship.heading);
     var maxTurn = turnRate(ship) * dt;
-    if (Math.abs(diff) <= maxTurn) ship.heading = ship.helm.desiredHeading; else ship.heading += Math.sign(diff) * maxTurn;
+    if (Math.abs(diff) <= maxTurn) ship.heading = ship.desiredHeading; else ship.heading += Math.sign(diff) * maxTurn;
     ship.heading = U.normAngle(ship.heading);
-    var accel = maxSpeed(ship) * 0.9;
-    if (ship.speed < ship.helm.desiredSpeed) ship.speed = Math.min(ship.helm.desiredSpeed, ship.speed + accel * dt);
-    else ship.speed = Math.max(ship.helm.desiredSpeed, ship.speed - accel * dt);
-    ship.pos.x += Math.cos(ship.heading) * ship.speed * dt;
-    ship.pos.y += Math.sin(ship.heading) * ship.speed * dt;
+    var accel = maxSpeed(ship) * 0.8;
+    if (ship.speed < ship.desiredSpeed) ship.speed = Math.min(ship.desiredSpeed, ship.speed + accel * dt);
+    else ship.speed = Math.max(ship.desiredSpeed, ship.speed - accel * dt);
+    ship.vel.x = Math.cos(ship.heading) * ship.speed; ship.vel.y = Math.sin(ship.heading) * ship.speed;
+    ship.pos.x += ship.vel.x * dt;
+    ship.pos.y += ship.vel.y * dt;
   }
 
   // ---- per-step systems -------------------------------------------------
   function updateSystems(ship, dt) {
+    var B = BS.Data.balance;
+    // capacitor recharge (EVE curve: fastest around 25%)
+    var f = ship.capacitor / ship.capMax;
+    var rate = (ship.capMax / ship.cls.capacitor.rechargeTime) * B.capCurve * Math.max(0, Math.sqrt(f) - f) * capRechargeMult(ship);
+    if (f < 0.02) rate = (ship.capMax / ship.cls.capacitor.rechargeTime) * 0.4 * capRechargeMult(ship);  // never fully stalls
+    ship.capacitor = Math.min(ship.capMax, ship.capacitor + rate * dt);
     // shields regen
     var regen = ship.shieldRegen * shieldsMult(ship) * dt;
     for (var i = 0; i < FACINGS.length; i++) {
-      var f = FACINGS[i];
-      if (ship.shields[f] < ship.shieldMax) ship.shields[f] = Math.min(ship.shieldMax, ship.shields[f] + regen);
+      var fc = FACINGS[i];
+      if (ship.shields[fc] < ship.shieldMax) ship.shields[fc] = Math.min(ship.shieldMax, ship.shields[fc] + regen);
     }
     // reinforce transfer
+    if (ship.reinforceCooldown > 0) ship.reinforceCooldown -= dt;
     var r = ship.reinforce;
     if (r) {
       var step = Math.min(r.perSecond * dt, r.remaining, ship.shields[r.from]);
@@ -310,7 +339,7 @@ BS.Ships = (function () {
       if (r.remaining <= 0.01 || step <= 0) ship.reinforce = null;
     }
     // repairs
-    var rate = ship.cls.repairRate * ship.mods.repairMult * dt;
+    var rrate = ship.cls.repairRate * ship.mods.repairMult * dt;
     var prio = ship.repairPriority;
     var ids = subsystemIds();
     if (!prio) {
@@ -321,52 +350,31 @@ BS.Ships = (function () {
     ids.forEach(function (s) {
       if (ship.subsystems[s] >= 100) return;
       var before = ship.subsystems[s];
-      ship.subsystems[s] = Math.min(100, before + (s === prio ? rate : rate * 0.25));
+      ship.subsystems[s] = Math.min(100, before + (s === prio ? rrate : rrate * 0.25));
       if (before < 100 && ship.subsystems[s] >= 100) BS.Events.emit("subsystemRepaired", { ship: ship, subsystem: s });
     });
-    // hull patching once damage control has nothing else to do
-    if (ship.hull < ship.hullMax && subsystemIds().every(function (s) { return ship.subsystems[s] >= 100; })) {
-      ship.hull = Math.min(ship.hullMax, ship.hull + BS.Data.balance.hullRepairRate * ship.mods.repairMult * dt);
+    if (ship.hull < ship.hullMax && ids.every(function (s) { return ship.subsystems[s] >= 100; })) {
+      ship.hull = Math.min(ship.hullMax, ship.hull + B.hullRepairRate * ship.mods.repairMult * dt);
     }
-    // weapon timers
-    var wm = weaponsMult(ship);
-    if (ship.phaserCooldown > 0) ship.phaserCooldown -= dt * wm;
-    if (ship.torpedoReload > 0) ship.torpedoReload -= dt * torpedoMult(ship);
   }
 
-  function update(ship, target, dt) {
-    if (ship.flags.destroyed) { ship.destroyedTimer += dt; ship.prevPos.x = ship.pos.x; ship.prevPos.y = ship.pos.y; ship.prevHeading = ship.heading; return; }
-    updateHelm(ship, target, dt);
+  function update(ship, dt) {
+    if (ship.flags.destroyed) { ship.destroyedTimer += dt; ship.prevPos.x = ship.pos.x; ship.prevPos.y = ship.pos.y; ship.prevHeading = ship.heading; ship.vel.x = ship.vel.y = 0; return; }
+    BS.Modules.update(ship, dt);      // sets activeEffects, fires weapons, spends capacitor
+    updateLock(ship, dt);
+    updateCommand(ship, dt);
     updateMovement(ship, dt);
     updateSystems(ship, dt);
   }
 
   return {
-    FACINGS: FACINGS,
-    create: create,
-    update: update,
-    applyDamage: applyDamage,
-    facingToward: facingToward,
-    facingOffset: facingOffset,
-    strongestFacing: strongestFacing,
-    weakestFacing: weakestFacing,
-    distanceTo: distanceTo,
-    bearingTo: bearingTo,
-    inArc: inArc,
-    setHelmMode: setHelmMode,
-    setPowerPreset: setPowerPreset,
-    setAlert: setAlert,
-    startReinforce: startReinforce,
-    weaponsMult: weaponsMult,
-    torpedoMult: torpedoMult,
-    sensorsMult: sensorsMult,
-    bridgeDelayMult: bridgeDelayMult,
-    subsystemIds: subsystemIds,
-    hardpointWorld: hardpointWorld,
-    hardpointAt: hardpointAt,
-    enginesMult: enginesMult,
-    shieldsMult: shieldsMult,
-    subMult: subMult,
-    maxSpeed: maxSpeed,
+    FACINGS: FACINGS, km: km, px: px,
+    create: create, update: update, applyDamage: applyDamage,
+    facingToward: facingToward, facingOffset: facingOffset, strongestFacing: strongestFacing, weakestFacing: weakestFacing,
+    distanceTo: distanceTo, distanceKm: distanceKm, bearingTo: bearingTo, inArc: inArc, angularVelocity: angularVelocity, speedKmS: speedKmS,
+    setCommand: setCommand, setAlert: setAlert, startReinforce: startReinforce,
+    startLock: startLock, clearLock: clearLock, lockTime: lockTime,
+    sensorsMult: sensorsMult, subsystemIds: subsystemIds, hardpointWorld: hardpointWorld, hardpointAt: hardpointAt,
+    enginesMult: enginesMult, shieldsMult: shieldsMult, subMult: subMult, maxSpeed: maxSpeed, capRechargeMult: capRechargeMult,
   };
 })();
