@@ -25,6 +25,8 @@ These rules apply to every session working in this repository.
   lives in `js/data.js`. Game logic must read from data, never hard-code.
 - **Modular code.** One responsibility per file:
   - `js/data.js` — all tunable stats, ship classes, weapons, upgrades, enemies
+  - `js/util.js` — math helpers (angles, lerp, seeded random, templates)
+  - `js/events.js` — publish/subscribe bus
   - `js/game.js` — game loop, state, pause, win/lose
   - `js/ships.js` — ship model: hull, shields, subsystems, power, movement
   - `js/weapons.js` — phasers, torpedoes, hit resolution
@@ -60,9 +62,14 @@ These rules apply to every session working in this repository.
 - When a feature changes, update `DESIGN.md` (mechanics/screens/data) and
   `CHANGELOG.md` (version entry) in the same commit.
 - Before finishing any task: open `index.html` in a headless browser (the
-  cloud environment has Chromium + Playwright) or a real one, play for at
-  least 30 simulated seconds, and confirm **zero console errors**. Report the
-  result honestly.
+  cloud environment has Chromium + Playwright, `NODE_PATH=/opt/node-tools/node_modules`)
+  or a real one, play for at least 30 simulated seconds, and confirm **zero
+  console errors** (a blocked Google Fonts request in the sandbox is not a
+  game error). Report the result honestly.
+- Balance changes must be checked with an accelerated simulation: start a
+  battle, set `BS.Game.state.paused = true`, then call `BS.Game.step(1/60)`
+  in a loop with a scripted captain. Targets: attentive captain wins in
+  3–5 min with 50–80% hull, doing nothing loses in about 3 min.
 - Keep `README.md` "tweakable values" section in sync with `data.js`.
 - Commit messages: short imperative subject, body explains why.
 - Do not add build tooling, package.json, linters or test frameworks unless

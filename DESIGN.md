@@ -63,12 +63,15 @@ target choice (weapons/engines/shields), when to open/close range.
 ### Order buttons
 
 **Helm**
-- Attack pattern — keep optimal weapons range, circle enemy, present a fresh
-  shield facing when the current one drops below a threshold.
+- Attack pattern — orbit the enemy at preferred range; whenever the torpedo
+  tubes are loaded (or every 16 s regardless) turn in for a firing pass, then
+  break off in the other direction. This is how torpedoes (70° forward arc)
+  get their windows.
 - Evasive maneuvers — weave, reduces enemy hit chance, less of own fire lands.
 - Close range — approach to short range (torpedo accuracy up).
 - Open range — pull away to long range (phaser range edge).
-- Come about — turn to present strongest shield facing to enemy.
+- Come about — turn to present strongest shield facing to enemy and hold at
+  quarter speed. Helm warns if that facing is aft ("no weapons on target").
 
 **Tactical**
 - Target: Weapons / Engines / Shields — subsystem focus on hits that bleed
@@ -97,7 +100,9 @@ target choice (weapons/engines/shields), when to open/close range.
   queue and start executing when unpaused, acknowledgements log immediately).
 
 ### Ships
-- `hull` (0..max). At 0: destroyed.
+- `hull` (0..max). At 0: destroyed. No shield-style regen, but once every
+  subsystem is back at 100 damage control patches hull slowly
+  (`balance.hullRepairRate`), for both sides.
 - `shields` with four facings `fore`, `aft`, `port`, `starboard`, each 0..max.
   Facing hit = the arc (90° each) that faces the attacker, computed from the
   angle of the incoming shot relative to the ship's heading.
@@ -115,17 +120,19 @@ target choice (weapons/engines/shields), when to open/close range.
   desired heading and speed; turn rate limited; motion interpolated.
 
 ### Weapons
-- **Phasers**: fast, hitscan beam, moderate damage, short cooldown, 270° arc,
-  damage falls off with range beyond optimal.
-- **Torpedoes**: projectile, slow reload, heavy damage, forward arc, travel
-  time, can miss if target is evasive or far.
+- **Phasers**: fast, hitscan beam, moderate damage (20 per volley split over
+  two mounts), 2.6 s cooldown, 270° arc, damage falls off with range beyond
+  optimal (260 of 440).
+- **Torpedoes**: projectile, 11 s reload, heavy damage (95 each, spread of 2),
+  70° forward arc, travel time, homing, can miss if target is evasive.
 - Hit resolution: `damage × powerMult × subsystemMult × accuracyRoll`. Damage
   goes to the facing shield first; leftover × bleed factor goes to hull and a
   targeted subsystem (if a target subsystem is set) or random subsystem.
 
 ### Crew AI (orders)
-- Each officer has an order queue (max 1 pending + current). A new order to
-  the same officer replaces the pending one.
+- Each officer has a FIFO order queue: one executing plus up to 4 pending.
+  Clicking several buttons quickly is safe; the oldest pending order is
+  dropped only when the queue overflows.
 - Flow: click → immediate `ack` message ("Helm: Aye, Captain.") → delay
   (per order, from data; red alert and crew XP reduce it) → `execute` →
   `report` message ("Tactical: Torpedoes away, Captain.").
@@ -137,8 +144,9 @@ target choice (weapons/engines/shields), when to open/close range.
 - `attack`: hold medium range, orbit, fire when ready; prefer presenting
   the strongest shield facing when the facing to player < threshold.
 - `reposition`: when facing shield < 20%, turn fresh shield toward player.
-- `retreat`: when hull < 30%, open range to max, regenerate shields; return
-  to `attack` when hull/shield recovered or after a timer.
+- `retreat`: when hull < 28%, open range to max, power to shields; returns
+  to `attack` once the facing shield is above 60% (after at least 9 s) or
+  after 22 s. A Klingon retreats only once per battle, then fights to the end.
 - Difficulty profile in data: accuracy, reaction delay, stats multipliers.
 
 ### Win / lose
@@ -178,7 +186,8 @@ shape when those features arrive.
 BS.Data = {
   balance: {
     simStep: 1/60,
-    shieldBleedThrough: 0.25,       // fraction of shield damage that leaks to hull
+    shieldBleedThrough: 0.15,       // fraction of absorbed shield damage that leaks to hull
+    hullRepairRate: 0.8,
     subsystemHitChance: 0.6,        // chance a hull hit also damages a subsystem
     hullSmokeThreshold: 0.5,
     cameraLerp: 0.08,
@@ -189,8 +198,8 @@ BS.Data = {
       id: "constitution", name: "Constitution class", role: "Cruiser",
       faction: "federation", cost: 0, purchasable: true,
       hull: 1000,
-      shields: { max: 400, regen: 6 },           // per facing, per second at balanced power
-      speed: 90, turnRate: 70,                   // px/s, deg/s
+      shields: { max: 380, regen: 7 },           // per facing, per second at balanced power
+      speed: 95, turnRate: 65,                   // px/s, deg/s
       subsystems: { weapons: 100, engines: 100, shields: 100 },
       weapons: { phasers: "phaser_mk1", torpedoes: "photon_mk1" },
       phaserMounts: 2, torpedoTubes: 2,
@@ -203,10 +212,10 @@ BS.Data = {
   },
 
   weapons: {
-    phaser_mk1:  { type: "phaser",  damage: 45, cooldown: 2.0, range: 420,
-                   optimalRange: 260, arc: 270, accuracy: 0.9 },
-    photon_mk1:  { type: "torpedo", damage: 160, reload: 8.0, speed: 220,
-                   range: 600, arc: 60, accuracy: 0.75, spread: 2 },
+    phaser_mk1:  { type: "phaser",  damage: 20, cooldown: 2.6, range: 440,
+                   optimalRange: 260, arc: 270, accuracy: 0.92 },
+    photon_mk1:  { type: "torpedo", damage: 95, reload: 11, speed: 240,
+                   range: 640, arc: 70, accuracy: 0.78, spread: 2 },
     disruptor_mk1: { type: "phaser", ... },
   },
 
@@ -226,8 +235,8 @@ BS.Data = {
 
   enemyAI: {
     default: { accuracyMult: 0.85, reactionDelay: 1.2, statMult: 0.85,
-               retreatHull: 0.3, returnHull: 0.5, repositionShield: 0.2,
-               preferredRange: 280 },
+               retreatHull: 0.28, retreatMinTime: 9, retreatMaxTime: 22,
+               repositionShield: 0.22, preferredRange: 240 },
   },
 
   // ---- Later features: shapes defined now, unused in MVP ----
@@ -300,11 +309,20 @@ BS.Data = {
 `enemyStateChanged`, `log`, `battleEnded`. Audio, effects and UI subscribe;
 logic never calls them directly.
 
-## 8. MVP scope (v0.1)
+## 8. MVP scope (v0.1) — built
 
 - All screens, all order buttons above, one enemy (Bird-of-Prey), one player
   class (Constitution), full visual style, pause, result screen, restart.
 - No campaign, no shipyard, no saving, no sound, no science station.
+
+Measured balance (accelerated simulation, 4 runs each, v0.1.0):
+
+| Captain behaviour | Outcome |
+|---|---|
+| Attentive (red alert, attack pattern, fire at will, weapons power, comes about when a facing drops) | Wins in 2:45–3:30 with 60–80% hull |
+| Passive (red alert, attack pattern, fire at will, nothing else) | Usually wins in 4–6 min with 0–50% hull, sometimes loses |
+| Stationary (yellow alert, fire at will, no helm orders) | Coin flip |
+| No orders | Loses in about 3 min |
 
 ## 9. Roadmap
 

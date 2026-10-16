@@ -1,1 +1,6 @@
-// js/main.js — see CLAUDE.md for responsibilities. Implemented in Phase 3 (v0.1.0).
+// js/main.js — bootstrap.
+window.BS = window.BS || {};
+
+window.addEventListener("DOMContentLoaded", function () {
+  BS.Game.init();
+});
