@@ -2,6 +2,46 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.5.0] — 2026-10-17 (block construction, v0.5 PR 1)
+
+### Changed
+- Ships are built from **blocks on a Trek-shaped cell grid**. Each class has a
+  hull mask (Constitution 26×16 with 206 fillable cells, Bird-of-Prey 24×22
+  with 140) and a default layout. Nine block types: armor, phaser emitter,
+  torpedo tube, shield emitter, reactor, impulse engine, sensor array,
+  bridge, crew quarters. Ship stats are sums of blocks: hull hp, shield per
+  facing from emitter positions, capacitor from reactors, speed from thrust
+  over mass (engines in nacelles count double), lock time from sensors,
+  repair from crew quarters.
+- **Spatial damage**: after shields, a shot hits the outermost block on the
+  attacker's side. Beams penetrate two blocks; torpedoes explode on the
+  entry block and splash into its neighbours. Destroyed blocks tumble away;
+  blocks cut off from the bridge break off as a section. A ship is lost when
+  the bridge dies or alive block hp falls below 35%. The Constitution's neck
+  and pylons are fixed structure with 220 hp.
+- **Aiming** at a block type (click a block on the enemy, or its chip in the
+  Target panel) steers shots to the nearest block of that type near the
+  entry point, at −15% accuracy. Repair priority is per block type.
+- Weapon groups replace fitted weapon modules: F1 fires every phaser emitter
+  whose outward arc (180°) allows, F2 every torpedo tube (220°). Booster,
+  hardener and afterburner are built into every ship.
+- Renderer draws grids as plated hulls with a smooth outline, shading, glowing
+  engines, reactors, emitters and bridge, and running lights; the hangar
+  shows a build preview with a block legend and layout statistics (block
+  count, mass, value, dps, capacitor stability, defence per facing, mobility).
+- Hull cells are 6 px (`grid.cellPx`); default zoom 0.8, max 2.0 for aiming
+  at blocks.
+- Save version 2 now stores `layouts` per class; module fits and the module
+  market are gone (the block editor and block economy arrive in PR 2).
+- New file `js/grid.js`. Ship classes without a mask (Miranda, Defiant,
+  Excelsior, Galaxy, Sovereign) are removed until PR 3 adds their hulls.
+
+### Measured balance (default layouts, no skills)
+- Weapons + hardener at 6 km: wins in about 3:40 losing ~38% of block hp.
+  Speed tank (booster pulsed, afterburner): wins in 5–8 min nearly untouched.
+  Everything on: capacitor starves, often a stalemate. No orders: lost in
+  about 3 min.
+
 ## [0.4.0] — 2026-10-16 (hangar, fitting, skills, save, PR B)
 
 ### Added

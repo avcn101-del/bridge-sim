@@ -94,8 +94,15 @@ BS.Effects = (function () {
       fire(t.x, t.y, 14);
     });
     BS.Events.on("torpedoExpired", function (e) { var t = e.torpedo; flash(t.x, t.y, 12, hexToRgb(t.def.color), 0.3); });
-    BS.Events.on("phaserFired", function (e) {
-      var p = U.localToWorld(e.ship, e.mount.x, e.mount.y); flash(p.x, p.y, 7, hexToRgb(e.color), 0.15);
+    BS.Events.on("phaserFired", function (e) { flash(e.pos.x, e.pos.y, 6, hexToRgb(e.color), 0.15); });
+    BS.Events.on("blockDestroyed", function (e) {
+      flash(e.pos.x, e.pos.y, 14, [255, 200, 140], 0.3); sparks(e.pos.x, e.pos.y, 14, 150); smoke(e.pos.x, e.pos.y, 4); debris(e.pos.x, e.pos.y, 4, 70);
+      if (e.ship.isPlayer) addShake(4);
+    });
+    BS.Events.on("sectionLost", function (e) {
+      e.positions.forEach(function (p) { debris(p.x, p.y, 2, 50); smoke(p.x, p.y, 1); });
+      if (e.positions.length) { var p0 = e.positions[0]; flash(p0.x, p0.y, 20, [255, 220, 170], 0.4); }
+      if (e.ship.isPlayer) addShake(6);
     });
     BS.Events.on("shieldBoosted", function (e) {
       var s = e.ship;
@@ -107,7 +114,8 @@ BS.Effects = (function () {
     if (ship.flags.destroyed) {
       // secondary explosions during the death sequence
       if (ship.destroyedTimer < 1.4 && Math.random() < dt * 9) {
-        var p = U.localToWorld(ship, U.rand(-ship.visual.length * 0.4, ship.visual.length * 0.4), U.rand(-ship.visual.width * 0.4, ship.visual.width * 0.4));
+        var bl = ship.grid.blocks[Math.floor(Math.random() * ship.grid.blocks.length)];
+        var p = BS.Grid.blockWorld(ship, bl);
         flash(p.x, p.y, U.rand(14, 30), [255, 210, 150], 0.3); sparks(p.x, p.y, 10, 120); smoke(p.x, p.y, 4);
       }
       return;
@@ -117,7 +125,9 @@ BS.Effects = (function () {
       ship.smokeTimer -= dt;
       if (ship.smokeTimer <= 0) {
         ship.smokeTimer = 0.05 + frac * 0.2;
-        var q = U.localToWorld(ship, U.rand(-ship.visual.length * 0.35, ship.visual.length * 0.35), U.rand(-ship.visual.width * 0.3, ship.visual.width * 0.3));
+        var damaged = ship.grid.blocks.filter(function (b) { return b.alive && b.hp < b.maxHp; });
+        var src = damaged.length ? damaged[Math.floor(Math.random() * damaged.length)] : ship.grid.blocks[Math.floor(Math.random() * ship.grid.blocks.length)];
+        var q = BS.Grid.blockWorld(ship, src);
         smoke(q.x, q.y, 1, [110, 105, 110], 10);
         if (frac < 0.3 && Math.random() < 0.6) fire(q.x, q.y, 1);
         if (frac < 0.3 && Math.random() < 0.08) sparks(q.x, q.y, 3, 60);

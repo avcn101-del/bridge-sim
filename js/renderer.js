@@ -200,141 +200,114 @@ BS.Renderer = (function () {
   // ----------------------------------------------------------- ship art
   var drawers = {};
 
-  function nacelleGlow(x, y, w, h, color, pulse) {
-    var g = ctx.createRadialGradient(x, y, 0, x, y, Math.max(w, h));
-    g.addColorStop(0, "rgba(" + color + "," + (0.55 * pulse) + ")");
-    g.addColorStop(1, "rgba(" + color + ",0)");
-    ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(x, y, Math.max(w, h), Math.max(w, h), 0, 0, U.TAU); ctx.fill();
-  }
-
   function roundRect(x, y, w, h, r) {
     ctx.beginPath(); ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
     ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h); ctx.lineTo(x + r, y + h);
     ctx.quadraticCurveTo(x, y + h, x, y + h - r); ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath();
   }
+  function hexToRgb(hex) { var n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+  function mix(a, b, k) { return [Math.round(a[0] + (b[0] - a[0]) * k), Math.round(a[1] + (b[1] - a[1]) * k), Math.round(a[2] + (b[2] - a[2]) * k)]; }
 
-  // Federation Constitution-class, drawn pointing +x, length ≈ 112.
-  drawers.federation_constitution = function (ship, t) {
-    var pulse = 0.85 + 0.15 * Math.sin(t * 4);
-    var dmg = 1 - ship.hull / ship.hullMax;
-    // nacelle glow halos (additive)
-    ctx.save(); ctx.globalCompositeOperation = "lighter";
-    nacelleGlow(-24, -30, 26, 8, "90,160,255", pulse * 0.8);
-    nacelleGlow(-24, 30, 26, 8, "90,160,255", pulse * 0.8);
-    nacelleGlow(-1, -30, 6, 6, "255,120,70", pulse);
-    nacelleGlow(-1, 30, 6, 6, "255,120,70", pulse);
-    ctx.restore();
+  // Draw a block-grid ship in ship-local coordinates (x forward, y starboard) on context `c`.
+  // Blocks are plated cells with a smooth outline, shading, and glowing systems.
+  function drawGridShip(c, ship, t, opts) {
+    opts = opts || {};
+    var g = ship.grid, cp = g.cellPx, half = cp / 2, blocks = g.blocks;
+    var tint = hexToRgb(ship.visual.hullTint || "#c6ccda"), dark = [18, 20, 30], red = [160, 40, 30];
+    var alive = [];
+    for (var i = 0; i < blocks.length; i++) if (blocks[i].alive) alive.push(blocks[i]);
+    // 1. plates
+    for (i = 0; i < alive.length; i++) {
+      var b = alive[i], col = b.structural ? [138, 144, 160] : mix(hexToRgb(b.def.color), tint, b.type === "armor" ? 0.35 : 0.15);
+      var frac = b.hp / b.maxHp;
+      if (frac < 1) col = mix(col, red, (1 - frac) * 0.7);
+      // subtle per-cell variation reads as panelling
+      var v = ((b.x * 7 + b.y * 13) % 5) * 0.02 - 0.04;
+      c.fillStyle = "rgb(" + Math.max(0, col[0] + col[0] * v | 0) + "," + Math.max(0, col[1] + col[1] * v | 0) + "," + Math.max(0, col[2] + col[2] * v | 0) + ")";
+      c.fillRect(b.lx - half - 0.25, b.ly - half - 0.25, cp + 0.5, cp + 0.5);
+    }
+    // 2. shading across the hull (light from port-fore)
+    c.save();
+    c.beginPath();
+    for (i = 0; i < alive.length; i++) c.rect(alive[i].lx - half, alive[i].ly - half, cp, cp);
+    c.clip();
+    var sg = c.createLinearGradient(-ship.visual.length / 2, -ship.visual.width / 2, ship.visual.length / 4, ship.visual.width / 2);
+    sg.addColorStop(0, "rgba(255,255,255,0.22)"); sg.addColorStop(0.5, "rgba(255,255,255,0)"); sg.addColorStop(1, "rgba(0,0,0,0.35)");
+    c.fillStyle = sg; c.fillRect(-ship.visual.length, -ship.visual.width, ship.visual.length * 2, ship.visual.width * 2);
+    // panel lines every other cell
+    c.strokeStyle = "rgba(0,0,0,0.12)"; c.lineWidth = 0.5;
+    for (i = 0; i < alive.length; i++) { b = alive[i]; if ((b.x + b.y) % 2 === 0) { c.beginPath(); c.moveTo(b.lx - half, b.ly - half); c.lineTo(b.lx + half, b.ly - half); c.stroke(); } }
+    c.restore();
+    // 3. outline along hull edges
+    c.strokeStyle = "rgba(" + dark.join(",") + ",0.95)"; c.lineWidth = 0.9; c.lineCap = "round"; c.lineJoin = "round";
+    c.beginPath();
+    for (i = 0; i < alive.length; i++) {
+      b = alive[i];
+      var n;
+      n = g.at[(b.x + 1) + "," + b.y]; if (!n || !n.alive) { c.moveTo(b.lx + half, b.ly - half); c.lineTo(b.lx + half, b.ly + half); }
+      n = g.at[(b.x - 1) + "," + b.y]; if (!n || !n.alive) { c.moveTo(b.lx - half, b.ly - half); c.lineTo(b.lx - half, b.ly + half); }
+      n = g.at[b.x + "," + (b.y + 1)]; if (!n || !n.alive) { c.moveTo(b.lx - half, b.ly + half); c.lineTo(b.lx + half, b.ly + half); }
+      n = g.at[b.x + "," + (b.y - 1)]; if (!n || !n.alive) { c.moveTo(b.lx - half, b.ly - half); c.lineTo(b.lx + half, b.ly - half); }
+    }
+    c.stroke();
+    // 4. systems: glows and markers
+    var pulse = 0.8 + 0.2 * Math.sin(t * 4), nac = ship.visual.nacelleColor || "90,160,255";
+    c.save(); c.globalCompositeOperation = "lighter";
+    for (i = 0; i < alive.length; i++) {
+      b = alive[i];
+      if (b.type === "engine") {
+        var gl = c.createRadialGradient(b.lx, b.ly, 0, b.lx, b.ly, cp * (b.nacelle ? 1.6 : 1.1));
+        gl.addColorStop(0, "rgba(" + nac + "," + (0.55 * pulse).toFixed(2) + ")"); gl.addColorStop(1, "rgba(" + nac + ",0)");
+        c.fillStyle = gl; c.beginPath(); c.arc(b.lx, b.ly, cp * 1.6, 0, U.TAU); c.fill();
+      } else if (b.type === "reactor") {
+        c.fillStyle = "rgba(255,210,90," + (0.35 + 0.3 * Math.sin(t * 6 + b.x)).toFixed(2) + ")"; c.beginPath(); c.arc(b.lx, b.ly, cp * 0.3, 0, U.TAU); c.fill();
+      } else if (b.type === "phaser") {
+        c.fillStyle = "rgba(255,150,80,0.9)"; c.beginPath(); c.arc(b.lx, b.ly, cp * 0.28, 0, U.TAU); c.fill();
+      } else if (b.type === "torpedo") {
+        c.fillStyle = "rgba(255,200,120,0.8)"; c.fillRect(b.lx - cp * 0.1, b.ly - cp * 0.3, cp * 0.5, cp * 0.6);
+      } else if (b.type === "shield") {
+        c.fillStyle = "rgba(120,190,255,0.7)"; c.beginPath(); c.arc(b.lx, b.ly, cp * 0.22, 0, U.TAU); c.fill();
+      } else if (b.type === "sensor") {
+        c.fillStyle = "rgba(220,170,255,0.8)"; c.beginPath(); c.arc(b.lx, b.ly, cp * 0.22, 0, U.TAU); c.fill();
+      } else if (b.type === "bridge") {
+        c.fillStyle = "rgba(255,255,255,0.95)"; c.beginPath(); c.arc(b.lx, b.ly, cp * 0.3, 0, U.TAU); c.fill();
+        var bg = c.createRadialGradient(b.lx, b.ly, 0, b.lx, b.ly, cp * 1.2); bg.addColorStop(0, "rgba(255,255,255,0.35)"); bg.addColorStop(1, "rgba(255,255,255,0)");
+        c.fillStyle = bg; c.beginPath(); c.arc(b.lx, b.ly, cp * 1.2, 0, U.TAU); c.fill();
+      } else if (b.type === "quarters" && ((t * 2 + b.x) % 3 < 1.5)) {
+        c.fillStyle = "rgba(255,240,200,0.5)"; c.fillRect(b.lx - cp * 0.15, b.ly - cp * 0.15, cp * 0.3, cp * 0.3);
+      }
+    }
+    // running lights at the port/starboard extremes
+    if (!opts.still && Math.sin(t * 6) > 0.6) {
+      var minY = Infinity, maxY = -Infinity, pb = null, sb = null;
+      for (i = 0; i < alive.length; i++) { b = alive[i]; if (b.ly < minY) { minY = b.ly; pb = b; } if (b.ly > maxY) { maxY = b.ly; sb = b; } }
+      if (pb) { c.fillStyle = "#ff4040"; c.beginPath(); c.arc(pb.lx, pb.ly - half, cp * 0.25, 0, U.TAU); c.fill(); }
+      if (sb) { c.fillStyle = "#40ff70"; c.beginPath(); c.arc(sb.lx, sb.ly + half, cp * 0.25, 0, U.TAU); c.fill(); }
+    }
+    c.restore();
+  }
 
-    // pylons
-    ctx.strokeStyle = "#9ea4b8"; ctx.lineWidth = 3; ctx.lineCap = "round";
-    ctx.beginPath(); ctx.moveTo(-22, -6); ctx.lineTo(-30, -26); ctx.moveTo(-22, 6); ctx.lineTo(-30, 26); ctx.stroke();
-    // nacelles
-    [-30, 30].forEach(function (y) {
-      var g = ctx.createLinearGradient(0, y - 5, 0, y + 5);
-      g.addColorStop(0, "#d7dbe6"); g.addColorStop(0.5, "#aab0c2"); g.addColorStop(1, "#6e7486");
-      ctx.fillStyle = g; roundRect(-50, y - 5, 52, 10, 5); ctx.fill();
-      // warp grille
-      ctx.fillStyle = "rgba(100,170,255," + (0.65 + 0.3 * pulse) + ")"; roundRect(-44, y - 2.2, 36, 4.4, 2); ctx.fill();
-      // bussard collector
-      var bg = ctx.createRadialGradient(0, y, 0, 0, y, 5);
-      bg.addColorStop(0, "#ffd8a8"); bg.addColorStop(0.5, "#ff7a3c"); bg.addColorStop(1, "#8a2a10");
-      ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(0, y, 4.6, 0, U.TAU); ctx.fill();
-    });
-    // secondary hull
-    var sh = ctx.createLinearGradient(0, -10, 0, 10);
-    sh.addColorStop(0, "#e2e5ee"); sh.addColorStop(0.5, "#b4bacb"); sh.addColorStop(1, "#6b7184");
-    ctx.fillStyle = sh; ctx.beginPath(); ctx.ellipse(-16, 0, 30, 9, 0, 0, U.TAU); ctx.fill();
-    ctx.strokeStyle = "rgba(40,45,60,0.5)"; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(-40, 0); ctx.lineTo(8, 0); ctx.stroke();
-    // deflector dish
-    var dg = ctx.createRadialGradient(13, 0, 0, 13, 0, 5);
-    dg.addColorStop(0, "#d9f0ff"); dg.addColorStop(0.6, "#4fa3ff"); dg.addColorStop(1, "#1a3d80");
-    ctx.fillStyle = dg; ctx.beginPath(); ctx.ellipse(13, 0, 3.5, 5.5, 0, 0, U.TAU); ctx.fill();
-    // neck
-    ctx.fillStyle = "#b0b6c7"; ctx.beginPath(); ctx.moveTo(-2, -5); ctx.lineTo(14, -4); ctx.lineTo(18, 4); ctx.lineTo(-2, 5); ctx.closePath(); ctx.fill();
-    // saucer
-    var sg = ctx.createRadialGradient(24, -8, 2, 28, 0, 32);
-    sg.addColorStop(0, "#f4f6fb"); sg.addColorStop(0.55, "#c6ccda"); sg.addColorStop(1, "#6c7387");
-    ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(28, 0, 29, 0, U.TAU); ctx.fill();
-    ctx.strokeStyle = "rgba(30,35,50,0.35)"; ctx.lineWidth = 1;
-    [22, 15, 8].forEach(function (r) { ctx.beginPath(); ctx.arc(28, 0, r, 0, U.TAU); ctx.stroke(); });
-    ctx.strokeStyle = "rgba(30,35,50,0.22)";
-    for (var i = 0; i < 12; i++) { var a = i * U.TAU / 12; ctx.beginPath(); ctx.moveTo(28 + Math.cos(a) * 10, Math.sin(a) * 10); ctx.lineTo(28 + Math.cos(a) * 28, Math.sin(a) * 28); ctx.stroke(); }
-    // windows on saucer rim
-    ctx.fillStyle = "rgba(255,240,200,0.8)";
-    for (var k = 0; k < 16; k++) { var b = k * U.TAU / 16 + 0.2; ctx.fillRect(28 + Math.cos(b) * 25 - 0.7, Math.sin(b) * 25 - 0.7, 1.4, 1.4); }
-    // bridge dome
-    var bd = ctx.createRadialGradient(27, -2, 0, 28, 0, 6);
-    bd.addColorStop(0, "#ffffff"); bd.addColorStop(1, "#8e95a8");
-    ctx.fillStyle = bd; ctx.beginPath(); ctx.arc(28, 0, 5.5, 0, U.TAU); ctx.fill();
-    // registry stripe
-    ctx.strokeStyle = "rgba(200,40,40,0.55)"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(28, 0, 19, 2.6, 3.7); ctx.stroke();
-    // running lights: red port (−y), green starboard (+y), white strobe
-    var blink = Math.sin(t * 6) > 0.6, strobe = (t % 1.1) < 0.08;
-    if (blink) { ctx.fillStyle = "#ff3030"; ctx.beginPath(); ctx.arc(28, -28, 1.6, 0, U.TAU); ctx.fill(); ctx.fillStyle = "#30ff60"; ctx.beginPath(); ctx.arc(28, 28, 1.6, 0, U.TAU); ctx.fill(); }
-    if (strobe) { ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.arc(-50, -30, 1.8, 0, U.TAU); ctx.arc(-50, 30, 1.8, 0, U.TAU); ctx.fill(); }
-    // scorch marks when damaged
-    if (dmg > 0.3) { ctx.fillStyle = "rgba(20,15,15," + (dmg * 0.6) + ")"; ctx.beginPath(); ctx.arc(20, -10, 7, 0, U.TAU); ctx.arc(-20, 4, 6, 0, U.TAU); ctx.fill(); }
-  };
-
-  // Klingon Bird-of-Prey, drawn pointing +x, wingspan ≈ 96.
-  drawers.klingon_bird_of_prey = function (ship, t) {
-    var pulse = 0.8 + 0.2 * Math.sin(t * 3 + 1);
-    var dmg = 1 - ship.hull / ship.hullMax;
-    ctx.save(); ctx.globalCompositeOperation = "lighter";
-    nacelleGlow(-28, -46, 7, 7, "110,255,120", pulse);
-    nacelleGlow(-28, 46, 7, 7, "110,255,120", pulse);
-    nacelleGlow(-34, 0, 12, 6, "255,120,60", pulse * 0.8);
-    ctx.restore();
-    // wings
-    [-1, 1].forEach(function (s) {
-      var g = ctx.createLinearGradient(0, 0, -30, s * 46);
-      g.addColorStop(0, "#5d7a5c"); g.addColorStop(0.6, "#3f5a40"); g.addColorStop(1, "#263a28");
-      ctx.fillStyle = g;
-      ctx.beginPath(); ctx.moveTo(8, s * 8); ctx.lineTo(-14, s * 18); ctx.lineTo(-30, s * 48); ctx.lineTo(-36, s * 46); ctx.lineTo(-28, s * 20); ctx.lineTo(-18, s * 8); ctx.closePath(); ctx.fill();
-      // feather lines
-      ctx.strokeStyle = "rgba(10,20,10,0.5)"; ctx.lineWidth = 1;
-      for (var i = 1; i <= 4; i++) { ctx.beginPath(); ctx.moveTo(-6 - i * 3, s * (10 + i * 2)); ctx.lineTo(-28 - i * 1.5, s * (20 + i * 6)); ctx.stroke(); }
-      // disruptor pod at wing tip
-      ctx.fillStyle = "#7f8f7c"; roundRect(-36, s * 46 - 3, 12, 6, 3); ctx.fill();
-      ctx.fillStyle = "rgba(120,255,130," + (0.6 + 0.4 * pulse) + ")"; ctx.beginPath(); ctx.arc(-25, s * 46, 2.2, 0, U.TAU); ctx.fill();
-    });
-    // body
-    var bg = ctx.createLinearGradient(0, -12, 0, 12);
-    bg.addColorStop(0, "#8ea08a"); bg.addColorStop(0.5, "#596d58"); bg.addColorStop(1, "#2c3c2d");
-    ctx.fillStyle = bg; ctx.beginPath(); ctx.ellipse(-8, 0, 22, 12, 0, 0, U.TAU); ctx.fill();
-    // engine
-    var eg = ctx.createRadialGradient(-30, 0, 0, -30, 0, 7);
-    eg.addColorStop(0, "#ffd9a0"); eg.addColorStop(0.5, "#ff7030"); eg.addColorStop(1, "rgba(120,30,10,0)");
-    ctx.fillStyle = eg; ctx.beginPath(); ctx.ellipse(-30, 0, 7, 5, 0, 0, U.TAU); ctx.fill();
-    // neck
-    var ng = ctx.createLinearGradient(0, -5, 0, 5);
-    ng.addColorStop(0, "#9aa996"); ng.addColorStop(1, "#44533f");
-    ctx.fillStyle = ng; roundRect(8, -4.5, 30, 9, 3); ctx.fill();
-    ctx.strokeStyle = "rgba(10,20,10,0.5)"; ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(36, 0); ctx.stroke();
-    // head
-    var hg = ctx.createRadialGradient(44, -3, 1, 44, 0, 12);
-    hg.addColorStop(0, "#b7c3b0"); hg.addColorStop(0.6, "#6e8068"); hg.addColorStop(1, "#33402f");
-    ctx.fillStyle = hg; ctx.beginPath(); ctx.ellipse(42, 0, 12, 8, 0, 0, U.TAU); ctx.fill();
-    // bridge windows + torpedo tube
-    ctx.fillStyle = "rgba(255,80,60," + (0.5 + 0.5 * pulse) + ")"; ctx.beginPath(); ctx.arc(52, 0, 2, 0, U.TAU); ctx.fill();
-    ctx.fillStyle = "rgba(255,230,180,0.8)"; ctx.fillRect(40, -4, 1.2, 1.5); ctx.fillRect(40, 2.5, 1.2, 1.5); ctx.fillRect(44, -5, 1.2, 1.5); ctx.fillRect(44, 3.5, 1.2, 1.5);
-    // trefoil emblem
-    ctx.strokeStyle = "rgba(220,40,40,0.6)"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-10, -5); ctx.lineTo(-4, 0); ctx.lineTo(-10, 5); ctx.stroke();
-    var blink = Math.sin(t * 5 + 2) > 0.7;
-    if (blink) { ctx.fillStyle = "#ff3030"; ctx.beginPath(); ctx.arc(-33, -47, 1.4, 0, U.TAU); ctx.fill(); ctx.fillStyle = "#40ff80"; ctx.beginPath(); ctx.arc(-33, 47, 1.4, 0, U.TAU); ctx.fill(); }
-    if (dmg > 0.3) { ctx.fillStyle = "rgba(10,10,10," + (dmg * 0.6) + ")"; ctx.beginPath(); ctx.arc(-10, -6, 6, 0, U.TAU); ctx.arc(20, 2, 4, 0, U.TAU); ctx.fill(); }
-  };
+  drawers.grid = function (ship, t) { drawGridShip(ctx, ship, t); };
 
   // Image sprite drawer: assets/ships/<file>, drawn pointing +x, centred.
   drawers.sprite = function (ship, t) {
-    var src = ship.visual.sprite;
-    var img = spriteCache[src];
+    var src = ship.visual.sprite, img = spriteCache[src];
     if (!img) { img = new Image(); img.src = src; spriteCache[src] = img; }
-    if (!img.complete || !img.naturalWidth) { drawers.federation_constitution(ship, t); return; }
+    if (!img.complete || !img.naturalWidth) { drawers.grid(ship, t); return; }
     var len = ship.visual.length, w = len * img.naturalHeight / img.naturalWidth;
     ctx.drawImage(img, -len / 2, -w / 2, len, w);
   };
+
+  // Hangar preview: draw a ship into its own canvas, scaled to fit.
+  function drawPreview(canvasEl, ship, t) {
+    var c = canvasEl.getContext("2d"), W2 = canvasEl.width, H2 = canvasEl.height;
+    c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W2, H2);
+    var sc = Math.min((W2 - 20) / ship.visual.length, (H2 - 20) / ship.visual.width);
+    c.translate(W2 / 2, H2 / 2); c.scale(sc, sc);
+    drawGridShip(c, ship, t || 0, { still: true });
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    return sc;
+  }
 
   function drawShip(ship, alpha, t) {
     var x = U.lerp(ship.prevPos.x, ship.pos.x, alpha), y = U.lerp(ship.prevPos.y, ship.pos.y, alpha);
@@ -346,7 +319,7 @@ BS.Renderer = (function () {
       ctx.globalAlpha = f;
       if (f <= 0) { ctx.restore(); return; }
     }
-    var drawer = ship.visual.kind === "sprite" ? drawers.sprite : (drawers[ship.visual.drawer] || drawers.federation_constitution);
+    var drawer = ship.visual.kind === "sprite" ? drawers.sprite : drawers.grid;
     drawer(ship, t);
     ctx.restore();
   }
@@ -373,7 +346,7 @@ BS.Renderer = (function () {
     var facings = [["fore", 0], ["starboard", Math.PI / 2], ["aft", Math.PI], ["port", -Math.PI / 2]];
     for (var i = 0; i < facings.length; i++) {
       var f = facings[i][0], c = facings[i][1];
-      var frac = ship.shields[f] / ship.shieldMax;
+      var frac = BS.Ships.shieldFrac(ship, f);
       if (frac <= 0.001) continue;
       var col = shieldColor(frac);
       var flashBoost = 0;
@@ -390,7 +363,7 @@ BS.Renderer = (function () {
     for (var k = 0; k < recentHits.length; k++) {
       var rp = recentHits[k], life = rp.life / rp.maxLife, grow = 1 - life;
       var rel = rp.angle - h;
-      var colr = shieldColor(ship.shields[rp.facing] / ship.shieldMax);
+      var colr = shieldColor(BS.Ships.shieldFrac(ship, rp.facing));
       ctx.lineWidth = 2.5 + grow * 4;
       ctx.strokeStyle = "rgba(" + colr[0] + "," + colr[1] + "," + colr[2] + "," + (life * 0.9).toFixed(3) + ")";
       var span = 0.25 + grow * 0.9 * rp.strength;
@@ -485,51 +458,39 @@ BS.Renderer = (function () {
   }
 
   // ------------------------------------------------- targeting overlay
-  function hullColorRGB(frac) { return frac > 0.6 ? "127,216,160" : frac > 0.3 ? "242,193,78" : "224,70,60"; }
   function drawTargeting(state, alpha, t) {
     var p = state.player, e = state.enemy;
-    if (!p || !e || e.flags.destroyed || !e.visual.hardpoints) return;
-    var hover = state.hover && state.hover.ship === e ? state.hover : null, target = p.targetSubsystem;
+    if (!p || !e || e.flags.destroyed) return;
+    var hover = state.hover && state.hover.ship === e ? state.hover : null, aim = p.aimType;
     var x = U.lerp(e.prevPos.x, e.pos.x, alpha), y = U.lerp(e.prevPos.y, e.pos.y, alpha);
-    var h = U.lerpAngle(e.prevHeading, e.heading, alpha), sc = e.visual.scale || 1;
-    var c = Math.cos(h), si = Math.sin(h);
+    var h = U.lerpAngle(e.prevHeading, e.heading, alpha), g = e.grid, cp = g.cellPx, half = cp / 2;
     ctx.save();
-    ctx.font = "bold " + (12 / zoom).toFixed(1) + "px Antonio, 'Arial Narrow', sans-serif"; ctx.textBaseline = "middle";
-    Object.keys(e.visual.hardpoints).forEach(function (sys) {
-      var showAll = !!hover, isHover = hover && hover.sys === sys, isTarget = target === sys;
-      if (!showAll && !isTarget) return;
-      var frac = e.subsystems[sys] / 100, col = hullColorRGB(frac);
-      e.visual.hardpoints[sys].forEach(function (hp) {
-        var wx = x + (hp.x * c - hp.y * si) * sc, wy = y + (hp.x * si + hp.y * c) * sc, r = hp.r * sc;
-        if (showAll) {
-          ctx.lineWidth = (isHover ? 2 : 1) / zoom;
-          ctx.strokeStyle = "rgba(" + col + "," + (isHover ? 1 : 0.55) + ")";
-          ctx.beginPath(); ctx.arc(wx, wy, r + (isHover ? 3 : 0), 0, U.TAU); ctx.stroke();
-          ctx.fillStyle = "rgba(" + col + "," + (isHover ? 0.25 : 0.08) + ")"; ctx.fill();
-        }
-        if (isTarget) {
-          // pulsing bracket reticle
-          var k = r + 5 + Math.sin(t * 5) * 1.5, L = Math.max(4, k * 0.5);
-          ctx.strokeStyle = "rgba(255,120,80,0.95)"; ctx.lineWidth = 2 / zoom;
-          [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(function (q) {
-            ctx.beginPath(); ctx.moveTo(wx + q[0] * k, wy + q[1] * (k - L)); ctx.lineTo(wx + q[0] * k, wy + q[1] * k); ctx.lineTo(wx + q[0] * (k - L), wy + q[1] * k); ctx.stroke();
-          });
-        }
-      });
-    });
-    // label for the hovered hardpoint, or the hull
-    if (hover) {
-      var facingPct = e.shields[BS.Ships.facingToward(e, p.pos.x, p.pos.y)] / e.shieldMax;
-      var label = hover.sys ? BS.Data.subsystems[hover.sys].label.toUpperCase() + " " + Math.round(e.subsystems[hover.sys]) + "%" : "HULL " + Math.round(100 * e.hull / e.hullMax) + "%";
-      label += facingPct > 0.05 ? " · SHIELDED " + Math.round(facingPct * 100) + "%" : " · SHIELD DOWN";
-      var hint = p.lock.target !== e ? "click: lock target · right-click: orbit" : hover.sys ? (target === hover.sys ? "click: target hull" : "click: target part") : (target ? "click: target hull" : "right-click: orbit");
-      var lx = hover.x + 14 / zoom, ly = hover.y - 14 / zoom, z = 1 / zoom;
+    ctx.translate(x, y); ctx.rotate(h);
+    if (aim) {
+      ctx.strokeStyle = "rgba(255,120,80," + (0.6 + 0.3 * Math.sin(t * 5)).toFixed(2) + ")"; ctx.lineWidth = 1 / zoom;
+      for (var i = 0; i < g.blocks.length; i++) { var b = g.blocks[i]; if (b.alive && b.type === aim) ctx.strokeRect(b.lx - half, b.ly - half, cp, cp); }
+    }
+    if (hover && hover.block && hover.block.alive) {
+      var hb = hover.block;
+      ctx.strokeStyle = "rgba(255,255,255,0.95)"; ctx.lineWidth = 1.5 / zoom;
+      ctx.strokeRect(hb.lx - half - 1 / zoom, hb.ly - half - 1 / zoom, cp + 2 / zoom, cp + 2 / zoom);
+    }
+    ctx.restore();
+    if (hover && hover.block) {
+      var blk = hover.block, bw = BS.Grid.blockWorld(e, blk);
+      var facingPct = BS.Ships.shieldFrac(e, BS.Ships.facingToward(e, p.pos.x, p.pos.y));
+      var name = blk.structural ? "STRUCTURE" : blk.def.name.toUpperCase();
+      var label = name + " " + Math.round(blk.hp) + "/" + blk.maxHp + (facingPct > 0.05 ? " · SHIELDED " + Math.round(facingPct * 100) + "%" : " · SHIELD DOWN");
+      var hint = p.lock.target !== e ? "click: lock target · right-click: orbit" : blk.structural ? "" : (aim === blk.type ? "click: stop aiming" : "click: aim at " + blk.def.name.toLowerCase() + "s");
+      var z = 1 / zoom, lx = bw.x + 14 * z, ly = bw.y - 14 * z;
+      ctx.save();
+      ctx.font = "bold " + (12 * z).toFixed(1) + "px Antonio, 'Arial Narrow', sans-serif"; ctx.textBaseline = "middle";
       var w = Math.max(ctx.measureText(label).width, ctx.measureText(hint).width) + 12 * z;
       ctx.fillStyle = "rgba(0,0,0,0.7)"; roundRect(lx - 4 * z, ly - 10 * z, w, (hint ? 32 : 20) * z, 4 * z); ctx.fill();
       ctx.fillStyle = "#ffd9b3"; ctx.fillText(label, lx + 2 * z, ly);
       if (hint) { ctx.fillStyle = "#9a9ab5"; ctx.font = (11 * z).toFixed(1) + "px Antonio, 'Arial Narrow', sans-serif"; ctx.fillText(hint, lx + 2 * z, ly + 13 * z); }
+      ctx.restore();
     }
-    ctx.restore();
   }
 
   // ----------------------------------------------------------- main draw
@@ -562,7 +523,7 @@ BS.Renderer = (function () {
     ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
   }
 
-  return { init: init, draw: draw, resize: resize, resetCamera: resetCamera, drawers: drawers, camera: camera, shieldColor: shieldColor,
+  return { init: init, draw: draw, resize: resize, resetCamera: resetCamera, drawers: drawers, camera: camera, shieldColor: shieldColor, drawPreview: drawPreview,
     screenToWorld: function (x, y) { return { x: (x - W / 2) / zoom + camera.x, y: (y - H / 2) / zoom + camera.y }; },
     worldToScreen: function (x, y) { return { x: (x - camera.x) * zoom + W / 2, y: (y - camera.y) * zoom + H / 2 }; } };
 })();

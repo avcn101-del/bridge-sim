@@ -28,9 +28,10 @@ These rules apply to every session working in this repository.
   - `js/util.js` — math helpers (angles, lerp, seeded random, templates)
   - `js/events.js` — publish/subscribe bus
   - `js/game.js` — game loop, state, pause, win/lose
-  - `js/modules.js` — fitted modules: passive bonuses, active cycling, capacitor use
-  - `js/ships.js` — ship model: hull, shields, subsystems, capacitor, lock, movement commands
-  - `js/weapons.js` — turrets (tracking/falloff) and launchers (signature/velocity), hit resolution
+  - `js/grid.js` — hull grids: masks, block layouts, derived stats, entry/penetration/splash hit lookup, per-block damage, connectivity, layout validation
+  - `js/modules.js` — weapon groups built from blocks plus the built-in active systems (booster, hardener, afterburner); capacitor use
+  - `js/ships.js` — ship model: block grid, hull from blocks, shield facings from emitters, capacitor, lock, movement commands
+  - `js/weapons.js` — turret blocks (tracking/falloff) and launcher blocks (signature/velocity), hit resolution
   - `js/crew.js` — crew voices: instant commands with reports, warnings
   - `js/enemyai.js` — enemy behaviour
   - `js/campaign.js` — progress between battles: save/load/export/import, credits, ownership, fitting rules, fit stats, real-time skills, enemy scaling
@@ -49,14 +50,24 @@ These rules apply to every session working in this repository.
   player ship (select, lock, approach, orbit, keep, flyTo, comeAbout, module,
   targetSubsystem, repair, reinforce, redAlert, hail) and the officer reports.
   The enemy AI uses the same `BS.Ships.setCommand` / `BS.Modules.setActive`.
+- **Ships are block grids.** A class gives a hull `mask` (`.` empty, `#`
+  fillable, `n` nacelle, `p` fixed structure) and a default `layout`
+  (letters from `grid.layoutLegend`). `BS.Grid.build` turns them into
+  blocks; `BS.Grid.derive` sums stats (hull hp, shield facings from emitter
+  positions, capacitor from reactors, thrust/mass → speed, sensors, repair).
+  Damage enters at the outermost block on the attacker's side: beams
+  penetrate `grid.penetration` blocks, torpedoes splash into neighbours.
+  Blocks cut off from the bridge break away. Never hard-code block effects
+  outside `grid.js`; every number is in `BS.Data.grid` and `BS.Data.blocks`.
 - **Interface shows km and km/s**; the world is pixels (`units.pxPerKm`,
-  50). Ships are drawn at `visual.scale` 0.4–0.72 so a 6 km orbit shows
-  clear space between hulls; keep `visual.length/width` equal to the drawn
-  size (drawer size × scale) because shields, hit radius and effects use them.
+  50; `grid.cellPx` 6, so a Constitution is 156 px long). Keep
+  `visual.length/width` equal to the grid size because shields, hit radius
+  and effects use them.
 - **Progress lives in `BS.Campaign`** (localStorage key `bridgesim.save`,
   shape in `BS.Data.saveDefaults`). Battle code never reads localStorage;
-  `BS.Game.startBattle` asks Campaign for the fit, skill mods and enemy
-  scaling, and `settleBattle` awards credits.
+  `BS.Game.startBattle` asks Campaign for the layout, skill mods and enemy
+  scaling, and `settleBattle` awards credits. A layout that fails
+  `BS.Grid.validateLayout` never undocks; the class default is used.
 - **Events, not direct calls, for presentation.** Game logic emits events
   (`BS.Events.emit("shieldHit", {...})`); renderer/effects/UI/audio subscribe.
   This is how sound will be added later without touching logic.
@@ -66,9 +77,11 @@ These rules apply to every session working in this repository.
 
 ## Visual quality (priority)
 
-- Polished visuals are a priority, not an afterthought. Ships are detailed
-  vector silhouettes with gradients, hull lines, glowing nacelles and running
-  lights, never plain rectangles. Weapons glow, shields ripple, hits spark.
+- Polished visuals are a priority, not an afterthought. Block ships are
+  drawn as plated hulls with a smooth outline, shading, glowing engines and
+  systems, and running lights, never as bare coloured squares (the hangar
+  preview may show the cells). Weapons glow, shields ripple, hits spark,
+  destroyed blocks tumble off as debris.
 - UI is LCARS style: rounded colored bars, orange/purple/blue palette, clean
   sci-fi font (Google Fonts "Antonio", fallback "Arial Narrow", sans-serif).
   Red alert changes the whole interface lighting (CSS class on `<body>`).
@@ -85,9 +98,10 @@ These rules apply to every session working in this repository.
 - Balance changes must be checked with an accelerated simulation: start a
   battle, set `BS.Game.state.paused = true`, then call `BS.Game.step(1/60)`
   in a loop with a scripted captain that uses `BS.Game.command` and
-  `BS.Modules.setActive`. Targets: attentive captain wins in 3–5 min with
-  60–80% hull, running everything at once should drain the capacitor, a
-  stationary ship and a ship with no orders lose in about 2 min.
+  `BS.Modules.setActive`. Targets: a straightforward fight (weapons and
+  hardener, orbit 6 km) wins in 3–5 min losing 30–50% of block hp; a
+  speed-tanking captain (booster pulsed, afterburner) wins slower but
+  nearly untouched; a ship with no orders is lost in about 3 min.
 - Keep `README.md` "tweakable values" section in sync with `data.js`.
 - Commit messages: short imperative subject, body explains why.
 - Do not add build tooling, package.json, linters or test frameworks unless

@@ -221,7 +221,10 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
 .hangar-card { width: min(1240px, 96vw); max-height: 94vh; display: flex; flex-direction: column; background: #05060f; border-radius: 22px; border: 2px solid #1f2040; box-shadow: 0 0 60px rgba(100, 100, 255, 0.15); overflow: hidden; }
 .hangar-card .head { justify-content: space-between; padding: 8px 20px; border-radius: 20px 20px 0 0; }
 .hg-head-right { font-weight: 400; font-size: 14px; } .hg-head-right b { font-size: 17px; }
-.hangar-grid { display: grid; grid-template-columns: 1fr 1.25fr 1fr; gap: 14px; padding: 10px 16px 16px; overflow: auto; min-height: 0; }
+.hangar-grid { display: grid; grid-template-columns: 1fr 1.4fr; gap: 14px; padding: 10px 16px 16px; overflow: auto; min-height: 0; }
+.hg-preview { width: 100%; height: auto; background: radial-gradient(ellipse at center, #0e1026, #05060f); border-radius: 12px; border: 1px solid #1f2040; }
+.hg-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 6px 0; font-size: 11px; color: #cfcfe0; }
+.hg-legend .lg i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
 .hg-col { min-width: 0; }
 .hg-col h3 { margin-top: 8px; }
 .hg-ship { font-size: 14px; line-height: 1.4; margin-bottom: 4px; }

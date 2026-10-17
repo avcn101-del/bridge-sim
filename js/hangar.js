@@ -9,7 +9,7 @@ BS.Hangar = (function () {
 
   function init(gameRef) {
     game = gameRef;
-    ["hangar-screen", "hg-credits", "hg-ship", "hg-ships", "hg-slots", "hg-pg", "hg-cpu", "hg-pg-val", "hg-cpu-val", "hg-stats", "hg-inventory", "hg-market", "hg-skills", "hg-training", "hg-msg", "hg-record", "hg-threat",
+    ["hangar-screen", "hg-credits", "hg-ship", "hg-ships", "hg-preview", "hg-legend", "hg-stats", "hg-skills", "hg-training", "hg-msg", "hg-record", "hg-threat",
      "btn-undock", "btn-export", "btn-import", "hg-import-file", "btn-reset"].forEach(function (id) { el[id] = $(id); });
     el["btn-undock"].addEventListener("click", function () { hide(); game.startBattle(); });
     el["btn-export"].addEventListener("click", exportSave);
@@ -34,8 +34,8 @@ BS.Hangar = (function () {
     el["hg-record"].textContent = s.campaign.battlesWon + " won · " + s.campaign.battlesLost + " lost" + (s.campaign.streak > 1 ? " · streak " + s.campaign.streak : "");
     el["hg-threat"].textContent = "Raider strength " + Math.round(C.enemyStatMult() * 100) + "%";
     el["hg-ship"].innerHTML = "<b>" + cls.name + "</b> · " + cls.className + " · " + cls.role +
-      "<br><span class='dim'>hull " + cls.hull + " · shields " + cls.shields.max + "×4 · speed " + (cls.speed / BS.Data.units.pxPerKm).toFixed(1) + " km/s · cap " + cls.capacitor.max + " · sensors " + cls.sensorStrength + " · sig " + cls.signature + " m</span>";
-    renderShips(s); renderSlots(s, cls); renderInventory(s); renderMarket(s); renderSkills(s); renderTraining();
+      "<br><span class='dim'>" + cls.mask[0].length + "×" + cls.mask.length + " cell hull · base speed " + (cls.speed / BS.Data.units.pxPerKm).toFixed(1) + " km/s · signature " + cls.signature + " m</span>";
+    renderShips(s); renderBuild(s, cls); renderSkills(s); renderTraining();
   }
 
   function renderShips(s) {
@@ -45,7 +45,8 @@ BS.Hangar = (function () {
       if (!cls.purchasable && s.ownedShips.indexOf(id) < 0) return;
       var owned = s.ownedShips.indexOf(id) >= 0, current = s.shipClass === id;
       var row = document.createElement("div"); row.className = "hg-row" + (current ? " current" : "");
-      row.innerHTML = "<span class='hg-name'>" + cls.className + "</span><span class='dim'>" + cls.role + " · " + cls.slots.high + "/" + cls.slots.mid + "/" + cls.slots.low + " slots</span>";
+      var cells = cls.mask.reduce(function (a, r) { return a + (r.match(/[#n]/g) || []).length; }, 0);
+      row.innerHTML = "<span class='hg-name'>" + cls.className + "</span><span class='dim'>" + cls.role + " · " + cells + " cells</span>";
       var b = document.createElement("button"); b.className = "lcars-btn " + (owned ? "c-blue" : "c-orange");
       b.textContent = current ? "Active" : owned ? "Board" : cls.cost.toLocaleString() + " cr";
       b.disabled = current;
@@ -57,71 +58,28 @@ BS.Hangar = (function () {
     });
   }
 
-  function renderSlots(s, cls) {
-    var fit = C.fitFor(s.shipClass), box = el["hg-slots"]; box.innerHTML = "";
-    ["high", "mid", "low"].forEach(function (slot) {
-      var group = document.createElement("div"); group.className = "hg-slotgroup";
-      group.innerHTML = "<div class='sub-label'>" + slot + " slots</div>";
-      var rowBox = document.createElement("div"); rowBox.className = "hg-slotrow";
-      fit[slot].forEach(function (id, i) {
-        var d = document.createElement("div"); d.className = "hg-slot " + slot + (id ? " filled" : "") + (pick && pick.slot === slot && pick.i === i ? " picking" : "");
-        var def = id && BS.Data.modules[id];
-        d.innerHTML = def ? "<b>" + def.short + "</b><small>" + def.name + "</small>" : "<b>+</b><small>empty</small>";
-        d.title = def ? def.name + " — " + def.desc + " Click to pick a replacement; right-click to unfit." : "Click to fit a module from your inventory.";
-        d.addEventListener("click", function () { pick = (pick && pick.slot === slot && pick.i === i) ? null : { slot: slot, i: i }; render(); say(pick ? "Pick a " + slot + " slot module from the inventory." : ""); });
-        d.addEventListener("contextmenu", function (ev) { ev.preventDefault(); if (id) { C.unfitModule(slot, i); pick = null; render(); say(def.name + " moved to inventory."); } });
-        rowBox.appendChild(d);
-      });
-      group.appendChild(rowBox); box.appendChild(group);
+  function renderBuild(s, cls) {
+    var rows = C.layoutFor(s.shipClass);
+    var st = C.layoutStats(s.shipClass, rows);
+    var canvas = el["hg-preview"];
+    var ship = BS.Ships.create(s.shipClass, { layout: st.ok ? rows : cls.layout });
+    BS.Renderer.drawPreview(canvas, ship, 0.5);
+    // legend with counts
+    var lg = el["hg-legend"]; lg.innerHTML = "";
+    Object.keys(BS.Data.blocks).forEach(function (type) {
+      var d = BS.Data.blocks[type], n = st.counts[type] || 0;
+      if (!n) return;
+      var sp = document.createElement("span"); sp.className = "lg"; sp.innerHTML = "<i style='background:" + d.color + "'></i>" + d.name + " ×" + n; sp.title = d.desc; lg.appendChild(sp);
     });
-    var u = C.usage(fit);
-    el["hg-pg"].style.width = Math.min(100, 100 * u.pg / cls.powergrid) + "%"; el["hg-pg"].classList.toggle("over", u.pg > cls.powergrid);
-    el["hg-cpu"].style.width = Math.min(100, 100 * u.cpu / cls.cpu) + "%"; el["hg-cpu"].classList.toggle("over", u.cpu > cls.cpu);
-    el["hg-pg-val"].textContent = u.pg + " / " + cls.powergrid; el["hg-cpu-val"].textContent = u.cpu + " / " + cls.cpu;
-    var st = C.fitStats(s.shipClass, fit);
     var capLine = st.lasts !== null ? "<span class='bad'>runs dry in " + Math.round(st.lasts) + " s with everything on</span>" : "stable at " + st.stableAt + "% with everything on";
+    var shields = BS.Ships.FACINGS.map(function (f) { return f.charAt(0).toUpperCase() + " " + st.shields[f]; }).join(" · ");
     el["hg-stats"].innerHTML =
+      (st.ok ? "" : "<div class='bad'>" + st.errors.join(" ") + " Default layout will be used.</div>") +
+      "<div><label>Build</label><span>" + st.blocks + " blocks · mass " + st.mass + " · value " + st.cost.toLocaleString() + " cr</span></div>" +
       "<div><label>Damage</label><span>" + st.dps + " dps <span class='dim'>(beams " + st.turretDps + " · torpedoes " + st.launcherDps + ")</span></span></div>" +
-      "<div><label>Capacitor</label><span>" + capLine + " <span class='dim'>(drain " + st.drain + "/s · peak recharge " + st.peakRecharge + "/s)</span></span></div>" +
-      "<div><label>Defence</label><span>hull " + st.hull + " · shields " + st.shieldHp + " · regen " + st.shieldRegen + "/s" + (st.hasBooster ? " · booster " + st.boost + "/s" : "") + "</span></div>" +
-      "<div><label>Mobility</label><span>" + st.speed + " km/s · lock " + st.lockTime + " s on a Bird-of-Prey</span></div>";
-  }
-
-  function renderInventory(s) {
-    var box = el["hg-inventory"]; box.innerHTML = "";
-    if (!s.inventory.length) { box.innerHTML = "<div class='dim'>Nothing in storage. Buy modules in the market, or right-click a fitted module to unfit it.</div>"; return; }
-    var counts = {};
-    s.inventory.forEach(function (id) { counts[id] = (counts[id] || 0) + 1; });
-    Object.keys(counts).forEach(function (id) {
-      var def = BS.Data.modules[id];
-      var row = document.createElement("div"); row.className = "hg-row";
-      var usable = pick ? !C.fitProblem(s.shipClass, C.fitFor(s.shipClass), pick.slot, pick.i, id) : false;
-      row.innerHTML = "<span class='hg-name'>" + def.name + (counts[id] > 1 ? " ×" + counts[id] : "") + "</span><span class='dim'>" + def.slot + " · pg " + def.pg + " · cpu " + def.cpu + "</span>";
-      row.title = def.desc;
-      if (pick) {
-        var fb = document.createElement("button"); fb.className = "lcars-btn c-orange"; fb.textContent = "Fit"; fb.disabled = !usable;
-        fb.title = usable ? "" : (C.fitProblem(s.shipClass, C.fitFor(s.shipClass), pick.slot, pick.i, id) || "");
-        fb.addEventListener("click", function () { var err = C.fitModule(pick.slot, pick.i, id); if (err) say(err, true); else { say(def.name + " fitted."); pick = null; } render(); });
-        row.appendChild(fb);
-      }
-      var sb = document.createElement("button"); sb.className = "lcars-btn c-lilac"; sb.textContent = "Sell " + Math.round(def.cost * BS.Data.campaign.sellBack);
-      sb.addEventListener("click", function () { var err = C.sellModule(id); if (err) say(err, true); else say("Sold " + def.name + "."); render(); });
-      row.appendChild(sb); box.appendChild(row);
-    });
-  }
-
-  function renderMarket(s) {
-    var box = el["hg-market"]; box.innerHTML = "";
-    Object.keys(BS.Data.modules).forEach(function (id) {
-      var def = BS.Data.modules[id];
-      if (/disruptor|klingon/.test(id)) return;   // Klingon gear is not sold at a Starfleet yard
-      var row = document.createElement("div"); row.className = "hg-row";
-      row.innerHTML = "<span class='hg-name'>" + def.name + "</span><span class='dim'>" + def.slot + " · pg " + def.pg + " · cpu " + def.cpu + (def.cap ? " · " + def.cap + " cap/" + def.cycle + "s" : "") + "</span>";
-      row.title = def.desc;
-      var b = document.createElement("button"); b.className = "lcars-btn c-orange"; b.textContent = def.cost.toLocaleString() + " cr"; b.disabled = s.credits < def.cost;
-      b.addEventListener("click", function () { var err = C.buyModule(id); if (err) say(err, true); else say("Bought " + def.name + ". It is in storage; click a slot to fit it."); render(); });
-      row.appendChild(b); box.appendChild(row);
-    });
+      "<div><label>Capacitor</label><span>" + st.cap + " · " + capLine + " <span class='dim'>(drain " + st.drain + "/s · peak " + st.peakRecharge + "/s)</span></span></div>" +
+      "<div><label>Defence</label><span>hull " + st.hull + " · shields " + shields + " · repair " + st.repair + "/s</span></div>" +
+      "<div><label>Mobility</label><span>" + st.speed + " km/s <span class='dim'>(thrust " + st.thrust + " / mass " + st.mass + " = ×" + st.speedMult + ")</span> · lock " + st.lockTime + " s</span></div>";
   }
 
   function renderSkills(s) {
