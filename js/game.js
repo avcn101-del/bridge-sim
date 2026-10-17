@@ -3,7 +3,7 @@ window.BS = window.BS || {};
 
 BS.Game = (function () {
   var U = BS.Util;
-  var state = { phase: "start", time: 0, paused: false, player: null, enemy: null, ships: [], result: null, endTimer: 0, hover: null, zoom: 1, reward: null };
+  var state = { phase: "start", time: 0, paused: false, player: null, enemy: null, ships: [], result: null, endTimer: 0, hover: null, zoom: 1, reward: null, encounter: null };
   var accumulator = 0, lastFrame = 0, running = false;
   var subscribed = false;
 
@@ -42,8 +42,10 @@ BS.Game = (function () {
     var player = BS.Ships.create(save.shipClass, { isPlayer: true, pos: { x: 0, y: 0 }, heading: -Math.PI / 2, layout: BS.Campaign.battleLayout(save.shipClass), mods: BS.Campaign.skillMods() });
     var ang = U.rand(-0.6, 0.6) - Math.PI / 2;
     var dist = BS.Ships.px(B.arenaStartDistanceKm);
-    var enemy = BS.Ships.create("bird_of_prey", { pos: { x: Math.cos(ang) * dist, y: Math.sin(ang) * dist }, heading: ang + Math.PI, statMult: BS.Campaign.enemyStatMult(), mods: { damageMult: BS.Data.enemyAI.default.damageMult } });
-    BS.EnemyAI.attach(enemy, player, "default");
+    var enc = BS.Campaign.encounter();
+    var enemy = BS.Ships.create(enc.classId, { name: enc.name, layout: enc.rows, pos: { x: Math.cos(ang) * dist, y: Math.sin(ang) * dist }, heading: ang + Math.PI, statMult: BS.Campaign.enemyStatMult(enc.aiProfile), mods: { damageMult: BS.Data.enemyAI[enc.aiProfile].damageMult } });
+    BS.EnemyAI.attach(enemy, player, enc.aiProfile);
+    state.encounter = enc;
     player.selected = enemy;
     state.player = player; state.enemy = enemy; state.ships = [player, enemy];
     BS.Crew.reset(player, enemy);

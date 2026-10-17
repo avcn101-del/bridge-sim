@@ -173,10 +173,25 @@ BS.Campaign = (function () {
     };
   }
 
-  // ---- battle rewards and enemy scaling -----------------------------------
-  function enemyStatMult() {
-    var sc = D().campaign.enemyScaling, base = D().enemyAI.default.statMult;
-    return base + Math.min(sc.maxBonus, sc.perWin * save.campaign.battlesWon);
+  // ---- encounters, rewards and enemy scaling ------------------------------
+  function enemyStatMult(profileId) {
+    var sc = D().campaign.enemyScaling, prof = D().enemyAI[profileId || "default"] || D().enemyAI.default;
+    return prof.statMult + Math.min(sc.maxBonus, sc.perWin * save.campaign.battlesWon);
+  }
+  // The next enemy, chosen from campaign.encounters by battlesWon. Seeded by the battle record so the
+  // hangar threat line and the battle agree, and a reload does not re-roll the enemy.
+  function encounter() {
+    var c = save.campaign, rng = U.seededRandom(1 + c.battlesWon * 7919 + c.battlesLost * 104729);
+    var pool = D().campaign.encounters.filter(function (e) { return c.battlesWon >= e.minWins && D().shipClasses[e.enemyClass]; });
+    var total = pool.reduce(function (a, e) { return a + e.weight; }, 0), r = rng() * total, pick = pool[0];
+    for (var i = 0; i < pool.length; i++) { r -= pool[i].weight; if (r < 0) { pick = pool[i]; break; } }
+    var cls = D().shipClasses[pick.enemyClass], rows, variantName = null;
+    if (pick.layout === "random") { rows = BS.Grid.randomVariant(cls, cls.layout, rng); variantName = "Variant"; }
+    else if (pick.layout !== "default" && cls.variants && cls.variants[pick.layout]) { rows = cls.variants[pick.layout].rows; variantName = cls.variants[pick.layout].name; }
+    else rows = cls.layout;
+    var names = D().campaign.klingonNames, name = names.length ? names[Math.floor(rng() * names.length)] : cls.name;
+    return { id: pick.id, classId: pick.enemyClass, cls: cls, rows: rows, name: name, variantName: variantName, rewardMult: pick.rewardMult, aiProfile: cls.aiProfile || "default",
+      label: cls.className + (variantName ? " · " + variantName : "") };
   }
   function settleBattle(state) {
     var cr = D().campaign.credits, p = state.player, won = state.result === "victory";
@@ -184,7 +199,8 @@ BS.Campaign = (function () {
     var earned;
     if (won) {
       save.campaign.battlesWon++; save.campaign.streak++;
-      earned = cr.win - hullLostPct * cr.hullLostPenaltyPerPct + Math.min(5, save.campaign.streak - 1) * cr.winStreakBonus;
+      var mult = state.encounter ? state.encounter.rewardMult : 1;
+      earned = cr.win * mult - hullLostPct * cr.hullLostPenaltyPerPct + Math.min(5, save.campaign.streak - 1) * cr.winStreakBonus;
     } else {
       save.campaign.battlesLost++; save.campaign.streak = 0;
       earned = cr.loss;
@@ -201,5 +217,5 @@ BS.Campaign = (function () {
     currentClass: currentClass, layoutFor: layoutFor, setLayout: setLayout, battleLayout: battleLayout, buyShip: buyShip, selectShip: selectShip,
     layoutDelta: layoutDelta, countBlocks: countBlocks, applyLayout: applyLayout, builds: builds, saveBuild: saveBuild, deleteBuild: deleteBuild,
     updateTraining: updateTraining, startTraining: startTraining, cancelTraining: cancelTraining, skillMods: skillMods, skillHours: skillHours,
-    layoutStats: layoutStats, enemyStatMult: enemyStatMult, settleBattle: settleBattle };
+    layoutStats: layoutStats, enemyStatMult: enemyStatMult, encounter: encounter, settleBattle: settleBattle };
 })();

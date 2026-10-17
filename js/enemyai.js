@@ -21,8 +21,8 @@ BS.EnemyAI = (function () {
   function pickTarget(p) {
     var r = Math.random(), acc = 0;
     var keys = Object.keys(p.targetWeights);
-    for (var i = 0; i < keys.length; i++) { acc += p.targetWeights[keys[i]]; if (r < acc) return keys[i]; }
-    return keys[0];
+    for (var i = 0; i < keys.length; i++) { acc += p.targetWeights[keys[i]]; if (r < acc) return keys[i] === "none" ? null : keys[i]; }
+    return null;
   }
 
   function setState(ship, state) {

@@ -230,7 +230,7 @@ BS.UI = (function () {
     el["result-screen"].classList.toggle("victory", won); el["result-screen"].classList.toggle("defeat", !won);
     el["result-title"].textContent = won ? "Victory" : "Defeat";
     el["result-head"].textContent = won ? "BATTLE REPORT · ENEMY DESTROYED" : "BATTLE REPORT · SHIP LOST";
-    el["result-sub"].textContent = won ? "The Klingon raider has been destroyed. Starfleet Command sends its compliments, Captain." : "The ship was lost with all hands. Starfleet will review the sensor logs.";
+    el["result-sub"].textContent = won ? "The Klingon vessel has been destroyed. Starfleet Command sends its compliments, Captain." : "The ship was lost with all hands. Starfleet will review the sensor logs.";
     el["rs-time"].textContent = U.formatTime(state.time);
     el["rs-dealt"].textContent = Math.round(p.stats.damageDealt);
     el["rs-taken"].textContent = Math.round(p.stats.damageTaken);

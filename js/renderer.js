@@ -310,18 +310,45 @@ BS.Renderer = (function () {
   }
 
   function drawShip(ship, alpha, t) {
+    if (ship.flags.destroyed) return;   // the hull has broken into fragments (see drawFragments)
     var x = U.lerp(ship.prevPos.x, ship.pos.x, alpha), y = U.lerp(ship.prevPos.y, ship.pos.y, alpha);
     var h = U.lerpAngle(ship.prevHeading, ship.heading, alpha);
     ctx.save();
     ctx.translate(x, y); ctx.rotate(h); ctx.scale(ship.visual.scale || 1, ship.visual.scale || 1);
-    if (ship.flags.destroyed) {
-      var f = U.clamp(1 - ship.destroyedTimer / 1.4, 0, 1);
-      ctx.globalAlpha = f;
-      if (f <= 0) { ctx.restore(); return; }
-    }
     var drawer = ship.visual.kind === "sprite" ? drawers.sprite : drawers.grid;
     drawer(ship, t);
     ctx.restore();
+  }
+
+  // Fragments: block groups that broke off a ship, drawn with the same plating colours, scorching as they fade.
+  function drawFragments(t) {
+    var fs = BS.Effects.fragments, V = BS.Data.visuals.fragments, dark = [18, 20, 30], burnt = [40, 34, 34];
+    for (var i = 0; i < fs.length; i++) {
+      var f = fs[i], cp = f.cellPx, half = cp / 2, life = f.life / f.maxLife;
+      var alpha = life < V.fadeFrom ? life / V.fadeFrom : 1, scorch = 1 - life;
+      var tint = hexToRgb(f.tint || "#c6ccda");
+      ctx.save();
+      ctx.translate(f.x, f.y); ctx.rotate(f.heading + f.rot); ctx.globalAlpha = alpha;
+      for (var k = 0; k < f.cells.length; k++) {
+        var c = f.cells[k], col = mix(mix(hexToRgb(c.color), tint, c.armor ? 0.35 : 0.15), burnt, scorch * 0.6);
+        ctx.fillStyle = "rgb(" + col.join(",") + ")";
+        ctx.fillRect(c.dx - half - 0.25, c.dy - half - 0.25, cp + 0.5, cp + 0.5);
+      }
+      ctx.strokeStyle = "rgba(" + dark.join(",") + ",0.9)"; ctx.lineWidth = 0.8;
+      for (k = 0; k < f.cells.length; k++) { c = f.cells[k]; ctx.strokeRect(c.dx - half, c.dy - half, cp, cp); }
+      // dying engine glow on nacelle pieces
+      if (f.nacelleColor) {
+        ctx.globalCompositeOperation = "lighter";
+        for (k = 0; k < f.cells.length; k++) {
+          c = f.cells[k];
+          if (c.type !== "engine") continue;
+          var g = ctx.createRadialGradient(c.dx, c.dy, 0, c.dx, c.dy, cp * 1.3);
+          g.addColorStop(0, "rgba(" + f.nacelleColor + "," + (0.5 * life * (0.7 + 0.3 * Math.sin(t * 9 + k))).toFixed(2) + ")"); g.addColorStop(1, "rgba(" + f.nacelleColor + ",0)");
+          ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c.dx, c.dy, cp * 1.3, 0, U.TAU); ctx.fill();
+        }
+      }
+      ctx.restore();
+    }
   }
 
   // ------------------------------------------------------------- shields
@@ -429,6 +456,14 @@ BS.Renderer = (function () {
         ctx.globalCompositeOperation = "source-over";
         ctx.fillStyle = "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + Math.min(1, life * 2).toFixed(3) + ")";
         ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot || 0); ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2); ctx.restore();
+      } else if (p.type === "chunk") {
+        ctx.globalCompositeOperation = "source-over";
+        var ca = Math.min(1, life * 2.5), s2 = p.size;
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot || 0);
+        ctx.fillStyle = "rgba(" + Math.round(c[0] * (0.5 + 0.5 * life)) + "," + Math.round(c[1] * (0.5 + 0.5 * life)) + "," + Math.round(c[2] * (0.5 + 0.5 * life)) + "," + ca.toFixed(3) + ")";
+        ctx.fillRect(-s2 / 2, -s2 / 2, s2, s2);
+        ctx.strokeStyle = "rgba(18,20,30," + ca.toFixed(3) + ")"; ctx.lineWidth = 0.6; ctx.strokeRect(-s2 / 2, -s2 / 2, s2, s2);
+        ctx.restore();
       } else {
         ctx.globalCompositeOperation = "lighter";
         var a = p.type === "glow" ? life * 0.7 : Math.min(1, life * 1.5);
@@ -509,6 +544,7 @@ BS.Renderer = (function () {
     ctx.scale(zoom, zoom);
     ctx.translate(-camera.x, -camera.y);
     if (player) { ctx.save(); ctx.translate(U.lerp(player.prevPos.x, player.pos.x, alpha), U.lerp(player.prevPos.y, player.pos.y, alpha)); drawTacticalOverlay(player); ctx.restore(); }
+    drawFragments(time);
     drawParticles();
     for (var i = 0; i < ships.length; i++) drawShip(ships[i], alpha, time);
     for (var j = 0; j < ships.length; j++) drawShields(ships[j], alpha, time);

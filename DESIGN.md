@@ -1,6 +1,6 @@
 # DESIGN.md — Bridge Sim
 
-Version: 0.5 (block construction, PR 2 of 3). Keep this file in sync with the game.
+Version: 0.5.2 (block construction, PR 3 of 3). Keep this file in sync with the game.
 
 ## 1. Concept
 
@@ -20,7 +20,7 @@ Decided parameters:
 | Control | EVE-style commands relative to the target; no direct steering keys |
 | Units | km and km/s in the interface (`units.pxPerKm` = 50); ships drawn at about half size so orbits read correctly |
 | Shields | Four facings kept (fore / starboard / aft / port) |
-| Enemies | One ship per battle in v0.3; small groups later |
+| Enemies | One ship per battle, picked from `campaign.encounters` by battles won: Bird-of-Prey layouts and random variants, then the K't'inga battlecruiser; small groups later |
 | Crew | Voices and warnings only; orders execute instantly |
 | Battle length | 3–5 minutes for an attentive captain |
 | Sound | None yet; events exist for an audio module |
@@ -34,13 +34,14 @@ Decided parameters:
    and CPU, read the fit statistics (dps, capacitor stability, defence,
    mobility), train one skill at a time in real time, export/import the save,
    then **Undock**.
-3. **Battle**: the Bird-of-Prey closes from 38 km. Click it to select and
+3. **Battle**: the Klingon closes from 38 km. Click it to select and
    lock (3 s lock). Give an orbit or keep-at-range. Switch on phasers,
    torpedoes, hardener; pulse the shield booster and afterburner as the
    capacitor allows. Aim at a part once its facing shield is down.
 4. **Result screen**: Victory/Defeat, time, damage, hit counts, credits
-   earned, Return to hangar. The raider gets 6% stronger per victory (up to
-   +60%), so credits must go into better fits and skills.
+   earned, Return to hangar. Enemies get 4% stronger per victory (up to
+   +40%) and tougher encounters unlock with wins, so credits must go into
+   better builds, bigger hulls and skills.
 
 Decision pressure: capacitor budget (what runs now), range band (optimal vs
 falloff, torpedo reach), angular velocity (orbit close and fast to dodge
@@ -103,13 +104,29 @@ on), **?** help overlay, zoom, pause.
 
 ### Hull grid and blocks (`BS.Data.grid`, `BS.Data.blocks`, `shipClasses.*.mask / layout`)
 - A hull mask is rows of `.` (space), `#` (fillable), `n` (nacelle cell:
-  engines count double), `p` (fixed structure, 220 hp, not editable).
-  Constitution 26×16 (206 fillable), Bird-of-Prey 24×22 (140). Cells are
-  6 px; the grid centre is the ship centre; x is forward, y is starboard.
-- Block types (hp / mass / cost): armor 60/2/20, phaser emitter 30/2/120,
-  torpedo tube 30/3/180, shield emitter 25/2/90, reactor 25/3/100, impulse
-  engine 30/2/80, sensor array 20/1/110, bridge 140/2 (exactly one), crew
-  quarters 25/1/40.
+  engines count double), `p` (fixed structure, 700 hp, not editable: necks
+  and pylons are tough, so losing a whole section is a rare disaster).
+  Cells are 6 px; the grid centre is the ship centre; x is forward, y is
+  starboard. Every mask is symmetric about its long axis (Mirror in the editor).
+
+  | Class | Grid | Fillable cells | Cost | Base speed / turn / signature | Default build |
+  |---|---|---|---|---|---|
+  | Constitution | 26×16 | 200 | free | 95 / 90 / 400 | 8 phasers, 2 tubes, 6 reactors, 20 engines |
+  | Miranda | 22×14 | 184 | 800 | 100 / 100 / 340 | 8 phasers, 2 tubes, 6 reactors, 24 engines (fast) |
+  | Defiant | 18×12 | 126 | 2 400 | 130 / 140 / 220 | 8 phasers, 4 tubes, 6 reactors, 12 engines (speed tank) |
+  | Excelsior | 30×18 | 262 | 3 200 | 95 / 80 / 450 | 8 phasers, 4 tubes, 6 reactors, 24 engines |
+  | Galaxy | 36×20 | 406 | 5 600 | 85 / 60 / 600 | 10 phasers, 4 tubes, 8 reactors, 32 engines |
+  | Sovereign | 38×18 | 310 | 8 000 | 100 / 75 / 520 | 14 phasers, 4 tubes, 8 reactors, 32 engines |
+  | B'rel Bird-of-Prey (enemy) | 24×22 | 140 | — | 105 / 110 / 250 | Raider 8P 1T; Gunboat 11P; Torpedo boat 4P 3T |
+  | K't'inga (enemy) | 32×20 | 210 | — | 85 / 70 / 480 | Battlecruiser 8P 2T; Siege 4P 4T 8R |
+
+  Each Starfleet class has one preset besides the class default (Constitution
+  has two). A ship's price includes its default build.
+- Block types (hp / mass / cost): armor 60/2/20, phaser emitter 50/2/120,
+  torpedo tube 50/3/180, shield emitter 40/2/90, reactor 40/3/100, impulse
+  engine 45/2/80, sensor array 35/1/110, bridge 200/2 (exactly one), crew
+  quarters 35/1/40. System blocks survive one enemy beam hit, so damage
+  control can save them.
 - Derived stats: hull hp = Σ block hp; shield per facing = 80 + 70 per
   emitter whose outward angle falls in that facing, regen 0.6 + 0.4 each;
   capacitor = 80 + 80 per reactor, recharge time 40 s; speed multiplier =
@@ -125,8 +142,13 @@ on), **?** help overlay, zoom, pause.
   facing per 4 s, 32 cap), shield hardener (−30% shield damage), afterburner
   (+50% speed). F3–F5.
 - Layout rules (`BS.Grid.validateLayout`): blocks only on fillable cells,
-  exactly one bridge, everything connected to the bridge, at least one
-  weapon and one engine. An invalid layout never undocks.
+  exactly one bridge, everything connected to the bridge (eight
+  neighbours, corners count), at least one weapon and one engine. An
+  invalid layout never undocks.
+- **Random variants** (`BS.Grid.randomVariant`, `grid.variant`): re-roll
+  12% of a base layout's editable cells (armor becomes a weighted random
+  system block, a system block becomes armor), keep the bridge, accept the
+  first of up to 12 rolls that validates. Seeded by the battle record.
 
 ### Hit resolution
 - **Turrets**: hit chance = `accuracy × 0.5 ^ ((angular / tracking)² +
@@ -137,14 +159,21 @@ on), **?** help overlay, zoom, pause.
   take full damage, an afterburning Bird-of-Prey about 65%.
 - Damage hits the facing toward the attacker. Hardener resist applies to the
   shield only. 15% of absorbed damage bleeds to hull. Hull damage lands on
-  the outermost alive block along the line from the attacker to the ship
-  centre: beams penetrate up to 2 blocks (overflow carries on), torpedoes
-  put 50% on the entry block and 20% on each of its four neighbours. If an
-  aim type is set, the nearest block of that type within 3 cells of the
-  entry block takes the hit instead (−15% accuracy on the shot).
+  the outermost alive block along a line parallel to attacker→centre,
+  offset sideways by up to `grid.hitScatter` (1.0) × the hull half-extent,
+  so a volley strafes the whole facing instead of drilling one column.
+  Beams penetrate up to 2 blocks (overflow carries on), torpedoes put 50%
+  on the entry block and 20% on each of its four neighbours.
+- **Aiming** (−15% accuracy): the shot line is steered through the nearest
+  block of the aimed type within `grid.aimRadius` (2) cells of the natural
+  entry block, wandering ±`grid.aimScatter` (2) cells. The outermost block
+  on that line still takes the hit first, so armor in front of a system
+  protects it; a focused volley has to clear a strip of armor to reach the
+  bridge.
 - Destroyed blocks leave the grid (debris); blocks no longer connected to
-  the bridge break off as a section. A ship is lost when its bridge dies or
-  alive block hp drops below 35% of the total.
+  the bridge through any of their eight neighbours break off as a section
+  (fragment). A ship is lost when its bridge dies or alive block hp drops
+  below 30% of the total.
 
 ### Repair
 Damage control restores hp to damaged (not destroyed) blocks at the ship's
@@ -152,31 +181,43 @@ repair rate, the repair-priority type first, then the most damaged.
 Destroyed blocks stay gone for the battle.
 
 ### Shields
-Passive regen is low (3/s per facing); the booster is the real tank.
+Passive regen is low (0.6/s per facing plus 0.4 per emitter); the booster
+(+50 to the weakest facing per 4 s) is the real tank, but no longer out-heals
+a focused attack.
 Reinforce moves 45% of the strongest facing to the weakest over 3 s with a
 20 s cooldown. Weapons must be armed (red alert) for full regen.
 
-### Enemy AI
+### Enemy AI (`enemyAI.default`, `enemyAI.ktinga`)
 approach (afterburner on) → attack (orbit 6 km, hardener on, booster when
-the facing toward you < 55% and cap > 30%, afterburner when cap > 45%) →
+the facing toward you < 45% and cap > 35%, afterburner when cap > 45%) →
 reposition (come about when the facing < 22%) → retreat once at hull < 28%
 (keep at 22 km, shields power) → return and fight to the end. Weapons stay on
-whenever cap > 12%.
+whenever cap > 12%. Every 20 s the AI re-rolls what it aims at from
+`targetWeights`: 35% of the time it sprays the hull (no aim penalty),
+otherwise phasers, reactors, engines, shields or (5%) the bridge. The
+K't'inga profile reacts slower, orbits at 7 km, retreats later and keeps
+its own `statMult` (0.9 before scaling).
 
 ### Win / lose
 Enemy hull 0 → Victory; player hull 0 → Defeat. Result overlay with stats.
 
-### Campaign (`BS.Campaign`, PR B)
-- **Credits**: win 500 − 3 per % hull lost + 50 per consecutive win (max 5),
-  loss 120, never below 50. Start with 600.
-- **Market**: all Starfleet modules at `modules.*.cost`; selling refunds 60%.
-  Ships at `shipClasses.*.cost` (Miranda, Defiant, Excelsior, Galaxy,
-  Sovereign; silhouettes are placeholders until PR C). Boarding a ship uses
-  that ship's own saved fit; a new ship comes with its class default fit.
-- **Fitting rules**: a module only fits its slot type; total `pg` ≤
-  `powergrid` and total `cpu` ≤ `cpu`. Unfitted modules go to storage.
-  The default Constitution fit is near both limits on purpose.
-- **Fit statistics**: dps assumes 80% beam hits and 85% torpedo damage;
+### Campaign (`BS.Campaign`)
+- **Credits**: win 500 × encounter `rewardMult` − 3 per % hull lost + 50 per
+  consecutive win (max 5), loss 120, never below 50. Start with 600.
+- **Encounters** (`campaign.encounters`): each entry names an enemy class, a
+  layout (`default`, a named variant, or `random`), the wins needed to
+  unlock it, a weight and a reward multiplier. `BS.Campaign.encounter()`
+  draws one with a PRNG seeded by battles won and lost, so the hangar's
+  "Next:" line and the battle agree and a reload does not re-roll. Bird-of-Prey
+  raider from the start; Gunboat and Torpedo boat from win 1; random
+  variants from win 2; K't'inga from win 4 (×1.8), Siege from 6, random
+  K't'inga from 8 (×1.9). Klingon ship names come from `campaign.klingonNames`.
+- **Enemy scaling**: `statMult = profile.statMult + 0.04 × wins` (max +0.4)
+  multiplies every enemy block's hp and the shields; `damageMult` 1.6
+  multiplies enemy weapon damage.
+- **Shipyard**: ships at `shipClasses.*.cost` with their default build
+  included. Boarding a ship uses that hull's own saved layout.
+- **Build statistics**: dps assumes 80% beam hits and 85% torpedo damage;
   capacitor is simulated for 10 minutes with every active module running
   ("stable at n%" or "runs dry in n s").
 - **Skills** (`BS.Data.skills`): six skills, five levels each, trained one at
@@ -191,12 +232,23 @@ Enemy hull 0 → Victory; player hull 0 → Defeat. Result overlay with stats.
 ## 5. Visual style
 LCARS panels (orange / peach / purple / blue, Antonio font, red-alert
 lighting). Tactical display: multi-layer parallax starfield, nebula, vector
-ships with gradients and glowing nacelles, km range rings for optimal /
-falloff / torpedo range, orbit ring, velocity vectors, lock-in-progress
-dashed ring and locked brackets, hardpoint rings and reticle, phaser beams
-with flicker, torpedo orbs with trails, shield facing arcs with ripples,
-sparks, smoke, debris, shockwave, screen shake. Module bar with conic
-cooldown rings. Renderer dispatches on `ship.visual.kind` (vector / sprite).
+ships drawn as plated block hulls with glowing systems, km range rings for
+optimal / falloff / torpedo range, orbit ring, velocity vectors,
+lock-in-progress dashed ring and locked brackets, phaser beams with
+flicker, torpedo orbs with trails, shield facing arcs with ripples, sparks,
+smoke, shockwave, screen shake. Module bar with conic cooldown rings.
+Renderer dispatches on `ship.visual.kind` (grid / sprite).
+
+**Destruction** (`visuals.fragments`, `effects.js`): a destroyed block
+throws sparks, smoke and debris in its own colour plus a tumbling plate. A
+section cut off from the bridge leaves as one **fragment**: the blocks keep
+their relative positions and colours, drift away from the hull, spin slowly
+and scorch dark before fading (3.2 s). When a ship dies the renderer stops
+drawing it and the remaining hull shatters into 3–6 connected pieces
+(multi-source flood fill) that fly apart with secondary explosions, a white
+core flash and a double shockwave; the result screen follows 3.6 s later.
+Game logic is untouched: everything is driven by `blockDestroyed`,
+`sectionLost` and `shipDestroyed`.
 
 ## 6. Data structures (`js/data.js`)
 
@@ -206,12 +258,17 @@ balance: { ..., capCurve, lockBase, lockRefSignature, lockRefSensor, orbitRanges
 subsystems: { weapons, torpedoes, engines, shields, sensors, bridge: { label, short, effect, targetReport, damaged, repaired } }
 subsystemEffects: { sensorsAccuracyFloor, sensorsLockMaxMult, bridgeCapMinMult, targetAccuracyMult }
 modules: { id: { slot, kind: turret|launcher|active|passive, name, short, cycle, cap, pg, cpu, cost, desc, ...stats, effect } }
-shipClasses: { id: { hull, shields: {max, regen}, speed, turnRate, signature, sensorStrength, lockRangeKm,
-                     capacitor: {max, rechargeTime}, slots: {high, mid, low}, powergrid, cpu, fit: {high:[], mid:[], low:[]},
-                     subsystems, phaserMounts, torpedoTubes, repairRate, preferredRangeKm, visual: { ..., hardpoints } } }
-crew: { officers, reports, events, hailReplies }
-enemyAI: { default: { accuracyMult, reactionDelay, statMult, retreat*, reposition*, orbitRangeKm, retreatRangeKm, booster*, afterburnerMinCap, targetWeights } }
-upgrades, skills (real-time training), campaign, science, saveDefaults (version 2: fits, inventory, skills)
+grid: { cellPx, structureHp, shield*/regen*/cap*/thrust*/sensor*/repair*, hitScatter, penetration, torpedoSplash, aimRadius, aimScatter, deadFraction,
+        variant: { fraction, attempts, systemWeights }, maskLegend, layoutLegend }
+blocks: { type: { letter, name, short, hp, mass, cost, color, desc, weapon? } }
+shipClasses: { id: { name, className, role, faction, cost, purchasable, speed, turnRate, signature, lockRangeKm, preferredRangeKm,
+                     mask: [rows], layout: [rows], presets: { id: { name, desc, rows } }, variants: { id: { name, desc, rows } } (enemies),
+                     aiProfile?, visual: { kind, sprite, nacelleColor, hullTint } } }
+crew: { officers, reports, events (battleStart is templated with {className}, {name}, {range}), hailReplies }
+enemyAI: { default | ktinga: { accuracyMult, reactionDelay, statMult, damageMult, retreat*, reposition*, orbitRangeKm, retreatRangeKm, booster*, afterburnerMinCap, targetWeights (none = spray) } }
+campaign: { startingCredits, credits, enemyScaling, encounters: [{ id, enemyClass, layout, minWins, weight, rewardMult }], klingonNames }
+visuals: { starLayers, nebulae, shieldColors, shake*, fragments: { sectionLife, deathLife, deathPieces, driftSpeed, deathSpeed, spin, fadeFrom } }
+skills (real-time training), science, saveDefaults (version 2: layouts, builds, skills)
 ```
 
 Runtime ship: `pos, vel, heading, speed, hull, shields{4}, capacitor, capMax,
@@ -223,18 +280,32 @@ repairPriority, reinforce, stats, mods, aiProfile, ai`.
 ## 7. Events
 `lockStarted, lockAcquired, lockLost, moduleToggled, moduleCycle,
 moduleOffline, shieldBoosted, phaserFired, torpedoLaunched, torpedoHit,
-torpedoExpired, shieldHit, hullHit, subsystemDamaged, subsystemRepaired,
+torpedoExpired, shieldHit, hullHit, blockDestroyed, sectionLost,
 shipDestroyed, alertChanged, enemyStateChanged, commandGiven, log,
-battleStarted, battleEnded`.
+battleStarted, battleEnded, skillTrained`.
 
-## 8. Measured balance (v0.4.0, accelerated simulation, 3 runs each, default fit, no skills)
+## 8. Measured balance (v0.5.2, accelerated simulation, scripted captains, default builds, no skills)
 
-| Captain behaviour | Outcome |
-|---|---|
-| Attentive (lock, orbit 6 km, weapons + hardener, booster pulsed below 50% facing, AB when cap > 60%, aim phasers, repair sensors) | Wins in 4:40–5:00 with 69–75% hull |
-| Everything on at once | Mixed; capacitor runs dry repeatedly |
-| Stationary, weapons on | Loses in 2:15–2:40 |
-| No orders | Loses in about 1:40 |
+Harness: `BS.Game.state.paused = true`, `BS.Game.step(1/60)` in a loop, the
+captain script runs once per simulated second. Enemy strength as at the
+given number of wins. Hit rolls and the enemy's aim choice are random, so
+single runs vary a lot; ranges below are over 6–14 runs.
+
+| Matchup | Captain behaviour | Outcome |
+|---|---|---|
+| Constitution vs raider (0 wins, strength 108%) | Straightforward: lock, orbit 6 km, phasers + torpedoes + hardener, booster pulsed below 50% facing when cap > 40%, Reinforce when a facing < 20% | 12 wins, 1 loss, 1 stalemate of 14; wins in 2:16–5:57 (median ≈ 3:30) keeping 62–84% of block hp (median loss ≈ 27%) |
+| Constitution vs raider | Speed tank: orbit 3 km, afterburner when cap > 55%, booster pulsed, no hardener | Wins in 1:45–4:09 keeping 73–95% (occasional long stalemate when phasers on the engaged side are lost) |
+| Constitution vs raider | No orders | Lost in 3:06–4:15 |
+| Constitution vs Gunboat / variants (2 wins, 116%) | Straightforward | About half the fights lost: by the second win the default build needs upgrading |
+| Miranda vs raider | Straightforward / speed tank | 5 of 6 wins in 3:12–6:44 / 6 of 6 in 2:49–4:28 keeping 78–89% |
+| Defiant vs raider | Straightforward / speed tank | 2 of 5 / 5 of 5 wins in 1:43–4:07 keeping 57–99%: an escort, fly it fast and close |
+| Excelsior vs raider | Straightforward | 6 of 6 wins in 1:54–2:50 keeping 80–97% |
+| Galaxy vs K't'inga family (6 wins, 114%) | Straightforward | 6 of 6 wins in 1:43–5:04 keeping 76–99% |
+| Sovereign vs K't'inga family (6 wins) | Straightforward | 4 of 5 wins in 2:16–3:40 keeping 80–95% |
+
+Not met exactly: the straightforward Constitution fight loses a little less
+than the 30–50% target on most runs, and the speed tank wins faster rather
+than slower (it is nearly untouched, as intended).
 
 ## 9. Roadmap
 
@@ -244,5 +315,5 @@ battleStarted, battleEnded`.
 | B (done, v0.4) | Hangar with slot fitting, market, credits, real-time skills, save |
 | v0.5 PR 1 (done) | Block grid hulls, nine block types, per-block damage with penetration, splash and section loss, grid renderer, build preview and statistics |
 | v0.5 PR 2 (done) | Hangar block editor (paint, erase, mirror, presets), block costs and refunds, saved builds |
-| v0.5 PR 3 | Masks for Miranda, Defiant, Excelsior, Galaxy, Sovereign; enemy layouts and random variants; destruction polish; balance pass |
+| v0.5 PR 3 (done) | Masks for Miranda, Defiant, Excelsior, Galaxy, Sovereign; K't'inga; enemy layouts, random variants and encounters; fragments and shatter; balance pass |
 | later | Audio via events, sector map and missions, science scans and cloaked ships, optional image sprites |

@@ -2,6 +2,56 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.5.2] — 2026-10-17 (hulls, enemies, destruction, balance, v0.5 PR 3)
+
+### Added
+- **Five Starfleet hulls** in the shipyard, each with a mask, a default
+  build and a preset: Miranda 22×14 (184 cells, 800 cr, fast), Defiant
+  18×12 (126, 2 400 cr, escort), Excelsior 30×18 (262, 3 200 cr), Galaxy
+  36×20 (406, 5 600 cr), Sovereign 38×18 (310, 8 000 cr). A ship's price
+  includes its default build; bigger hulls carry more blocks but have a
+  larger signature and a lower base speed.
+- **Enemy variety**: Bird-of-Prey Raider, Gunboat (eleven disruptors) and
+  Torpedo boat (three tubes) layouts, a **random variant generator**
+  (`BS.Grid.randomVariant`, re-rolls 12% of a layout and re-validates) and a
+  second enemy hull, the **K't'inga battlecruiser** 32×20 (210 cells) with
+  a Siege layout and its own AI profile (slower, orbits at 7 km).
+- **Encounters** (`campaign.encounters`): the next enemy is drawn by weight
+  from what your win count has unlocked (K't'inga from win 4) and shown in
+  the hangar as "Next: …"; tougher enemies pay up to ×1.9 credits. Klingon
+  ships get names from a list.
+- **Destruction**: debris keeps the colour of the block it came from and a
+  plate tumbles off; a section cut from the bridge leaves as one drifting,
+  spinning, scorching **fragment** of its blocks; a dying ship shatters into
+  3–6 pieces with secondary explosions, a core flash and a double
+  shockwave before the result screen (3.6 s).
+
+### Changed
+- **Damage spread**: shots land anywhere across the facing (`grid.hitScatter`)
+  instead of always on the line through the ship centre, which used to
+  drill one column and cut small hulls in half.
+- **Aiming no longer bypasses armor**: an aimed shot is steered through the
+  nearest block of that type (within 2 cells, wandering ±2) but still hits
+  the outermost block on that line first.
+- **Connectivity** counts all eight neighbours: a section breaks off only
+  when a cut runs clean through, and a bridge can no longer be "isolated"
+  by four dead neighbours.
+- **Durability**: structure cells 220 → 700 hp, bridge 140 → 200, phaser
+  and tube 30 → 50, shield and reactor 25 → 40, engine 30 → 45, sensor
+  20 → 35, quarters 25 → 35; a ship is lost below 30% block hp (was 35%).
+- **Balance**: shield booster +70 → +50 per cycle (fights no longer stall
+  on healing); enemy base strength 108% and damage ×1.6; enemy boosts
+  below 45% facing; the enemy sprays the hull 35% of the time instead of
+  always aiming, and aims at the bridge only 5%; scaling 4% per win up to
+  +40% (was 6% / 60%).
+- Defiant flank phasers, Sovereign flank phasers and a wider neck, Miranda
+  24 engines. Crew battle-start report names the enemy class.
+
+### Measured (see DESIGN.md §8)
+- Straightforward Constitution vs raider: wins in 2:16–5:57 keeping 62–84%
+  of block hp (12 of 14 runs). No orders: lost in 3:06–4:15. Speed tank at
+  3 km: wins nearly untouched.
+
 ## [0.5.1] — 2026-10-17 (block editor, v0.5 PR 2)
 
 ### Added

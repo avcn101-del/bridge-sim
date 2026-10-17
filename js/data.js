@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.5.1",
+  version: "0.5.2",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -21,7 +21,7 @@ BS.Data = {
     hullRepairRate: 0.8,          // hull hp/s patched by damage control once every subsystem is at 100
     cameraLerp: 0.06,
     noAlertShieldRegenMult: 0.5,  // shield regen when weapons are not armed (condition green)
-    destroyedEndDelay: 2.6,       // seconds between destruction and result screen
+    destroyedEndDelay: 3.6,       // seconds between destruction and result screen (the hull breaks up first)
     reinforceFraction: 0.45,      // fraction of strongest facing moved to weakest
     reinforceDuration: 3.0,       // seconds the transfer takes
     reinforceCooldown: 20,        // seconds before Engineering can do it again
@@ -58,7 +58,7 @@ BS.Data = {
   // Ships are built from blocks on a hull-shaped cell grid (see shipClasses.*.mask).
   grid: {
     cellPx: 6,                    // world pixels per cell
-    structureHp: 220,             // fixed structural cells (neck, pylons) — not editable, not counted as hull
+    structureHp: 700,             // fixed structural cells (neck, pylons) — not editable, not counted as hull; tough, so a cut neck is a rare disaster
     shieldBase: 80,               // shield per facing before emitters
     shieldAdd: 70,                // per shield emitter on that facing
     regenBase: 0.6, regenAdd: 0.4,
@@ -68,10 +68,14 @@ BS.Data = {
     speedMultMin: 0.35, speedMultMax: 1.25,
     sensorBase: 8, sensorAdd: 2,
     repairBase: 0.6, repairAdd: 0.5,   // hp/s restored to damaged (not destroyed) blocks
+    hitScatter: 1.0,              // shots land anywhere across the facing: sideways offset up to this × the hull half-extent
     penetration: 2,               // a beam can chew through up to this many blocks along its path
     torpedoSplash: { centre: 0.5, neighbour: 0.2 }, // torpedoes explode on the entry block and splash into its four neighbours
-    aimRadius: 3,                 // cells searched around the entry block for the aimed block type
-    deadFraction: 0.35,           // ship is lost when alive block hp falls below this fraction of total
+    aimRadius: 2,                 // cells searched around the entry block for the aimed block type
+    aimScatter: 2.0,              // aimed shots wander ±this many cells around the aimed block's line, so a focused volley still has to clear a strip of armor
+    deadFraction: 0.3,            // ship is lost when alive block hp falls below this fraction of total
+    // random enemy variants: a fraction of the base layout's cells is re-rolled (armor → system, system → armor) and the result re-validated
+    variant: { fraction: 0.12, attempts: 12, systemWeights: { phaser: 4, shield: 3, reactor: 2, engine: 2, armor: 6, quarters: 1, sensor: 1, torpedo: 1 } },
     maskLegend: { ".": "empty", "#": "fillable", "n": "nacelle (engine ×2)", "p": "structure (fixed)" },
     layoutLegend: { A: "armor", P: "phaser", T: "torpedo", S: "shield", R: "reactor", E: "engine", N: "sensor", B: "bridge", Q: "quarters" },
   },
@@ -84,16 +88,16 @@ BS.Data = {
   // ---------------------------------------------------------------- blocks
   blocks: {
     armor:    { letter: "A", name: "Armor plating",   short: "AR", hp: 60, mass: 2, cost: 20,  color: "#a3aabb", desc: "Cheap and tough. Outer armor protects what is behind it." },
-    phaser:   { letter: "P", name: "Phaser emitter",  short: "PH", hp: 30, mass: 2, cost: 120, color: "#ff8a3d", desc: "Beam weapon. Fires into the 180° arc facing away from the ship's centre.",
+    phaser:   { letter: "P", name: "Phaser emitter",  short: "PH", hp: 50, mass: 2, cost: 120, color: "#ff8a3d", desc: "Beam weapon. Fires into the 180° arc facing away from the ship's centre.",
                 weapon: { kind: "turret", damage: 24, cycle: 2.6, cap: 2.5, optimalKm: 8, falloffKm: 7, tracking: 0.9, accuracy: 0.95, arc: 180, color: "#ff8a3d", coreColor: "#fff3e0", beamLife: 0.4 } },
-    torpedo:  { letter: "T", name: "Torpedo tube",    short: "TT", hp: 30, mass: 3, cost: 180, color: "#ffb347", desc: "Heavy warhead, slow reload. Fires into the 220° arc facing away from the ship's centre: mount tubes where you want to shoot.",
+    torpedo:  { letter: "T", name: "Torpedo tube",    short: "TT", hp: 50, mass: 3, cost: 180, color: "#ffb347", desc: "Heavy warhead, slow reload. Fires into the 220° arc facing away from the ship's centre: mount tubes where you want to shoot.",
                 weapon: { kind: "launcher", damage: 150, cycle: 11, cap: 14, rangeKm: 30, speedKmS: 4, explosionRadius: 280, explosionVelocity: 1.5, turnRate: 160, arc: 220, color: "#ffb347", coreColor: "#ffffff" } },
-    shield:   { letter: "S", name: "Shield emitter",  short: "SH", hp: 25, mass: 2, cost: 90,  color: "#6fb6ff", desc: "+70 shield and +0.4/s regen on the facing it sits on." },
-    reactor:  { letter: "R", name: "Reactor",         short: "RE", hp: 25, mass: 3, cost: 100, color: "#f2c14e", desc: "+80 capacitor. Losing reactors starves your modules." },
-    engine:   { letter: "E", name: "Impulse engine",  short: "EN", hp: 30, mass: 2, cost: 80,  color: "#7fd8ff", desc: "Thrust. Counts double inside nacelles. Speed = thrust / mass." },
-    sensor:   { letter: "N", name: "Sensor array",    short: "SE", hp: 20, mass: 1, cost: 110, color: "#cc99cc", desc: "Faster locks and better tracking." },
-    bridge:   { letter: "B", name: "Bridge",          short: "BR", hp: 140, mass: 2, cost: 0,   color: "#ffffff", unique: true, desc: "Exactly one. If it dies, the ship is lost. Blocks cut off from it break away." },
-    quarters: { letter: "Q", name: "Crew quarters",   short: "CQ", hp: 25, mass: 1, cost: 40,  color: "#d3bfa6", desc: "+0.5 hp/s damage-control repair of damaged blocks." },
+    shield:   { letter: "S", name: "Shield emitter",  short: "SH", hp: 40, mass: 2, cost: 90,  color: "#6fb6ff", desc: "+70 shield and +0.4/s regen on the facing it sits on." },
+    reactor:  { letter: "R", name: "Reactor",         short: "RE", hp: 40, mass: 3, cost: 100, color: "#f2c14e", desc: "+80 capacitor. Losing reactors starves your modules." },
+    engine:   { letter: "E", name: "Impulse engine",  short: "EN", hp: 45, mass: 2, cost: 80,  color: "#7fd8ff", desc: "Thrust. Counts double inside nacelles. Speed = thrust / mass." },
+    sensor:   { letter: "N", name: "Sensor array",    short: "SE", hp: 35, mass: 1, cost: 110, color: "#cc99cc", desc: "Faster locks and better tracking." },
+    bridge:   { letter: "B", name: "Bridge",          short: "BR", hp: 200, mass: 2, cost: 0,   color: "#ffffff", unique: true, desc: "Exactly one. If it dies, the ship is lost. Blocks cut off from it break away." },
+    quarters: { letter: "Q", name: "Crew quarters",   short: "CQ", hp: 35, mass: 1, cost: 40,  color: "#d3bfa6", desc: "+0.5 hp/s damage-control repair of damaged blocks." },
   },
 
   // ---------------------------------------------------------------- modules
@@ -101,7 +105,7 @@ BS.Data = {
   modules: {
     phaser_group:  { kind: "turretGroup",   block: "phaser",  name: "Phaser emitters", short: "PHA", desc: "All phaser emitters fire at the locked target when their arc allows." },
     torpedo_group: { kind: "launcherGroup", block: "torpedo", name: "Torpedo tubes",   short: "TOR", desc: "All tubes fire forward at the locked target." },
-    shield_booster: { kind: "active", name: "Shield booster", short: "SB", cycle: 4, cap: 32, effect: { shieldBoost: 70 }, desc: "Each cycle restores 70 shield to the weakest facing. Expensive on capacitor: pulse it." },
+    shield_booster: { kind: "active", name: "Shield booster", short: "SB", cycle: 4, cap: 32, effect: { shieldBoost: 50 }, desc: "Each cycle restores 50 shield to the weakest facing. Expensive on capacitor: pulse it." },
     shield_hardener: { kind: "active", name: "Shield hardener", short: "SH", cycle: 8, cap: 7, effect: { shieldResist: 0.3 }, desc: "While running, shields take 30% less damage." },
     afterburner: { kind: "active", name: "Afterburner", short: "AB", cycle: 8, cap: 16, effect: { speedMult: 1.5 }, desc: "+50% speed while running. Higher angular velocity makes enemy beams miss." },
   },
@@ -192,6 +196,327 @@ BS.Data = {
         ] },
       },
     },
+    miranda: {
+      id: "miranda", name: "USS Reliant", className: "Miranda class",
+      role: "Light cruiser", faction: "federation", cost: 800, purchasable: true,
+      speed: 100, turnRate: 100, signature: 340, lockRangeKm: 40,
+      preferredRangeKm: 6,
+      mask: [
+        "......................",
+        ".nnnnnnnn.....####....",
+        ".nnnnnnnn...########..",
+        "....pp.....##########.",
+        "....####..############",
+        "...###################",
+        "...###################",
+        "...###################",
+        "...###################",
+        "....####..############",
+        "....pp.....##########.",
+        ".nnnnnnnn...########..",
+        ".nnnnnnnn.....####....",
+        "......................"
+      ],
+      layout: [
+        "......................",
+        ".EEEEEEAA.....APSA....",
+        ".EEEEEEAA...AAAAAAAA..",
+        "...........AASAAAAAPA.",
+        "....AAAA..AAANAAAAAAPA",
+        "...AAAAAAAAAAAAAAAATAA",
+        "...ASAARRRAAAAAQBAAASP",
+        "...ASAARRRAAAAAQAAAASP",
+        "...AAAAAAAAAAAAAAAATAA",
+        "....AAAA..AAANAAAAAAPA",
+        "...........AASAAAAAPA.",
+        ".EEEEEEAA...AAAAAAAA..",
+        ".EEEEEEAA.....APSA....",
+        "......................"
+      ],
+      visual: { kind: "grid", sprite: null, nacelleColor: "90,160,255", hullTint: "#c6ccda" },
+      presets: {
+        skirmisher: { name: "Skirmisher", desc: "Eight phasers on the rim, four more engines, no tubes. Orbit at 3 km.", rows: [
+          "......................",
+          ".EEEEEEAA.....APSA....",
+          ".EEEEEEAA...AAAPAAAA..",
+          "...........AASAAAAAPA.",
+          "....AAAA..AAANAAAAAAAA",
+          "...AAAAAAAAAAAAAAAAAAA",
+          "...ASAARRRAAAAAQBAAASP",
+          "...ASAARRRAAAAAQAAAASP",
+          "...AAAAAAAAAAAAAAAAAAA",
+          "....AAAA..AAANAAAAAAAA",
+          "...........AASAAAAAPA.",
+          ".EEEEEEAA...AAAPAAAA..",
+          ".EEEEEEAA.....APSA....",
+          "......................"
+        ] },
+      },
+    },
+    defiant: {
+      id: "defiant", name: "USS Defiant", className: "Defiant class",
+      role: "Escort", faction: "federation", cost: 2400, purchasable: true,
+      speed: 130, turnRate: 140, signature: 220, lockRangeKm: 40,
+      preferredRangeKm: 4,
+      mask: [
+        "..................",
+        "..nnnnnn..........",
+        ".nnnnnnn###.......",
+        ".###############..",
+        ".################.",
+        "..################",
+        "..################",
+        ".################.",
+        ".###############..",
+        ".nnnnnnn###.......",
+        "..nnnnnn..........",
+        ".................."
+      ],
+      layout: [
+        "..................",
+        "..EEEEEE..........",
+        ".AAAAAAAAAP.......",
+        ".AAAAAAAAASAPAAP..",
+        ".AAAAAAAAAANAASAT.",
+        "..SAAARRRABAAAAATP",
+        "..SAAARRRAQAAAAATP",
+        ".AAAAAAAAAANAASAT.",
+        ".AAAAAAAAASAPAAP..",
+        ".AAAAAAAAAP.......",
+        "..EEEEEE..........",
+        ".................."
+      ],
+      visual: { kind: "grid", sprite: null, nacelleColor: "120,180,255", hullTint: "#9aa3b5" },
+      presets: {
+        interceptor: { name: "Interceptor", desc: "Every nacelle cell an engine, six forward phasers, one tube. Orbit at 3 km with the afterburner.", rows: [
+          "..................",
+          "..EEEEEE..........",
+          ".EEEEEEEAAA.......",
+          ".AAAAAAAAASAAAAP..",
+          ".AAAAAAAAAANAASAP.",
+          "..SAAARRAABAAAAATP",
+          "..SAAARRAAQAAAAAAP",
+          ".AAAAAAAAAANAASAP.",
+          ".AAAAAAAAASAAAAP..",
+          ".EEEEEEEAAA.......",
+          "..EEEEEE..........",
+          ".................."
+        ] },
+      },
+    },
+    excelsior: {
+      id: "excelsior", name: "USS Excelsior", className: "Excelsior class",
+      role: "Heavy cruiser", faction: "federation", cost: 3200, purchasable: true,
+      speed: 95, turnRate: 80, signature: 450, lockRangeKm: 50,
+      preferredRangeKm: 8,
+      mask: [
+        "..............................",
+        ".nnnnnnnnnn..........###......",
+        ".nnnnnnnnnn........#######....",
+        "......pp..........#########...",
+        "......pp.........###########..",
+        "......pp##.......############.",
+        "....##pp####....#############.",
+        "...#########ppp###############",
+        "...#########ppp###############",
+        "...#########ppp###############",
+        "...#########ppp###############",
+        "....##pp####....#############.",
+        "......pp##.......############.",
+        "......pp.........###########..",
+        "......pp..........#########...",
+        ".nnnnnnnnnn........#######....",
+        ".nnnnnnnnnn..........###......",
+        ".............................."
+      ],
+      layout: [
+        "..............................",
+        ".EEEEEEAAAA..........APA......",
+        ".EEEEEEAAAA........ASAAAAA....",
+        "..................SAAAAAAAP...",
+        ".................AAAAAAAAAAA..",
+        "........AA.......AAAAAAAAAAAP.",
+        "....AA..AAAA....AAAAAAQAAAATA.",
+        "...ASAAAAAAA...AAAAAAAQAAAAASA",
+        "...AAARRRAAA...AAAAAAABAANAATP",
+        "...AAARRRAAA...AAAAAAAQAANAATP",
+        "...ASAAAAAAA...AAAAAAAQAAAAASA",
+        "....AA..AAAA....AAAAAAQAAAATA.",
+        "........AA.......AAAAAAAAAAAP.",
+        ".................AAAAAAAAAAA..",
+        "..................SAAAAAAAP...",
+        ".EEEEEEAAAA........ASAAAAA....",
+        ".EEEEEEAAAA..........APA......",
+        ".............................."
+      ],
+      visual: { kind: "grid", sprite: null, nacelleColor: "90,160,255", hullTint: "#cdd3e0" },
+      presets: {
+        lancer: { name: "Lancer", desc: "Six torpedo tubes in the saucer bow, eight reactors, four phasers. Keep at 10 km.", rows: [
+          "..............................",
+          ".EEEEEEAAAA..........AAA......",
+          ".EEEEEEAAAA........ASAAAAA....",
+          "..................SAAAAAAAP...",
+          ".................AAAAAAAAAAA..",
+          "........AA.......AAAAAAAAAATA.",
+          "....AA..AAAA....AAAAAAQAAAAAT.",
+          "...ASAAAAAAA...ATAAAAAQAAAAASA",
+          "...AARRRRAAA...TAAAAAABAANAAAP",
+          "...AARRRRAAA...AAAAAAAQAANAAAP",
+          "...ASAAAAAAA...ATAAAAAQAAAAASA",
+          "....AA..AAAA....AAAAAAQAAAAAT.",
+          "........AA.......AAAAAAAAAATA.",
+          ".................AAAAAAAAAAA..",
+          "..................SAAAAAAAP...",
+          ".EEEEEEAAAA........ASAAAAA....",
+          ".EEEEEEAAAA..........AAA......",
+          ".............................."
+        ] },
+      },
+    },
+    galaxy: {
+      id: "galaxy", name: "USS Galaxy", className: "Galaxy class",
+      role: "Explorer", faction: "federation", cost: 5600, purchasable: true,
+      speed: 85, turnRate: 60, signature: 600, lockRangeKm: 55,
+      preferredRangeKm: 8,
+      mask: [
+        "....................................",
+        "..nnnnnnnnnn..........########......",
+        "..nnnnnnnnnn........############....",
+        "......pp...........##############...",
+        "......pp..........################..",
+        "......pp.........##################.",
+        "....########.....##################.",
+        "...##########...###################.",
+        "...##########ppp####################",
+        "...##########ppp####################",
+        "...##########ppp####################",
+        "...##########ppp####################",
+        "...##########...###################.",
+        "....########.....##################.",
+        "......pp.........##################.",
+        "......pp..........################..",
+        "......pp...........##############...",
+        "..nnnnnnnnnn........############....",
+        "..nnnnnnnnnn..........########......",
+        "...................................."
+      ],
+      layout: [
+        "....................................",
+        "..EEEEEEEEAA..........AAAPAAAA......",
+        "..EEEEEEEEAA........AASAAAAAAAAA....",
+        "...................AAAAAAAAAAAPAA...",
+        "..................AASAAAAAAAAAAAAA..",
+        ".................AAAAAAAAAAAAAAAAPA.",
+        "....AAAAAAAA.....AAAAAAAAAAAAAAAAAA.",
+        "...AAAAAAAAAA...ASATAAAAAAQANAAAAAP.",
+        "...AAAAARRAAA...AAAAAAAAAAQAAAAAAAAP",
+        "...ASAAARRAAA...AAAATAAAAABQANAAAASA",
+        "...ASAAARRAAA...AAAATAAAAAQQANAAAASA",
+        "...AAAAARRAAA...AAAAAAAAAAQAAAAAAAAP",
+        "...AAAAAAAAAA...ASATAAAAAAQANAAAAAP.",
+        "....AAAAAAAA.....AAAAAAAAAAAAAAAAAA.",
+        ".................AAAAAAAAAAAAAAAAPA.",
+        "..................AASAAAAAAAAAAAAA..",
+        "...................AAAAAAAAAAAPAA...",
+        "..EEEEEEEEAA........AASAAAAAAAAA....",
+        "..EEEEEEEEAA..........AAAPAAAA......",
+        "...................................."
+      ],
+      visual: { kind: "grid", sprite: null, nacelleColor: "90,160,255", hullTint: "#d2d7e3" },
+      presets: {
+        fortress: { name: "Fortress", desc: "Sixteen shield emitters, ten reactors, eight crew quarters. Sits at 6 km and soaks it up.", rows: [
+          "....................................",
+          "..EEEEEEEEAA..........AASPSAAA......",
+          "..EEEEEEEEAA........AASAAAAAAASA....",
+          "...................AAAAAAAAAAAPAA...",
+          "..................AASAAAAAAAAAAASA..",
+          ".................AAAAAAAAAAAAAAAAPA.",
+          "....ASAAAAAA.....AAAAAAAAAAAAAAAAAA.",
+          "...AAAAAAAAAA...ASATAAAQAAQANAAAAAP.",
+          "...AAAAARRRAA...AAAAAAAAAAQAAAAAAAAS",
+          "...ASAAARRRAA...AAAATAAAAABQANAAAASA",
+          "...ASAAARRRAA...AAAATAAAAAQQANAAAASA",
+          "...AAAAARRRAA...AAAAAAAAAAQAAAAAAAAS",
+          "...AAAAAAAAAA...ASATAAAQAAQANAAAAAP.",
+          "....ASAAAAAA.....AAAAAAAAAAAAAAAAAA.",
+          ".................AAAAAAAAAAAAAAAAPA.",
+          "..................AASAAAAAAAAAAASA..",
+          "...................AAAAAAAAAAAPAA...",
+          "..EEEEEEEEAA........AASAAAAAAASA....",
+          "..EEEEEEEEAA..........AASPSAAA......",
+          "...................................."
+        ] },
+      },
+    },
+    sovereign: {
+      id: "sovereign", name: "USS Sovereign", className: "Sovereign class",
+      role: "Battleship", faction: "federation", cost: 8000, purchasable: true,
+      speed: 100, turnRate: 75, signature: 520, lockRangeKm: 60,
+      preferredRangeKm: 8,
+      mask: [
+        "......................................",
+        "..nnnnnnnnnnn.........................",
+        "..nnnnnnnnnnn.........#####...........",
+        "......pp.............#########........",
+        "......pp...........#############......",
+        "......pp#.........################....",
+        "....######.......###################..",
+        "...#######pppp.######################.",
+        "...###################################",
+        "...###################################",
+        "...#######pppp.######################.",
+        "....######.......###################..",
+        "......pp#.........################....",
+        "......pp...........#############......",
+        "......pp.............#########........",
+        "..nnnnnnnnnnn.........#####...........",
+        "..nnnnnnnnnnn.........................",
+        "......................................"
+      ],
+      layout: [
+        "......................................",
+        "..EEEEEEEEAAA.........................",
+        "..EEEEEEEEAAA.........AAPAA...........",
+        ".....................ASPAAAAAA........",
+        "...................ASAAAAAAAAPAA......",
+        "........A.........PSAAAAAAAAAAAAAA....",
+        "....AAAAAA.......AAAAAAAAAAAAAAAAAPA..",
+        "...AAAAAAA.....AAATAAAAAAAQAAANAAAAAP.",
+        "...ASARRRRAAAAAAAAAATAAAAABQAAANAAAASP",
+        "...ASARRRRAAAAAAAAAATAAAAAQAAAANAAAASP",
+        "...AAAAAAA.....AAATAAAAAAAQAAANAAAAAP.",
+        "....AAAAAA.......AAAAAAAAAAAAAAAAAPA..",
+        "........A.........PSAAAAAAAAAAAAAA....",
+        "...................ASAAAAAAAAPAA......",
+        ".....................ASPAAAAAA........",
+        "..EEEEEEEEAAA.........AAPAA...........",
+        "..EEEEEEEEAAA.........................",
+        "......................................"
+      ],
+      visual: { kind: "grid", sprite: null, nacelleColor: "100,170,255", hullTint: "#b9c0cf" },
+      presets: {
+        dreadnought: { name: "Dreadnought", desc: "Sixteen phasers along the rim, four tubes, ten reactors. Orbit at 6 km and never stop firing.", rows: [
+          "......................................",
+          "..EEEEEEEEAAA.........................",
+          "..EEEEEEEEAAA.........APAPA...........",
+          ".....................ASAAAAAPA........",
+          "...................ASAAAAAAAAPAA......",
+          "........A.........ASAAAAAAAAAAAAPA....",
+          "....AAAAAA.......AAAAAAAAAAAAAAAAAPA..",
+          "...AAAAAAA.....AAATAAAAAAAQAAANAAAAAP.",
+          "...ASRRRRRAAAAAAAAAATAAAAABQAAANAAAASP",
+          "...ASRRRRRAAAAAAAAAATAAAAAQAAAANAAAASP",
+          "...AAAAAAA.....AAATAAAAAAAQAAANAAAAAP.",
+          "....AAAAAA.......AAAAAAAAAAAAAAAAAPA..",
+          "........A.........ASAAAAAAAAAAAAPA....",
+          "...................ASAAAAAAAAPAA......",
+          ".....................ASAAAAAPA........",
+          "..EEEEEEEEAAA.........APAPA...........",
+          "..EEEEEEEEAAA.........................",
+          "......................................"
+        ] },
+      },
+    },
     bird_of_prey: {
       id: "bird_of_prey", name: "IKS Rotarran", className: "B'rel class Bird-of-Prey",
       role: "Raider", faction: "klingon", cost: 0, purchasable: false,
@@ -246,8 +571,132 @@ BS.Data = {
         "EEE....................."
       ],
       visual: { kind: "grid", sprite: null, nacelleColor: "110,255,120", hullTint: "#5d7a5c" },
+      variants: {
+        gunboat: { name: "Gunboat", desc: "Eleven disruptors along the wings, no torpedo, thinner armor.", rows: [
+          "EEE.....................",
+          "EEEP....................",
+          "..AAA...................",
+          "...APA..................",
+          "....AAA.................",
+          ".....AAA................",
+          "......AAA...............",
+          ".......APA..............",
+          ".....AAAAAA.......AAA...",
+          "....AAAAQASA....AAAAAAA.",
+          "...AAARRAPAAAAAAASAPANAP",
+          "...ASARRBPAAAAAAASAAAAAP",
+          "....AAAAQASA....AAAAAAA.",
+          ".....AAAAAA.......AAA...",
+          ".......APA..............",
+          "......AAA...............",
+          ".....AAA................",
+          "....AAA.................",
+          "...APA..................",
+          "..AAA...................",
+          "EEEP....................",
+          "EEE....................."
+        ] },
+        torpedo: { name: "Torpedo boat", desc: "Three forward tubes, six reactors, four disruptors.", rows: [
+          "EEE.....................",
+          "EEEP....................",
+          "..AAA...................",
+          "...AAA..................",
+          "....AAA.................",
+          ".....AAA................",
+          "......AAA...............",
+          ".......AAA..............",
+          ".....AAAAAA.......AAA...",
+          "....AAARQASA....AAAAAAT.",
+          "...AAARRAPAAAAAAASANAAAT",
+          "...ASARRBPAAAAAAASAAAAAT",
+          "....AAARQASA....AAAAAAA.",
+          ".....AAAAAA.......AAA...",
+          ".......AAA..............",
+          "......AAA...............",
+          ".....AAA................",
+          "....AAA.................",
+          "...AAA..................",
+          "..AAA...................",
+          "EEEP....................",
+          "EEE....................."
+        ] },
+      },
     },
-    // Further hulls (Miranda, Defiant, Excelsior, Galaxy, Sovereign) get their own masks in PR 3 of v0.5.
+    ktinga: {
+      id: "ktinga", name: "IKS Amar", className: "K't'inga class battlecruiser",
+      role: "Battlecruiser", faction: "klingon", cost: 0, purchasable: false,
+      speed: 85, turnRate: 70, signature: 480, lockRangeKm: 45,
+      preferredRangeKm: 7, aiProfile: "ktinga",
+      mask: [
+        "nnnn............................",
+        "nnnn#...........................",
+        "..####..........................",
+        "...####.........................",
+        "....#####.......................",
+        ".....######................####.",
+        "......########..........######..",
+        ".......#########.......########.",
+        "........########pppppp##########",
+        "........########################",
+        "........########################",
+        "........########pppppp##########",
+        ".......#########.......########.",
+        "......########..........######..",
+        ".....######................####.",
+        "....#####.......................",
+        "...####.........................",
+        "..####..........................",
+        "nnnn#...........................",
+        "nnnn............................"
+      ],
+      layout: [
+        "EEEE............................",
+        "EEEEP...........................",
+        "..AAAA..........................",
+        "...AAAP.........................",
+        "....AAAAA.......................",
+        ".....AAAAAP................AAAA.",
+        "......AAAAAAAA..........AAAAAA..",
+        ".......AAAAAAASS.......AAAAAAAA.",
+        "........SAAAAAAA......AAAAANAAAP",
+        "........EEARRRAAAAAAAAAAAAQBAAST",
+        "........EEARRRAAAAAAAAAAAAAQAAST",
+        "........SAAAAAAA......AAAAANAAAP",
+        ".......AAAAAAASS.......AAAAAAAA.",
+        "......AAAAAAAA..........AAAAAA..",
+        ".....AAAAAP................AAAA.",
+        "....AAAAA.......................",
+        "...AAAP.........................",
+        "..AAAA..........................",
+        "EEEEP...........................",
+        "EEEE............................"
+      ],
+      visual: { kind: "grid", sprite: null, nacelleColor: "255,120,90", hullTint: "#7a6660" },
+      variants: {
+        siege: { name: "Siege", desc: "Four forward tubes, eight reactors, four disruptors.", rows: [
+          "EEEE............................",
+          "EEEEP...........................",
+          "..AAAA..........................",
+          "...AAAA.........................",
+          "....AAAAA.......................",
+          ".....AAAAAP................AAAA.",
+          "......AAAAAAAA..........AAAAAA..",
+          ".......AAAAAAASS.......AAAAAAAA.",
+          "........SAAAAAAA......AAAAANAAAT",
+          "........EERRRRAAAAAAAAAAAAQBAAST",
+          "........EERRRRAAAAAAAAAAAAAQAAST",
+          "........SAAAAAAA......AAAAANAAAT",
+          ".......AAAAAAASS.......AAAAAAAA.",
+          "......AAAAAAAA..........AAAAAA..",
+          ".....AAAAAP................AAAA.",
+          "....AAAAA.......................",
+          "...AAAA.........................",
+          "..AAAA..........................",
+          "EEEEP...........................",
+          "EEEE............................"
+        ] },
+      },
+    },
   },
 
   // ------------------------------------------------------------------- crew
@@ -293,7 +742,7 @@ BS.Data = {
     },
     events: {
       battleStart: [
-        { officer: "tactical", text: "Klingon Bird-of-Prey on sensors, Captain, 38 kilometres and closing. They're powering weapons." },
+        { officer: "tactical", text: "Klingon {className} on sensors, Captain, {range} kilometres and closing. They're powering weapons." },
         { officer: "helm",     text: "Helm answering. Select the target and give me an orbit, Captain." },
       ],
       shieldLow: "{facing} shields down to {pct} percent, Captain!",
@@ -320,12 +769,21 @@ BS.Data = {
   // --------------------------------------------------------------- enemy AI
   enemyAI: {
     default: {
-      accuracyMult: 0.85, reactionDelay: 1.2, statMult: 1.0, damageMult: 1.5,
+      accuracyMult: 0.85, reactionDelay: 1.2, statMult: 1.08, damageMult: 1.6,
       retreatHull: 0.28, retreatMinTime: 9, retreatMaxTime: 22,
       repositionShield: 0.22, repositionDuration: 5,
       orbitRangeKm: 6, retreatRangeKm: 22,
-      boosterBelow: 0.55, boosterMinCap: 0.3, afterburnerMinCap: 0.25,
-      targetWeights: { phaser: 0.3, reactor: 0.25, engine: 0.2, shield: 0.15, bridge: 0.1 },
+      boosterBelow: 0.45, boosterMinCap: 0.35, afterburnerMinCap: 0.25,
+      targetWeights: { none: 0.35, phaser: 0.2, reactor: 0.15, engine: 0.12, shield: 0.13, bridge: 0.05 },   // none = spray the hull, no −15% aim penalty
+    },
+    // K't'inga: slower to react, holds a longer orbit, fights to the end rather than running
+    ktinga: {
+      accuracyMult: 0.8, reactionDelay: 1.6, statMult: 0.9, damageMult: 1.6,
+      retreatHull: 0.2, retreatMinTime: 8, retreatMaxTime: 16,
+      repositionShield: 0.2, repositionDuration: 6,
+      orbitRangeKm: 7, retreatRangeKm: 18,
+      boosterBelow: 0.5, boosterMinCap: 0.3, afterburnerMinCap: 0.35,
+      targetWeights: { none: 0.3, phaser: 0.18, reactor: 0.17, engine: 0.12, shield: 0.13, bridge: 0.1 },
     },
   },
 
@@ -346,10 +804,19 @@ BS.Data = {
     credits: { win: 500, loss: 120, hullLostPenaltyPerPct: 3, winStreakBonus: 50 },   // per battle
     sellBack: 0.6,                      // fraction of price refunded when selling a module
     // the raider gets tougher with every victory: statMult = base + perWin × wins (capped)
-    enemyScaling: { perWin: 0.06, maxBonus: 0.6 },
-    missions: [
-      { id: "m1", name: "Border skirmish", enemyClass: "bird_of_prey", difficulty: "default", briefing: "A lone Bird-of-Prey is raiding the Archanis sector." },
+    enemyScaling: { perWin: 0.04, maxBonus: 0.4 },
+    // Which enemy shows up: weighted random among the encounters unlocked by battlesWon; "random" layouts are
+    // generated from the class default (grid.variant). rewardMult scales the win payout. Seeded by the battle record.
+    encounters: [
+      { id: "raider",   enemyClass: "bird_of_prey", layout: "default", minWins: 0, weight: 3, rewardMult: 1.0 },
+      { id: "gunboat",  enemyClass: "bird_of_prey", layout: "gunboat", minWins: 1, weight: 2, rewardMult: 1.1 },
+      { id: "torpedo",  enemyClass: "bird_of_prey", layout: "torpedo", minWins: 1, weight: 2, rewardMult: 1.1 },
+      { id: "variant",  enemyClass: "bird_of_prey", layout: "random",  minWins: 2, weight: 3, rewardMult: 1.1 },
+      { id: "cruiser",  enemyClass: "ktinga",       layout: "default", minWins: 4, weight: 2, rewardMult: 1.8 },
+      { id: "siege",    enemyClass: "ktinga",       layout: "siege",   minWins: 6, weight: 2, rewardMult: 1.9 },
+      { id: "warlord",  enemyClass: "ktinga",       layout: "random",  minWins: 8, weight: 2, rewardMult: 1.9 },
     ],
+    klingonNames: ["IKS Rotarran", "IKS Hegh'ta", "IKS Pagh", "IKS Koraga", "IKS Vorn", "IKS Amar", "IKS Gr'oth", "IKS Bortas", "IKS Ch'Tang", "IKS Maht-H'a"],
   },
 
   science: { scanDuration: 4, weaknessBonus: 1.25, cloakDetectRangeKm: 10 },
@@ -381,5 +848,7 @@ BS.Data = {
     shieldColors: { strong: [90, 170, 255], mid: [120, 230, 255], low: [255, 210, 80], critical: [255, 80, 70] },
     shakeMax: 14,
     shakeDecay: 6,
+    // destruction: fragments are groups of blocks that drift off as one piece and keep their colours
+    fragments: { sectionLife: 3.2, deathLife: 4.0, deathPieces: [3, 6], driftSpeed: 26, deathSpeed: 50, spin: 1.6, fadeFrom: 0.45 },
   },
 };
