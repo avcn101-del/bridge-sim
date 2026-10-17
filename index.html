@@ -42,7 +42,7 @@
         <div class="row"><label>Speed</label><span class="num wide" id="own-speed">0.0 km/s</span></div>
         <div class="row"><label>Helm</label><span class="num wide" id="own-cmd">All stop</span></div>
 
-        <h3>Subsystems <small>click: repair priority</small></h3>
+        <h3>Blocks <small>alive / total · click: repair priority</small></h3>
         <div class="sub-grid" id="own-subsystems"></div>
 
         <h3>Target</h3>
@@ -54,7 +54,7 @@
           <div class="row"><label>Range</label><span class="num wide" id="tg-range">—</span></div>
           <div class="row"><label>Angular</label><span class="num wide" id="tg-angular">—</span></div>
           <div class="row"><label>Chance</label><span class="num wide" id="tg-chance">—</span></div>
-          <div class="chips" id="enemy-subsystems" title="Click a part to aim at it; click again for hull"></div>
+          <div class="chips" id="enemy-subsystems" title="Enemy blocks alive / total. Click a type to aim at it; click again to stop."></div>
           <div class="row"><label>Aim</label><span class="num wide" id="tg-aim">Hull · full accuracy</span></div>
         </div>
       </div>
@@ -125,7 +125,7 @@
         <li><b>Click the Klingon</b> to select and lock. Then <b>Orbit 6 km</b>.</li>
         <li>Click the <b>module buttons</b> at the bottom (or F1–F8): phasers, torpedoes, shield booster, hardener, afterburner.</li>
         <li>Phasers lose hits against fast-moving targets and beyond 8 km. Torpedoes hit hard but slow ships hardest. Watch the <b>capacitor</b>.</li>
-        <li>Hover a locked enemy to see its parts; click one to aim at it. <b>Space</b> pauses.</li>
+        <li>Ships are built from blocks. Hover a locked enemy to see them; click one to aim at that type. <b>Space</b> pauses.</li>
       </ul>
       <button id="btn-start" class="lcars-btn c-orange big">Enter the hangar</button>
     </div>
@@ -139,7 +139,7 @@
         <li><b>Orbit / Keep at range / Approach</b> tell the helm how to fly relative to the target. <b>Right-click</b> the enemy to orbit at 6 km; right-click or double-click empty space to fly there.</li>
         <li><b>Module bar</b> (bottom of the display, F1–F8): phasers, torpedoes, shield booster, hardener, afterburner. Each cycle costs capacitor; the gauge's outer ring is your capacitor, the middle ring your four shield facings, the centre your hull.</li>
         <li>Phasers hit best inside 8 km and against slow targets. Torpedoes always home in but lose damage against small fast ships.</li>
-        <li>Hover the locked enemy to see its parts and click one to aim at it (−15% accuracy). Parts only take real damage once that shield facing is down. Click your own subsystem rows to set repair priority.</li>
+        <li>Hover the locked enemy to see its blocks; click one to aim at all blocks of that type (−15% accuracy). Shots hit the outer blocks first, so armor protects what is behind it; blocks cut off from the bridge break away. Click your own block rows to set repair priority.</li>
         <li>Top bar: <b>Reinforce</b> moves shield strength to the weakest facing, <b>Red alert</b> arms weapons (automatic when you switch a weapon on), <b>+/−</b> zoom.</li>
         <li>Keys: L lock · A approach · O orbit 6 km · K keep 10 km · C come about · S stop · R red alert · Space pause.</li>
       </ul>
@@ -161,10 +161,9 @@
           <div id="hg-skills" class="hg-list"></div>
         </section>
         <section class="hg-col hg-fit">
-          <h3>Fitting <small>click a slot, then Fit from storage · right-click unfits</small></h3>
-          <div id="hg-slots"></div>
-          <div class="row"><label>Power grid</label><div class="bar res"><div class="fill c-orange-bg" id="hg-pg"></div></div><span class="num wide" id="hg-pg-val"></span></div>
-          <div class="row"><label>CPU</label><div class="bar res"><div class="fill c-blue-bg" id="hg-cpu"></div></div><span class="num wide" id="hg-cpu-val"></span></div>
+          <h3>Build <small>block editor arrives in the next version</small></h3>
+          <canvas id="hg-preview" width="520" height="300" class="hg-preview"></canvas>
+          <div id="hg-legend" class="hg-legend"></div>
           <div id="hg-stats" class="hg-stats"></div>
           <div id="hg-msg" class="hg-msg"></div>
           <div class="btn-grid">
@@ -176,12 +175,6 @@
             <button id="btn-reset" class="lcars-btn c-red">Reset progress</button>
           </div>
           <input type="file" id="hg-import-file" accept="application/json,.json" class="hidden">
-        </section>
-        <section class="hg-col">
-          <h3>Storage</h3>
-          <div id="hg-inventory" class="hg-list"></div>
-          <h3>Market</h3>
-          <div id="hg-market" class="hg-list"></div>
         </section>
       </div>
     </div>
@@ -209,6 +202,7 @@
   <script src="js/data.js"></script>
   <script src="js/util.js"></script>
   <script src="js/events.js"></script>
+  <script src="js/grid.js"></script>
   <script src="js/modules.js"></script>
   <script src="js/ships.js"></script>
   <script src="js/weapons.js"></script>

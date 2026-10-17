@@ -39,10 +39,10 @@ BS.Game = (function () {
     state.time = 0; state.paused = false; state.result = null; state.endTimer = 0; state.hover = null; state.reward = null;
     state.zoom = BS.Data.balance.zoom.start;
     var save = BS.Campaign.get();
-    var player = BS.Ships.create(save.shipClass, { isPlayer: true, pos: { x: 0, y: 0 }, heading: -Math.PI / 2, fit: BS.Campaign.battleFit(save.shipClass), mods: BS.Campaign.skillMods() });
+    var player = BS.Ships.create(save.shipClass, { isPlayer: true, pos: { x: 0, y: 0 }, heading: -Math.PI / 2, layout: BS.Campaign.battleLayout(save.shipClass), mods: BS.Campaign.skillMods() });
     var ang = U.rand(-0.6, 0.6) - Math.PI / 2;
     var dist = BS.Ships.px(B.arenaStartDistanceKm);
-    var enemy = BS.Ships.create("bird_of_prey", { pos: { x: Math.cos(ang) * dist, y: Math.sin(ang) * dist }, heading: ang + Math.PI, statMult: BS.Campaign.enemyStatMult() });
+    var enemy = BS.Ships.create("bird_of_prey", { pos: { x: Math.cos(ang) * dist, y: Math.sin(ang) * dist }, heading: ang + Math.PI, statMult: BS.Campaign.enemyStatMult(), mods: { damageMult: BS.Data.enemyAI.default.damageMult } });
     BS.EnemyAI.attach(enemy, player, "default");
     player.selected = enemy;
     state.player = player; state.enemy = enemy; state.ships = [player, enemy];

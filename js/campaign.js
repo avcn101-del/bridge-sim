@@ -34,8 +34,9 @@ BS.Campaign = (function () {
     out.skills = Object.assign(base.skills, s.skills || {});
     out.campaign = Object.assign(base.campaign, s.campaign || {});
     out.settings = Object.assign(base.settings, s.settings || {});
-    out.fits = s.fits || {};
-    out.inventory = (s.inventory || []).filter(function (id) { return D().modules[id]; });
+    out.layouts = {};
+    Object.keys(s.layouts || {}).forEach(function (id) { if (D().shipClasses[id] && Array.isArray(s.layouts[id])) out.layouts[id] = s.layouts[id]; });
+    out.inventory = s.inventory && !Array.isArray(s.inventory) ? s.inventory : {};
     out.ownedShips = s.ownedShips.filter(function (id) { return D().shipClasses[id]; });
     if (out.ownedShips.indexOf(out.shipClass) < 0) out.ownedShips.push(out.shipClass);
     out.version = 2;
@@ -49,77 +50,24 @@ BS.Campaign = (function () {
   }
   function hasSave() { try { return !!localStorage.getItem(KEY); } catch (e) { return false; } }
 
-  // ---- ships and fits -----------------------------------------------------
+  // ---- ships and layouts ------------------------------------------------
   function currentClass() { return D().shipClasses[save.shipClass]; }
-  function fitFor(classId) {
+  function layoutFor(classId) {
     var cls = D().shipClasses[classId];
-    if (!save.fits[classId]) save.fits[classId] = deepCopy(cls.fit);
-    var f = save.fits[classId];
-    ["high", "mid", "low"].forEach(function (slot) {
-      f[slot] = f[slot] || [];
-      while (f[slot].length < cls.slots[slot]) f[slot].push(null);
-      f[slot].length = cls.slots[slot];
-    });
-    return f;
+    if (!save.layouts[classId]) save.layouts[classId] = cls.layout.slice();
+    return save.layouts[classId];
   }
-  function fitModules(fit) { return ["high", "mid", "low"].reduce(function (acc, s) { return acc.concat(fit[s].filter(Boolean)); }, []); }
-  function usage(fit) {
-    var pg = 0, cpu = 0;
-    fitModules(fit).forEach(function (id) { pg += D().modules[id].pg; cpu += D().modules[id].cpu; });
-    return { pg: pg, cpu: cpu };
-  }
-  // Can module `id` go into `slot` index `i` of the current ship? Returns null or a reason.
-  function fitProblem(classId, fit, slot, i, id) {
-    var def = D().modules[id], cls = D().shipClasses[classId];
-    if (!def) return "Unknown module.";
-    if (def.slot !== slot) return def.name + " is a " + def.slot + " slot module.";
-    var trial = deepCopy(fit); trial[slot][i] = id;
-    var u = usage(trial);
-    if (u.pg > cls.powergrid) return "Not enough power grid (" + u.pg + " / " + cls.powergrid + ").";
-    if (u.cpu > cls.cpu) return "Not enough CPU (" + u.cpu + " / " + cls.cpu + ").";
-    return null;
-  }
-  function fitModule(slot, i, id) {
-    var fit = fitFor(save.shipClass);
-    var problem = fitProblem(save.shipClass, fit, slot, i, id);
-    if (problem) return problem;
-    var idx = save.inventory.indexOf(id);
-    if (idx < 0) return "You do not own that module.";
-    save.inventory.splice(idx, 1);
-    if (fit[slot][i]) save.inventory.push(fit[slot][i]);
-    fit[slot][i] = id;
-    persist();
-    return null;
-  }
-  function unfitModule(slot, i) {
-    var fit = fitFor(save.shipClass);
-    if (!fit[slot][i]) return;
-    save.inventory.push(fit[slot][i]); fit[slot][i] = null; persist();
-  }
-  // A clean fit for battle: slots without nulls.
-  function battleFit(classId) {
-    var fit = fitFor(classId);
-    return { high: fit.high.filter(Boolean), mid: fit.mid.filter(Boolean), low: fit.low.filter(Boolean) };
-  }
-
-  // ---- market -------------------------------------------------------------
-  function buyModule(id) {
-    var def = D().modules[id];
-    if (!def) return "Unknown module.";
-    if (save.credits < def.cost) return "Not enough credits.";
-    save.credits -= def.cost; save.inventory.push(id); persist(); return null;
-  }
-  function sellModule(id) {
-    var idx = save.inventory.indexOf(id);
-    if (idx < 0) return "Not in inventory.";
-    save.inventory.splice(idx, 1); save.credits += Math.round(D().modules[id].cost * D().campaign.sellBack); persist(); return null;
+  function setLayout(classId, rows) { save.layouts[classId] = rows.slice(); persist(); }
+  function battleLayout(classId) {
+    var rows = layoutFor(classId), v = BS.Grid.validateLayout(D().shipClasses[classId], rows);
+    return v.ok ? rows : D().shipClasses[classId].layout;   // never undock an invalid build
   }
   function buyShip(classId) {
     var cls = D().shipClasses[classId];
     if (!cls || !cls.purchasable) return "Not for sale.";
     if (save.ownedShips.indexOf(classId) >= 0) return "Already owned.";
     if (save.credits < cls.cost) return "Not enough credits.";
-    save.credits -= cls.cost; save.ownedShips.push(classId); save.shipClass = classId; fitFor(classId); persist(); return null;
+    save.credits -= cls.cost; save.ownedShips.push(classId); save.shipClass = classId; layoutFor(classId); persist(); return null;
   }
   function selectShip(classId) { if (save.ownedShips.indexOf(classId) >= 0) { save.shipClass = classId; persist(); } }
 
@@ -157,53 +105,36 @@ BS.Campaign = (function () {
     return mods;
   }
 
-  // ---- fit statistics for the hangar ---------------------------------------
-  function fitStats(classId, fit) {
-    var cls = D().shipClasses[classId], mods = skillMods();
-    var ids = fitModules(fit);
-    var fe = { turretDamageMult: 1, launcherDamageMult: 1, capRechargeMult: 1, hullAdd: 0, speedMult: 1 };
-    var drain = 0, turretDps = 0, launcherDps = 0, hasBooster = false, boostPerSec = 0;
-    ids.forEach(function (id) {
-      var def = D().modules[id], e = def.effect || {};
-      if (def.kind === "passive") {
-        if (e.turretDamageMult) fe.turretDamageMult *= e.turretDamageMult;
-        if (e.launcherDamageMult) fe.launcherDamageMult *= e.launcherDamageMult;
-        if (e.capRechargeMult) fe.capRechargeMult *= e.capRechargeMult;
-        if (e.hullAdd) fe.hullAdd += e.hullAdd;
-        if (e.speedMult) fe.speedMult *= e.speedMult;
-      } else drain += def.cap / def.cycle;
+  // ---- layout statistics for the hangar -------------------------------------
+  function layoutStats(classId, rows) {
+    var cls = D().shipClasses[classId], mods = skillMods(), B = D().balance, g = D().grid;
+    var v = BS.Grid.validateLayout(cls, rows), st = v.stats, blocks = D().blocks;
+    var turretDps = 0, launcherDps = 0, drain = 0;
+    st.weapons.forEach(function (b) {
+      var w = b.def.weapon;
+      if (w.kind === "turret") { turretDps += w.damage * mods.turretDamageMult * 0.8 / w.cycle; drain += w.cap / w.cycle; }
+      else { launcherDps += w.damage * mods.launcherDamageMult * 0.85 / w.cycle; drain += w.cap / w.cycle; }
     });
-    ids.forEach(function (id) {
-      var def = D().modules[id];
-      if (def.kind === "turret") turretDps += def.damage * fe.turretDamageMult * mods.turretDamageMult * 0.8 / def.cycle;
-      if (def.kind === "launcher") launcherDps += def.damage * fe.launcherDamageMult * mods.launcherDamageMult * 0.85 / def.cycle;
-      if (def.effect && def.effect.shieldBoost) { hasBooster = true; boostPerSec += def.effect.shieldBoost / def.cycle; }
-    });
-    var capMax = cls.capacitor.max, tau = cls.capacitor.rechargeTime, B = D().balance;
-    var rechargeMult = fe.capRechargeMult * mods.capRechargeMult;
+    D().builtInModules.forEach(function (id) { var m = D().modules[id]; drain += m.cap / m.cycle; });
+    var capMax = st.cap, tau = g.capRechargeTime, rechargeMult = mods.capRechargeMult;
     var peak = capMax / tau * B.capCurve * 0.25 * rechargeMult;
-    // simulate capacitor with everything running for 10 minutes
-    var c = capMax, stableAt = null, lasts = null;
+    var c = capMax, lasts = null, stableAt = null;
     for (var t = 0; t < 600; t += 0.5) {
       var f = c / capMax, rate = capMax / tau * B.capCurve * Math.max(0, Math.sqrt(f) - f) * rechargeMult;
       if (f < 0.02) rate = capMax / tau * 0.4 * rechargeMult;
       c = Math.min(capMax, c + (rate - drain) * 0.5);
       if (c <= 0) { lasts = t; break; }
     }
-    if (lasts === null) {
-      // find equilibrium fraction: rate(f) = drain
-      var best = 1;
-      for (var ff = 1; ff > 0.02; ff -= 0.01) { var r = capMax / tau * B.capCurve * (Math.sqrt(ff) - ff) * rechargeMult; if (r >= drain) { best = ff; break; } }
-      stableAt = Math.round(best * 100);
-    }
-    var u = usage(fit);
+    if (lasts === null) { var best = 1; for (var ff = 1; ff > 0.02; ff -= 0.01) { if (capMax / tau * B.capCurve * (Math.sqrt(ff) - ff) * rechargeMult >= drain) { best = ff; break; } } stableAt = Math.round(best * 100); }
+    var shieldTotal = 0; BS.Ships.FACINGS.forEach(function (fc) { shieldTotal += st.shieldMax[fc]; });
     return {
+      ok: v.ok, errors: v.errors, counts: v.counts,
       dps: Math.round(turretDps + launcherDps), turretDps: Math.round(turretDps), launcherDps: Math.round(launcherDps),
-      drain: drain.toFixed(1), peakRecharge: peak.toFixed(1), stableAt: stableAt, lasts: lasts,
-      speed: (cls.speed * fe.speedMult * mods.speedMult / D().units.pxPerKm).toFixed(1),
-      hull: cls.hull + fe.hullAdd, shieldHp: cls.shields.max * 4, shieldRegen: (cls.shields.regen * 4 * mods.shieldRegenMult).toFixed(1), boost: boostPerSec.toFixed(1), hasBooster: hasBooster,
-      lockTime: (B.lockBase * (B.lockRefSignature / 250) * (B.lockRefSensor / cls.sensorStrength) * mods.lockMult).toFixed(1),
-      pg: u.pg, pgMax: cls.powergrid, cpu: u.cpu, cpuMax: cls.cpu,
+      cap: capMax, drain: drain.toFixed(1), peakRecharge: peak.toFixed(1), stableAt: stableAt, lasts: lasts,
+      speed: (cls.speed * st.speedMult * mods.speedMult / D().units.pxPerKm).toFixed(1), speedMult: st.speedMult.toFixed(2), mass: st.mass, thrust: st.thrust,
+      hull: st.hullTotal, shields: st.shieldMax, shieldTotal: shieldTotal, repair: st.repair.toFixed(1), sensors: st.sensors,
+      lockTime: (B.lockBase * (B.lockRefSignature / 250) * (B.lockRefSensor / Math.max(1, st.sensors)) * mods.lockMult).toFixed(1),
+      cost: BS.Grid.layoutCost(rows), blocks: Object.keys(v.counts).reduce(function (a, k) { return a + v.counts[k]; }, 0),
     };
   }
 
@@ -232,8 +163,7 @@ BS.Campaign = (function () {
   function get() { return save; }
 
   return { load: load, persist: persist, reset: reset, exportJSON: exportJSON, importJSON: importJSON, hasSave: hasSave, get: get,
-    currentClass: currentClass, fitFor: fitFor, battleFit: battleFit, usage: usage, fitProblem: fitProblem, fitModule: fitModule, unfitModule: unfitModule,
-    buyModule: buyModule, sellModule: sellModule, buyShip: buyShip, selectShip: selectShip,
+    currentClass: currentClass, layoutFor: layoutFor, setLayout: setLayout, battleLayout: battleLayout, buyShip: buyShip, selectShip: selectShip,
     updateTraining: updateTraining, startTraining: startTraining, cancelTraining: cancelTraining, skillMods: skillMods, skillHours: skillHours,
-    fitStats: fitStats, enemyStatMult: enemyStatMult, settleBattle: settleBattle };
+    layoutStats: layoutStats, enemyStatMult: enemyStatMult, settleBattle: settleBattle };
 })();

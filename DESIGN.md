@@ -1,15 +1,17 @@
 # DESIGN.md — Bridge Sim
 
-Version: 0.4 (hangar, fitting, skills, save). Keep this file in sync with the game.
+Version: 0.5 (block construction, PR 1 of 3). Keep this file in sync with the game.
 
 ## 1. Concept
 
-You command a Federation starship against a Klingon Bird-of-Prey. Control is
-EVE Online style: select a target, lock it, give the helm a relative movement
-command (approach, orbit at a range, keep at range), and run fitted modules
-that each cost capacitor per cycle. Four Trek shield facings decide where
-damage lands. Your officers report what the ship does and warn you; they no
-longer delay orders.
+Building the ship is the heart of the game. A starship is a grid of blocks
+inside a Trek-shaped hull mask; every block adds hull, a weapon, shields,
+capacitor, thrust, sensors or repair, and where it sits decides what it
+protects and where it can fire. Combat is EVE Online style: select a
+target, lock it, give the helm a relative movement command (approach, orbit
+at a range, keep at range), and run weapon groups and built-in systems on
+a capacitor budget. Four Trek shield facings decide where damage lands;
+after that, damage lands on blocks. Officers report and warn.
 
 Decided parameters:
 
@@ -99,21 +101,32 @@ on), **?** help overlay, zoom, pause.
   spends `cap` at the start of each cycle; if there is not enough, the module
   shuts off and Engineering says so. Bridge damage lowers recharge.
 
-### Modules (`BS.Data.modules`, fitted per class in `shipClasses.*.fit`)
-| Slot | Module | Effect |
-|---|---|---|
-| high | Phaser bank (turret) | 26 dmg / 2.6 s, optimal 8 km, falloff 7 km, tracking 2.4 rad/s |
-| high | Torpedo launcher | 120 dmg / 11 s, 30 km, explosion radius 280 m, velocity 4.2 km/s |
-| mid | Shield booster | +70 to the weakest facing per 4 s cycle, 32 cap |
-| mid | Shield hardener | −30% shield damage while running |
-| mid | Afterburner | +50% speed while running |
-| mid | Sensor booster | faster lock, +15% tracking |
-| low | Damage amplifier | +10% beam damage (passive) |
-| low | Power relay | +20% cap recharge (passive) |
-| low | Duranium plating | +200 hull, −5% speed (passive) |
-
-Enemy fit: 2× disruptor cannon, Klingon launcher, shield booster,
-afterburner, damage amplifier.
+### Hull grid and blocks (`BS.Data.grid`, `BS.Data.blocks`, `shipClasses.*.mask / layout`)
+- A hull mask is rows of `.` (space), `#` (fillable), `n` (nacelle cell:
+  engines count double), `p` (fixed structure, 220 hp, not editable).
+  Constitution 26×16 (206 fillable), Bird-of-Prey 24×22 (140). Cells are
+  6 px; the grid centre is the ship centre; x is forward, y is starboard.
+- Block types (hp / mass / cost): armor 60/2/20, phaser emitter 30/2/120,
+  torpedo tube 30/3/180, shield emitter 25/2/90, reactor 25/3/100, impulse
+  engine 30/2/80, sensor array 20/1/110, bridge 140/2 (exactly one), crew
+  quarters 25/1/40.
+- Derived stats: hull hp = Σ block hp; shield per facing = 80 + 70 per
+  emitter whose outward angle falls in that facing, regen 0.6 + 0.4 each;
+  capacitor = 80 + 80 per reactor, recharge time 40 s; speed multiplier =
+  clamp(thrust × 12 / mass, 0.35, 1.25) where thrust = engines (×2 in
+  nacelles); sensors = 8 + 2 each (lock time, tracking); repair = 0.6 + 0.5
+  per crew quarters hp/s to damaged blocks.
+- Weapons: phaser emitter 24 dmg / 2.6 s, 2.5 cap, optimal 8 km, falloff
+  7 km, tracking 0.9 rad/s, fires into the 180° arc facing away from the
+  ship centre. Torpedo tube 150 dmg / 11 s, 14 cap, 30 km, explosion radius
+  280 m, velocity 1.5 km/s, 220° outward arc. F1 fires all emitters that
+  bear, F2 all tubes.
+- Built-in active systems on every ship: shield booster (+70 to the weakest
+  facing per 4 s, 32 cap), shield hardener (−30% shield damage), afterburner
+  (+50% speed). F3–F5.
+- Layout rules (`BS.Grid.validateLayout`): blocks only on fillable cells,
+  exactly one bridge, everything connected to the bridge, at least one
+  weapon and one engine. An invalid layout never undocks.
 
 ### Hit resolution
 - **Turrets**: hit chance = `accuracy × 0.5 ^ ((angular / tracking)² +
@@ -123,15 +136,20 @@ afterburner, damage amplifier.
   ((sig/expRadius) × (expVelocity / targetSpeed))^0.6)`. Big slow targets
   take full damage, an afterburning Bird-of-Prey about 65%.
 - Damage hits the facing toward the attacker. Hardener resist applies to the
-  shield only. 15% of absorbed damage bleeds to hull; hull damage also hits
-  the aimed part (×0.7) or a random part (50% chance, ×0.45).
+  shield only. 15% of absorbed damage bleeds to hull. Hull damage lands on
+  the outermost alive block along the line from the attacker to the ship
+  centre: beams penetrate up to 2 blocks (overflow carries on), torpedoes
+  put 50% on the entry block and 20% on each of its four neighbours. If an
+  aim type is set, the nearest block of that type within 3 cells of the
+  entry block takes the hit instead (−15% accuracy on the shot).
+- Destroyed blocks leave the grid (debris); blocks no longer connected to
+  the bridge break off as a section. A ship is lost when its bridge dies or
+  alive block hp drops below 35% of the total.
 
-### Subsystems (six parts)
-weapons (phaser damage/cycle), torpedoes (reload), engines (speed, agility),
-shields (regen and booster strength), sensors (accuracy, tracking, lock
-time), bridge (capacitor recharge). Multiplier = 0.4 + 0.6 × health/100.
-Repair priority gets full repair rate, the rest a quarter. Hull is patched
-slowly once every part is at 100.
+### Repair
+Damage control restores hp to damaged (not destroyed) blocks at the ship's
+repair rate, the repair-priority type first, then the most damaged.
+Destroyed blocks stay gone for the battle.
 
 ### Shields
 Passive regen is low (3/s per facing); the booster is the real tank.
@@ -223,6 +241,8 @@ battleStarted, battleEnded`.
 | PR | Feature |
 |---|---|
 | A (done, v0.3) | EVE-style controls, HUD, capacitor, modules, lock, tracking, fixed fit |
-| B (done, v0.4) | Hangar / fitting screen with power grid and CPU, buy modules and ships, credits per battle, skills trained in real time, save to localStorage + export/import |
-| C | More ship classes with their own silhouettes, more modules and enemy types, small enemy groups, balance pass |
+| B (done, v0.4) | Hangar with slot fitting, market, credits, real-time skills, save |
+| v0.5 PR 1 (done) | Block grid hulls, nine block types, per-block damage with penetration, splash and section loss, grid renderer, build preview and statistics |
+| v0.5 PR 2 | Hangar block editor (paint, erase, mirror, presets), block market and costs, layouts in the save |
+| v0.5 PR 3 | Masks for Miranda, Defiant, Excelsior, Galaxy, Sovereign; enemy layouts and random variants; destruction polish; balance pass |
 | later | Audio via events, sector map and missions, science scans and cloaked ships, optional image sprites |

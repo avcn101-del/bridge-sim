@@ -51,18 +51,18 @@ BS.UI = (function () {
 
   // ---- generated widgets ----------------------------------------------
   function buildSubsystemWidgets() {
-    var subs = BS.Data.subsystems;
+    var blocks = BS.Data.blocks;
     el["own-subsystems"].innerHTML = ""; el["enemy-subsystems"].innerHTML = "";
-    Object.keys(subs).forEach(function (sys) {
-      var d = subs[sys];
-      var row = document.createElement("div"); row.className = "row"; row.title = d.label + ": " + d.effect + ". Click to make it the repair priority.";
-      row.innerHTML = '<label>' + d.label + '</label><div class="bar sub"><div class="fill"></div></div><span class="num">100</span>';
-      row.addEventListener("click", function () { game.command("repair", { subsystem: sys }); });
+    Object.keys(blocks).forEach(function (type) {
+      var d = blocks[type];
+      var row = document.createElement("div"); row.className = "row"; row.title = d.name + ": " + d.desc + " Click to make it the repair priority.";
+      row.innerHTML = '<label>' + d.name.split(" ")[0] + '</label><div class="bar sub"><div class="fill"></div></div><span class="num">0</span>';
+      row.addEventListener("click", function () { game.command("repair", { type: type }); });
       el["own-subsystems"].appendChild(row);
-      el["sub-" + sys] = row.querySelector(".fill"); el["sub-" + sys + "-val"] = row.querySelector(".num"); el["subrow-" + sys] = row;
-      var chip = document.createElement("span"); chip.className = "chip"; chip.textContent = d.short; chip.title = "Aim at their " + d.label.toLowerCase() + " (" + d.effect + ")";
-      chip.addEventListener("click", function () { game.command("targetSubsystem", { subsystem: sys }); });
-      el["enemy-subsystems"].appendChild(chip); el["en-" + sys] = chip;
+      el["sub-" + type] = row.querySelector(".fill"); el["sub-" + type + "-val"] = row.querySelector(".num"); el["subrow-" + type] = row;
+      var chip = document.createElement("span"); chip.className = "chip"; chip.textContent = d.short; chip.title = "Aim at their " + d.name.toLowerCase() + "s";
+      chip.addEventListener("click", function () { game.command("aim", { type: type }); });
+      el["enemy-subsystems"].appendChild(chip); el["en-" + type] = chip;
     });
   }
   function buildRangeButtons() {
@@ -108,7 +108,7 @@ BS.UI = (function () {
     gauge.hull.style.stroke = hullColor(hf);
     gauge.pct.textContent = Math.round(hf * 100) + "%";
     S.FACINGS.forEach(function (f) {
-      var frac = p.shields[f] / p.shieldMax, c = parseFloat(gauge.sh[f].getAttribute("data-c")), half = (80 * U.DEG / 2) * frac;
+      var frac = S.shieldFrac(p, f), c = parseFloat(gauge.sh[f].getAttribute("data-c")), half = (80 * U.DEG / 2) * frac;
       gauge.sh[f].setAttribute("d", frac > 0.01 ? arcPath(C, C, 38, c - half, c + half) : "");
       gauge.sh[f].style.stroke = pctColor(frac);
     });
@@ -123,8 +123,9 @@ BS.UI = (function () {
     var active = ship.modules.filter(function (m) { return m.def.kind !== "passive"; });
     active.forEach(function (m, i) {
       var b = document.createElement("div"); b.className = "module";
-      b.innerHTML = '<span class="key">F' + (i + 1) + '</span><div class="ring"></div><span class="short">' + m.def.short + '</span><span class="capcost">' + m.def.cap + ' cap</span><span class="state"></span>';
-      b.title = m.def.name + " — " + m.def.desc + " Cycle " + m.def.cycle + " s, " + m.def.cap + " capacitor per cycle.";
+      var capText = m.def.cap ? m.def.cap + " cap" : (BS.Data.blocks[m.def.block].weapon.cap + " cap/shot");
+      b.innerHTML = '<span class="key">F' + (i + 1) + '</span><div class="ring"></div><span class="short">' + m.def.short + '</span><span class="capcost">' + capText + '</span><span class="state"></span>';
+      b.title = m.def.name + " — " + m.def.desc + (m.def.cycle ? " Cycle " + m.def.cycle + " s, " + m.def.cap + " capacitor per cycle." : "");
       b.addEventListener("click", function () { game.command("module", { module: m }); });
       el["module-bar"].appendChild(b);
       moduleEls.push({ el: b, m: m, ring: b.querySelector(".ring"), state: b.querySelector(".state") });
@@ -139,15 +140,15 @@ BS.UI = (function () {
       var s = game.state;
       if (s.phase !== "battle" || !s.enemy || s.enemy.flags.destroyed) { game.setHover(null); return null; }
       var w = worldAt(ev);
-      var h = S.hardpointAt(s.enemy, w.x, w.y, 6 / s.zoom);
-      if (h) h.ship = s.enemy;
+      var b = BS.Grid.blockAtWorld(s.enemy, w.x, w.y, s.zoom < 0.8 ? 2 : 1);
+      var h = b ? { ship: s.enemy, block: b } : null;
       game.setHover(h);
       return h;
     }
     view.addEventListener("mousemove", function (ev) {
       var h = hoverAt(ev);
       view.classList.toggle("can-target", !!h);
-      view.classList.toggle("on-hardpoint", !!(h && h.sys));
+      view.classList.toggle("on-hardpoint", !!(h && h.block && !h.block.structural));
     });
     view.addEventListener("mouseleave", function () { game.setHover(null); view.classList.remove("can-target", "on-hardpoint"); });
     view.addEventListener("click", function (ev) {
@@ -155,8 +156,7 @@ BS.UI = (function () {
       if (!h) return;
       var p = s.player, e = s.enemy;
       if (p.lock.target !== e) { game.command("select", { target: e }); game.command("lock", { target: e }); return; }
-      if (h.sys) game.command("targetSubsystem", { subsystem: h.sys });
-      else if (p.targetSubsystem) game.command("targetSubsystem", { subsystem: null });
+      if (h.block && !h.block.structural) game.command("aim", { type: h.block.type });
     });
     view.addEventListener("dblclick", function (ev) {
       var h = hoverAt(ev);
@@ -269,11 +269,22 @@ BS.UI = (function () {
     updateGauge(p);
     el["own-speed"].textContent = S.speedKmS(p).toFixed(1) + " km/s" + (p.activeEffects.speedMult > 1 ? " · AB" : "");
     el["own-cmd"].textContent = cmdText(p);
-    S.subsystemIds().forEach(function (s) {
-      var v = p.subsystems[s] / 100;
-      setBar(el["sub-" + s], v, hullColor(v)); el["sub-" + s + "-val"].textContent = Math.round(v * 100);
-      el["subrow-" + s].classList.toggle("prio", p.repairPriority === s);
-      if (e) { var ev = e.subsystems[s] / 100; el["en-" + s].style.backgroundColor = e.flags.destroyed ? "#15162a" : hullColor(ev); el["en-" + s].textContent = BS.Data.subsystems[s].short + " " + Math.round(ev * 100); el["en-" + s].classList.toggle("targeted", p.targetSubsystem === s); }
+    var st = p.stats, est = e ? e.stats : null;
+    Object.keys(BS.Data.blocks).forEach(function (type) {
+      var total = st.counts[type] || 0, alive = st.alive[type] || 0;
+      var hpNow = 0, hpMax = 0;
+      p.grid.blocks.forEach(function (b) { if (b.type === type) { hpMax += b.maxHp; if (b.alive) hpNow += b.hp; } });
+      var v = hpMax ? hpNow / hpMax : 0;
+      el["subrow-" + type].style.display = total ? "" : "none";
+      setBar(el["sub-" + type], v, hullColor(v)); el["sub-" + type + "-val"].textContent = alive + "/" + total;
+      el["subrow-" + type].classList.toggle("prio", p.repairPriority === type);
+      if (e) {
+        var et = est.counts[type] || 0, ea = est.alive[type] || 0;
+        el["en-" + type].style.display = et ? "" : "none";
+        el["en-" + type].style.backgroundColor = e.flags.destroyed ? "#15162a" : hullColor(et ? ea / et : 0);
+        el["en-" + type].textContent = BS.Data.blocks[type].short + " " + ea + "/" + et;
+        el["en-" + type].classList.toggle("targeted", p.aimType === type);
+      }
     });
 
     // target panel
@@ -285,20 +296,21 @@ BS.UI = (function () {
       el["tg-name"].textContent = t.name + (p.lock.locked ? "" : " · locking " + Math.round(p.lock.progress * 100) + "%");
       var ef = t.hull / t.hullMax;
       setBar(el["tg-hull"], ef, hullColor(ef)); el["tg-hull-val"].textContent = Math.round(ef * 100);
-      var facing = S.facingToward(t, p.pos.x, p.pos.y), sf = t.shields[facing] / t.shieldMax;
+      var facing = S.facingToward(t, p.pos.x, p.pos.y), sf = S.shieldFrac(t, facing);
       setBar(el["tg-shield"], sf, pctColor(sf)); el["tg-shield-val"].textContent = Math.round(sf * 100);
       var dKm = S.distanceKm(p, t);
-      var turret = p.modules.filter(function (m) { return m.def.kind === "turret"; })[0];
-      var band = turret ? (dKm <= turret.def.optimalKm ? "optimal" : dKm <= turret.def.optimalKm + turret.def.falloffKm ? "falloff" : "out of phaser range") : "";
+      var turretBlock = p.stats.weapons.filter(function (b) { return b.type === "phaser"; })[0];
+      var turret = turretBlock ? turretBlock.def.weapon : null;
+      var band = turret ? (dKm <= turret.optimalKm ? "optimal" : dKm <= turret.optimalKm + turret.falloffKm ? "falloff" : "out of phaser range") : "";
       el["tg-range"].textContent = fmtKm(dKm) + " · " + band;
       el["tg-angular"].textContent = S.angularVelocity(p, t).toFixed(2) + " rad/s · " + S.speedKmS(t).toFixed(1) + " km/s";
       if (turret && p.lock.locked) {
-        var ch = BS.Weapons.turretHitChance(p, t, turret.def);
-        var launcher = p.modules.filter(function (m) { return m.def.kind === "launcher"; })[0];
-        var tm = launcher ? BS.Weapons.torpedoDamageMult(launcher.def, t) : 1;
+        var ch = BS.Weapons.turretHitChance(p, t, turret);
+        var launcherBlock = p.stats.weapons.filter(function (b) { return b.type === "torpedo"; })[0];
+        var tm = launcherBlock ? BS.Weapons.torpedoDamageMult(launcherBlock.def.weapon, t) : 1;
         el["tg-chance"].textContent = "PHA " + Math.round(ch * 100) + "% · TOR " + Math.round(tm * 100) + "%";
       } else el["tg-chance"].textContent = p.lock.locked ? "—" : "locking…";
-      el["tg-aim"].textContent = p.targetSubsystem ? BS.Data.subsystems[p.targetSubsystem].label + " (−15%)" : "Hull";
+      el["tg-aim"].textContent = p.aimType ? BS.Data.blocks[p.aimType].name + "s (−15%)" : "Any block";
     }
 
     // overview
@@ -315,9 +327,11 @@ BS.UI = (function () {
       var me = moduleEls[i], m = me.m;
       me.el.classList.toggle("active", m.active);
       me.el.classList.toggle("running", m.running);
-      ["nocap", "nolock", "range", "notarmed"].forEach(function (st) { me.el.classList.toggle(st, m.active && !m.running && m.state === st); });
-      me.ring.style.setProperty("--p", m.running ? (100 * (1 - m.cycleLeft / m.cycleTime)).toFixed(1) : 0);
-      me.state.textContent = m.active && !m.running && m.state !== "running" && m.state !== "off" ? ({ nocap: "no cap", nolock: "no lock", range: "range", notarmed: "safe" })[m.state] || "" : "";
+      var weapon = BS.Modules.isWeapon(m);
+      ["nocap", "nolock", "range", "notarmed", "arc", "none"].forEach(function (st) { me.el.classList.toggle(st, m.active && m.state === st); });
+      me.ring.style.setProperty("--p", weapon ? (100 * (1 - m.readiness)).toFixed(1) : (m.running ? (100 * (1 - m.cycleLeft / m.cycleTime)).toFixed(1) : 0));
+      me.el.classList.toggle("running", weapon ? m.active && m.readiness < 1 : m.running);
+      me.state.textContent = m.active && m.state !== "running" && m.state !== "off" && m.state !== "ok" ? ({ nocap: "no cap", nolock: "no lock", range: "range", notarmed: "safe", arc: "no arc", none: "lost" })[m.state] || "" : "";
     }
   }
 

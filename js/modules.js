@@ -1,72 +1,75 @@
-// js/modules.js — fitted modules: passive bonuses, active cycling, capacitor use,
-// weapon firing through BS.Weapons. EVE-style: a module that is "active" keeps
-// cycling until switched off or the capacitor runs dry.
+// js/modules.js — ship modules: weapon groups built from blocks, plus the
+// built-in active systems (booster, hardener, afterburner). Active modules
+// cycle and cost capacitor; weapon groups fire every ready block in arc.
 window.BS = window.BS || {};
 
 BS.Modules = (function () {
   var U = BS.Util;
 
-  // Build ship.modules from a fit { high: [ids], mid: [ids], low: [ids] } and
-  // aggregate passive effects into ship.fitEffects.
-  function fit(ship, fitDef) {
+  function isWeapon(m) { return m.def.kind === "turretGroup" || m.def.kind === "launcherGroup"; }
+
+  function fit(ship) {
     ship.modules = [];
-    ship.fitEffects = { turretDamageMult: 1, launcherDamageMult: 1, capRechargeMult: 1, hullAdd: 0, speedMult: 1 };
-    ["high", "mid", "low"].forEach(function (slot) {
-      (fitDef[slot] || []).forEach(function (id, i) {
-        var def = BS.Data.modules[id];
-        if (!def) { console.warn("Unknown module " + id); return; }
-        var m = { id: id, def: def, slot: slot, index: i, active: false, running: false, cycleLeft: 0, cycleTime: 0, state: "off", mountIndex: i };
-        ship.modules.push(m);
-        if (def.kind === "passive" && def.effect) {
-          var e = def.effect, fe = ship.fitEffects;
-          if (e.turretDamageMult) fe.turretDamageMult *= e.turretDamageMult;
-          if (e.launcherDamageMult) fe.launcherDamageMult *= e.launcherDamageMult;
-          if (e.capRechargeMult) fe.capRechargeMult *= e.capRechargeMult;
-          if (e.hullAdd) fe.hullAdd += e.hullAdd;
-          if (e.speedMult) fe.speedMult *= e.speedMult;
-        }
-      });
+    var types = {};
+    ship.grid.blocks.forEach(function (b) { if (!b.structural) types[b.type] = true; });
+    Object.keys(BS.Data.modules).forEach(function (id) {
+      var def = BS.Data.modules[id];
+      if (def.block && !types[def.block]) return;      // no such weapon blocks on this ship
+      if (!def.block && BS.Data.builtInModules.indexOf(id) < 0) return;
+      ship.modules.push({ id: id, def: def, active: false, running: false, cycleLeft: 0, cycleTime: def.cycle || 0, state: "off", readiness: 1 });
     });
   }
 
-  function cycleTime(ship, m) {
-    var def = m.def, t = def.cycle;
-    if (def.subsystem) t /= BS.Ships.subMult(ship, def.subsystem);
-    if (def.kind === "turret" || def.kind === "launcher") t *= ship.mods.cycleMult;
-    return t;
+  function weaponBlocks(ship, m) { return ship.grid.blocks.filter(function (b) { return b.alive && b.type === m.def.block; }); }
+
+  function blockCanFire(ship, b, target) {
+    // every weapon fires away from the ship centre: compare the target bearing with the block's outward direction
+    var w = b.def.weapon, bearing = BS.Ships.bearingTo(ship, target);
+    return Math.abs(U.normAngle(bearing - b.outward)) <= (w.arc / 2) * U.DEG;
   }
 
-  function isWeapon(m) { return m.def.kind === "turret" || m.def.kind === "launcher"; }
+  function updateWeaponGroup(ship, m, dt) {
+    var blocks = weaponBlocks(ship, m);
+    if (!blocks.length) { m.state = "none"; m.readiness = 0; return; }
+    var L = ship.lock, target = L.locked && L.target && !L.target.flags.destroyed ? L.target : null;
+    var ready = 0, fired = 0, reason = "ok";
+    blocks.forEach(function (b) {
+      var w = b.def.weapon;
+      var cycle = w.cycle * ship.mods.cycleMult;
+      if (b.cycleLeft > 0) b.cycleLeft -= dt;
+      if (b.cycleLeft <= 0) ready++;
+      if (!m.active || b.cycleLeft > 0) return;
+      if (!ship.flags.armed) { reason = "notarmed"; return; }
+      if (!target) { reason = "nolock"; return; }
+      var dKm = BS.Ships.distanceKm(ship, target);
+      var maxKm = w.kind === "turret" ? w.optimalKm + w.falloffKm * 2.5 : w.rangeKm;
+      if (dKm > maxKm) { reason = "range"; return; }
+      if (!blockCanFire(ship, b, target)) { if (reason === "ok") reason = "arc"; return; }
+      if (ship.capacitor < w.cap) { reason = "nocap"; return; }
+      ship.capacitor -= w.cap;
+      if (w.kind === "turret") BS.Weapons.fireTurretBlock(ship, b, target); else BS.Weapons.fireLauncherBlock(ship, b, target);
+      b.cycleLeft = cycle; fired++;
+    });
+    m.readiness = ready / blocks.length;
+    m.running = m.active && fired > 0 || (m.active && ready < blocks.length);
+    m.state = m.active ? (fired > 0 ? "running" : reason) : "off";
+  }
 
-  // Try to start a cycle. Returns true if the cycle started.
-  function tryStart(ship, m) {
+  function tryStartActive(ship, m) {
     var def = m.def;
     if (ship.capacitor < def.cap) { m.state = "nocap"; return false; }
-    if (isWeapon(m)) {
-      if (!ship.flags.armed) { m.state = "notarmed"; return false; }
-      var L = ship.lock;
-      if (!L.locked || !L.target || L.target.flags.destroyed) { m.state = "nolock"; return false; }
-      var dKm = BS.Ships.distanceKm(ship, L.target);
-      var maxKm = def.kind === "turret" ? def.optimalKm + def.falloffKm * 2.5 : def.rangeKm;
-      if (dKm > maxKm) { m.state = "range"; return false; }
-      ship.capacitor -= def.cap;
-      if (def.kind === "turret") BS.Weapons.fireTurret(ship, m, L.target); else BS.Weapons.fireLauncher(ship, m, L.target);
-    } else {
-      ship.capacitor -= def.cap;
-      if (def.effect && def.effect.shieldBoost) {
-        var f = BS.Ships.weakestFacing(ship);
-        var boost = def.effect.shieldBoost * BS.Ships.subMult(ship, "shields");
-        ship.shields[f] = Math.min(ship.shieldMax, ship.shields[f] + boost);
-        BS.Events.emit("shieldBoosted", { ship: ship, facing: f, amount: boost });
-      }
+    ship.capacitor -= def.cap;
+    if (def.effect && def.effect.shieldBoost) {
+      var f = BS.Ships.weakestFacing(ship);
+      ship.shields[f] = Math.min(ship.shieldMax[f], ship.shields[f] + def.effect.shieldBoost);
+      BS.Events.emit("shieldBoosted", { ship: ship, facing: f, amount: def.effect.shieldBoost });
     }
-    m.running = true; m.cycleTime = cycleTime(ship, m); m.cycleLeft = m.cycleTime; m.state = "running";
+    m.running = true; m.cycleTime = def.cycle; m.cycleLeft = def.cycle; m.state = "running";
     BS.Events.emit("moduleCycle", { ship: ship, module: m });
     return true;
   }
 
   function setActive(ship, m, on) {
-    if (m.def.kind === "passive") return;
     if (on && isWeapon(m) && !ship.flags.armed && ship.isPlayer) {
       BS.Ships.setAlert(ship, "red");
       BS.Events.emit("alertChanged", { ship: ship, alert: "red", auto: true });
@@ -81,19 +84,17 @@ BS.Modules = (function () {
     var eff = { speedMult: 1, shieldResist: 0, lockMult: 1, trackingMult: 1 };
     for (var i = 0; i < ship.modules.length; i++) {
       var m = ship.modules[i];
-      if (m.def.kind === "passive") continue;
+      if (isWeapon(m)) { updateWeaponGroup(ship, m, dt); continue; }
       if (m.running) {
         m.cycleLeft -= dt;
         if (m.cycleLeft <= 0) {
           m.running = false;
-          if (m.active) {
-            if (!tryStart(ship, m) && m.state === "nocap") { m.active = false; BS.Events.emit("moduleOffline", { ship: ship, module: m, reason: "nocap" }); }
-          } else m.state = "off";
+          if (m.active) { if (!tryStartActive(ship, m) && m.state === "nocap") { m.active = false; BS.Events.emit("moduleOffline", { ship: ship, module: m, reason: "nocap" }); } }
+          else m.state = "off";
         }
       } else if (m.active) {
-        if (!tryStart(ship, m) && m.state === "nocap") { m.active = false; BS.Events.emit("moduleOffline", { ship: ship, module: m, reason: "nocap" }); }
+        if (!tryStartActive(ship, m) && m.state === "nocap") { m.active = false; BS.Events.emit("moduleOffline", { ship: ship, module: m, reason: "nocap" }); }
       }
-      // active effects apply while the module is running
       if (m.running && m.def.effect) {
         var e = m.def.effect;
         if (e.speedMult) eff.speedMult *= e.speedMult;
@@ -105,8 +106,8 @@ BS.Modules = (function () {
     ship.activeEffects = eff;
   }
 
-  function byKind(ship, kind) { return ship.modules.filter(function (m) { return m.def.kind === kind; }); }
   function find(ship, id) { return ship.modules.filter(function (m) { return m.id === id; }); }
+  function weapons(ship) { return ship.modules.filter(isWeapon); }
 
-  return { fit: fit, update: update, setActive: setActive, toggle: toggle, cycleTime: cycleTime, byKind: byKind, find: find, isWeapon: isWeapon };
+  return { fit: fit, update: update, setActive: setActive, toggle: toggle, find: find, weapons: weapons, isWeapon: isWeapon, weaponBlocks: weaponBlocks, blockCanFire: blockCanFire };
 })();

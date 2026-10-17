@@ -11,11 +11,11 @@ BS.EnemyAI = (function () {
     ship.ai = { state: "approach", timer: 0, decision: 0, canRetreat: true, player: player };
     S.setAlert(ship, "red");
     ship.selected = player;
-    ship.targetSubsystem = pickTarget(p);
+    ship.aimType = pickTarget(p);
     S.setCommand(ship, "approach", { target: player });
     S.startLock(ship, player);
     // weapons always on; they fire once the lock lands and range allows
-    M.byKind(ship, "turret").concat(M.byKind(ship, "launcher")).forEach(function (m) { M.setActive(ship, m, true); });
+    M.weapons(ship).forEach(function (m) { M.setActive(ship, m, true); });
   }
 
   function pickTarget(p) {
@@ -46,13 +46,13 @@ BS.EnemyAI = (function () {
 
     var hullPct = ship.hull / ship.hullMax;
     var facing = S.facingToward(ship, player.pos.x, player.pos.y);
-    var facingPct = ship.shields[facing] / ship.shieldMax;
+    var facingPct = S.shieldFrac(ship, facing);
     var capPct = ship.capacitor / ship.capMax;
     var dKm = S.distanceKm(ship, player);
 
     // module management shared by all states: weapons stay on whenever there is capacitor for them
     var weaponsOn = capPct > 0.12;
-    M.byKind(ship, "turret").concat(M.byKind(ship, "launcher")).forEach(function (m) { if (m.active !== weaponsOn) M.setActive(ship, m, weaponsOn); });
+    M.weapons(ship).forEach(function (m) { if (m.active !== weaponsOn) M.setActive(ship, m, weaponsOn); });
     setModule(ship, "shield_booster", facingPct < p.boosterBelow && capPct > p.boosterMinCap);
     setModule(ship, "shield_hardener", capPct > 0.15 && (ai.state === "attack" || ai.state === "reposition"));
 
@@ -64,13 +64,13 @@ BS.EnemyAI = (function () {
         break;
       case "attack":
         if (hullPct < p.retreatHull && ai.canRetreat) { setState(ship, "retreat"); S.setCommand(ship, "keep", { target: player, rangeKm: p.retreatRangeKm }); ship.repairPriority = "shields"; break; }
-        if (facingPct < p.repositionShield && S.strongestFacing(ship) !== facing && ship.shields[S.strongestFacing(ship)] > ship.shieldMax * 0.5) {
+        if (facingPct < p.repositionShield && S.strongestFacing(ship) !== facing && S.shieldFrac(ship, S.strongestFacing(ship)) > 0.5) {
           setState(ship, "reposition"); S.setCommand(ship, "comeAbout", { target: player }); break;
         }
         if (ship.cmd.type !== "orbit") S.setCommand(ship, "orbit", { target: player, rangeKm: p.orbitRangeKm });
         // afterburner while the player's beams are landing (angular velocity makes them miss), if cap allows
         setModule(ship, "afterburner", capPct > 0.45);
-        if (ai.timer > 20) { ship.targetSubsystem = pickTarget(p); ai.timer = 0; }
+        if (ai.timer > 20) { ship.aimType = pickTarget(p); ai.timer = 0; }
         break;
       case "reposition":
         setModule(ship, "afterburner", false);
