@@ -2,6 +2,27 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.4.0] — 2026-10-16 (hangar, fitting, skills, save, PR B)
+
+### Added
+- Hangar screen between battles: ship card, shipyard (buy and board ships),
+  fitting with high/mid/low slots, power grid and CPU limits, storage,
+  market (buy, sell at 60%), fit statistics (dps, capacitor stability,
+  defence, mobility, lock time), skills trained one at a time in real time,
+  export/import save as JSON, reset.
+- Credits per battle (win 500 − hull penalty + streak bonus, loss 120).
+  The raider grows 6% stronger per victory, up to +60%.
+- Progress saved automatically in localStorage (`bridgesim.save`, version 2).
+- Result screen shows credits earned; "Return to hangar" replaces Restart.
+- New files `js/campaign.js`, `js/hangar.js`.
+
+### Changed
+- World scale: 50 px per km (was 20) and ships drawn at about half size, so
+  a 6 km orbit shows clear space between hulls and 15 km fits on screen.
+  Torpedo speed 4 km/s, turret tracking 0.9 / 1.1 rad/s and default zoom
+  0.6 retuned for the new scale.
+- `upgrades` tier data removed; modules and skills replace it.
+
 ## [0.3.0] — 2026-10-16 (EVE-style combat, PR A)
 
 ### Changed

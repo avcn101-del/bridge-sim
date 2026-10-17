@@ -1,6 +1,6 @@
 # DESIGN.md — Bridge Sim
 
-Version: 0.3 (EVE-style combat). Keep this file in sync with the game.
+Version: 0.4 (hangar, fitting, skills, save). Keep this file in sync with the game.
 
 ## 1. Concept
 
@@ -16,7 +16,7 @@ Decided parameters:
 | Topic | Decision |
 |---|---|
 | Control | EVE-style commands relative to the target; no direct steering keys |
-| Units | km and km/s in the interface (`units.pxPerKm` = 20) |
+| Units | km and km/s in the interface (`units.pxPerKm` = 50); ships drawn at about half size so orbits read correctly |
 | Shields | Four facings kept (fore / starboard / aft / port) |
 | Enemies | One ship per battle in v0.3; small groups later |
 | Crew | Voices and warnings only; orders execute instantly |
@@ -26,13 +26,19 @@ Decided parameters:
 
 ## 2. Gameplay loop
 
-1. **Start screen** → Take the bridge.
-2. **Battle**: the Bird-of-Prey closes from 38 km. Click it to select and
+1. **Start screen** → Enter the hangar.
+2. **Hangar** (Starbase 11): see your ship and its fit, buy modules and
+   ships with credits, fit modules into high/mid/low slots within power grid
+   and CPU, read the fit statistics (dps, capacitor stability, defence,
+   mobility), train one skill at a time in real time, export/import the save,
+   then **Undock**.
+3. **Battle**: the Bird-of-Prey closes from 38 km. Click it to select and
    lock (3 s lock). Give an orbit or keep-at-range. Switch on phasers,
    torpedoes, hardener; pulse the shield booster and afterburner as the
    capacitor allows. Aim at a part once its facing shield is down.
-3. **Result screen**: Victory/Defeat, time, damage, phaser and torpedo hit
-   counts, Restart.
+4. **Result screen**: Victory/Defeat, time, damage, hit counts, credits
+   earned, Return to hangar. The raider gets 6% stronger per victory (up to
+   +60%), so credits must go into better fits and skills.
 
 Decision pressure: capacitor budget (what runs now), range band (optimal vs
 falloff, torpedo reach), angular velocity (orbit close and fast to dodge
@@ -142,6 +148,28 @@ whenever cap > 12%.
 ### Win / lose
 Enemy hull 0 → Victory; player hull 0 → Defeat. Result overlay with stats.
 
+### Campaign (`BS.Campaign`, PR B)
+- **Credits**: win 500 − 3 per % hull lost + 50 per consecutive win (max 5),
+  loss 120, never below 50. Start with 600.
+- **Market**: all Starfleet modules at `modules.*.cost`; selling refunds 60%.
+  Ships at `shipClasses.*.cost` (Miranda, Defiant, Excelsior, Galaxy,
+  Sovereign; silhouettes are placeholders until PR C). Boarding a ship uses
+  that ship's own saved fit; a new ship comes with its class default fit.
+- **Fitting rules**: a module only fits its slot type; total `pg` ≤
+  `powergrid` and total `cpu` ≤ `cpu`. Unfitted modules go to storage.
+  The default Constitution fit is near both limits on purpose.
+- **Fit statistics**: dps assumes 80% beam hits and 85% torpedo damage;
+  capacitor is simulated for 10 minutes with every active module running
+  ("stable at n%" or "runs dry in n s").
+- **Skills** (`BS.Data.skills`): six skills, five levels each, trained one at
+  a time in real time (0.5 / 2 / 6 / 16 / 40 hours per level) using
+  timestamps, so training continues while the game is closed. Levels apply
+  as ship mods at battle start (+3% beam damage, +3% torpedo damage, +3%
+  speed, +4% shield regen, +4% cap recharge, −5% lock time per level).
+- **Save**: localStorage key `bridgesim.save`, `saveDefaults` shape
+  (version 2). Export downloads `bridge-sim-save.json`; Import validates and
+  migrates. Reset asks for confirmation.
+
 ## 5. Visual style
 LCARS panels (orange / peach / purple / blue, Antonio font, red-alert
 lighting). Tactical display: multi-layer parallax starfield, nebula, vector
@@ -181,20 +209,20 @@ torpedoExpired, shieldHit, hullHit, subsystemDamaged, subsystemRepaired,
 shipDestroyed, alertChanged, enemyStateChanged, commandGiven, log,
 battleStarted, battleEnded`.
 
-## 8. Measured balance (v0.3.0, accelerated simulation, 3 runs each)
+## 8. Measured balance (v0.4.0, accelerated simulation, 3 runs each, default fit, no skills)
 
 | Captain behaviour | Outcome |
 |---|---|
-| Attentive (lock, orbit 6 km, weapons + hardener, booster pulsed below 50% facing, AB when cap > 60%, aim phasers, repair sensors) | Wins in ~3:30–4:00 with 70–80% hull |
-| Everything on at once | Wins in ~3–4 min with 60–75% hull, capacitor runs dry repeatedly |
-| Stationary, weapons on | Loses in about 2:20 |
-| No orders | Loses in about 2 min |
+| Attentive (lock, orbit 6 km, weapons + hardener, booster pulsed below 50% facing, AB when cap > 60%, aim phasers, repair sensors) | Wins in 4:40–5:00 with 69–75% hull |
+| Everything on at once | Mixed; capacitor runs dry repeatedly |
+| Stationary, weapons on | Loses in 2:15–2:40 |
+| No orders | Loses in about 1:40 |
 
 ## 9. Roadmap
 
 | PR | Feature |
 |---|---|
 | A (done, v0.3) | EVE-style controls, HUD, capacitor, modules, lock, tracking, fixed fit |
-| B | Hangar / fitting screen with power grid and CPU, buy modules and ships, credits per battle, skills trained in real time, save to localStorage + export/import |
+| B (done, v0.4) | Hangar / fitting screen with power grid and CPU, buy modules and ships, credits per battle, skills trained in real time, save to localStorage + export/import |
 | C | More ship classes with their own silhouettes, more modules and enemy types, small enemy groups, balance pass |
 | later | Audio via events, sector map and missions, science scans and cloaked ships, optional image sprites |

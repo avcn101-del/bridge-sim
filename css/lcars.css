@@ -217,6 +217,42 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
 #result-screen.victory h1 { color: #9cff9c; text-shadow: 0 0 20px rgba(100, 255, 100, 0.4); }
 #result-screen.defeat h1 { color: var(--c-red); text-shadow: 0 0 20px rgba(255, 60, 60, 0.4); }
 
+/* ------------------------------------------------------------- hangar */
+.hangar-card { width: min(1240px, 96vw); max-height: 94vh; display: flex; flex-direction: column; background: #05060f; border-radius: 22px; border: 2px solid #1f2040; box-shadow: 0 0 60px rgba(100, 100, 255, 0.15); overflow: hidden; }
+.hangar-card .head { justify-content: space-between; padding: 8px 20px; border-radius: 20px 20px 0 0; }
+.hg-head-right { font-weight: 400; font-size: 14px; } .hg-head-right b { font-size: 17px; }
+.hangar-grid { display: grid; grid-template-columns: 1fr 1.25fr 1fr; gap: 14px; padding: 10px 16px 16px; overflow: auto; min-height: 0; }
+.hg-col { min-width: 0; }
+.hg-col h3 { margin-top: 8px; }
+.hg-ship { font-size: 14px; line-height: 1.4; margin-bottom: 4px; }
+.hg-list { display: flex; flex-direction: column; gap: 3px; }
+.hg-row { display: grid; grid-template-columns: 1fr auto auto; grid-template-rows: auto auto; column-gap: 6px; align-items: center; padding: 3px 6px; border-radius: 6px; background: #0b0c1c; font-size: 12px; }
+.hg-row .hg-name { font-weight: 700; color: var(--c-peach); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hg-row .dim { grid-row: 2; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hg-row .lcars-btn { grid-row: 1 / span 2; min-width: 70px; font-size: 11px; min-height: 26px; }
+.hg-row.current { box-shadow: 0 0 0 1px var(--c-blue) inset; }
+.pips i { display: inline-block; width: 8px; height: 8px; margin-left: 2px; border-radius: 2px; background: #2a2a40; vertical-align: middle; }
+.pips i.on { background: var(--c-purple); }
+.hg-training { margin: 2px 0 6px; font-size: 12px; }
+.hg-slotgroup { margin-bottom: 6px; }
+.hg-slotrow { display: flex; gap: 6px; flex-wrap: wrap; }
+.hg-slot { width: 86px; height: 56px; border-radius: 10px; border: 1px dashed #3a3a55; background: #0b0c1c; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; text-align: center; padding: 2px; }
+.hg-slot b { font-size: 15px; color: var(--c-dim); } .hg-slot small { font-size: 9.5px; line-height: 1.1; color: var(--c-dim); }
+.hg-slot.filled { border-style: solid; } .hg-slot.filled b { color: var(--c-peach); } .hg-slot.filled small { color: #cfcfe0; }
+.hg-slot.high.filled { border-color: var(--c-orange); } .hg-slot.mid.filled { border-color: var(--c-blue); } .hg-slot.low.filled { border-color: var(--c-purple); }
+.hg-slot.picking { box-shadow: 0 0 0 2px #fff inset; }
+.hg-slot:hover { background: #15162a; }
+.bar.res { height: 12px; }
+.hg-fit .row label { width: 84px; } .bar.res .fill.over { background: var(--c-red) !important; }
+.hg-stats { margin: 8px 0; font-size: 13px; }
+.hg-stats div { display: flex; gap: 8px; padding: 2px 0; border-bottom: 1px solid #141428; }
+.hg-stats label { width: 80px; flex-shrink: 0; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--c-dim); }
+.hg-msg { min-height: 18px; font-size: 12px; color: var(--c-peach); margin: 4px 0; }
+.hg-msg.bad { color: #ff8f7a; }
+.bad { color: #ff8f7a; }
+.hg-fit .lcars-btn.big { margin-top: 6px; font-size: 17px; padding: 9px 20px; }
+@media (max-width: 1000px) { .hangar-grid { grid-template-columns: 1fr; } }
+
 /* ------------------------------------------------------ short screens */
 @media (max-height: 760px) {
   #app { grid-template-rows: 44px minmax(200px, 1fr) 115px; gap: 6px; padding: 6px; }

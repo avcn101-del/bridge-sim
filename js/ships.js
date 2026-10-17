@@ -19,7 +19,7 @@ BS.Ships = (function () {
     if (!cls) throw new Error("Unknown ship class " + classId);
     var statMult = options.statMult || 1;
     var mods = Object.assign({
-      damageMult: 1, cycleMult: 1, shieldMaxMult: 1, shieldRegenMult: 1, capMult: 1, capRechargeMult: 1,
+      damageMult: 1, turretDamageMult: 1, launcherDamageMult: 1, cycleMult: 1, shieldMaxMult: 1, shieldRegenMult: 1, capMult: 1, capRechargeMult: 1,
       speedMult: 1, turnMult: 1, hullMult: 1, repairMult: 1, accuracyBonus: 0, lockMult: 1,
     }, options.mods || {});
 

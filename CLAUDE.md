@@ -33,6 +33,8 @@ These rules apply to every session working in this repository.
   - `js/weapons.js` — turrets (tracking/falloff) and launchers (signature/velocity), hit resolution
   - `js/crew.js` — crew voices: instant commands with reports, warnings
   - `js/enemyai.js` — enemy behaviour
+  - `js/campaign.js` — progress between battles: save/load/export/import, credits, ownership, fitting rules, fit stats, real-time skills, enemy scaling
+  - `js/hangar.js` — hangar screen DOM: ship, fitting, market, skills, save buttons
   - `js/ui.js` — DOM panels, order buttons, comms log, alert states
   - `js/renderer.js` — canvas drawing (space, ships, weapons, shields)
   - `js/effects.js` — particles, explosions, sparks, screen shake
@@ -47,7 +49,14 @@ These rules apply to every session working in this repository.
   player ship (select, lock, approach, orbit, keep, flyTo, comeAbout, module,
   targetSubsystem, repair, reinforce, redAlert, hail) and the officer reports.
   The enemy AI uses the same `BS.Ships.setCommand` / `BS.Modules.setActive`.
-- **Interface shows km and km/s**; the world is pixels (`units.pxPerKm`).
+- **Interface shows km and km/s**; the world is pixels (`units.pxPerKm`,
+  50). Ships are drawn at `visual.scale` 0.4–0.72 so a 6 km orbit shows
+  clear space between hulls; keep `visual.length/width` equal to the drawn
+  size (drawer size × scale) because shields, hit radius and effects use them.
+- **Progress lives in `BS.Campaign`** (localStorage key `bridgesim.save`,
+  shape in `BS.Data.saveDefaults`). Battle code never reads localStorage;
+  `BS.Game.startBattle` asks Campaign for the fit, skill mods and enemy
+  scaling, and `settleBattle` awards credits.
 - **Events, not direct calls, for presentation.** Game logic emits events
   (`BS.Events.emit("shieldHit", {...})`); renderer/effects/UI/audio subscribe.
   This is how sound will be added later without touching logic.
