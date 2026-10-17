@@ -22,8 +22,8 @@ online and falls back to a system font otherwise).
 Control is EVE Online style. You never steer directly: you pick a target and
 tell the helm how to fly relative to it, and you switch modules on and off.
 
-- Click **Enter the hangar**. The hangar shows your ship's block build with
-  its statistics, the shipyard and your skills. Click **Undock** to fight.
+- Click **Enter the hangar**. Build your ship in the editor, apply the build,
+  then click **Undock** to fight.
   (The block editor arrives in the next version; this version uses the
   class layout.)
 - **Click the Klingon ship** on the display (or double-click its row in the
@@ -56,13 +56,20 @@ tell the helm how to fly relative to it, and you switch modules on and off.
 
 ## Hangar, build, skills, saving
 
-- **Build**: the preview shows your hull with every block coloured by type
-  (armor grey, phasers orange, torpedo tubes amber, shield emitters blue,
-  reactors yellow, engines cyan, sensors purple, bridge white, crew tan).
-  The statistics block gives block count, mass and value, damage per second,
-  whether the capacitor stays stable with everything running, shields per
-  facing, and speed from thrust over mass. The block editor and block market
-  arrive in the next version.
+- **Build**: pick a block type in the palette and click or drag on the hull
+  to paint it; right-click erases. Faint cells are the hull you can fill,
+  blue-tinted cells are nacelles (engines there count double), hatched grey
+  cells are fixed structure. **Mirror** paints both sides at once. **Fill
+  armor** fills every empty cell, **Clear** keeps only the bridge. Load a
+  preset (class default, Brawler, Sniper) or one of your saved builds.
+  The statistics update as you paint: block count, mass and value, damage
+  per second, capacitor stability, shields per facing, speed from thrust
+  over mass. Rules: exactly one bridge, every block connected to it, at
+  least one weapon and one engine.
+- **Paying for it**: **Apply build** charges the price of the blocks you
+  added and refunds 60% for the ones you removed; the delta is shown before
+  you pay. You cannot undock with unapplied changes. **Save build** keeps up
+  to three named builds per hull.
 - **Shipyard**: buy and board ships; each keeps its own layout.
 - **Credits**: a win pays 500 minus 3 per percent of block hp lost, plus a
   streak bonus; a loss pays 120. The raider gets 6% stronger with every win.
@@ -85,6 +92,8 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `grid.penetration / torpedoSplash / aimRadius / deadFraction / structureHp` | How damage travels through the hull and when a ship is lost |
 | `shipClasses.*.mask / layout` | Hull shapes and default builds |
 | `modules.*` (booster, hardener, afterburner) | Built-in active systems |
+| `shipClasses.*.presets` | Preset builds offered in the editor |
+| `editor.refund / maxSavedBuilds` | Refund on removed blocks, saved builds per hull |
 | `campaign.*`, `skills.*` | Economy, difficulty progression, training |
 | `balance.capCurve / lockBase / orbitRangesKm / keepRangesKm / zoom` | Capacitor curve, lock time, range buttons, zoom |
 | `enemyAI.default` | Enemy accuracy, damage and stat multipliers, orbit range, thresholds, aim weights |

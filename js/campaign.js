@@ -36,7 +36,8 @@ BS.Campaign = (function () {
     out.settings = Object.assign(base.settings, s.settings || {});
     out.layouts = {};
     Object.keys(s.layouts || {}).forEach(function (id) { if (D().shipClasses[id] && Array.isArray(s.layouts[id])) out.layouts[id] = s.layouts[id]; });
-    out.inventory = s.inventory && !Array.isArray(s.inventory) ? s.inventory : {};
+    out.builds = {};
+    Object.keys(s.builds || {}).forEach(function (id) { if (D().shipClasses[id] && Array.isArray(s.builds[id])) out.builds[id] = s.builds[id].filter(function (b) { return b && b.name && Array.isArray(b.rows); }); });
     out.ownedShips = s.ownedShips.filter(function (id) { return D().shipClasses[id]; });
     if (out.ownedShips.indexOf(out.shipClass) < 0) out.ownedShips.push(out.shipClass);
     out.version = 2;
@@ -62,6 +63,40 @@ BS.Campaign = (function () {
     var rows = layoutFor(classId), v = BS.Grid.validateLayout(D().shipClasses[classId], rows);
     return v.ok ? rows : D().shipClasses[classId].layout;   // never undock an invalid build
   }
+  // Cost of changing the hull's current layout to `rows`: added blocks are bought, removed blocks refunded.
+  function layoutDelta(classId, rows) {
+    var cur = countBlocks(layoutFor(classId)), nxt = countBlocks(rows), cost = 0, refund = 0;
+    Object.keys(D().blocks).forEach(function (t) {
+      var price = D().blocks[t].cost, d = (nxt[t] || 0) - (cur[t] || 0);
+      if (d > 0) cost += d * price; else if (d < 0) refund += -d * price * D().editor.refund;
+    });
+    return { cost: cost, refund: Math.round(refund), net: Math.round(cost - refund) };
+  }
+  function countBlocks(rows) {
+    var counts = {};
+    rows.forEach(function (r) { for (var i = 0; i < r.length; i++) { var t = BS.Grid.typeForLetter(r[i]); if (t) counts[t] = (counts[t] || 0) + 1; } });
+    return counts;
+  }
+  // Validate, charge the difference and store the layout. Returns null or an error string.
+  function applyLayout(classId, rows) {
+    var v = BS.Grid.validateLayout(D().shipClasses[classId], rows);
+    if (!v.ok) return v.errors[0];
+    var delta = layoutDelta(classId, rows);
+    if (delta.net > save.credits) return "Not enough credits: this build costs " + delta.net.toLocaleString() + " cr more than you have.";
+    save.credits -= delta.net;
+    save.layouts[classId] = rows.slice();
+    persist();
+    return null;
+  }
+  function builds(classId) { if (!save.builds[classId]) save.builds[classId] = []; return save.builds[classId]; }
+  function saveBuild(classId, name, rows) {
+    var list = builds(classId), existing = list.filter(function (b) { return b.name === name; })[0];
+    if (existing) existing.rows = rows.slice();
+    else { if (list.length >= D().editor.maxSavedBuilds) return "Only " + D().editor.maxSavedBuilds + " saved builds per hull. Delete one first."; list.push({ name: name, rows: rows.slice() }); }
+    persist(); return null;
+  }
+  function deleteBuild(classId, name) { save.builds[classId] = builds(classId).filter(function (b) { return b.name !== name; }); persist(); }
+
   function buyShip(classId) {
     var cls = D().shipClasses[classId];
     if (!cls || !cls.purchasable) return "Not for sale.";
@@ -164,6 +199,7 @@ BS.Campaign = (function () {
 
   return { load: load, persist: persist, reset: reset, exportJSON: exportJSON, importJSON: importJSON, hasSave: hasSave, get: get,
     currentClass: currentClass, layoutFor: layoutFor, setLayout: setLayout, battleLayout: battleLayout, buyShip: buyShip, selectShip: selectShip,
+    layoutDelta: layoutDelta, countBlocks: countBlocks, applyLayout: applyLayout, builds: builds, saveBuild: saveBuild, deleteBuild: deleteBuild,
     updateTraining: updateTraining, startTraining: startTraining, cancelTraining: cancelTraining, skillMods: skillMods, skillHours: skillHours,
     layoutStats: layoutStats, enemyStatMult: enemyStatMult, settleBattle: settleBattle };
 })();

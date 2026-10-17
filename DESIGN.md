@@ -1,6 +1,6 @@
 # DESIGN.md — Bridge Sim
 
-Version: 0.5 (block construction, PR 1 of 3). Keep this file in sync with the game.
+Version: 0.5 (block construction, PR 2 of 3). Keep this file in sync with the game.
 
 ## 1. Concept
 
@@ -243,6 +243,6 @@ battleStarted, battleEnded`.
 | A (done, v0.3) | EVE-style controls, HUD, capacitor, modules, lock, tracking, fixed fit |
 | B (done, v0.4) | Hangar with slot fitting, market, credits, real-time skills, save |
 | v0.5 PR 1 (done) | Block grid hulls, nine block types, per-block damage with penetration, splash and section loss, grid renderer, build preview and statistics |
-| v0.5 PR 2 | Hangar block editor (paint, erase, mirror, presets), block market and costs, layouts in the save |
+| v0.5 PR 2 (done) | Hangar block editor (paint, erase, mirror, presets), block costs and refunds, saved builds |
 | v0.5 PR 3 | Masks for Miranda, Defiant, Excelsior, Galaxy, Sovereign; enemy layouts and random variants; destruction polish; balance pass |
 | later | Audio via events, sector map and missions, science scans and cloaked ships, optional image sprites |

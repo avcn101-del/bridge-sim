@@ -232,7 +232,7 @@ BS.Grid = (function () {
     }
     if (bridges !== 1) errors.push("Exactly one bridge is required (" + bridges + " placed).");
     var grid = build(cls, rows);
-    if (grid.bridge) { var lost = pruneDisconnected(grid); if (lost.length) errors.push(lost.length + " block(s) are not connected to the bridge."); }
+    if (grid.bridge) { var lost = pruneDisconnected(grid).filter(function (b) { return !b.structural; }); if (lost.length) errors.push(lost.length + " block(s) are not connected to the bridge."); }
     var st = derive(grid);
     if (!st.weapons.length) errors.push("No weapons.");
     if (st.thrust === 0) errors.push("No engines.");

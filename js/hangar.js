@@ -1,28 +1,50 @@
-// js/hangar.js — the hangar between battles: ship, fitting, market, skills, save.
+// js/hangar.js — the hangar between battles: ship, block editor, skills, save.
 window.BS = window.BS || {};
 
 BS.Hangar = (function () {
-  var U = BS.Util, C = BS.Campaign;
+  var U = BS.Util, C = BS.Campaign, Gr = BS.Grid;
   var $ = function (id) { return document.getElementById(id); };
-  var el = {}, game = null, pick = null;   // pick = { slot, i } slot awaiting a module choice
-  var timer = null;
+  var el = {}, game = null, timer = null;
+  // editor state
+  var ed = { rows: null, classId: null, brush: "armor", mirror: true, hover: null, painting: false, paintType: null, scale: 1, ox: 0, oy: 0, ship: null, dirty: false };
 
   function init(gameRef) {
     game = gameRef;
-    ["hangar-screen", "hg-credits", "hg-ship", "hg-ships", "hg-preview", "hg-legend", "hg-stats", "hg-skills", "hg-training", "hg-msg", "hg-record", "hg-threat",
+    ["hangar-screen", "hg-credits", "hg-ship", "hg-ships", "hg-editor", "hg-palette", "hg-stats", "hg-skills", "hg-training", "hg-msg", "hg-record", "hg-threat",
+     "hg-presets", "hg-builds", "btn-mirror", "btn-fill", "btn-clear", "btn-revert", "btn-apply", "btn-savebuild", "hg-buildname", "hg-delta",
      "btn-undock", "btn-export", "btn-import", "hg-import-file", "btn-reset"].forEach(function (id) { el[id] = $(id); });
-    el["btn-undock"].addEventListener("click", function () { hide(); game.startBattle(); });
+    el["btn-undock"].addEventListener("click", function () {
+      if (ed.dirty) { say("Apply or revert your build before undocking.", true); return; }
+      hide(); game.startBattle();
+    });
     el["btn-export"].addEventListener("click", exportSave);
     el["btn-import"].addEventListener("click", function () { el["hg-import-file"].value = ""; el["hg-import-file"].click(); });
     el["hg-import-file"].addEventListener("change", importSave);
     el["btn-reset"].addEventListener("click", function () {
-      if (window.confirm("Reset all progress? Credits, ships, modules and skills will be lost.")) { C.reset(); render(); say("Progress reset."); }
+      if (window.confirm("Reset all progress? Credits, ships, builds and skills will be lost.")) { C.reset(); ed.rows = null; render(); say("Progress reset."); }
     });
+    el["btn-mirror"].addEventListener("click", function () { ed.mirror = !ed.mirror; renderEditor(); });
+    el["btn-fill"].addEventListener("click", function () { fillEmpty("A"); });
+    el["btn-clear"].addEventListener("click", function () { clearAll(); });
+    el["btn-revert"].addEventListener("click", function () { ed.rows = C.layoutFor(ed.classId).slice(); ed.dirty = false; renderEditor(); say("Build reverted to the current layout."); });
+    el["btn-apply"].addEventListener("click", applyBuild);
+    el["btn-savebuild"].addEventListener("click", function () {
+      var name = (el["hg-buildname"].value || "").trim() || ("Build " + (C.builds(ed.classId).length + 1));
+      var err = C.saveBuild(ed.classId, name, ed.rows);
+      if (err) say(err, true); else { say("Saved build \"" + name + "\"."); el["hg-buildname"].value = ""; renderBuilds(); }
+    });
+    el["hg-presets"].addEventListener("change", function () {
+      var v = el["hg-presets"].value; if (!v) return;
+      var cls = BS.Data.shipClasses[ed.classId];
+      ed.rows = (v === "default" ? cls.layout : cls.presets[v].rows).slice(); ed.dirty = true; renderEditor();
+      say("Loaded preset. Apply to pay for the changes."); el["hg-presets"].value = "";
+    });
+    bindEditorCanvas();
     BS.Events.on("skillTrained", function (e) { say(BS.Data.skills[e.skill].name + " trained to level " + e.level + "."); if (isOpen()) render(); });
   }
 
   function isOpen() { return !el["hangar-screen"].classList.contains("hidden"); }
-  function show() { el["hangar-screen"].classList.remove("hidden"); pick = null; render(); if (!timer) timer = setInterval(tick, 1000); }
+  function show() { el["hangar-screen"].classList.remove("hidden"); render(); if (!timer) timer = setInterval(tick, 1000); }
   function hide() { el["hangar-screen"].classList.add("hidden"); if (timer) { clearInterval(timer); timer = null; } }
   function tick() { if (C.updateTraining()) render(); else renderTraining(); }
   function say(msg, bad) { el["hg-msg"].textContent = msg; el["hg-msg"].classList.toggle("bad", !!bad); }
@@ -30,12 +52,13 @@ BS.Hangar = (function () {
   // ---- render ---------------------------------------------------------------
   function render() {
     var s = C.get(), cls = C.currentClass();
+    if (ed.classId !== s.shipClass || !ed.rows) { ed.classId = s.shipClass; ed.rows = C.layoutFor(s.shipClass).slice(); ed.dirty = false; }
     el["hg-credits"].textContent = s.credits.toLocaleString() + " cr";
     el["hg-record"].textContent = s.campaign.battlesWon + " won · " + s.campaign.battlesLost + " lost" + (s.campaign.streak > 1 ? " · streak " + s.campaign.streak : "");
     el["hg-threat"].textContent = "Raider strength " + Math.round(C.enemyStatMult() * 100) + "%";
     el["hg-ship"].innerHTML = "<b>" + cls.name + "</b> · " + cls.className + " · " + cls.role +
       "<br><span class='dim'>" + cls.mask[0].length + "×" + cls.mask.length + " cell hull · base speed " + (cls.speed / BS.Data.units.pxPerKm).toFixed(1) + " km/s · signature " + cls.signature + " m</span>";
-    renderShips(s); renderBuild(s, cls); renderSkills(s); renderTraining();
+    renderShips(s); renderPalette(); renderPresets(cls); renderBuilds(); renderEditor(); renderSkills(s); renderTraining();
   }
 
   function renderShips(s) {
@@ -44,44 +67,172 @@ BS.Hangar = (function () {
       var cls = BS.Data.shipClasses[id];
       if (!cls.purchasable && s.ownedShips.indexOf(id) < 0) return;
       var owned = s.ownedShips.indexOf(id) >= 0, current = s.shipClass === id;
-      var row = document.createElement("div"); row.className = "hg-row" + (current ? " current" : "");
       var cells = cls.mask.reduce(function (a, r) { return a + (r.match(/[#n]/g) || []).length; }, 0);
+      var row = document.createElement("div"); row.className = "hg-row" + (current ? " current" : "");
       row.innerHTML = "<span class='hg-name'>" + cls.className + "</span><span class='dim'>" + cls.role + " · " + cells + " cells</span>";
       var b = document.createElement("button"); b.className = "lcars-btn " + (owned ? "c-blue" : "c-orange");
       b.textContent = current ? "Active" : owned ? "Board" : cls.cost.toLocaleString() + " cr";
       b.disabled = current;
       b.addEventListener("click", function () {
-        if (owned) { C.selectShip(id); render(); say("Boarded " + cls.name + "."); }
-        else { var err = C.buyShip(id); if (err) say(err, true); else { render(); say("Purchased " + cls.name + ". Note: the hull silhouette is a placeholder until PR C."); } }
+        if (owned) { C.selectShip(id); ed.rows = null; render(); say("Boarded " + cls.name + "."); }
+        else { var err = C.buyShip(id); if (err) say(err, true); else { ed.rows = null; render(); say("Purchased " + cls.name + "."); } }
       });
       row.appendChild(b); box.appendChild(row);
     });
   }
 
-  function renderBuild(s, cls) {
-    var rows = C.layoutFor(s.shipClass);
-    var st = C.layoutStats(s.shipClass, rows);
-    var canvas = el["hg-preview"];
-    var ship = BS.Ships.create(s.shipClass, { layout: st.ok ? rows : cls.layout });
-    BS.Renderer.drawPreview(canvas, ship, 0.5);
-    // legend with counts
-    var lg = el["hg-legend"]; lg.innerHTML = "";
+  // ---- editor ---------------------------------------------------------------
+  function renderPalette() {
+    var box = el["hg-palette"]; box.innerHTML = "";
     Object.keys(BS.Data.blocks).forEach(function (type) {
-      var d = BS.Data.blocks[type], n = st.counts[type] || 0;
-      if (!n) return;
-      var sp = document.createElement("span"); sp.className = "lg"; sp.innerHTML = "<i style='background:" + d.color + "'></i>" + d.name + " ×" + n; sp.title = d.desc; lg.appendChild(sp);
+      var d = BS.Data.blocks[type];
+      var b = document.createElement("button"); b.className = "pal" + (ed.brush === type ? " active" : "");
+      b.innerHTML = "<i style='background:" + d.color + "'></i><b>" + d.name + "</b><small>" + (d.cost ? d.cost + " cr" : "free") + " · " + d.hp + " hp</small>";
+      b.title = d.desc;
+      b.addEventListener("click", function () { ed.brush = type; renderPalette(); });
+      box.appendChild(b);
     });
+    var e = document.createElement("button"); e.className = "pal erase" + (ed.brush === "erase" ? " active" : "");
+    e.innerHTML = "<i></i><b>Erase</b><small>right-click also erases</small>";
+    e.addEventListener("click", function () { ed.brush = "erase"; renderPalette(); });
+    box.appendChild(e);
+  }
+  function renderPresets(cls) {
+    var sel = el["hg-presets"]; sel.innerHTML = "<option value=''>Load preset…</option><option value='default'>Class default</option>";
+    Object.keys(cls.presets || {}).forEach(function (k) { var o = document.createElement("option"); o.value = k; o.textContent = cls.presets[k].name + " — " + cls.presets[k].desc; sel.appendChild(o); });
+  }
+  function renderBuilds() {
+    var box = el["hg-builds"]; box.innerHTML = "";
+    var list = C.builds(ed.classId);
+    if (!list.length) { box.innerHTML = "<span class='dim'>No saved builds. Name one and press Save build.</span>"; return; }
+    list.forEach(function (b) {
+      var row = document.createElement("span"); row.className = "build";
+      var load = document.createElement("button"); load.className = "lcars-btn c-blue"; load.textContent = b.name; load.title = "Load this build into the editor";
+      load.addEventListener("click", function () { ed.rows = b.rows.slice(); ed.dirty = true; renderEditor(); say("Loaded \"" + b.name + "\". Apply to pay for the changes."); });
+      var del = document.createElement("button"); del.className = "lcars-btn c-red sq"; del.textContent = "×"; del.title = "Delete";
+      del.addEventListener("click", function () { C.deleteBuild(ed.classId, b.name); renderBuilds(); });
+      row.appendChild(load); row.appendChild(del); box.appendChild(row);
+    });
+  }
+
+  function rebuildShip() {
+    var cls = BS.Data.shipClasses[ed.classId];
+    // build without validation so the preview shows exactly what is painted (bridge may be missing)
+    var grid = Gr.build(cls, ed.rows);
+    ed.ship = { grid: grid, visual: { length: grid.w * grid.cellPx, width: grid.h * grid.cellPx, hullTint: cls.visual.hullTint, nacelleColor: cls.visual.nacelleColor }, pos: { x: 0, y: 0 }, heading: 0 };
+    Gr.derive(grid);
+  }
+
+  function renderEditor() {
+    var cls = BS.Data.shipClasses[ed.classId], canvas = el["hg-editor"], c = canvas.getContext("2d");
+    rebuildShip();
+    var g = ed.ship.grid, W2 = canvas.width, H2 = canvas.height;
+    ed.scale = Math.min((W2 - 24) / (g.w * g.cellPx), (H2 - 24) / (g.h * g.cellPx));
+    ed.ox = W2 / 2; ed.oy = H2 / 2;
+    c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W2, H2);
+    c.save(); c.translate(ed.ox, ed.oy); c.scale(ed.scale, ed.scale);
+    var cp = g.cellPx, half = cp / 2;
+    // fillable cells and structure
+    for (var y = 0; y < g.h; y++) for (var x = 0; x < g.w; x++) {
+      var m = cls.mask[y][x]; if (m === ".") continue;
+      var lx = (x + 0.5 - g.w / 2) * cp, ly = (y + 0.5 - g.h / 2) * cp;
+      c.fillStyle = m === "p" ? "rgba(140,146,170,0.35)" : m === "n" ? "rgba(90,160,255,0.10)" : "rgba(255,255,255,0.05)";
+      c.fillRect(lx - half, ly - half, cp, cp);
+      c.strokeStyle = "rgba(255,255,255,0.08)"; c.lineWidth = 0.3 / ed.scale * 2; c.strokeRect(lx - half, ly - half, cp, cp);
+    }
+    BS.Renderer.drawGridShip(c, ed.ship, 0.5, { still: true });
+    // mirror line
+    if (ed.mirror) { c.strokeStyle = "rgba(255,200,120,0.35)"; c.setLineDash([3, 3]); c.lineWidth = 0.6; c.beginPath(); c.moveTo(-g.w * cp / 2, 0); c.lineTo(g.w * cp / 2, 0); c.stroke(); c.setLineDash([]); }
+    // hover
+    if (ed.hover) {
+      var hx = (ed.hover.x + 0.5 - g.w / 2) * cp, hy = (ed.hover.y + 0.5 - g.h / 2) * cp;
+      c.strokeStyle = "rgba(255,255,255,0.9)"; c.lineWidth = 0.8; c.strokeRect(hx - half, hy - half, cp, cp);
+      if (ed.mirror) { var my = (g.h - 1 - ed.hover.y + 0.5 - g.h / 2) * cp; c.strokeStyle = "rgba(255,255,255,0.45)"; c.strokeRect(hx - half, my - half, cp, cp); }
+    }
+    c.restore();
+    el["btn-mirror"].classList.toggle("active", ed.mirror);
+    renderStats();
+  }
+
+  function renderStats() {
+    var st = C.layoutStats(ed.classId, ed.rows), delta = C.layoutDelta(ed.classId, ed.rows), s = C.get();
     var capLine = st.lasts !== null ? "<span class='bad'>runs dry in " + Math.round(st.lasts) + " s with everything on</span>" : "stable at " + st.stableAt + "% with everything on";
     var shields = BS.Ships.FACINGS.map(function (f) { return f.charAt(0).toUpperCase() + " " + st.shields[f]; }).join(" · ");
+    var counts = Object.keys(st.counts).map(function (t) { return BS.Data.blocks[t].short + " " + st.counts[t]; }).join(" · ");
     el["hg-stats"].innerHTML =
-      (st.ok ? "" : "<div class='bad'>" + st.errors.join(" ") + " Default layout will be used.</div>") +
-      "<div><label>Build</label><span>" + st.blocks + " blocks · mass " + st.mass + " · value " + st.cost.toLocaleString() + " cr</span></div>" +
+      (st.ok ? "" : "<div class='bad'>" + st.errors.join(" ") + "</div>") +
+      "<div><label>Build</label><span>" + st.blocks + " blocks · mass " + st.mass + " · value " + st.cost.toLocaleString() + " cr <span class='dim'>(" + counts + ")</span></span></div>" +
       "<div><label>Damage</label><span>" + st.dps + " dps <span class='dim'>(beams " + st.turretDps + " · torpedoes " + st.launcherDps + ")</span></span></div>" +
       "<div><label>Capacitor</label><span>" + st.cap + " · " + capLine + " <span class='dim'>(drain " + st.drain + "/s · peak " + st.peakRecharge + "/s)</span></span></div>" +
       "<div><label>Defence</label><span>hull " + st.hull + " · shields " + shields + " · repair " + st.repair + "/s</span></div>" +
       "<div><label>Mobility</label><span>" + st.speed + " km/s <span class='dim'>(thrust " + st.thrust + " / mass " + st.mass + " = ×" + st.speedMult + ")</span> · lock " + st.lockTime + " s</span></div>";
+    var net = delta.net;
+    el["hg-delta"].textContent = ed.dirty ? (net > 0 ? "Costs " + net.toLocaleString() + " cr" : net < 0 ? "Refunds " + (-net).toLocaleString() + " cr" : "No cost change") + (delta.cost ? " (buy " + delta.cost.toLocaleString() + ", refund " + delta.refund.toLocaleString() + ")" : "") : "Build matches the current layout";
+    el["btn-apply"].disabled = !ed.dirty || !st.ok || net > s.credits;
+    el["btn-apply"].textContent = ed.dirty ? "Apply build" + (net > 0 ? " · " + net.toLocaleString() + " cr" : "") : "Applied";
+    el["btn-undock"].disabled = ed.dirty;
+    el["btn-undock"].title = ed.dirty ? "Apply or revert your build first" : "";
   }
 
+  function cellAt(ev) {
+    var canvas = el["hg-editor"], r = canvas.getBoundingClientRect();
+    var px = (ev.clientX - r.left) * canvas.width / r.width, py = (ev.clientY - r.top) * canvas.height / r.height;
+    var g = ed.ship.grid, cp = g.cellPx;
+    var lx = (px - ed.ox) / ed.scale, ly = (py - ed.oy) / ed.scale;
+    var x = Math.floor(lx / cp + g.w / 2), y = Math.floor(ly / cp + g.h / 2);
+    if (x < 0 || y < 0 || x >= g.w || y >= g.h) return null;
+    return { x: x, y: y };
+  }
+  function setCell(x, y, letter) {
+    var cls = BS.Data.shipClasses[ed.classId], m = cls.mask[y][x];
+    if (m === "." || m === "p") return false;
+    var row = ed.rows[y];
+    if (letter === "B") { ed.rows = ed.rows.map(function (r) { return r.replace(/B/g, "A"); }); row = ed.rows[y]; }   // only one bridge
+    if (row[x] === letter) return false;
+    ed.rows[y] = row.slice(0, x) + letter + row.slice(x + 1);
+    return true;
+  }
+  function paint(cell, type) {
+    var letter = type === "erase" ? "." : BS.Data.blocks[type].letter;
+    var changed = setCell(cell.x, cell.y, letter);
+    if (ed.mirror && letter !== "B") { var g = ed.ship.grid, my = g.h - 1 - cell.y; if (my !== cell.y) changed = setCell(cell.x, my, letter) || changed; }
+    if (changed) { ed.dirty = true; renderEditor(); }
+  }
+  function fillEmpty(letter) {
+    var cls = BS.Data.shipClasses[ed.classId], changed = false;
+    for (var y = 0; y < cls.mask.length; y++) for (var x = 0; x < cls.mask[0].length; x++) {
+      var m = cls.mask[y][x]; if ((m === "#" || m === "n") && ed.rows[y][x] === ".") changed = setCell(x, y, letter) || changed;
+    }
+    if (changed) { ed.dirty = true; renderEditor(); say("Empty cells filled with armor."); }
+  }
+  function clearAll() {
+    ed.rows = ed.rows.map(function (r) { return r.replace(/[^.B]/g, "."); });
+    ed.dirty = true; renderEditor(); say("Cleared. The bridge stays; paint the rest.");
+  }
+  function applyBuild() {
+    var err = C.applyLayout(ed.classId, ed.rows);
+    if (err) { say(err, true); return; }
+    ed.dirty = false; render(); say("Build applied. Ready to undock.");
+  }
+  function bindEditorCanvas() {
+    var canvas = el["hg-editor"];
+    canvas.addEventListener("contextmenu", function (ev) { ev.preventDefault(); });
+    canvas.addEventListener("mousedown", function (ev) {
+      var cell = cellAt(ev); if (!cell) return;
+      ed.painting = true; ed.paintType = ev.button === 2 ? "erase" : ed.brush;
+      paint(cell, ed.paintType);
+    });
+    canvas.addEventListener("mousemove", function (ev) {
+      var cell = cellAt(ev);
+      var changed = !ed.hover || !cell || cell.x !== ed.hover.x || cell.y !== ed.hover.y;
+      ed.hover = cell;
+      if (ed.painting && cell) paint(cell, ed.paintType); else if (changed) renderEditor();
+    });
+    window.addEventListener("mouseup", function () { ed.painting = false; });
+    canvas.addEventListener("mouseleave", function () { ed.hover = null; ed.painting = false; renderEditor(); });
+  }
+
+  // ---- skills ----------------------------------------------------------------
   function renderSkills(s) {
     var box = el["hg-skills"]; box.innerHTML = "";
     Object.keys(BS.Data.skills).forEach(function (id) {
@@ -98,13 +249,11 @@ BS.Hangar = (function () {
       row.appendChild(b); box.appendChild(row);
     });
   }
-
   function renderTraining() {
     var s = C.get(), t = s.training;
     if (!t) { el["hg-training"].textContent = "Nothing training. Skills train in real time, even while the game is closed."; return; }
     var left = Math.max(0, t.finishesAt - Date.now()), total = t.finishesAt - t.startedAt;
-    var pct = Math.round(100 * (1 - left / total));
-    var mins = Math.ceil(left / 60000);
+    var pct = Math.round(100 * (1 - left / total)), mins = Math.ceil(left / 60000);
     el["hg-training"].textContent = "Training " + BS.Data.skills[t.skill].name + " " + t.level + " · " + pct + "% · " + (mins >= 60 ? Math.floor(mins / 60) + " h " + (mins % 60) + " min" : mins + " min") + " left";
   }
 
@@ -121,11 +270,11 @@ BS.Hangar = (function () {
     if (!file) return;
     var reader = new FileReader();
     reader.onload = function () {
-      try { C.importJSON(String(reader.result)); render(); say("Save imported."); }
+      try { C.importJSON(String(reader.result)); ed.rows = null; render(); say("Save imported."); }
       catch (e) { say("Import failed: " + e.message, true); }
     };
     reader.readAsText(file);
   }
 
-  return { init: init, show: show, hide: hide, render: render, isOpen: isOpen };
+  return { init: init, show: show, hide: hide, render: render, isOpen: isOpen, editor: ed, paint: paint };
 })();
