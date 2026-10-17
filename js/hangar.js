@@ -55,7 +55,9 @@ BS.Hangar = (function () {
     if (ed.classId !== s.shipClass || !ed.rows) { ed.classId = s.shipClass; ed.rows = C.layoutFor(s.shipClass).slice(); ed.dirty = false; }
     el["hg-credits"].textContent = s.credits.toLocaleString() + " cr";
     el["hg-record"].textContent = s.campaign.battlesWon + " won · " + s.campaign.battlesLost + " lost" + (s.campaign.streak > 1 ? " · streak " + s.campaign.streak : "");
-    el["hg-threat"].textContent = "Raider strength " + Math.round(C.enemyStatMult() * 100) + "%";
+    var enc = C.encounter();
+    el["hg-threat"].textContent = "Next: " + enc.label + " · strength " + Math.round(C.enemyStatMult(enc.aiProfile) * 100) + "%";
+    el["hg-threat"].title = "Sensors report a " + enc.cls.className + (enc.variantName ? " (" + enc.variantName + " layout)" : "") + ". Reward ×" + enc.rewardMult;
     el["hg-ship"].innerHTML = "<b>" + cls.name + "</b> · " + cls.className + " · " + cls.role +
       "<br><span class='dim'>" + cls.mask[0].length + "×" + cls.mask.length + " cell hull · base speed " + (cls.speed / BS.Data.units.pxPerKm).toFixed(1) + " km/s · signature " + cls.signature + " m</span>";
     renderShips(s); renderPalette(); renderPresets(cls); renderBuilds(); renderEditor(); renderSkills(s); renderTraining();

@@ -153,8 +153,9 @@ BS.Crew = (function () {
   }
 
   function battleStart() {
+    var vars = { className: enemy ? enemy.cls.className : "vessel", name: enemy ? enemy.name : "", range: BS.Data.balance.arenaStartDistanceKm };
     D().events.battleStart.forEach(function (m, i) {
-      setTimeout(function () { say(m.officer, m.text); }, 400 + i * 1400);
+      setTimeout(function () { say(m.officer, U.template(m.text, vars)); }, 400 + i * 1400);
     });
   }
 

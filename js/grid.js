@@ -102,23 +102,43 @@ BS.Grid = (function () {
   }
   function blockWorld(ship, b) { return localToWorld(ship, b.lx, b.ly); }
 
-  // First alive block along the line from a world point toward the ship centre.
-  function entryBlock(ship, fromX, fromY) {
+  // First alive block along a line from the attacker's side toward the ship. The line is parallel to the
+  // attacker→centre direction but offset sideways by up to grid.hitScatter × the hull's half-extent, so a
+  // volley strafes the whole facing instead of drilling one column. A line that misses the hull is retried closer in.
+  function entryBlock(ship, fromX, fromY, scatter) {
     var grid = ship.grid, l = worldToLocal(ship, fromX, fromY);
     var len = Math.sqrt(l.x * l.x + l.y * l.y);
     if (len < 1) return grid.bridge && grid.bridge.alive ? grid.bridge : null;
-    var ux = -l.x / len, uy = -l.y / len;
+    var ux = -l.x / len, uy = -l.y / len, nx = -uy, ny = ux;
     var R = Math.max(grid.w, grid.h) * grid.cellPx * 0.75;
-    var startX = -ux * R, startY = -uy * R;   // start outside the hull on the attacker's side
     var step = grid.cellPx * 0.4, n = Math.ceil((R * 2) / step);
-    var last = null;
+    var off = (scatter === undefined ? G().hitScatter : scatter) * (Math.random() * 2 - 1) * Math.max(grid.w, grid.h) * grid.cellPx * 0.5;
+    for (var tries = 0; tries < 4; tries++, off *= 0.5) {
+      var startX = -ux * R + nx * off, startY = -uy * R + ny * off;   // start outside the hull on the attacker's side
+      var last = null;
+      for (var i = 0; i <= n; i++) {
+        var px = startX + ux * step * i, py = startY + uy * step * i;
+        var c = cellOfLocal(grid, px, py), b = grid.at[c.x + "," + c.y];
+        if (b && b.alive && b !== last) return b;
+        last = b;
+      }
+    }
+    return null;
+  }
+  // First alive block along the line parallel to the attack direction that passes through block `through`.
+  // Used for aimed shots: the shot is steered at the aimed block but still has to get past whatever is in front of it.
+  function entryBlockThrough(ship, fromX, fromY, through) {
+    var grid = ship.grid, l = worldToLocal(ship, fromX, fromY);
+    var len = Math.sqrt(l.x * l.x + l.y * l.y) || 1, ux = -l.x / len, uy = -l.y / len;
+    var R = Math.max(grid.w, grid.h) * grid.cellPx * 0.75, step = grid.cellPx * 0.4, n = Math.ceil((R * 2) / step);
+    var off = (Math.random() * 2 - 1) * G().aimScatter * grid.cellPx, nx = -uy, ny = ux;
+    var startX = through.lx - ux * R + nx * off, startY = through.ly - uy * R + ny * off, last = null;
     for (var i = 0; i <= n; i++) {
-      var px = startX + ux * step * i, py = startY + uy * step * i;
-      var c = cellOfLocal(grid, px, py), b = grid.at[c.x + "," + c.y];
+      var c = cellOfLocal(grid, startX + ux * step * i, startY + uy * step * i), b = grid.at[c.x + "," + c.y];
       if (b && b.alive && b !== last) return b;
       last = b;
     }
-    return null;
+    return through;
   }
   // Next alive blocks behind `b` along the same direction (for penetration).
   function blocksBehind(ship, b, fromX, fromY, count) {
@@ -153,7 +173,8 @@ BS.Grid = (function () {
     var entry = entryBlock(ship, fromX, fromY);
     if (!entry) return res;
     var first = entry;
-    if (aimType) { var aimed = nearestOfType(grid, entry, aimType, g.aimRadius); if (aimed) first = aimed; }
+    // aiming steers the shot line through the nearest block of that type; armor in front of it still takes the hit first
+    if (aimType) { var aimed = nearestOfType(grid, entry, aimType, g.aimRadius); if (aimed) first = entryBlockThrough(ship, fromX, fromY, aimed); }
     function damage(b, d) {
       if (!b.alive || d <= 0) return 0;
       var taken = Math.min(b.hp, d);
@@ -178,14 +199,16 @@ BS.Grid = (function () {
     return res;
   }
 
-  // Blocks that no longer connect to the bridge break away.
+  // Blocks that no longer connect to the bridge break away. Connectivity counts all eight neighbours, so a
+  // section is lost only when a cut runs clean through the hull (corner contact still holds).
+  var NEIGHBOURS8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
   function pruneDisconnected(grid) {
     var bridge = grid.bridge;
     if (!bridge || !bridge.alive) return [];
     var seen = {}, stack = [bridge]; seen[bridge.id] = true;
     while (stack.length) {
       var b = stack.pop();
-      [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) {
+      NEIGHBOURS8.forEach(function (d) {
         var q = grid.at[(b.x + d[0]) + "," + (b.y + d[1])];
         if (q && q.alive && !seen[q.id]) { seen[q.id] = true; stack.push(q); }
       });
@@ -238,6 +261,27 @@ BS.Grid = (function () {
     if (st.thrust === 0) errors.push("No engines.");
     return { ok: errors.length === 0, errors: errors, counts: counts, stats: st };
   }
+  // Random variant of a layout: re-roll a fraction of the editable cells (armor ↔ system blocks, weighted by
+  // grid.variant.systemWeights), keep the bridge, and only accept a layout that validates. `rng` returns [0,1).
+  function randomVariant(cls, rows, rng) {
+    var V = G().variant, w = cls.mask[0].length, h = cls.mask.length;
+    var weights = V.systemWeights, keys = Object.keys(weights), total = keys.reduce(function (a, k) { return a + weights[k]; }, 0);
+    function rollType() { var r = rng() * total; for (var i = 0; i < keys.length; i++) { r -= weights[keys[i]]; if (r < 0) return keys[i]; } return keys[0]; }
+    var cells = [];
+    for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) { var m = cls.mask[y][x]; if ((m === "#" || m === "n") && rows[y][x] !== "." && rows[y][x] !== "B") cells.push({ x: x, y: y }); }
+    for (var attempt = 0; attempt < V.attempts; attempt++) {
+      var out = rows.slice(), n = Math.max(1, Math.round(cells.length * V.fraction));
+      for (var i = 0; i < n; i++) {
+        var c = cells[Math.floor(rng() * cells.length)], cur = typeForLetter(out[c.y][c.x]);
+        var next = cur === "armor" ? rollType() : "armor";
+        if (next === cur) continue;
+        var letter = BS.Data.blocks[next].letter, row = out[c.y];
+        out[c.y] = row.slice(0, c.x) + letter + row.slice(c.x + 1);
+      }
+      if (validateLayout(cls, out).ok) return out;
+    }
+    return rows.slice();
+  }
   function layoutCost(rows) {
     var cost = 0;
     rows.forEach(function (r) { for (var i = 0; i < r.length; i++) { var t = typeForLetter(r[i]); if (t) cost += BS.Data.blocks[t].cost; } });
@@ -245,6 +289,6 @@ BS.Grid = (function () {
   }
 
   return { build: build, derive: derive, facingOf: facingOf, worldToLocal: worldToLocal, localToWorld: localToWorld, cellOfLocal: cellOfLocal,
-    blockAtWorld: blockAtWorld, blockWorld: blockWorld, entryBlock: entryBlock, hit: hit, repair: repair, pruneDisconnected: pruneDisconnected,
-    layoutFromGrid: layoutFromGrid, validateLayout: validateLayout, layoutCost: layoutCost, typeForLetter: typeForLetter };
+    blockAtWorld: blockAtWorld, blockWorld: blockWorld, entryBlock: entryBlock, entryBlockThrough: entryBlockThrough, hit: hit, repair: repair, pruneDisconnected: pruneDisconnected,
+    layoutFromGrid: layoutFromGrid, validateLayout: validateLayout, randomVariant: randomVariant, layoutCost: layoutCost, typeForLetter: typeForLetter };
 })();
