@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.5.0",
+  version: "0.5.1",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -74,6 +74,11 @@ BS.Data = {
     deadFraction: 0.35,           // ship is lost when alive block hp falls below this fraction of total
     maskLegend: { ".": "empty", "#": "fillable", "n": "nacelle (engine ×2)", "p": "structure (fixed)" },
     layoutLegend: { A: "armor", P: "phaser", T: "torpedo", S: "shield", R: "reactor", E: "engine", N: "sensor", B: "bridge", Q: "quarters" },
+  },
+
+  editor: {
+    maxSavedBuilds: 3,            // named builds kept per hull in the save
+    refund: 0.6,                  // fraction of a block's price refunded when a build removes it
   },
 
   // ---------------------------------------------------------------- blocks
@@ -148,6 +153,44 @@ BS.Data = {
         ".........................."
       ],
       visual: { kind: "grid", sprite: null, nacelleColor: "90,160,255", hullTint: "#c6ccda" },
+      presets: {
+        brawler: { name: "Brawler", desc: "Fourteen phaser emitters, armored bow, three tubes. Orbit close.", rows: [
+          "..........................",
+          ".EEEEEAAAA.........A......",
+          ".EEEEEAAAA......APAPAAA...",
+          "...............ASAAAASAA..",
+          "..............SPAAAAAAAPA.",
+          ".......AA.....PAAAAAQAAAA.",
+          "...AA..AAAAA.AAAAAQAAAANAP",
+          "..ASAAAAAAAA...ARRAARAAATP",
+          "..ASAAAAAAAA...ARRBARAAATP",
+          "...AA..AAAAA.AAAAAQAAAANTP",
+          ".......AA.....PAAAAAQAANA.",
+          "..............SPAAAAAAAPA.",
+          "...............ASAAAASAA..",
+          ".EEEEEAAAA......APAPAAA...",
+          ".EEEEEAAAA.........A......",
+          ".........................."
+        ] },
+        sniper: { name: "Sniper", desc: "Four torpedo tubes, extra sensors and engines, four phasers. Keep at range.", rows: [
+          "..........................",
+          ".EEEEEEEEA.........A......",
+          ".EEEEEEEEA......AAAAAAA...",
+          "...............ASAAAASAA..",
+          "..............SAAAAAAAAPA.",
+          ".......AA.....AAAAAAQANAA.",
+          "...AA..AAAAA.AAAAAQAAAATAA",
+          "..ASAAAAAAAA...ARRAARAAATP",
+          "..ASAAAAAAAA...ARRBARAAATP",
+          "...AA..AAAAA.AAAAAQAAAATAA",
+          ".......AA.....AAAAAAQANAA.",
+          "..............SAAAAAAAAPA.",
+          "...............ASAAAASAA..",
+          ".EEEEEEEEA......AAAAAAA...",
+          ".EEEEEEEEA.........A......",
+          ".........................."
+        ] },
+      },
     },
     bird_of_prey: {
       id: "bird_of_prey", name: "IKS Rotarran", className: "B'rel class Bird-of-Prey",
@@ -314,7 +357,7 @@ BS.Data = {
   saveDefaults: {
     version: 2, credits: 600, shipClass: "constitution", ownedShips: ["constitution"],
     layouts: {},                       // classId → array of layout rows; missing = class default layout
-    inventory: {},                     // blockType → count owned but not placed (PR 2)
+    builds: {},                        // classId → [{ name, rows }] named builds (up to editor.maxSavedBuilds)
     skills: { gunnery: 0, missiles: 0, navigation: 0, shields: 0, capacitor: 0, targeting: 0 },
     training: null,                    // { skill, level, startedAt, finishesAt } (ms timestamps)
     campaign: { missionIndex: 0, battlesWon: 0, battlesLost: 0, streak: 0 },

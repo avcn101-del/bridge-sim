@@ -523,7 +523,7 @@ BS.Renderer = (function () {
     ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
   }
 
-  return { init: init, draw: draw, resize: resize, resetCamera: resetCamera, drawers: drawers, camera: camera, shieldColor: shieldColor, drawPreview: drawPreview,
+  return { init: init, draw: draw, resize: resize, resetCamera: resetCamera, drawers: drawers, camera: camera, shieldColor: shieldColor, drawPreview: drawPreview, drawGridShip: drawGridShip,
     screenToWorld: function (x, y) { return { x: (x - W / 2) / zoom + camera.x, y: (y - H / 2) / zoom + camera.y }; },
     worldToScreen: function (x, y) { return { x: (x - camera.x) * zoom + W / 2, y: (y - camera.y) * zoom + H / 2 }; } };
 })();

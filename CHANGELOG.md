@@ -2,6 +2,25 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.5.1] — 2026-10-17 (block editor, v0.5 PR 2)
+
+### Added
+- **Block editor** in the hangar: paint blocks on the hull grid by clicking
+  or dragging, right-click erases, a palette of the nine block types with
+  price and hp, mirror mode paints both sides, Fill armor, Clear (keeps the
+  bridge), presets (class default, Brawler, Sniper), Revert, and live
+  validation and statistics while you paint. Only one bridge: placing a new
+  one moves it.
+- **Block economy**: applying a build charges the price of added blocks and
+  refunds 60% for removed ones; the delta is shown before you apply. An
+  invalid build (no bridge, disconnected blocks, no weapons, no engines) or
+  an unaffordable one cannot be applied, and you cannot undock with
+  unapplied changes.
+- **Saved builds**: up to three named builds per hull, stored in the save
+  (`builds`), loadable into the editor.
+- Constitution presets: Brawler (fourteen phasers, armored bow) and Sniper
+  (four tubes, extra sensors and engines).
+
 ## [0.5.0] — 2026-10-17 (block construction, v0.5 PR 1)
 
 ### Changed
