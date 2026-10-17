@@ -2,6 +2,33 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.5.3] — 2026-10-17 (enemy doctrines)
+
+### Changed
+- **Enemies no longer orbit you at 6 km**, which turned every fight into a
+  two-ship tail chase. Each encounter now fights by a doctrine
+  (`enemyAI.doctrines`): the raider makes **strafing runs** (run in with
+  the afterburner, a 12 s firing pass at 3 km, break off to 8 km, come
+  around on a new bearing); the Gunboat **brawls** at 3.5 km and reverses
+  its orbit every 20 s or whenever the fight settles into a tail chase; the
+  Torpedo boat **stands off** at 14 km and kites when you close; the
+  K't'inga holds a **broadside** band at 5.5–8.5 km, turning slowly to keep
+  a fresh shield toward you; the Siege variant stands off at 17 km. Random
+  variants draw a doctrine from a seeded list.
+- The Overview status column names the enemy's manoeuvre (strafing run,
+  firing pass, breaking off, coming around, kiting, broadside…) and
+  Tactical calls the changes ("Here they come! Firing pass, close range!",
+  "They're rolling a fresh shield toward us.").
+- Torpedo tubes now get first call on the capacitor each step, so phasers
+  no longer starve them.
+- Enemy aim: sprays the hull 40% of the time (was 35%), picks phasers 15%
+  (was 20%).
+
+### Measured (DESIGN.md §8)
+- Straightforward Constitution vs the strafing raider, turning into each
+  pass with Approach: see the table; a captain who only orbits at 6 km now
+  loses to a strafer, which is the point.
+
 ## [0.5.2] — 2026-10-17 (hulls, enemies, destruction, balance, v0.5 PR 3)
 
 ### Added

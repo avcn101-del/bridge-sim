@@ -190,8 +190,9 @@ BS.Campaign = (function () {
     else if (pick.layout !== "default" && cls.variants && cls.variants[pick.layout]) { rows = cls.variants[pick.layout].rows; variantName = cls.variants[pick.layout].name; }
     else rows = cls.layout;
     var names = D().campaign.klingonNames, name = names.length ? names[Math.floor(rng() * names.length)] : cls.name;
+    var doc = pick.doctrine; if (Array.isArray(doc)) doc = doc[Math.floor(rng() * doc.length)];
     return { id: pick.id, classId: pick.enemyClass, cls: cls, rows: rows, name: name, variantName: variantName, rewardMult: pick.rewardMult, aiProfile: cls.aiProfile || "default",
-      label: cls.className + (variantName ? " · " + variantName : "") };
+      doctrine: doc || D().enemyAI[cls.aiProfile || "default"].doctrine, label: cls.className + (variantName ? " · " + variantName : "") };
   }
   function settleBattle(state) {
     var cr = D().campaign.credits, p = state.player, won = state.result === "victory";

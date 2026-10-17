@@ -130,9 +130,18 @@ BS.Crew = (function () {
       if (e.ship === enemy && e.module.id === "afterburner" && !e.ship._abReported) { e.ship._abReported = true; say("helm", D().events.enemyAfterburner); }
     });
     BS.Events.on("enemyStateChanged", function (e) {
-      if (e.state === "retreat") say("tactical", D().events.enemyRetreat);
-      else if (e.state === "attack" && e.prev === "retreat") say("tactical", D().events.enemyReturn);
+      var ev = D().events;
+      if (e.state === "retreat") say("tactical", ev.enemyRetreat);
+      else if (e.prev === "retreat") say("tactical", ev.enemyReturn);
+      else if (e.state === "run_in" && e.prev === "turn_in") say("tactical", ev.enemyPass, "warn");
+      else if (e.state === "pass" && e.passes === 1) say("tactical", ev.enemyFirstPass, "warn");
+      else if (e.state === "break_off" && e.passes === 1) say("tactical", ev.enemyBreakOff);
+      else if (e.state === "standoff" && e.prev === "approach") say("tactical", ev.enemyStandoff);
+      else if (e.state === "kite" && !e.ship._kiteReported) { e.ship._kiteReported = true; say("helm", ev.enemyKite); }
+      else if (e.state === "broadside" && e.prev === "approach") say("tactical", ev.enemyBroadside);
     });
+    BS.Events.on("enemyRolled", function (e) { if (e.ship === enemy && now() - (e.ship._rollReported || -99) > 25 && e.ship.ai.timer > 1) { e.ship._rollReported = now(); say("tactical", D().events.enemyRoll); } });
+    BS.Events.on("enemyFlipped", function (e) { if (e.ship === enemy) say("helm", D().events.enemyFlip); });
     BS.Events.on("shipDestroyed", function (e) { if (e.ship === enemy) say("tactical", D().events.enemyDestroyed); else if (e.ship === ship) report("engineering", "shipDead", {}, "warn"); });
     // targeted part behind an intact shield
     BS.Events.on("shieldHit", function (e) {

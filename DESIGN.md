@@ -1,6 +1,6 @@
 # DESIGN.md — Bridge Sim
 
-Version: 0.5.2 (block construction, PR 3 of 3). Keep this file in sync with the game.
+Version: 0.5.3 (enemy doctrines). Keep this file in sync with the game.
 
 ## 1. Concept
 
@@ -100,7 +100,9 @@ on), **?** help overlay, zoom, pause.
 - Recharge per second = `capMax / rechargeTime × capCurve × (√f − f)` where
   f is the fraction full (EVE curve, fastest around 25%). Every active module
   spends `cap` at the start of each cycle; if there is not enough, the module
-  shuts off and Engineering says so. Bridge damage lowers recharge.
+  shuts off and Engineering says so. Torpedo tubes get first call on the
+  capacitor each step (a volley is cheap per second), then phasers, then the
+  active systems.
 
 ### Hull grid and blocks (`BS.Data.grid`, `BS.Data.blocks`, `shipClasses.*.mask / layout`)
 - A hull mask is rows of `.` (space), `#` (fillable), `n` (nacelle cell:
@@ -187,16 +189,30 @@ a focused attack.
 Reinforce moves 45% of the strongest facing to the weakest over 3 s with a
 20 s cooldown. Weapons must be armed (red alert) for full regen.
 
-### Enemy AI (`enemyAI.default`, `enemyAI.ktinga`)
-approach (afterburner on) → attack (orbit 6 km, hardener on, booster when
-the facing toward you < 45% and cap > 35%, afterburner when cap > 45%) →
-reposition (come about when the facing < 22%) → retreat once at hull < 28%
-(keep at 22 km, shields power) → return and fight to the end. Weapons stay on
-whenever cap > 12%. Every 20 s the AI re-rolls what it aims at from
-`targetWeights`: 35% of the time it sprays the hull (no aim penalty),
-otherwise phasers, reactors, engines, shields or (5%) the bridge. The
-K't'inga profile reacts slower, orbits at 7 km, retreats later and keeps
-its own `statMult` (0.9 before scaling).
+### Enemy AI (`enemyAI.doctrines`, `enemyAI.default`, `enemyAI.ktinga`)
+Every enemy approaches (afterburner on) until its doctrine's `engageKm`,
+fights by that doctrine, retreats once at hull < 28% (keep at 22 km,
+shields repair priority) and then returns to fight to the end. Shared
+module rules: weapons on whenever cap > 12%, hardener while engaged,
+booster when the facing toward you < 45% and cap > 35%. Every 20 s the AI
+re-rolls what it aims at from `targetWeights`: 40% of the time it sprays
+the hull (no aim penalty), otherwise phasers, reactors, engines, shields or
+(5%) the bridge. The encounter names the doctrine (`campaign.encounters[].doctrine`,
+a list means a seeded pick); the Overview status column shows the state
+through `enemyAI.stateLabels` and Tactical calls the changes.
+
+| Doctrine | Used by | Behaviour |
+|---|---|---|
+| **strafe** | Raider, some variants | `run_in` at the player with the afterburner (cap > 50%) → `pass`: a 12 s orbit at 3 km with everything firing, afterburner off so it can hit → `break_off` to 8 km → `turn_in` 2 s on a new bearing → run in again. Each pass arrives on a different facing. |
+| **brawl** | Gunboat, some variants | Orbit at 3.5 km, afterburner only above 70% cap, flips orbit direction every 20 s or after 4 s of tail chase (angular velocity < 0.15 rad/s); comes about when the facing < 22% and a stronger one exists. |
+| **standoff** / **siege** | Torpedo boat / K't'inga Siege | Keeps at 14 km (17 km for siege) firing torpedoes; when the player closes inside 9 km (11) it kites with the afterburner to 17 km (20) for up to 15 s. |
+| **broadside** | K't'inga, some warlords | Holds a 5.5–8.5 km band on a slow course with Come about, presenting the strongest shield; rolls to a fresh shield every 30 s or when the facing drops below 22%. |
+
+The K't'inga profile reacts slower, retreats later and keeps its own
+`statMult` (0.9 before scaling). Nothing orbits the player at 6 km any
+more, so a player orbit no longer turns into a two-ship tail chase; the
+fitting answer differs per doctrine (turn into a strafer with Approach,
+close on a standoff ship, flip your own orbit against a brawler).
 
 ### Win / lose
 Enemy hull 0 → Victory; player hull 0 → Defeat. Result overlay with stats.
@@ -265,8 +281,9 @@ shipClasses: { id: { name, className, role, faction, cost, purchasable, speed, t
                      mask: [rows], layout: [rows], presets: { id: { name, desc, rows } }, variants: { id: { name, desc, rows } } (enemies),
                      aiProfile?, visual: { kind, sprite, nacelleColor, hullTint } } }
 crew: { officers, reports, events (battleStart is templated with {className}, {name}, {range}), hailReplies }
-enemyAI: { default | ktinga: { accuracyMult, reactionDelay, statMult, damageMult, retreat*, reposition*, orbitRangeKm, retreatRangeKm, booster*, afterburnerMinCap, targetWeights (none = spray) } }
-campaign: { startingCredits, credits, enemyScaling, encounters: [{ id, enemyClass, layout, minWins, weight, rewardMult }], klingonNames }
+enemyAI: { doctrines: { id: { kind: strafe|brawl|standoff|broadside, engageKm, ...per-kind ranges and timers, tailChaseAngular, tailChaseTime } }, stateLabels,
+           default | ktinga: { doctrine, accuracyMult, reactionDelay, statMult, damageMult, retreat*, reposition*, retreatRangeKm, booster*, afterburnerMinCap, targetWeights (none = spray) } }
+campaign: { startingCredits, credits, enemyScaling, encounters: [{ id, enemyClass, layout, doctrine, minWins, weight, rewardMult }], klingonNames }
 visuals: { starLayers, nebulae, shieldColors, shake*, fragments: { sectionLife, deathLife, deathPieces, driftSpeed, deathSpeed, spin, fadeFrom } }
 skills (real-time training), science, saveDefaults (version 2: layouts, builds, skills)
 ```
@@ -281,15 +298,35 @@ repairPriority, reinforce, stats, mods, aiProfile, ai`.
 `lockStarted, lockAcquired, lockLost, moduleToggled, moduleCycle,
 moduleOffline, shieldBoosted, phaserFired, torpedoLaunched, torpedoHit,
 torpedoExpired, shieldHit, hullHit, blockDestroyed, sectionLost,
-shipDestroyed, alertChanged, enemyStateChanged, commandGiven, log,
-battleStarted, battleEnded, skillTrained`.
+shipDestroyed, alertChanged, enemyStateChanged, enemyFlipped, enemyRolled,
+commandGiven, log, battleStarted, battleEnded, skillTrained`.
 
-## 8. Measured balance (v0.5.2, accelerated simulation, scripted captains, default builds, no skills)
+## 8. Measured balance (v0.5.3, accelerated simulation, scripted captains, default builds, no skills)
 
 Harness: `BS.Game.state.paused = true`, `BS.Game.step(1/60)` in a loop, the
 captain script runs once per simulated second. Enemy strength as at the
 given number of wins. Hit rolls and the enemy's aim choice are random, so
-single runs vary a lot; ranges below are over 6–14 runs.
+single runs vary a lot; ranges below are over 4–6 runs.
+
+Doctrine results (v0.5.3). "Straightforward" here is: lock, orbit 6 km,
+phasers + torpedoes + hardener, booster pulsed below 50% facing, Reinforce
+below 20%, and **Approach whenever the enemy comes inside 4.5 km** (back to
+orbit beyond 7 km). A captain who only orbits at 6 km loses to the strafer,
+because its bow tubes never bear on a ship behind it.
+
+| Matchup | Captain | Outcome |
+|---|---|---|
+| Constitution vs Raider **strafe** (0 wins) | straightforward | 6 of 6 wins in 1:52–4:34 keeping 59–84% block hp |
+| Constitution vs Raider strafe | speed tank (orbit 3 km + afterburner) | 2 of 6: co-orbiting a strafer at speed is a tail chase where both miss; not the answer to this doctrine |
+| Constitution vs Raider strafe | no orders | lost in 3:32–4:18 |
+| Constitution vs Gunboat **brawl** (1 win) | straightforward | 4 of 4 wins in 1:54–3:40 keeping 81–89% |
+| Constitution vs Torpedo boat **standoff** (1 win) | straightforward | 4 of 4 wins in 1:44–3:12 keeping 87–90% (the easy encounter) |
+| Constitution vs K't'inga **broadside** (4 wins) | straightforward | 3 of 4 wins in 2:36–3:09, one 10-minute stalemate |
+| Excelsior vs K't'inga broadside | straightforward | 3 of 4 wins in 2:05–3:33 |
+| Galaxy vs K't'inga **siege** (6 wins) | straightforward | 4 of 4 wins in 1:46–2:11 keeping 95–97% |
+| Miranda / Defiant vs Raider strafe | speed tank | 1 of 6 / 2 of 6: small hulls lose their rim phasers to the passes; fly them with Approach instead |
+
+Earlier (v0.5.2, enemy orbiting at 6 km), kept for comparison:
 
 | Matchup | Captain behaviour | Outcome |
 |---|---|---|
@@ -316,4 +353,5 @@ than slower (it is nearly untouched, as intended).
 | v0.5 PR 1 (done) | Block grid hulls, nine block types, per-block damage with penetration, splash and section loss, grid renderer, build preview and statistics |
 | v0.5 PR 2 (done) | Hangar block editor (paint, erase, mirror, presets), block costs and refunds, saved builds |
 | v0.5 PR 3 (done) | Masks for Miranda, Defiant, Excelsior, Galaxy, Sovereign; K't'inga; enemy layouts, random variants and encounters; fragments and shatter; balance pass |
+| v0.5.3 (done) | Enemy doctrines: strafe, brawl, standoff, broadside; tail-chase detection; status labels and callouts |
 | later | Audio via events, sector map and missions, science scans and cloaked ships, optional image sprites |

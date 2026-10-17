@@ -44,7 +44,7 @@ BS.Game = (function () {
     var dist = BS.Ships.px(B.arenaStartDistanceKm);
     var enc = BS.Campaign.encounter();
     var enemy = BS.Ships.create(enc.classId, { name: enc.name, layout: enc.rows, pos: { x: Math.cos(ang) * dist, y: Math.sin(ang) * dist }, heading: ang + Math.PI, statMult: BS.Campaign.enemyStatMult(enc.aiProfile), mods: { damageMult: BS.Data.enemyAI[enc.aiProfile].damageMult } });
-    BS.EnemyAI.attach(enemy, player, enc.aiProfile);
+    BS.EnemyAI.attach(enemy, player, enc.aiProfile, enc.doctrine);
     state.encounter = enc;
     player.selected = enemy;
     state.player = player; state.enemy = enemy; state.ships = [player, enemy];

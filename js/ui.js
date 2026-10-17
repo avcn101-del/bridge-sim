@@ -352,7 +352,7 @@ BS.UI = (function () {
       cells[1].textContent = s.flags.destroyed ? "—" : fmtKm(S.distanceKm(p, s));
       cells[2].textContent = s.flags.destroyed ? "—" : S.speedKmS(s).toFixed(1);
       cells[3].textContent = s.flags.destroyed ? "—" : S.angularVelocity(p, s).toFixed(2);
-      cells[4].textContent = s.flags.destroyed ? "destroyed" : s.ai ? ({ approach: "closing", attack: "attacking", reposition: "turning", retreat: "retreating" })[s.ai.state] : "";
+      cells[4].textContent = s.flags.destroyed ? "destroyed" : s.ai ? (BS.Data.enemyAI.stateLabels[s.ai.state] || s.ai.state) : "";
       row.classList.toggle("selected", p.selected === s);
       row.classList.toggle("locked", p.lock.target === s && p.lock.locked);
     });

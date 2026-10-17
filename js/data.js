@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.5.2",
+  version: "0.5.3",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -753,6 +753,14 @@ BS.Data = {
       torpedoHitShieldsDown: "Direct hit, Captain! Their {facing} shields are down!",
       enemyRetreat: "The Klingon is breaking off, Captain. They're running!",
       enemyReturn: "Enemy vessel coming about. They're re-engaging.",
+      enemyPass: "They're coming around for another pass, Captain!",
+      enemyFirstPass: "Here they come! Firing pass, close range!",
+      enemyBreakOff: "They're breaking off after that pass.",
+      enemyStandoff: "They're pulling back to torpedo range. We'll have to close on them.",
+      enemyKite: "They're running from us, keeping their distance.",
+      enemyBroadside: "The cruiser is turning to bring its broadside to bear.",
+      enemyRoll: "They're rolling a fresh shield toward us.",
+      enemyFlip: "They've reversed their orbit, Captain.",
       enemyDestroyed: "Enemy vessel destroyed, Captain.",
       enemyLocking: "They're locking us, Captain.",
       enemyFiringTorpedo: "Incoming torpedo!",
@@ -768,16 +776,28 @@ BS.Data = {
 
   // --------------------------------------------------------------- enemy AI
   enemyAI: {
+    // How an enemy fights (enemyAI.doctrines[id]); the encounter names one. All in km / seconds.
+    doctrines: {
+      strafe:    { kind: "strafe", engageKm: 16, passKm: 4.5, runInMaxTime: 14, passOrbitKm: 3, passTime: 12, breakKm: 8, breakMaxTime: 8, turnTime: 2, abMinCap: 0.5, tailChaseAngular: 0.15, tailChaseTime: 99 },
+      brawl:     { kind: "brawl", engageKm: 8, orbitKm: 3.5, flipEvery: 20, abMinCap: 0.7, tailChaseAngular: 0.15, tailChaseTime: 4 },
+      standoff:  { kind: "standoff", engageKm: 15, holdKm: 14, kiteBelowKm: 9, kiteToKm: 17, kiteMaxTime: 15, tailChaseAngular: 0.15, tailChaseTime: 99 },
+      broadside: { kind: "broadside", engageKm: 10, bandKm: [5.5, 8.5], rollEvery: 30, tailChaseAngular: 0.15, tailChaseTime: 99 },
+      siege:     { kind: "standoff", engageKm: 18, holdKm: 17, kiteBelowKm: 11, kiteToKm: 20, kiteMaxTime: 15, tailChaseAngular: 0.15, tailChaseTime: 99 },
+    },
+    // Overview status text per AI state
+    stateLabels: { approach: "closing", retreat: "retreating", run_in: "strafing run", pass: "firing pass", break_off: "breaking off", turn_in: "coming around", brawl: "attacking", reposition: "turning", standoff: "standing off", kite: "kiting", broadside: "broadside" },
     default: {
+      doctrine: "brawl",
       accuracyMult: 0.85, reactionDelay: 1.2, statMult: 1.08, damageMult: 1.6,
       retreatHull: 0.28, retreatMinTime: 9, retreatMaxTime: 22,
       repositionShield: 0.22, repositionDuration: 5,
       orbitRangeKm: 6, retreatRangeKm: 22,
       boosterBelow: 0.45, boosterMinCap: 0.35, afterburnerMinCap: 0.25,
-      targetWeights: { none: 0.35, phaser: 0.2, reactor: 0.15, engine: 0.12, shield: 0.13, bridge: 0.05 },   // none = spray the hull, no −15% aim penalty
+      targetWeights: { none: 0.4, phaser: 0.15, reactor: 0.15, engine: 0.12, shield: 0.13, bridge: 0.05 },   // none = spray the hull, no −15% aim penalty
     },
     // K't'inga: slower to react, holds a longer orbit, fights to the end rather than running
     ktinga: {
+      doctrine: "broadside",
       accuracyMult: 0.8, reactionDelay: 1.6, statMult: 0.9, damageMult: 1.6,
       retreatHull: 0.2, retreatMinTime: 8, retreatMaxTime: 16,
       repositionShield: 0.2, repositionDuration: 6,
@@ -808,13 +828,13 @@ BS.Data = {
     // Which enemy shows up: weighted random among the encounters unlocked by battlesWon; "random" layouts are
     // generated from the class default (grid.variant). rewardMult scales the win payout. Seeded by the battle record.
     encounters: [
-      { id: "raider",   enemyClass: "bird_of_prey", layout: "default", minWins: 0, weight: 3, rewardMult: 1.0 },
-      { id: "gunboat",  enemyClass: "bird_of_prey", layout: "gunboat", minWins: 1, weight: 2, rewardMult: 1.1 },
-      { id: "torpedo",  enemyClass: "bird_of_prey", layout: "torpedo", minWins: 1, weight: 2, rewardMult: 1.1 },
-      { id: "variant",  enemyClass: "bird_of_prey", layout: "random",  minWins: 2, weight: 3, rewardMult: 1.1 },
-      { id: "cruiser",  enemyClass: "ktinga",       layout: "default", minWins: 4, weight: 2, rewardMult: 1.8 },
-      { id: "siege",    enemyClass: "ktinga",       layout: "siege",   minWins: 6, weight: 2, rewardMult: 1.9 },
-      { id: "warlord",  enemyClass: "ktinga",       layout: "random",  minWins: 8, weight: 2, rewardMult: 1.9 },
+      { id: "raider",   enemyClass: "bird_of_prey", layout: "default", doctrine: "strafe",    minWins: 0, weight: 3, rewardMult: 1.0 },
+      { id: "gunboat",  enemyClass: "bird_of_prey", layout: "gunboat", doctrine: "brawl",     minWins: 1, weight: 2, rewardMult: 1.1 },
+      { id: "torpedo",  enemyClass: "bird_of_prey", layout: "torpedo", doctrine: "standoff",  minWins: 1, weight: 2, rewardMult: 1.1 },
+      { id: "variant",  enemyClass: "bird_of_prey", layout: "random",  doctrine: ["strafe", "brawl"], minWins: 2, weight: 3, rewardMult: 1.1 },
+      { id: "cruiser",  enemyClass: "ktinga",       layout: "default", doctrine: "broadside", minWins: 4, weight: 2, rewardMult: 1.8 },
+      { id: "siege",    enemyClass: "ktinga",       layout: "siege",   doctrine: "siege",     minWins: 6, weight: 2, rewardMult: 1.9 },
+      { id: "warlord",  enemyClass: "ktinga",       layout: "random",  doctrine: ["broadside", "brawl"], minWins: 8, weight: 2, rewardMult: 1.9 },
     ],
     klingonNames: ["IKS Rotarran", "IKS Hegh'ta", "IKS Pagh", "IKS Koraga", "IKS Vorn", "IKS Amar", "IKS Gr'oth", "IKS Bortas", "IKS Ch'Tang", "IKS Maht-H'a"],
   },

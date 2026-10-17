@@ -54,6 +54,13 @@ tell the helm how to fly relative to it, and you switch modules on and off.
   from the third battle), then the heavier K't'inga battlecruiser from the
   fifth battle onward. Every win makes them 4% stronger; bigger enemies pay
   more credits.
+- Each enemy fights its own way, and the Overview status column tells you
+  which: a **strafing** raider runs in, makes a close firing pass and breaks
+  off to come around again (turn into it with **Approach** so your bow
+  weapons bear); a **brawler** orbits close and reverses direction; a
+  **standoff** torpedo boat sits at 14 km and runs when you close (chase it,
+  or let your own torpedoes reach it); the **broadside** cruiser turns
+  slowly to keep a fresh shield toward you.
 - **Space** pauses; commands still work while paused. Mouse wheel zooms.
   The **?** button lists all controls.
 - Destroy the enemy to win. The result screen shows the credits you earned;
@@ -108,7 +115,8 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `campaign.encounters / enemyScaling / klingonNames` | Which enemy shows up when, how it scales, what it pays |
 | `campaign.*`, `skills.*` | Economy, training |
 | `balance.capCurve / lockBase / orbitRangesKm / keepRangesKm / zoom` | Capacitor curve, lock time, range buttons, zoom |
-| `enemyAI.default / ktinga` | Enemy accuracy, damage and stat multipliers, orbit range, thresholds, aim weights (`none` = spray) |
+| `enemyAI.doctrines` | How each enemy fights: strafe pass range and timing, brawl orbit and flip timer, standoff hold and kite ranges, broadside band and roll timer |
+| `enemyAI.default / ktinga` | Enemy accuracy, damage and stat multipliers, retreat thresholds, aim weights (`none` = spray) |
 | `visuals.fragments` | Section break-off and ship shatter: piece count, speed, spin, lifetime |
 | `crew.reports`, `crew.events`, `blockReports` | All officer dialogue |
 

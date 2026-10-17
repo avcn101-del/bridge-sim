@@ -80,10 +80,14 @@ BS.Modules = (function () {
   }
   function toggle(ship, m) { setActive(ship, m, !m.active); }
 
+  // Torpedo tubes get first call on the capacitor: a volley is cheap per second and otherwise phasers starve it.
+  function updateOrder(ship) {
+    return ship.modules.slice().sort(function (a, b) { return (a.def.kind === "launcherGroup" ? 0 : 1) - (b.def.kind === "launcherGroup" ? 0 : 1); });
+  }
   function update(ship, dt) {
-    var eff = { speedMult: 1, shieldResist: 0, lockMult: 1, trackingMult: 1 };
-    for (var i = 0; i < ship.modules.length; i++) {
-      var m = ship.modules[i];
+    var eff = { speedMult: 1, shieldResist: 0, lockMult: 1, trackingMult: 1 }, order = updateOrder(ship);
+    for (var i = 0; i < order.length; i++) {
+      var m = order[i];
       if (isWeapon(m)) { updateWeaponGroup(ship, m, dt); continue; }
       if (m.running) {
         m.cycleLeft -= dt;
