@@ -46,7 +46,7 @@ tell the helm how to fly relative to it, and you switch modules on and off.
   A Constitution measures about 1 km on the game's scale (three times its
   real size, so you can see the blocks).
 - Switch on systems in the bar at the bottom of the display (click or
-  F1–F8): F1 fires every phaser emitter that can bear, F2 every torpedo
+  F1–F8): F1 fires every phaser emitter that can bear (cannons and pulse phasers get their own groups), F2 every torpedo
   tube, then shield booster, shield hardener, afterburner. Every cycle costs **capacitor**: the dashed outer ring of the
   round gauge next to the module bar. The middle ring shows your four shield
   facings (top = front), the centre your hull. If the capacitor runs dry,
@@ -148,7 +148,7 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | Where | What it changes |
 |---|---|
 | `units.pxPerKm`, `grid.cellPx` | World scale and cell size |
-| `blocks.*` | Every block: hp, mass, cost, colour, glyph, weapon stats (damage, cycle, cap, optimal / falloff / tracking, arc), effects |
+| `blocks.*` | Every block: hp, mass, cost, colour, glyph, weapon stats (damage, cycle, cap, heat, optimal / falloff / tracking, arc, `pierceBonus`), effects |
 | `grid.lineOfFire / lineOfFireMuzzle / lineOfFireRangeCells` | Whether and how the own hull masks weapons |
 | `grid.shieldBase / shieldAdd / regenBase / regenAdd / shieldRadius` | Shield facings from emitters; bubble radius in cells |
 | `helm` | Stances (doctrine, ranges from fitted weapons, keys), auto-flip interval and shield thresholds, keep geometry (`bearingStep / keepBand / keepRunBelow / holdSpeed / keepFireFraction / kiteMinBearing`), plays (phases, module policies, exit conditions) |

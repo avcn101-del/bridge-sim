@@ -42,12 +42,13 @@ BS.EnemyAI = (function () {
   }
 
   // ---- player helm ---------------------------------------------------------------
-  // Range reference from the build: the longest alive weapon of that kind (phaser optimal / torpedo range), or null.
+  // Range reference from the build: the longest alive weapon of that kind ("phaser" = any turret's optimal range,
+  // "torpedo" = any launcher's range), or null.
   function weaponRef(ship, kind) {
-    var best = null;
+    var best = null, wk = kind === "phaser" ? "turret" : "launcher";
     ship.stats.weapons.forEach(function (b) {
-      if (!b.alive || b.type !== kind) return;
-      var w = b.def.weapon, r = kind === "phaser" ? w.optimalKm : w.rangeKm;
+      if (!b.alive || b.def.weapon.kind !== wk) return;
+      var w = b.def.weapon, r = wk === "turret" ? w.optimalKm : w.rangeKm;
       if (best === null || r > best) best = r;
     });
     return best;

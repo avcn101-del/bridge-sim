@@ -332,16 +332,16 @@ BS.UI = (function () {
       var facing = S.facingToward(t, p.pos.x, p.pos.y), sf = S.shieldFrac(t, facing);
       setBar(el["tg-shield"], sf, pctColor(sf)); el["tg-shield-val"].textContent = Math.round(sf * 100);
       var dKm = S.distanceKm(p, t);
-      var turretBlock = p.stats.weapons.filter(function (b) { return b.type === "phaser"; })[0];
+      var turretBlock = p.stats.weapons.filter(function (b) { return b.alive && b.def.weapon.kind === "turret"; })[0];
       var turret = turretBlock ? turretBlock.def.weapon : null;
-      var band = turret ? (dKm <= turret.optimalKm ? "optimal" : dKm <= turret.optimalKm + turret.falloffKm ? "falloff" : "out of phaser range") : "";
+      var band = turret ? (dKm <= turret.optimalKm ? "optimal" : dKm <= turret.optimalKm + turret.falloffKm ? "falloff" : "out of beam range") : "";
       el["tg-range"].textContent = fmtKm(dKm) + " · " + band;
       el["tg-angular"].textContent = S.angularVelocity(p, t).toFixed(2) + " rad/s · " + S.speedKmS(t).toFixed(1) + " km/s";
       if (turret && p.lock.locked) {
         var ch = BS.Weapons.turretHitChance(p, t, turret);
-        var launcherBlock = p.stats.weapons.filter(function (b) { return b.type === "torpedo"; })[0];
+        var launcherBlock = p.stats.weapons.filter(function (b) { return b.alive && b.def.weapon.kind === "launcher"; })[0];
         var tm = launcherBlock ? BS.Weapons.torpedoDamageMult(launcherBlock.def.weapon, t) : 1;
-        el["tg-chance"].textContent = "PHA " + Math.round(ch * 100) + "% · TOR " + Math.round(tm * 100) + "%";
+        el["tg-chance"].textContent = turretBlock.def.short + " " + Math.round(ch * 100) + "%" + (launcherBlock ? " · TOR " + Math.round(tm * 100) + "%" : "");
       } else el["tg-chance"].textContent = p.lock.locked ? "—" : "locking…";
       el["tg-aim"].textContent = p.aimType === "exposed" ? "Exposed hull (−15%)" : p.aimType ? BS.Data.blocks[p.aimType].name + "s (−15%)" : "Any block";
     }

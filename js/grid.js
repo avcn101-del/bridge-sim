@@ -76,8 +76,8 @@ BS.Grid = (function () {
         case "sensor": s.sensors += g.sensorAdd; break;
         case "quarters": s.repair += g.repairAdd; break;
         case "bridge": s.bridgeAlive = true; break;
-        case "phaser": case "torpedo": s.weapons.push(b); break;
       }
+      if (b.def.weapon) s.weapons.push(b);
     });
     if (g.lineOfFire) s.weapons.forEach(function (b) { updateFacing(grid, b); });
     // shield cover: a block is protected only while an alive emitter sits within grid.shieldRadius cells (b.coverBy = nearest)
@@ -189,7 +189,7 @@ BS.Grid = (function () {
   }
   function pierceCost(b) { return b.def.pierceCost || 1; }
   // Blocks a beam with `points` penetration points reaches: it enters each block while points remain, and each block costs its pierceCost.
-  function beamChain(ship, first, fromX, fromY, points) {
+  function beamChain(ship, first, fromX, fromY, points) {   // points: grid.penetration plus the weapon's pierceBonus
     var chain = [first], left = points - pierceCost(first);
     if (left > 0) blocksBehind(ship, first, fromX, fromY, points).some(function (q) { chain.push(q); left -= pierceCost(q); return left <= 0; });
     return chain;
@@ -282,7 +282,7 @@ BS.Grid = (function () {
   // kind "phaser": penetrates up to grid.penetration blocks along the shot line.
   // kind "torpedo": explodes on the entry block and splashes into its neighbours.
   // `first` is the entry block from resolveEntry when the caller already looked it up (so shield cover and the hit agree).
-  function hit(ship, amount, fromX, fromY, aimType, kind, first) {
+  function hit(ship, amount, fromX, fromY, aimType, kind, first, pierceBonus) {
     var grid = ship.grid, g = G();
     var res = { hits: [], destroyed: [], cutOff: [], explosions: [] };
     if (first === undefined) first = resolveEntry(ship, fromX, fromY, aimType);
@@ -313,7 +313,7 @@ BS.Grid = (function () {
       nbs.forEach(function (q) { left -= damage(q, amount * splash.neighbour); });
       if (!first.alive && left > 0) { var deeper = blocksBehind(ship, first, fromX, fromY, 1); if (deeper.length) damage(deeper[0], left); }
     } else {
-      var chain = beamChain(ship, first, fromX, fromY, g.penetration);
+      var chain = beamChain(ship, first, fromX, fromY, g.penetration + (pierceBonus || 0));
       var rem = amount;
       for (var i = 0; i < chain.length && rem > 0.01; i++) rem -= damage(chain[i], rem);
     }

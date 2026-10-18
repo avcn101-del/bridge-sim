@@ -68,7 +68,7 @@ BS.Weapons = (function () {
         b.damageApplied = true;
         if (b.hit) {
           var e = beamEndpoints(b, 1);
-          var res = S.applyDamage(b.target, b.damage, e.x1, e.y1, S.effectiveAim(b.source, b.target), b.source, "phaser");
+          var res = S.applyDamage(b.target, b.damage, e.x1, e.y1, S.effectiveAim(b.source, b.target), b.source, "phaser", b.w.pierceBonus || 0);
           if (res && res.impact) b.hitPos = { x: res.impact.x, y: res.impact.y };
         }
       }

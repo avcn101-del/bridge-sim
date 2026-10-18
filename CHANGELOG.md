@@ -2,6 +2,27 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.12.0] — 2026-10-18 (disruptor cannons and pulse phasers)
+
+### Added
+- **Disruptor cannon** (block `D`, group DIS): 42 damage every 3.2 s,
+  optimal 5 km, falloff 6 km, tracking 0.75 rad/s, one extra penetration
+  point (through a plate of armor), drawn as a travelling bolt.
+- **Pulse phaser** (block `U`, group PUL): 9.5 damage every second, tracking
+  1.6 rad/s, optimal 4 km, falloff 3 km.
+- Weapon `pierceBonus` carried through `applyDamage` / `Grid.hit`; glyphs
+  `bolt` and `burst`; random variants may roll both types.
+
+### Changed
+- Klingon layouts (Bird-of-Prey and all variants, K't'inga and Siege) mount
+  disruptor cannons instead of phasers; the Gunboat carries seven pulse
+  guns and four cannons. The broadside doctrine holds 4.5–7 km (was 5.5–8.5) so cannons stay
+  in optimal. Constitution **Brawler** preset: six pulse phasers on the
+  saucer rim, four cannons at the bow.
+- Stance ranges, plays (`noPhasers`), the target panel and the fit
+  statistics treat any turret as a beam (`weapon.kind`), not just phasers.
+- Harness results in `DESIGN.md` §8 (v0.12.0).
+
 ## [0.11.0] — 2026-10-18 (cloak and ECM fields)
 
 ### Added

@@ -203,7 +203,7 @@ BS.Ships = (function () {
   }
 
   // ---- damage -----------------------------------------------------------
-  function applyDamage(ship, amount, fromX, fromY, aimType, attacker, kind) {
+  function applyDamage(ship, amount, fromX, fromY, aimType, attacker, kind, pierceBonus) {
     if (ship.flags.destroyed) return null;
     var B = BS.Data.balance;
     // the shot lands on `first`; it is shielded only while an emitter covers that block, and then draws from that emitter's facing
@@ -233,7 +233,7 @@ BS.Ships = (function () {
     var result = { ship: ship, facing: facing, absorbed: absorbed, hullDamage: hullDamage, shieldsDown: shieldsDown, impact: impact, angle: ang, kind: kind, amount: amount, attacker: attacker, exposed: exposed, emitter: emitter, strike: !!strike, hits: [], destroyed: [], cutOff: [], explosions: [] };
     if (absorbed > 0) BS.Events.emit("shieldHit", result);
     if (hullDamage > 0) {
-      var hr = Gr.hit(ship, hullDamage, fromX, fromY, aimType, kind, first);
+      var hr = Gr.hit(ship, hullDamage, fromX, fromY, aimType, kind, first, pierceBonus);
       result.hits = hr.hits; result.destroyed = hr.destroyed; result.cutOff = hr.cutOff; result.explosions = hr.explosions;
       var dealt = hr.hits.reduce(function (a, h) { return a + h.dmg; }, 0);
       ship.battle.damageTaken += dealt;

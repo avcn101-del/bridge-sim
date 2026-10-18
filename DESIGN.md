@@ -1,6 +1,6 @@
 # DESIGN.md — Bridge Sim
 
-Version: 0.11.0 (cloak and ECM fields). Keep this file in sync with the game.
+Version: 0.12.0 (disruptor cannons and pulse phasers). Keep this file in sync with the game.
 
 ## 1. Concept
 
@@ -157,7 +157,7 @@ on), **?** help overlay, zoom, pause.
   |---|---|
   | **Alpha strike** | close in (`closein` doctrine, weapons cold, hardener) until 4.5 km → strike (Engage, governor off, everything on, booster auto, Reinforce) until heat > 90% or an overload → venting (Engage, weapons off, governor on) until heat < 30% → strike again. Only differs from Engage on builds whose salvo beats the heat cap |
   | **Siege** | Standoff holding station with every weapon that reaches, hardener, booster auto → when the tubes are gone or they come inside 5 km, Engage with everything → back to bombarding after 30 s or once they are beyond 9 km. For torpedo builds against slow or standoff ships |
-  | **Turtle** | `broadside` doctrine (5.5–8.5 km band, come about, roll a fresh shield every 30 s or below 30%), hardener, booster auto, Reinforce, shield repair priority |
+  | **Turtle** | `broadside` doctrine (4.5–7 km band, come about, roll a fresh shield every 30 s or below 30%), hardener, booster auto, Reinforce, shield repair priority |
   | **Hunter** | Engage aiming at reactors → when none are left, aim at exposed hull |
   | **Ambush** (needs a cloak) | cloak and close (`closein`) until 3.5 km or cap < 15% → decloak → strike (Engage, governor off, aim reactors, booster auto, Reinforce) for the decloak strike window: 8–12 s, or heat > 85% or the weakest facing < 25% → slip away cloaked (Disengage, booster auto) until cloaked with the weakest facing back above 60%, 40 s or cap < 20% → repeat |
   | **Hit & fade** | Engage (hardener, booster auto) until the weakest facing < 25% → Skirmish (tight afterburner orbit, booster auto, Reinforce) until the weakest facing > 60%, at most 45 s → repeat |
@@ -191,8 +191,8 @@ on), **?** help overlay, zoom, pause.
   | Excelsior | 30×18 | 262 | 3 200 | 95 / 80 / 450 | 8 phasers, 4 tubes, 6 reactors, 24 engines |
   | Galaxy | 36×20 | 406 | 5 600 | 85 / 60 / 600 | 10 phasers, 2 tubes, 8 reactors, 32 engines |
   | Sovereign | 38×18 | 310 | 8 000 | 100 / 75 / 520 | 14 phasers, 4 tubes, 7 reactors, 32 engines |
-  | B'rel Bird-of-Prey (enemy) | 24×22 | 140 | — | 105 / 110 / 250 | Raider 8P 1T; Gunboat 11P; Torpedo boat 4P 3T |
-  | K't'inga (enemy) | 32×20 | 210 | — | 85 / 70 / 480 | Battlecruiser 8P 2T; Siege 4P 4T 8R |
+  | B'rel Bird-of-Prey (enemy) | 24×22 | 140 | — | 105 / 110 / 250 | Raider 8 cannons 1T; Gunboat 7 pulse guns 4 cannons; Torpedo boat 4 cannons 3T; Shadow 6 cannons 5 cloaks |
+  | K't'inga (enemy) | 32×20 | 210 | — | 85 / 70 / 480 | Battlecruiser 8 cannons 2T; Siege 4 cannons 4T 8R |
 
   Each Starfleet class has one preset besides the class default (Constitution
   has two). A ship's price includes its default build. Every default keeps
@@ -249,7 +249,19 @@ on), **?** help overlay, zoom, pause.
   nacelles); sensors = 8 + 2 each (lock time, tracking); repair = 0.6 + 0.5
   per crew quarters hp/s to damaged blocks.
 - Weapons: phaser emitter 28 dmg / 2.6 s, 2.5 cap, optimal 8 km, falloff
-  7 km, tracking 0.9 rad/s, 180° arc. Torpedo tube 170 dmg / 11 s, 14 cap,
+  7 km, tracking 0.9 rad/s, 180° arc. **Disruptor cannon** (block `D`, 130
+  cr, 5 power) 42 dmg / 3.2 s, 3 cap, 9 heat, optimal 5 km, falloff 6 km,
+  tracking 0.75, 160° arc, `pierceBonus` 1 (three penetration points: through
+  one plate of armor into the block behind), drawn as a travelling bolt.
+  **Pulse phaser** (block `U`, 110 cr, 4 power) 9.5 dmg / 1 s, 1 cap, 2.2
+  heat, optimal 4 km, falloff 3 km, tracking 1.6, 180° arc. The three beams
+  deliver about the same dps on paper (10.8 / 13.1 / 9.5) and trade range,
+  tracking and penetration: phasers for reach, cannons to crack armor from a
+  slow orbit, pulses to hit a Bird-of-Prey on the afterburner. Each beam type
+  is its own weapon group (F-keys, module bar). Klingon ships mount
+  disruptor cannons (every former `P` in their layouts); the Constitution
+  **Brawler** preset carries six pulse phasers on the saucer rim and four
+  cannons at the bow. Torpedo tube 170 dmg / 11 s, 14 cap,
   30 km, explosion radius 280 m, velocity 1.5 km/s, 220° arc. A weapon's
   arc is centred on the open side of the hull around it (line of fire,
   below), so a rim weapon faces outward and a buried one faces nothing. F1
@@ -408,11 +420,13 @@ to the doctrine when the required module is missing). While an enemy runs a
 play its weapons, hardener and booster follow the phase policies; jammer,
 aim re-rolls and the once-per-battle retreat stay with the profile, and a
 new phase keeps the retreat flag and pass count (`carryAI`). The Overview
-status reads "Play · state". Gunboat runs **Hit & fade**, Torpedo boat
-**Siege** (it holds station and fires every tube, hence its ×1.25). The
-Shadow keeps its ambush doctrine and the K't'inga Siege its siege doctrine:
-both were measured on the Ambush / Siege plays and turned unkillable (12 s
-decloaked windows) or trivial (ran from a closing Galaxy without firing).
+status reads "Play · state". The Torpedo boat runs **Siege** (it holds
+station and fires every tube, hence its ×1.25). The Shadow keeps its ambush
+doctrine and the K't'inga Siege its siege doctrine: both were measured on
+the Ambush / Siege plays and turned unkillable (12 s decloaked windows) or
+trivial (ran from a closing Galaxy without firing). The Gunboat ran Hit &
+fade in 0.10.0–0.11.0 and went back to the brawl doctrine in 0.12.0: with
+cannons its fade phase produced 8–10 minute stalemates.
 
 | Doctrine | Used by | Behaviour |
 |---|---|---|
@@ -420,7 +434,7 @@ decloaked windows) or trivial (ran from a closing Galaxy without firing).
 | **brawl** | Gunboat, some variants; player Engage / Skirmish | Orbit at 3.5 km, afterburner only above 70% cap, flips orbit direction every 20 s (enemy), after 4 s of tail chase (angular velocity < 0.15 rad/s) or by auto-flip; the enemy comes about when the facing < 22% and a stronger one exists. |
 | **evade** | player Disengage | Keep at 24 km with the afterburner; never re-engages by itself. |
 | **standoff** / **siege** | Torpedo boat / K't'inga Siege | Keeps at 14 km (17 km for siege) firing torpedoes; when the player closes inside 9 km (11) it kites with the afterburner to 17 km (20) for up to 15 s. |
-| **broadside** | K't'inga, some warlords | Holds a 5.5–8.5 km band on a slow course with Come about, presenting the strongest shield; rolls to a fresh shield every 30 s or when the facing drops below 22%. |
+| **broadside** | K't'inga, some warlords | Holds a 4.5–7 km band (inside disruptor optimal) on a slow course with Come about, presenting the strongest shield; rolls to a fresh shield every 30 s or when the facing drops below 22%. |
 | **ambush** | Shadow (Bird-of-Prey with a cloak) | `stalk` cloaked toward the player, `uncloak` at 4.5 km, a 12 s firing pass at 3 km, break off to 10 km and cloak again. |
 
 Enemies with jammer blocks run them whenever engaged and above 30% cap.
@@ -565,6 +579,23 @@ every fight once that side's phasers are gone.
 | Excelsior vs K't'inga broadside | straightforward | 3 of 4 wins in 6:21–8:21 keeping 61–99% |
 | Galaxy vs K't'inga **siege** (6 wins) | straightforward | 4 of 4 wins in 4:17–4:58 keeping 97–99% |
 | Miranda / Defiant vs Raider strafe | speed tank (orbit 3 km + afterburner, no reverse) | mostly stalemates: the script never reverses, so the stripped side stays toward the enemy |
+
+v0.12.0 (disruptor cannons 42 / 3.2 s / tracking 0.75 on every Klingon,
+pulse phasers 9.5 / 1 s / tracking 1.6; broadside band 4.5–7 km; 2–4 runs):
+
+| Matchup | Captain | Outcome |
+|---|---|---|
+| Constitution vs Raider (cannons) | Engage / Skirmish / no orders | 2 of 3 in 3:13–3:19 keeping 77–78%, one disabled loss / 2 of 2 in 2:12–3:59 keeping 98–99% (cannons cannot track the burn) / lost in 2:26–3:52 |
+| Constitution **Brawler** (6 pulse, 4 cannons) vs Raider | Engage / Skirmish | 4 of 4 in 1:32–2:17 keeping 89–96% / 2:57 keeping 100%: pulses hit a Bird-of-Prey every time inside 4 km |
+| Constitution vs Raider | Siege / Turtle / Ambush (Shadow hunter) | 2 of 2 in 3:32–5:17 / 1 of 2 / 2 of 2 in 7:11–7:20 keeping 69–90% |
+| Constitution vs Gunboat (11 cannons, brawl doctrine) | Engage / Skirmish | 3 of 4 in 4:12–7:01 keeping 78–88%, one stalemate / 4:04 keeping 99%. With 11 pulse guns on Hit & fade it won 2 of 3 against the player; with 7 pulse + 4 cannons 1 of 4 |
+| Constitution vs Torpedo boat / vs K't'inga broadside (cannons, 4.5–7 km band) | Engage | 2 of 2 in 4:30–4:44 keeping 77% / 2 of 2 in 3:31–4:56 keeping 97–100% |
+| Excelsior vs K't'inga broadside / Galaxy vs K't'inga Siege | Engage | 3:47 keeping 98% / 3:20 keeping 99% |
+
+Honest reading: cannons make Klingons hit harder but miss a fast orbit, so
+Skirmish and the pulse-armed Brawler get easier while Engage trades about
+the same hull as before; the K't'inga is now soft at 4+ wins and could use
+the ×1.33 going up next pass.
 
 v0.11.0 (cloak and ECM fields; Shadow hunter re-fitted with three cloaking
 devices and no jammers; 6 runs): Shadow hunter Ambush vs Raider **5 of 6 in 2:41–9:06 keeping 63–97%**, one loss (it no longer breaks the raider's lock, so it trades more hull than in 0.10.0).
@@ -721,5 +752,6 @@ than slower (it is nearly untouched, as intended).
 | v0.9.0 (done) | World scale 150 px/km with an auto-fitting camera; plays (Alpha strike, Siege, Turtle, Hunter, Ambush, Hit & fade) as scripted phase sequences |
 | v0.10.0 (done) | Firing-bearing keep geometry (hold station, kite with guns bearing), shields kept through the cloak, decloak strike, Siege and Ambush re-tuned, enemy plays (Gunboat Hit & fade, Torpedo boat Siege) |
 | v0.11.0 (done) | Cloak and ECM fields: a ship cloaks only with every block inside a cloak field (several devices per hull), a partial ECM field steers the jammed enemy's fire onto the uncovered blocks |
+| v0.12.0 (done) | Disruptor cannons (punch, penetration, poor tracking) and pulse phasers (tracking, knife range) as blocks and weapon groups; Klingons mount cannons |
 | later | Fire spreading put out by crew quarters; reactor power range; audio; sector map; sprites |
 | later | Audio via events, sector map and missions, science scans and cloaked ships, optional image sprites |

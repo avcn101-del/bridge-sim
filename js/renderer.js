@@ -306,6 +306,10 @@ BS.Renderer = (function () {
       case "lens":      // phaser: ring with a hot core
         c.beginPath(); c.arc(0, 0, r * 0.62, 0, U.TAU); outline(); c.strokeStyle = col; c.lineWidth = size * 0.14; c.stroke();
         c.fillStyle = "#fff3e0"; c.beginPath(); c.arc(0, 0, r * 0.22, 0, U.TAU); c.fill(); break;
+      case "bolt":      // disruptor cannon: lightning bolt
+        c.beginPath(); c.moveTo(r * 0.15, -r * 0.85); c.lineTo(-r * 0.45, r * 0.05); c.lineTo(r * 0.05, r * 0.05); c.lineTo(-r * 0.15, r * 0.85); c.lineTo(r * 0.45, -r * 0.05); c.lineTo(-r * 0.05, -r * 0.05); c.closePath(); outline(); c.fillStyle = col; c.fill(); break;
+      case "burst":     // pulse phaser: three dots in a row
+        c.beginPath(); [-0.55, 0, 0.55].forEach(function (k) { c.moveTo(k * r + r * 0.22, 0); c.arc(k * r, 0, r * 0.22, 0, U.TAU); }); outline(); c.fillStyle = col; c.fill(); break;
       case "warhead":   // torpedo: diamond
         c.beginPath(); c.moveTo(0, -r * 0.8); c.lineTo(r * 0.55, 0); c.lineTo(0, r * 0.8); c.lineTo(-r * 0.55, 0); c.closePath(); outline(); c.fillStyle = col; c.fill(); break;
       case "shield":    // shield emitter: half-ring facing out (up)
@@ -531,6 +535,10 @@ BS.Renderer = (function () {
       var b = beams[i];
       var e = BS.Weapons.beamEndpoints(b, alpha);
       var life = b.life / b.maxLife;
+      if (b.def.bolt) {   // a disruptor bolt: a short bright segment travelling from the muzzle to the impact
+        var k1 = Math.min(1, 1 - life), k0 = Math.max(0, k1 - 0.35);
+        e = { x1: e.x1 + (e.x2 - e.x1) * k0, y1: e.y1 + (e.y2 - e.y1) * k0, x2: e.x1 + (e.x2 - e.x1) * k1, y2: e.y1 + (e.y2 - e.y1) * k1 };
+      }
       var flicker = 0.75 + 0.25 * Math.sin(t * 60 + i * 2) * Math.random();
       var fade = Math.min(1, life * 2.2) * flicker;
       var rgb = BS.Effects.hexToRgb(b.def.color);
