@@ -1,6 +1,6 @@
 # DESIGN.md — Bridge Sim
 
-Version: 0.17.0 (weak points, focus fire, counter-doctrines). Keep this file in sync with the game.
+Version: 0.18.0 (cut the neck, hangar intel). Keep this file in sync with the game.
 
 ## 1. Concept
 
@@ -540,10 +540,38 @@ in yellow on the scan drawing; the Target panel reads "Shield emitter at
 6,15 (−15%)". Clicking the same point again returns to spraying the hull.
 
 **Enemies do it too**: each 20 s aim re-roll, an enemy takes its target's
-top weak point with `enemyAI.*.weakPointChance` (Bird-of-Prey 30%,
-K't'inga 60%) instead of a random type; Tactical calls it ("They're going
+top weak point with `enemyAI.*.weakPointChance` (Bird-of-Prey 25%,
+K't'inga 60%) among the kinds its profile allows (`weakPointKinds`: a
+raider neither cuts necks nor finishes wounded systems, both measured to
+turn Engage into a coin flip; the cruiser does everything) instead of a
+random type; Tactical calls it ("They're going
 for our aft shield emitter, Captain!", event `enemyFocus`). Fixing an
 obvious weak point in the hangar is now worth doing.
+
+### Cutting the neck (aim type `structure`, `grid.structureHp` 700, `grid.torpedoStructureMult` 3)
+The **STRUCT** chip (or a "Cut:" weak point) aims at structural members;
+torpedoes do triple to them (two warheads cut a 700-hp pylon) and beams
+still stop in them. Measured: structure at 400 hp let stray cannon fire
+sever a Constitution's nacelles in ordinary fights (Engage 2 of 5), so the
+hp stays at 700 and the cutting is torpedo work. The weak-point
+analysis also finds **two-block necks** (`weakPoints.neckPairs`): a
+structural or rim block plus one neighbour whose joint loss severs a
+section, scored by blocks severed per hp, so the Bird-of-Prey's 2-wide wing
+roots ("Cut: the armor plating at 12,10 and its neighbour (168 hp) severs
+42 blocks") show up next to the Constitution's neck. A severed section
+takes every block on it: engines, weapons, reactors, and with the section
+physics it keeps flying.
+
+### Intel (`save.intel`, `campaign.intelMinLockSeconds` 10, `campaign.intelCost` 150)
+Hold a lock on the enemy for 10 s in a battle and its layout is recorded
+for that encounter id (`BS.Campaign.recordIntel`, random variants by their
+exact rows, so a different roll is stale); or buy the next encounter's
+layout in the hangar for 150 cr. The hangar's **Intel** section draws the
+known layout top-down (`BS.Renderer.drawTopDown`: plates with damage tint,
+shield bubbles, bare hull) with its weapons, shields, hull, reactors,
+quarters, cover and its top three weak points, next to the doctrine and the
+counter reason, so you fit against what you will actually meet. Unknown:
+"No layout on file" and the buy button.
 
 ### Counter-doctrines (`enemyAI.counters`, `campaign.encounters[].counter`)
 A flagged encounter (Raider, random Bird-of-Prey variant, K't'inga
@@ -552,7 +580,10 @@ the first rule it meets: 4+ tubes → it strafes (torpedoes lose damage to
 fast passes; the K't'inga keeps its broadside), 4+ pulse phasers with at
 most 2 other beams → it stands off outside pulse range (K't'inga: siege),
 a cloak → it brawls and sticks close, a shield facing under 60% of the
-strongest → it brawls (K't'inga: broadside) and picks on it. The hangar's
+strongest → a K't'inga broadsides and any hull hunts your weak points
+twice as often (`weakPointChance` 0.6 for that fight; a Bird-of-Prey keeps
+its doctrine: making it brawl turned the stock Constitution fight into a
+coin flip). The hangar's
 "Next:" line says the doctrine and why ("brawl (they have seen your weak
 shield facing)"), so the build → fight → build loop is visible before
 undocking. Encounters with their own plays or fixed doctrines (Torpedo
@@ -707,6 +738,24 @@ every fight once that side's phasers are gone.
 | Excelsior vs K't'inga broadside | straightforward | 3 of 4 wins in 6:21–8:21 keeping 61–99% |
 | Galaxy vs K't'inga **siege** (6 wins) | straightforward | 4 of 4 wins in 4:17–4:58 keeping 97–99% |
 | Miranda / Defiant vs Raider strafe | speed tank (orbit 3 km + afterburner, no reverse) | mostly stalemates: the script never reverses, so the stripped side stays toward the enemy |
+
+v0.18.0 (structure 700 hp / torpedoes ×3, STRUCT aim, two-block necks,
+raider weak points 25% without neck / wounded, weak-facing counter no longer
+changes a raider's doctrine; 1–6 runs):
+
+| Matchup | Captain | Outcome |
+|---|---|---|
+| Constitution vs Raider | Engage auto | **4 of 6 in 2:26–4:17 keeping 70–87%**, two disabled losses; with the raider finishing wounded systems and brawling on the weak-facing counter it was 3 of 6 and 2 of 5 |
+| Constitution vs Raider | Engage blind / Skirmish / Siege / Hunter / Brawler Engage / no orders | 6:03 keeping 68% / 2:51 keeping 92% / 2 of 2 in 3:31–3:32 keeping 78–81% / 2 of 4 / 3:48 keeping 59% / lost in 1:44–2:38 |
+| Constitution vs K't'inga broadside | Engage / Engage aiming STRUCT | 3 of 3 in 5:14–7:26 keeping 94–100% / 2 of 2 in 7:05–8:30 keeping 87–90% and one stalemate |
+| Excelsior Lancer vs K't'inga broadside | Siege aiming STRUCT | 3 of 3 in 2:19–2:42 keeping 95–98%: torpedo volleys cut the cruiser's pylons and the sections take their weapons with them |
+| Galaxy vs K't'inga Siege (STRUCT) / Defiant vs K't'inga (blind) / Torpedo boat (aft) / Gunboat | Engage | 4:11 keeping 95% / 5:26 keeping 100% / 4:48 keeping 90% / 2 of 2 in 3:06–4:36 keeping 74–79% |
+
+Honest reading: the stock Engage fight is noisier than in 0.16 (4 of 6
+rather than 5 of 6) because the raider now hunts emitters and reactor
+clusters a quarter of the time; the wins sit in the 30–50% loss target.
+Neck cutting is a torpedo play that works against the cruiser and does not
+happen to the player by accident any more.
 
 v0.17.0 (enemies aim at weak points 30% / 60%, counter-doctrines, Hunter
 fallback; 1–3 runs):
@@ -956,6 +1005,7 @@ than slower (it is nearly untouched, as intended).
 | v0.11.0 (done) | Cloak and ECM fields: a ship cloaks only with every block inside a cloak field (several devices per hull), a partial ECM field steers the jammed enemy's fire onto the uncovered blocks |
 | v0.12.0 (done) | Disruptor cannons (punch, penetration, poor tracking) and pulse phasers (tracking, knife range) as blocks and weapon groups; Klingons mount cannons |
 | v0.13.0 (done) | Crew: systems need hands, the bridge and crew quarters supply them, manning slows weapons and shields, blocks far from quarters repair slowly; every layout re-fitted |
+| v0.18.0 (done) | Cut the neck (structure 400 hp, torpedoes ×2 on it, STRUCT aim, two-block necks in the analysis), hangar intel (scanned or bought enemy layouts drawn with weak points before the fight) |
 | v0.17.0 (done) | Weak-point analysis with click-to-focus-fire on any block, enemies that aim at your weak points, counter-doctrines announced in the hangar |
 | v0.16.0 (done) | Reactor power range (systems outside 15 cells of a reactor run at half; every layout re-placed its reactors), warp core breach with a blast and the AIs clearing it, severed sections that keep momentum, burn engines, cook off reactors and hit what they drift into |
 | v0.15.0 (done) | Shield recharge delay (hit facings pause 4 s), attack side / blind-sector shadowing with an enemy counter-roll, critical hits by system |

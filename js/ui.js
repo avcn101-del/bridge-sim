@@ -96,6 +96,9 @@ BS.UI = (function () {
     var ex = document.createElement("span"); ex.className = "chip exposed"; ex.title = "Aim at hull outside their shield cover: nothing absorbs those hits (−15% accuracy)";
     ex.textContent = "EXP 0"; ex.addEventListener("click", function () { game.command("aim", { type: "exposed" }); });
     el["enemy-subsystems"].appendChild(ex); el["en-exposed"] = ex;
+    var sx = document.createElement("span"); sx.className = "chip exposed"; sx.title = "Aim at their structural members (necks, pylons): 400 hp each, torpedoes do double to them, and a cut section takes everything on it (−15% accuracy)";
+    sx.textContent = "STRUCT"; sx.addEventListener("click", function () { game.command("aim", { type: "structure" }); });
+    el["enemy-subsystems"].appendChild(sx); el["en-structure"] = sx;
   }
   var playEls = {};
   function buildPlayButtons() {
@@ -350,6 +353,7 @@ BS.UI = (function () {
       }
     });
     if (e) { el["en-exposed"].textContent = "EXP " + e.stats.exposed; el["en-exposed"].classList.toggle("targeted", p.aimType === "exposed"); el["en-exposed"].style.display = e.flags.destroyed ? "none" : ""; }
+    if (e) { var sn = e.grid.blocks.filter(function (b) { return b.structural && b.alive; }).length; el["en-structure"].textContent = "STRUCT " + sn; el["en-structure"].classList.toggle("targeted", p.aimType === "structure"); el["en-structure"].style.display = e.flags.destroyed || !sn ? "none" : ""; }
 
     // target panel
     var locked = p.lock.target && !p.lock.target.flags.destroyed ? p.lock.target : null;
@@ -374,7 +378,7 @@ BS.UI = (function () {
         var tm = launcherBlock ? BS.Weapons.torpedoDamageMult(launcherBlock.def.weapon, t) : 1;
         el["tg-chance"].textContent = turretBlock.def.short + " " + Math.round(ch * 100) + "%" + (launcherBlock ? " · TOR " + Math.round(tm * 100) + "%" : "");
       } else el["tg-chance"].textContent = p.lock.locked ? "—" : "locking…";
-      el["tg-aim"].textContent = p.aimType === "block" && p.aimBlock ? (p.aimBlock.block.structural ? "Structure" : p.aimBlock.block.def.name) + " at " + p.aimBlock.block.x + "," + p.aimBlock.block.y + " (−15%)" : p.aimType === "exposed" ? "Exposed hull (−15%)" : p.aimType ? BS.Data.blocks[p.aimType].name + "s (−15%)" : "Any block";
+      el["tg-aim"].textContent = p.aimType === "block" && p.aimBlock ? (p.aimBlock.block.structural ? "Structure" : p.aimBlock.block.def.name) + " at " + p.aimBlock.block.x + "," + p.aimBlock.block.y + " (−15%)" : p.aimType === "exposed" ? "Exposed hull (−15%)" : p.aimType === "structure" ? "Structure: necks and pylons (−15%)" : p.aimType ? BS.Data.blocks[p.aimType].name + "s (−15%)" : "Any block";
     }
 
     // overview

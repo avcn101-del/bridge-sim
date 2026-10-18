@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.17.0",
+  version: "0.18.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -60,8 +60,9 @@ BS.Data = {
   // Ships are built from blocks on a hull-shaped cell grid (see shipClasses.*.mask).
   grid: {
     cellPx: 6,                    // world pixels per cell
-    structureHp: 700,             // fixed structural cells (neck, pylons) — not editable, not counted as hull; tough, so a cut neck is a rare disaster
+    structureHp: 700,             // fixed structural cells (neck, pylons) — not editable, not counted as hull; beams barely scratch them, torpedoes cut them
     structurePierceCost: 3,       // beams never pass through a structural member
+    torpedoStructureMult: 3.0,    // a warhead on a pylon: torpedo damage to structural cells is multiplied (cutting necks is torpedo work)
     shieldBase: 80,               // shield per facing before emitters
     shieldRechargeDelay: 4,       // seconds a facing must go unhit before it regenerates (0 = always); the booster ignores it
     shieldAdd: 70,                // per shield emitter on that facing
@@ -92,7 +93,7 @@ BS.Data = {
     // deals `damage` (linear falloff to zero at radiusKm) to anything inside the radius. Get clear.
     breach: { time: 8, radiusKm: 2.0, damage: 900 },
     // weak-point analysis (BS.Grid.weakPoints): what the scan panel offers to click and what a cunning enemy aims at
-    weakPoints: { neckMinBlocks: 8, maxPoints: 5, cutHpWeight: 60 },
+    weakPoints: { neckMinBlocks: 8, maxPoints: 5, cutHpWeight: 60, neckPairs: true },   // neckPairs: also look for two-block necks
     // heat: every shot adds its weapon's heat; capacity grows with hull size, dissipation with hull surface (rim cells)
     heat: { base: 80, perBlock: 2, dissipationBase: 6, dissipationPerRimCell: 0.25, overloadTime: 6, aiFireBelow: 0.85,
             governorHigh: 0.85, governorLow: 0.6 },   // heat governor (H): holds fire above governorHigh until heat falls below governorLow
@@ -859,6 +860,7 @@ BS.Data = {
       flyTo: "Coming to new heading. Helm on manual.",
       stop: "All stop. Helm on manual.",
       aimExposed: "Targeting their hull outside the shield cover.",
+      aimStructure: "Targeting their structural members, Captain. Torpedoes will do the cutting.",
       hitExposed: "They're hitting bare hull outside our shield cover!",
       lockStart: "Acquiring lock on {name}.",
       lockDone: "Target locked, Captain.",
@@ -1057,7 +1059,8 @@ BS.Data = {
       retreatHull: 0.28, retreatMinTime: 9, retreatMaxTime: 22,
       repositionShield: 0.22, repositionDuration: 5, blindTolerance: 3,   // seconds with no weapon bearing on the target before it comes about to bring guns round
       orbitRangeKm: 6, retreatRangeKm: 22,
-      boosterBelow: 0.45, boosterMinCap: 0.35, afterburnerMinCap: 0.25, weakPointChance: 0.3,   // chance each re-roll to aim at your top weak point instead
+      boosterBelow: 0.45, boosterMinCap: 0.35, afterburnerMinCap: 0.25, weakPointChance: 0.25,   // chance each re-roll to aim at your top weak point instead
+      weakPointKinds: ["emitter", "chain", "blackout", "crew"],   // a raider neither cuts necks nor finishes wounded systems: measured, both turned Engage into a coin flip
       targetWeights: { none: 0.3, exposed: 0.1, phaser: 0.15, reactor: 0.15, engine: 0.12, shield: 0.13, bridge: 0.05 },   // none = spray the hull, no −15% aim penalty; exposed = hull outside shield cover
     },
     // K't'inga: slower to react, holds a longer orbit, fights to the end rather than running
@@ -1068,16 +1071,18 @@ BS.Data = {
       repositionShield: 0.2, repositionDuration: 6, blindTolerance: 4,
       orbitRangeKm: 7, retreatRangeKm: 18,
       boosterBelow: 0.5, boosterMinCap: 0.3, afterburnerMinCap: 0.35, weakPointChance: 0.6,
+      weakPointKinds: ["emitter", "chain", "blackout", "neck", "crew", "wounded"],   // the cruiser cuts necks
       targetWeights: { none: 0.2, exposed: 0.1, phaser: 0.18, reactor: 0.17, engine: 0.12, shield: 0.13, bridge: 0.1 },
     },
     // Counter-doctrine: an encounter flagged `counter` reads your build before the fight (BS.Campaign.encounter) and takes
     // the first rule whose condition your battle layout meets: tubes, pulse / beam counts, a cloak, or a shield facing
-    // much weaker than the strongest. `bop` / `ktinga` name the doctrine per hull; `reason` is what the hangar tells you.
+    // much weaker than the strongest. `bop` / `ktinga` name the doctrine per hull (null keeps the encounter's own);
+    // `weakPointChance` overrides the profile's for that fight; `reason` is what the hangar tells you.
     counters: [
       { when: { tubesMin: 4 },                bop: "strafe",   ktinga: "broadside", reason: "they expect torpedoes and will keep moving" },
       { when: { pulseMin: 4, beamsMax: 2 },   bop: "standoff", ktinga: "siege",     reason: "they will stay out of your pulse range" },
       { when: { cloak: true },                bop: "brawl",    ktinga: "brawl",     reason: "they will stick close so you cannot slip away" },
-      { when: { weakFacingBelow: 0.6 },       bop: "brawl",    ktinga: "broadside", reason: "they have seen your weak shield facing" },
+      { when: { weakFacingBelow: 0.6 },       bop: null,       ktinga: "broadside", weakPointChance: 0.6, reason: "they have seen your weak shield facing and will pick on it" },   // doctrine unchanged for a Bird-of-Prey (a brawling raider made the stock fight a coin flip), but it hunts weak points twice as often
     ],
   },
 
@@ -1098,6 +1103,9 @@ BS.Data = {
     credits: { win: 500, loss: 120, hullLostPenaltyPerPct: 3, winStreakBonus: 50 },   // per battle
     // salvage: credits for the enemy's surviving block value after a win; a ship disabled (no weapons, no engines) is captured intact
     salvage: { destroyed: 0.1, disabled: 0.25 },
+    // intel: a layout you held a lock on for intelMinLockSeconds is remembered (save.intel[encounterId]) and drawn in the
+    // hangar before the next fight of that kind; intelCost buys it for the next encounter sight unseen
+    intelMinLockSeconds: 10, intelCost: 150,
     sellBack: 0.6,                      // fraction of price refunded when selling a module
     // the raider gets tougher with every victory: statMult = base + perWin × wins (capped)
     enemyScaling: { perWin: 0.04, maxBonus: 0.4 },
@@ -1137,6 +1145,7 @@ BS.Data = {
     skills: { gunnery: 0, missiles: 0, navigation: 0, shields: 0, capacitor: 0, targeting: 0 },
     training: null,                    // { skill, level, startedAt, finishesAt } (ms timestamps)
     campaign: { missionIndex: 0, battlesWon: 0, battlesLost: 0, streak: 0 },
+    intel: {},                         // encounterId → { rows, classId, layoutName, seed } layouts scanned in battle or bought
     settings: { sound: true, screenShake: true },
   },
 

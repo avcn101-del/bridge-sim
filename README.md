@@ -168,7 +168,8 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `grid.capBase / capAdd / capRechargeTime` | Capacitor from reactors |
 | `grid.crew`, `blocks.*.crew` | Crew posts per system, bridge and quarters supply, manning floor, far-from-quarters radius and repair penalty |
 | `grid.thrustPerPoint / nacelleThrustMult / speedMultMin / speedMultMax` | Speed from engines and mass |
-| `grid.hitScatter / penetration / torpedoSplash / aimRadius / aimScatter / deadFraction / structureHp` | Where shots land, how damage travels through the hull, when a ship is lost |
+| `grid.hitScatter / penetration / torpedoSplash / aimRadius / aimScatter / deadFraction / structureHp / torpedoStructureMult` | Where shots land, how damage travels through the hull, when a ship is lost, how tough necks are and what torpedoes do to them |
+| `campaign.intelMinLockSeconds / intelCost` | How long a lock must hold to record an enemy layout; the price of buying it |
 | `blocks.*.pierceCost`, `grid.structurePierceCost` | How much of a beam's penetration each block type eats (armor 2, structure 3) |
 | `blocks.reactor.explosion`, `grid.lineOfFire` | Reactor breach damage and radius; whether the own hull masks weapons |
 | `blocks.*.power`, `shipClasses.*.powerBase`, `grid.powerPerReactor / brownoutMin` | Power grid: what each system draws, what a hull and its reactors supply, how a brownout bites |
@@ -184,7 +185,7 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `campaign.*`, `skills.*` | Economy, training |
 | `balance.capCurve / lockBase / zoom` | Capacitor curve, lock time, zoom |
 | `enemyAI.doctrines` | How each doctrine flies (enemy encounters and player stances): strafe pass range and timing, brawl orbit and flip timer, standoff hold and kite ranges, broadside band and roll timer, evade range |
-| `enemyAI.default / ktinga` | Enemy accuracy, damage and stat multipliers, retreat thresholds, aim weights (`none` = spray), `weakPointChance` |
+| `enemyAI.default / ktinga` | Enemy accuracy, damage and stat multipliers, retreat thresholds, aim weights (`none` = spray), `weakPointChance` and `weakPointKinds` |
 | `enemyAI.counters`, `campaign.encounters[].counter`, `grid.weakPoints` | Which builds trigger which enemy doctrine and what the hangar says; weak-point analysis thresholds |
 | `visuals.fragments` | Section break-off and ship shatter: piece count, speed, spin, lifetime, inertia, engine burn, reactor fuse and blast, debris damage per cell |
 | `crew.reports`, `crew.events`, `blockReports` | All officer dialogue |

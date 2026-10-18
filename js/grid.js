@@ -164,9 +164,24 @@ BS.Grid = (function () {
         var lost = total - 1 - reach(b);
         if (lost < W.neckMinBlocks) return;
         var sc = lost * W.cutHpWeight / Math.max(1, b.hp);
-        if (sc > bestCutScore) { bestCutScore = sc; bestCut = { block: b, lost: lost }; }
+        if (sc > bestCutScore) { bestCutScore = sc; bestCut = { block: b, lost: lost, pair: null }; }
       });
-      if (bestCut) out.push({ kind: "neck", block: bestCut.block, n: bestCut.lost, score: bestCutScore * 2, label: "Cut: the " + (bestCut.block.structural ? "structure" : bestCut.block.def.name.toLowerCase()) + " at " + bestCut.block.x + "," + bestCut.block.y + " (" + Math.round(bestCut.block.hp) + " hp) severs " + bestCut.lost + " blocks" });
+      // two-block necks (a 2-wide pylon): a structural or rim block and one neighbour whose joint loss severs a section
+      if (W.neckPairs && !bestCut) {
+        var cand = blocks.filter(function (b) { return b !== bridge && (b.structural || isRim(grid, b)); });
+        for (var i = 0; i < cand.length && !bestCut; i++) {
+          var a = cand[i];
+          for (var j = 0; j < NEIGHBOURS8.length; j++) {
+            var q = grid.at[(a.x + NEIGHBOURS8[j][0]) + "," + (a.y + NEIGHBOURS8[j][1])];
+            if (!q || !q.alive || q === bridge || q.id < a.id) continue;
+            a.alive = false; var lost2 = total - 2 - reach(q); a.alive = true;
+            if (lost2 < W.neckMinBlocks) continue;
+            var sc2 = lost2 * W.cutHpWeight / Math.max(1, a.hp + q.hp);
+            if (sc2 > bestCutScore) { bestCutScore = sc2; bestCut = { block: a.hp <= q.hp ? a : q, pair: a.hp <= q.hp ? q : a, lost: lost2 }; }
+          }
+        }
+      }
+      if (bestCut) out.push({ kind: "neck", block: bestCut.block, pair: bestCut.pair, n: bestCut.lost, score: bestCutScore * 2, label: "Cut: the " + (bestCut.block.structural ? "structure" : bestCut.block.def.name.toLowerCase()) + " at " + bestCut.block.x + "," + bestCut.block.y + (bestCut.pair ? " and its neighbour" : "") + " (" + Math.round(bestCut.block.hp + (bestCut.pair ? bestCut.pair.hp : 0)) + " hp) severs " + bestCut.lost + " blocks" });
     }
     // 5. crew: one quarters short of the posts
     var cw = st.crew;
@@ -399,6 +414,7 @@ BS.Grid = (function () {
       }
     }
     if (kind === "torpedo") {
+      if (first.structural) amount *= g.torpedoStructureMult;   // warheads crack pylons
       var splash = g.torpedoSplash, left = amount - damage(first, amount * splash.centre);
       var nbs = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(function (d) { return grid.at[(first.x + d[0]) + "," + (first.y + d[1])]; }).filter(function (q) { return q && q.alive; });
       nbs.forEach(function (q) { left -= damage(q, amount * splash.neighbour); });

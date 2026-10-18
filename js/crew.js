@@ -16,6 +16,14 @@ BS.Crew = (function () {
   }
 
   function now() { return BS.Game ? BS.Game.state.time : 0; }
+  // What the captain is aiming at, for a sentence: a block type, the structure, one block, or the bare hull.
+  function aimLabel() {
+    var a = ship.aimType;
+    if (a === "block" && ship.aimBlock) return (ship.aimBlock.block.structural ? "structure" : ship.aimBlock.block.def.name.toLowerCase()) + " at " + ship.aimBlock.block.x + "," + ship.aimBlock.block.y;
+    if (a === "structure") return "structural members";
+    if (a === "exposed") return "bare hull";
+    return a && BS.Data.blocks[a] ? BS.Data.blocks[a].name.toLowerCase() + "s" : "the hull";
+  }
   function say(officer, text, cls) { BS.Events.emit("log", { speaker: officer, text: text, cls: cls || "report" }); }
   function report(officer, key, vars, cls) {
     var str = D().reports[key];
@@ -72,8 +80,8 @@ BS.Crew = (function () {
       }
       case "aim": {
         var bt = args.type;
-        if (!bt || ship.aimType === bt || !(BS.Data.blocks[bt] || bt === "exposed")) { ship.aimType = null; report("tactical", "targetHull"); }
-        else { ship.aimType = bt; if (bt === "exposed") report("tactical", "aimExposed"); else say("tactical", BS.Data.blockReports[bt].aim); }
+        if (!bt || ship.aimType === bt || !(BS.Data.blocks[bt] || bt === "exposed" || bt === "structure")) { ship.aimType = null; report("tactical", "targetHull"); }
+        else { ship.aimType = bt; if (bt === "exposed") report("tactical", "aimExposed"); else if (bt === "structure") report("tactical", "aimStructure"); else say("tactical", BS.Data.blockReports[bt].aim); }
         shieldedState = null;
         break;
       }
@@ -219,14 +227,14 @@ BS.Crew = (function () {
       var absorbedAll = e.hullDamage < e.amount * 0.3;
       if (absorbedAll && shieldedState !== "shielded" && now() - shieldedAt > 12) {
         shieldedState = "shielded"; shieldedAt = now();
-        say("tactical", U.template(D().reports.targetShielded, { facing: e.facing, label: BS.Data.blocks[ship.aimType].name.toLowerCase() + "s" }), "warn");
+        say("tactical", U.template(D().reports.targetShielded, { facing: e.facing, label: aimLabel() }), "warn");
       }
     });
     BS.Events.on("hullHit", function (e) {
       if (!ship || e.ship !== enemy || !ship.aimType || ship.aimType === "exposed" || e.attacker !== ship) return;
       if (e.absorbed <= 0 && shieldedState === "shielded") {
         shieldedState = "exposed";
-        say("tactical", U.template(D().reports.targetExposed, { facing: e.facing, label: BS.Data.blocks[ship.aimType].name.toLowerCase() + "s" }));
+        say("tactical", U.template(D().reports.targetExposed, { facing: e.facing, label: aimLabel() }));
       }
     });
   }

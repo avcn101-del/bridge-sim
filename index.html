@@ -170,7 +170,9 @@
         <li><b>Cloak and ECM fields</b>: a cloaking device covers 10 cells and a jammer 7. You can cloak only when every block is inside a cloak field (the hangar frames the rest in purple), and a jam breaks the enemy's lock only when your whole ship is inside the ECM field; otherwise it just steers their fire onto the blocks outside it (green frames).</li>
         <li><b>Heat</b>: the bar under the module bar. Every shot adds heat (phasers a little, torpedoes a lot); at the cap weapons stop, and a salvo that crosses it overloads everything for six seconds. The pale mark shows where your next full salvo would land. <b>GOV</b> (H) is the heat governor: on, your weapons hold fire above 85% and resume at 60%; off, you can alpha-strike into an overload.</li>
         <li><b>Weak points</b>: the scan panel's last column reads the enemy's layout for you: the emitter that covers the most hull, reactors that touch (a breach chains), the reactor that alone powers a part of the ship, the block whose loss severs the most hull, crew decks one loss from undermanning, wounded systems open to a critical. Click one, or click any block on the drawing, to <b>focus every weapon on that block</b> (−15% accuracy; click again to stop). Cunning enemies do the same to you: Tactical calls what they are going for.</li>
-        <li><b>They read your build</b>: before a fight the hangar's "Next:" line says how the enemy will fly and why (torpedo-heavy builds get a strafer, pulse builds a standoff ship, cloaks a brawler that sticks close, a weak shield facing gets picked on). Change the build and they change the plan.</li>
+        <li><b>Intel</b> (hangar): hold a lock on an enemy for 10 s and its layout is on file; the next time that encounter comes up the hangar draws it with its weak points, weapons and shields before you fit. Or buy it (150 cr).</li>
+        <li><b>Cut the neck</b>: structural members (necks, pylons) have 700 hp, stop beams dead, and take triple from torpedoes. The <b>STRUCT</b> chip or a "Cut:" weak point puts the tubes on them; a severed section takes every block on it.</li>
+        <li><b>They read your build</b>: before a fight the hangar's "Next:" line says how the enemy will fly and why (torpedo-heavy builds get a strafer, pulse builds a standoff ship, cloaks a brawler that sticks close, a weak shield facing gets picked on twice as often). Change the build and they change the plan.</li>
         <li><b>Scan panel</b> (bottom): once you hold a lock it shows the enemy's blocks and damage, shield bubbles and bare hull, cloak and ECM field gaps, its crew, power and heat, how many of its weapons bear on you, and what its torpedoes would do to you. The bridge log is the two-line ticker at the top of the display; <b>LOG</b> (G) opens the full log.</li>
         <li><b>Attack side</b> (B cycles): in Engage or Skirmish the helm can shadow one side of the enemy instead of circling: <b>Blind</b> finds the sector where the fewest of their weapons bear (the scan panel shows their fire per sector), <b>Aft</b> sits on their tail where the engines are, Port / Stbd pick a flank. A big ship turns too slowly to shake a small one off its blind side.</li>
         <li><b>Reactors power a range</b> of 15 cells: systems outside it run at half, so killing the reactors in one part of a ship browns out everything around them, and when the last reactor dies the <b>warp core breaches</b>: 8 seconds, then a 2 km blast. Get clear (Disengage, 4). Severed sections keep flying, burn their engines, blow their reactors and hit whatever they drift into.</li>
@@ -186,6 +188,11 @@
       <div class="lcars-bar c-orange head"><span class="bar-label">STARBASE 11 · HANGAR</span><span class="hg-head-right"><span id="hg-record">0 won · 0 lost</span> · <span id="hg-threat"></span> · <b id="hg-credits">0 cr</b></span></div>
       <div class="hangar-grid">
         <section class="hg-col">
+          <h3>Intel <small>what sensors know about the next enemy</small></h3>
+          <div class="hg-intel">
+            <canvas id="hg-intel-view" width="250" height="140"></canvas>
+            <div id="hg-intel-info" class="hg-intel-info"></div>
+          </div>
           <h3>Your ship</h3>
           <div id="hg-ship" class="hg-ship"></div>
           <h3>Shipyard</h3>
