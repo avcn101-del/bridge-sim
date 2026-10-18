@@ -7,10 +7,12 @@ BS.Hangar = (function () {
   var el = {}, game = null, timer = null;
   // editor state
   var ed = { rows: null, classId: null, brush: "armor", mirror: true, hover: null, painting: false, paintType: null, scale: 1, ox: 0, oy: 0, ship: null, dirty: false };
+  // script editor state: the script being edited (a working copy), whether it is a read-only template, the dry run
+  var sc = { id: null, def: null, template: false, dirty: false, dry: null, intelShip: null, enc: null };
 
   function init(gameRef) {
     game = gameRef;
-    ["hangar-screen", "hg-credits", "hg-ship", "hg-ships", "hg-editor", "hg-palette", "hg-stats", "hg-skills", "hg-training", "hg-msg", "hg-record", "hg-threat", "hg-intel-view", "hg-intel-info",
+    ["hangar-screen", "hg-credits", "hg-ship", "hg-ships", "hg-editor", "hg-palette", "hg-stats", "hg-skills", "hg-training", "hg-msg", "hg-record", "hg-threat", "hg-intel-view", "hg-intel-info", "hg-plan", "hg-script",
      "hg-presets", "hg-builds", "btn-mirror", "btn-fill", "btn-clear", "btn-revert", "btn-apply", "btn-savebuild", "hg-buildname", "hg-delta",
      "btn-undock", "btn-export", "btn-import", "hg-import-file", "btn-reset"].forEach(function (id) { el[id] = $(id); });
     el["btn-undock"].addEventListener("click", function () {
@@ -40,12 +42,13 @@ BS.Hangar = (function () {
       say("Loaded preset. Apply to pay for the changes."); el["hg-presets"].value = "";
     });
     bindEditorCanvas();
+    el["hg-intel-view"].addEventListener("click", planClick);
     BS.Events.on("skillTrained", function (e) { say(BS.Data.skills[e.skill].name + " trained to level " + e.level + "."); if (isOpen()) render(); });
   }
 
   function isOpen() { return !el["hangar-screen"].classList.contains("hidden"); }
   function show() { el["hangar-screen"].classList.remove("hidden"); render(); if (!timer) timer = setInterval(tick, 1000); }
-  function hide() { el["hangar-screen"].classList.add("hidden"); if (timer) { clearInterval(timer); timer = null; } }
+  function hide() { el["hangar-screen"].classList.add("hidden"); if (timer) { clearInterval(timer); timer = null; } if (sc.dry && sc.dry.running) { game.cancelDryRun(); sc.dry = null; } }
   function tick() { if (C.updateTraining()) render(); else renderTraining(); }
   function say(msg, bad) { el["hg-msg"].textContent = msg; el["hg-msg"].classList.toggle("bad", !!bad); }
 
@@ -55,6 +58,7 @@ BS.Hangar = (function () {
   function renderIntel(enc) {
     var cv = el["hg-intel-view"], c = cv.getContext("2d"), it = C.intelFor(enc), info = el["hg-intel-info"];
     c.clearRect(0, 0, cv.width, cv.height);
+    sc.intelShip = null; sc.enc = enc;
     if (!it) {
       c.fillStyle = "rgba(255,255,255,0.08)"; c.font = "13px Antonio, 'Arial Narrow', sans-serif"; c.textAlign = "center"; c.fillText("NO LAYOUT ON FILE", cv.width / 2, cv.height / 2);
       info.innerHTML = "<div class='dim'>" + enc.cls.className + (enc.variantName ? " · " + enc.variantName : "") + " · " + enc.doctrine + (enc.counterReason ? " (" + enc.counterReason + ")" : "") + ".<br>Hold a lock for " + BS.Data.campaign.intelMinLockSeconds + " s in battle to record its layout, or buy it now.</div>" +
@@ -64,7 +68,9 @@ BS.Hangar = (function () {
       return;
     }
     var ship = BS.Ships.create(it.classId, { layout: it.rows, pos: { x: 0, y: 0 }, heading: 0, statMult: C.enemyStatMult(enc.aiProfile) });
-    c.save(); c.translate(cv.width / 2, cv.height / 2); BS.Renderer.drawTopDown(c, ship, cv.width, cv.height); c.restore();
+    sc.intelShip = ship;
+    c.save(); c.translate(cv.width / 2, cv.height / 2); var k = BS.Renderer.drawTopDown(c, ship, cv.width, cv.height); c.restore();
+    drawPlanMarkers(c, cv, ship, k, enc);
     var st = ship.stats, wps = BS.Grid.weakPoints(ship);
     var weapons = {};
     st.weapons.forEach(function (b) { weapons[b.def.short] = (weapons[b.def.short] || 0) + 1; });
@@ -84,6 +90,8 @@ BS.Hangar = (function () {
     el["hg-threat"].textContent = "Next: " + enc.label + " · strength " + Math.round(C.enemyStatMult(enc.aiProfile) * 100) + "% · " + enc.doctrine + (enc.counterReason ? " (" + enc.counterReason + ")" : "");
     el["hg-threat"].title = "Sensors report a " + enc.cls.className + (enc.variantName ? " (" + enc.variantName + " layout)" : "") + ". Reward ×" + enc.rewardMult + ". Doctrine: " + enc.doctrine + (enc.counterReason ? ": " + enc.counterReason + ". Change your build and they change their plan." : ".");
     renderIntel(enc);
+    renderPlan(enc);
+    renderScript();
     el["hg-ship"].innerHTML = "<b>" + cls.name + "</b> · " + cls.className + " · " + cls.role +
       "<br><span class='dim'>" + cls.mask[0].length + "×" + cls.mask.length + " cell hull · base speed " + (cls.speed / BS.Data.units.pxPerKm).toFixed(1) + " km/s · signature " + cls.signature + " m</span>";
     renderShips(s); renderPalette(); renderPresets(cls); renderBuilds(); renderEditor(); renderSkills(s); renderTraining();
@@ -310,6 +318,266 @@ BS.Hangar = (function () {
       var cell = cellAt(ev); if (cell) { ed.hover = cell; paint(cell, ed.paintType); }
     });
     ["pointerup", "pointercancel"].forEach(function (n) { canvas.addEventListener(n, function (ev) { if (ev.pointerType === "touch") { ed.painting = false; ed.hover = null; renderEditor(); } }); });
+  }
+
+  // ---- plan: up to script.planTargets targets on the next enemy, in order ------------------------------------
+  // With intel on file a target is a block (tap it on the drawing, or a weak-point line); without, a block type.
+  function planTargets(enc) { var pl = C.planFor(enc); return pl && pl.targets ? pl.targets.slice() : []; }
+  function targetLabel(t, ship) {
+    if (t.type) return BS.Data.blocks[t.type] ? BS.Data.blocks[t.type].name + "s" : t.type;
+    var b = ship ? ship.grid.at[t.x + "," + t.y] : null;
+    return (b ? (b.structural ? "Structure" : b.def.name) : "Block") + " " + t.x + "," + t.y;
+  }
+  function renderPlan(enc) {
+    var box = el["hg-plan"], N = BS.Data.script.planTargets, targets = planTargets(enc), it = C.intelFor(enc);
+    box.innerHTML = "";
+    var lbl = document.createElement("span"); lbl.className = "dim"; lbl.textContent = "Plan · targets in order" + (it ? " (tap a block above)" : " (no intel: by type)"); box.appendChild(lbl);
+    for (var i = 0; i < N; i++) {
+      var t = targets[i];
+      if (it) {
+        var chip = document.createElement("span"); chip.className = "pt" + (t ? "" : " empty");
+        chip.innerHTML = "<b>" + (i + 1) + "▸</b>" + (t ? targetLabel(t, sc.intelShip) + " ✕" : "—");
+        if (t) (function (idx) { chip.title = "Remove"; chip.addEventListener("click", function () { var tg = planTargets(enc); tg.splice(idx, 1); C.setPlan(enc, tg); render(); }); })(i);
+        box.appendChild(chip);
+      } else {
+        var sel = document.createElement("select"); sel.className = "lcars-select";
+        sel.innerHTML = "<option value=''>" + (i + 1) + "▸ —</option>" + Object.keys(BS.Data.blocks).filter(function (k) { return k !== "bridge" || true; }).map(function (k) { return "<option value='" + k + "'" + (t && t.type === k ? " selected" : "") + ">" + (i + 1) + "▸ " + BS.Data.blocks[k].name + "s</option>"; }).join("");
+        (function (idx, s2) { s2.addEventListener("change", function () { var tg = planTargets(enc); while (tg.length < idx) tg.push({ type: "armor" }); if (s2.value) tg[idx] = { type: s2.value }; else tg.splice(idx, 1); C.setPlan(enc, tg); render(); }); })(i, sel);
+        box.appendChild(sel);
+      }
+    }
+    if (targets.length) { var clr = document.createElement("button"); clr.className = "lcars-btn c-lilac"; clr.textContent = "Clear plan"; clr.addEventListener("click", function () { C.setPlan(enc, []); render(); }); box.appendChild(clr); }
+  }
+  // the drawing is translated to the centre, scaled by k and turned bow-up: invert that for a click
+  function intelCell(ev) {
+    var cv = el["hg-intel-view"], ship = sc.intelShip; if (!ship) return null;
+    var r = cv.getBoundingClientRect(), g = ship.grid, cp = g.cellPx, k = Math.min(cv.width / (g.h * cp), cv.height / (g.w * cp)) * 0.88;
+    var cx = (ev.clientX - r.left) * cv.width / r.width, cy = (ev.clientY - r.top) * cv.height / r.height;
+    var lx = (cv.height / 2 - cy) / k, ly = (cx - cv.width / 2) / k;
+    return BS.Grid.blockAtWorld(ship, lx, ly, 1);
+  }
+  function planClick(ev) {
+    var enc = sc.enc, b = intelCell(ev); if (!enc || !b) return;
+    var tg = planTargets(enc), i = -1;
+    tg.forEach(function (t, j) { if (t.x === b.x && t.y === b.y) i = j; });
+    if (i >= 0) tg.splice(i, 1); else if (tg.length < BS.Data.script.planTargets) tg.push({ x: b.x, y: b.y }); else { say("The plan already names " + BS.Data.script.planTargets + " targets. Tap one to remove it.", true); return; }
+    C.setPlan(enc, tg); render();
+  }
+  function drawPlanMarkers(c, cv, ship, k, enc) {
+    var tg = planTargets(enc), g = ship.grid;
+    tg.forEach(function (t, i) {
+      var b = t.x !== undefined ? g.at[t.x + "," + t.y] : null; if (!b) return;
+      var cx = cv.width / 2 + b.ly * k, cy = cv.height / 2 - b.lx * k;
+      c.beginPath(); c.arc(cx, cy, 7, 0, Math.PI * 2); c.fillStyle = "rgba(255,153,102,0.95)"; c.fill(); c.strokeStyle = "#000"; c.lineWidth = 1; c.stroke();
+      c.fillStyle = "#000"; c.font = "bold 10px Antonio, 'Arial Narrow', sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(String(i + 1), cx, cy + 0.5);
+    });
+  }
+
+  // ---- script editor: when → do rules as sentences built from dropdowns ---------------------------------------
+  function SD() { return BS.Data.script; }
+  function copyDef(d) { return JSON.parse(JSON.stringify(d)); }
+  function currentScriptId() { var s = C.get(); return s.scriptByBuild[ed.classId] || SD().defaultTemplate; }
+  function loadScript(id) {
+    var own = C.get().scripts.filter(function (x) { return x.id === id; })[0];
+    if (own) { sc.id = id; sc.def = copyDef(own); sc.template = false; }
+    else { var t = SD().templates[id] || SD().templates[SD().defaultTemplate]; sc.id = SD().templates[id] ? id : SD().defaultTemplate; sc.def = copyDef(t); sc.template = true; }
+    sc.dirty = false; sc.dry = null;
+  }
+  function renderScript() {
+    if (!sc.def || (sc.classLoaded !== ed.classId && !sc.dirty)) { loadScript(currentScriptId()); sc.classLoaded = ed.classId; }
+    var box = el["hg-script"], save = C.get(), def = sc.def, ro = sc.template;
+    box.innerHTML = "";
+    // head: which script, copy / rename / save / delete / assign
+    var head = document.createElement("div"); head.className = "sc-head";
+    var sel = document.createElement("select"); sel.className = "lcars-select";
+    var og1 = document.createElement("optgroup"); og1.label = "Templates";
+    Object.keys(SD().templates).forEach(function (id) { var o = document.createElement("option"); o.value = id; o.textContent = SD().templates[id].name; og1.appendChild(o); });
+    var og2 = document.createElement("optgroup"); og2.label = "My scripts";
+    save.scripts.forEach(function (x) { var o = document.createElement("option"); o.value = x.id; o.textContent = x.name; og2.appendChild(o); });
+    sel.appendChild(og1); if (save.scripts.length) sel.appendChild(og2);
+    sel.value = sc.id;
+    sel.addEventListener("change", function () { if (sc.dirty && !window.confirm("Discard the unsaved changes to this script?")) { sel.value = sc.id; return; } loadScript(sel.value); renderScript(); });
+    head.appendChild(sel);
+    function btn(label, cls, title, fn) { var b = document.createElement("button"); b.className = "lcars-btn " + cls; b.textContent = label; if (title) b.title = title; b.addEventListener("click", fn); return b; }
+    head.appendChild(btn("Copy as new", "c-blue", "Make an editable copy of this script", function () {
+      var name = window.prompt("Name for the new script", def.name + " (copy)"); if (!name) return;
+      var d = copyDef(def); d.name = name.trim().slice(0, 24); d.id = "s" + Date.now().toString(36); delete d.desc; delete d.requires;
+      C.saveScript(d); loadScript(d.id); renderScript(); say("Script \"" + d.name + "\" created. Edit the rules, then Save.");
+    }));
+    if (!ro) {
+      head.appendChild(btn("Rename", "c-lilac", null, function () { var name = window.prompt("Script name", def.name); if (name) { def.name = name.trim().slice(0, 24); sc.dirty = true; renderScript(); } }));
+      head.appendChild(btn(sc.dirty ? "Save" : "Saved", sc.dirty ? "c-orange" : "c-peach", null, function () { if (!sc.dirty) return; C.saveScript(copyDef(def)); sc.dirty = false; renderScript(); say("Script saved."); }));
+      head.appendChild(btn("Delete", "c-red", null, function () { if (!window.confirm("Delete script \"" + def.name + "\"?")) return; C.deleteScript(sc.id); loadScript(currentScriptId()); renderScript(); }));
+    }
+    var assigned = currentScriptId() === sc.id;
+    head.appendChild(btn(assigned ? "✓ This ship flies it" : "Assign to this build", assigned ? "c-peach" : "c-purple", "The script the " + BS.Data.shipClasses[ed.classId].className + " undocks with", function () { if (!assigned) { if (sc.dirty) { C.saveScript(copyDef(def)); sc.dirty = false; } C.setScriptFor(ed.classId, sc.id); renderScript(); say("The ship will fly \"" + def.name + "\"."); } }));
+    box.appendChild(head);
+    if (def.desc || ro) { var ds = document.createElement("div"); ds.className = "sc-desc"; ds.textContent = (def.desc || "") + (ro ? " Templates are read-only: Copy as new to edit." : ""); box.appendChild(ds); }
+    // rules
+    (def.rules || []).forEach(function (r, i) { box.appendChild(ruleCard(r, i, ro)); });
+    var foot = document.createElement("div"); foot.className = "sc-foot";
+    if (!ro && (def.rules || []).length < SD().maxRules) foot.appendChild(btn("+ Rule", "c-blue", null, function () { def.rules.push({ when: {}, do: {} }); sc.dirty = true; renderScript(); }));
+    // policies
+    var pol = document.createElement("div"); pol.className = "sc-policies";
+    Object.keys(SD().policies).forEach(function (k) {
+      var l = document.createElement("label"), cb = document.createElement("input"); cb.type = "checkbox"; cb.disabled = ro;
+      var on = def.policies && def.policies[k] && def.policies[k] !== false; cb.checked = !!on;
+      cb.addEventListener("change", function () { def.policies = def.policies || {}; def.policies[k] = cb.checked ? (k === "lock" ? true : "auto") : false; sc.dirty = true; });
+      l.appendChild(cb); l.appendChild(document.createTextNode(SD().policies[k].label)); pol.appendChild(l);
+    });
+    box.appendChild(pol);
+    // dry run
+    foot.appendChild(btn(sc.dry && sc.dry.running ? "Running… " + Math.round(sc.dry.t || 0) + " s" : "Dry run vs next enemy", "c-purple", "One simulated battle with this script against the next enemy (hit rolls are random; nothing is saved)", function () {
+      if (sc.dry && sc.dry.running) return;
+      if (ed.dirty) { say("Apply or revert your build first: the dry run flies the applied layout.", true); return; }
+      sc.dry = { running: true, t: 0 }; renderScript();
+      game.dryRun(copyDef(def), function (t) { sc.dry.t = t; var b = box.querySelector(".sc-foot .c-purple"); if (b) b.textContent = "Running… " + Math.round(t) + " s"; }, function (out) { sc.dry = { running: false, out: out }; renderScript(); });
+    }));
+    box.appendChild(foot);
+    if (sc.dry && sc.dry.out) {
+      var o = sc.dry.out, d2 = document.createElement("div"); d2.className = "sc-dry";
+      var res = o.result === "victory" ? "Victory" + (o.how === "captured" ? " (captured)" : o.how === "disabled" ? " (disabled)" : "") : o.result === "defeat" ? "Defeat" : "Stalemate";
+      d2.innerHTML = "<b>" + res + "</b> in " + U.formatTime(o.time) + " · our blocks " + o.hullPct + "% · their hull " + o.enemyHullPct + "%" + (o.scanned ? " · scanned" : " · never scanned") + "<br>" +
+        o.trace.slice(0, 8).map(function (e) { return "<span class='t'>" + U.formatTime(e.t) + "</span> " + (e.rule !== null && e.rule !== undefined ? (e.rule + 1) + ". " : "") + escapeHtml(e.text); }).join("<br>") + (o.trace.length > 8 ? "<br><span class='t'>… " + (o.trace.length - 8) + " more</span>" : "");
+      box.appendChild(d2);
+    }
+  }
+  function escapeHtml(t) { return String(t).replace(/[&<>]/g, function (ch) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]; }); }
+
+  // One rule as a card: number, kind, WHEN terms, DO terms, optional until, and the sentence it reads as.
+  function ruleCard(r, i, ro) {
+    var def = sc.def, card = document.createElement("div"), isDefault = !r.when || !Object.keys(r.when).length;
+    card.className = "rule" + (isDefault && !r.once && !r.every ? " otherwise" : "");
+    var top = document.createElement("div"); top.className = "r-top";
+    top.innerHTML = "<span class='n'>" + (i + 1) + "</span>";
+    var kind = document.createElement("select"); kind.className = "lcars-select kind"; kind.disabled = ro;
+    kind.innerHTML = "<option value='standing'>Standing orders</option><option value='once'>Once</option><option value='every'>Every N s</option>";
+    kind.value = r.once ? "once" : r.every ? "every" : "standing";
+    kind.addEventListener("change", function () { delete r.once; delete r.every; if (kind.value === "once") r.once = true; else if (kind.value === "every") r.every = 20; if (kind.value !== "standing") { delete r.until; delete r.holdMax; } sc.dirty = true; renderScript(); });
+    top.appendChild(kind);
+    if (r.every) { var ev = document.createElement("input"); ev.type = "number"; ev.min = 1; ev.max = 600; ev.value = r.every; ev.disabled = ro; ev.style.width = "52px"; ev.addEventListener("change", function () { r.every = Math.max(1, parseFloat(ev.value) || 20); sc.dirty = true; renderSentence(); }); top.appendChild(ev); top.appendChild(document.createTextNode("s")); }
+    if (!ro) {
+      var up = document.createElement("button"); up.className = "lcars-btn c-blue sq"; up.textContent = "▲"; up.disabled = i === 0; up.addEventListener("click", function () { def.rules.splice(i, 1); def.rules.splice(i - 1, 0, r); sc.dirty = true; renderScript(); });
+      var dn = document.createElement("button"); dn.className = "lcars-btn c-blue sq"; dn.textContent = "▼"; dn.disabled = i === def.rules.length - 1; dn.addEventListener("click", function () { def.rules.splice(i, 1); def.rules.splice(i + 1, 0, r); sc.dirty = true; renderScript(); });
+      var del = document.createElement("button"); del.className = "lcars-btn c-red sq"; del.textContent = "✕"; del.addEventListener("click", function () { def.rules.splice(i, 1); sc.dirty = true; renderScript(); });
+      top.appendChild(up); top.appendChild(dn); top.appendChild(del);
+    }
+    card.appendChild(top);
+    card.appendChild(termLine(isDefault && !r.once && !r.every ? "Otherwise" : "When", r.when || (r.when = {}), "cond", ro, function () { sc.dirty = true; renderScript(); }));
+    card.appendChild(termLine("Do", r.do || (r.do = {}), "act", ro, function () { sc.dirty = true; renderScript(); }));
+    if (!r.once && !r.every) {
+      if (r.until || !ro) {
+        var ul = termLine("Until", r.until || {}, "cond", ro, function (obj) { if (Object.keys(obj).length) r.until = obj; else delete r.until; sc.dirty = true; renderScript(); }, true);
+        if (r.until || !ro) card.appendChild(ul);
+      }
+      if (r.until) {
+        var hm = document.createElement("div"); hm.className = "r-line"; hm.innerHTML = "<b>At most</b>";
+        var inp = document.createElement("input"); inp.type = "number"; inp.min = 0; inp.max = 600; inp.value = r.holdMax || ""; inp.placeholder = "∞"; inp.disabled = ro; inp.style.width = "58px";
+        inp.addEventListener("change", function () { var v = parseFloat(inp.value); if (v > 0) r.holdMax = v; else delete r.holdMax; sc.dirty = true; renderSentence(); });
+        var tm = document.createElement("span"); tm.className = "term"; tm.appendChild(inp); tm.appendChild(document.createTextNode("s")); hm.appendChild(tm); card.appendChild(hm);
+      }
+    }
+    var sayEl = document.createElement("div"); sayEl.className = "r-say"; card.appendChild(sayEl);
+    var warn = document.createElement("div"); warn.className = "r-warn"; card.appendChild(warn);
+    function renderSentence() {
+      sayEl.textContent = "“" + BS.Script.describe(r, def) + "”";
+      var w = [];
+      var a = r.do && r.do.aim;
+      if (a && typeof a === "object" && !(def.rules || []).some(function (q) { return q.do && q.do.scan; })) w.push("Aiming at a weak point or a plan target needs a scan: add a rule that scans them.");
+      if (isDefault && !r.once && !r.every && i !== def.rules.length - 1 && def.rules.slice(i + 1).some(function (q) { return !q.once && !q.every; })) w.push("An Otherwise rule only stands when nothing above it does; rules below it still take over when they hold.");
+      if (!Object.keys(r.do || {}).length) w.push("This rule does nothing yet.");
+      warn.textContent = w.join(" ");
+    }
+    renderSentence();
+    return card;
+  }
+  // A line of terms (conditions or actions) with a "+ and" dropdown. `onChange(obj)` is told after any change.
+  function termLine(label, obj, mode, ro, onChange, optional) {
+    var line = document.createElement("div"); line.className = "r-line";
+    line.innerHTML = "<b>" + label + "</b>";
+    var V = mode === "cond" ? SD().conditions : SD().actions;
+    var keys = mode === "act" ? actionKeys(obj) : Object.keys(obj);
+    keys.forEach(function (k) {
+      var t = document.createElement("span"); t.className = "term";
+      var lab = document.createElement("span"); lab.textContent = termLabel(k, obj, mode); t.appendChild(lab);
+      var val = valueInput(k, obj, mode, ro, function () { onChange(obj); });
+      if (val) t.appendChild(val);
+      if (!ro) { var x = document.createElement("span"); x.className = "x"; x.textContent = "✕"; x.title = "Remove"; x.addEventListener("click", function () { removeTerm(k, obj, mode); onChange(obj); }); t.appendChild(x); }
+      line.appendChild(t);
+    });
+    if (!ro) {
+      var add = document.createElement("select"); add.className = "add";
+      var first = document.createElement("option"); first.value = ""; first.textContent = keys.length ? "+ and…" : (optional ? "+ until…" : (mode === "cond" ? "+ condition…" : "+ action…")); add.appendChild(first);
+      Object.keys(V).forEach(function (k) {
+        if (mode === "act" && (k === "doctrine")) return;
+        if (mode === "act" && k === "modules") { Object.keys(BS.Data.modules).forEach(function (id) { if (BS.Data.modules[id].kind === "turretGroup" || BS.Data.modules[id].kind === "launcherGroup") return; var o = document.createElement("option"); o.value = "modules." + id; o.textContent = BS.Data.modules[id].name + " on / off"; add.appendChild(o); }); return; }
+        if (keys.indexOf(k) >= 0) return;
+        var o = document.createElement("option"); o.value = k; o.textContent = plainLabel(V[k].label); add.appendChild(o);
+      });
+      add.addEventListener("change", function () { if (!add.value) return; addTerm(add.value, obj, mode); onChange(obj); });
+      line.appendChild(add);
+    }
+    return line;
+  }
+  function plainLabel(l) { return l.replace("{v}", "…"); }
+  function actionKeys(act) {
+    var out = [];
+    Object.keys(act).forEach(function (k) { if (k === "modules") Object.keys(act.modules).forEach(function (id) { out.push("modules." + id); }); else out.push(k); });
+    return out;
+  }
+  function termLabel(k, obj, mode) {
+    if (k.indexOf("modules.") === 0) { var id = k.slice(8); return id === "weapons" ? "weapons" : (BS.Data.modules[id] ? BS.Data.modules[id].name.toLowerCase() : id); }
+    var V = mode === "cond" ? SD().conditions : SD().actions, d = V[k]; if (!d) return k;
+    if (mode === "cond" && d.kind === "bool") return "";
+    var parts = d.label.split("{v}");
+    return parts[0].trim();
+  }
+  function addTerm(k, obj, mode) {
+    if (k.indexOf("modules.") === 0) { obj.modules = obj.modules || {}; obj.modules[k.slice(8)] = true; return; }
+    var V = mode === "cond" ? SD().conditions : SD().actions, d = V[k];
+    if (mode === "cond") obj[k] = d.kind === "flag" ? true : d.kind === "bool" ? (d.def !== undefined ? d.def : true) : d.def;
+    else obj[k] = { stance: "engage", play: "alpha", side: "blind", aim: "reactor", weapons: true, governor: true, repair: "shield", reinforce: true, scan: true, board: true }[k];
+  }
+  function removeTerm(k, obj, mode) {
+    if (k.indexOf("modules.") === 0) { delete obj.modules[k.slice(8)]; if (!Object.keys(obj.modules).length) delete obj.modules; return; }
+    delete obj[k];
+  }
+  // The value control for a term: number (km / s / count), slider (fractions), on / off, or a dropdown.
+  function valueInput(k, obj, mode, ro, onChange) {
+    var V = mode === "cond" ? SD().conditions : SD().actions;
+    function sel(options, value, set) { var s = document.createElement("select"); s.disabled = ro; options.forEach(function (o) { var e = document.createElement("option"); e.value = o[0]; e.textContent = o[1]; s.appendChild(e); }); s.value = value; s.addEventListener("change", function () { set(s.value); onChange(); }); return s; }
+    function num(value, set, suffix) { var w = document.createElement("span"); var n = document.createElement("input"); n.type = "number"; n.step = "any"; n.value = value; n.disabled = ro; n.addEventListener("change", function () { set(parseFloat(n.value) || 0); onChange(); }); w.appendChild(n); if (suffix) w.appendChild(document.createTextNode(" " + suffix)); return w; }
+    function pct(value, set) { var w = document.createElement("span"); var rg = document.createElement("input"); rg.type = "range"; rg.min = 0; rg.max = 100; rg.step = 5; rg.value = Math.round(value * 100); rg.disabled = ro; var pv = document.createElement("span"); pv.className = "pv"; pv.textContent = Math.round(value * 100) + "%"; rg.addEventListener("input", function () { pv.textContent = rg.value + "%"; }); rg.addEventListener("change", function () { set(parseInt(rg.value, 10) / 100); onChange(); }); w.appendChild(rg); w.appendChild(pv); return w; }
+    if (k.indexOf("modules.") === 0) { var id = k.slice(8); return sel([["on", "on"], ["off", "off"]], obj.modules[id] ? "on" : "off", function (v) { obj.modules[id] = v === "on"; }); }
+    var d = V[k]; if (!d) return null;
+    if (mode === "cond") {
+      switch (d.kind) {
+        case "km": return num(obj[k], function (v) { obj[k] = v; }, "km");
+        case "sec": return num(obj[k], function (v) { obj[k] = v; }, "s");
+        case "count": return num(obj[k], function (v) { obj[k] = Math.max(1, Math.round(v)); }, "");
+        case "pct": return pct(obj[k], function (v) { obj[k] = v; });
+        case "bool": return sel([["1", d.label], ["0", d.negLabel || ("not: " + d.label)]], obj[k] ? "1" : "0", function (v) { obj[k] = v === "1"; });
+        case "type": return sel(Object.keys(BS.Data.blocks).map(function (b) { return [b, BS.Data.blocks[b].name.toLowerCase() + "s"]; }), obj[k], function (v) { obj[k] = v; });
+        case "state": return sel(Object.keys(BS.Data.enemyAI.stateLabels).map(function (st) { return [st, BS.Data.enemyAI.stateLabels[st]]; }), obj[k], function (v) { obj[k] = v; });
+        default: return null;
+      }
+    }
+    switch (k) {
+      case "stance": return sel(Object.keys(BS.Data.helm.stances).map(function (id) { return [id, BS.Data.helm.stances[id].label]; }), obj[k], function (v) { obj[k] = v; });
+      case "play": return sel(Object.keys(BS.Data.helm.plays).map(function (id) { return [id, BS.Data.helm.plays[id].label]; }), obj[k], function (v) { obj[k] = v; });
+      case "side": return sel(Object.keys(BS.Data.helm.sides).map(function (id) { return [id, BS.Data.helm.sides[id].label.toLowerCase()]; }), obj[k], function (v) { obj[k] = v; });
+      case "weapons": case "governor": return sel([["on", "on"], ["off", "off"]], obj[k] ? "on" : "off", function (v) { obj[k] = v === "on"; });
+      case "repair": return sel([["", "automatic"]].concat(Object.keys(BS.Data.blocks).map(function (b) { return [b, BS.Data.blocks[b].name.toLowerCase() + "s"]; })), obj[k] || "", function (v) { obj[k] = v || null; });
+      case "aim": {
+        var opts = [["hull", "anything (full accuracy)"], ["exposed", "bare hull"], ["structure", "their necks and pylons"]];
+        Object.keys(BS.Data.blocks).forEach(function (b) { opts.push([b, "their " + BS.Data.blocks[b].name.toLowerCase() + "s"]); });
+        Object.keys(SD().weakKinds).forEach(function (w) { opts.push(["weak:" + w, "weak point: " + SD().weakKinds[w] + " (needs a scan)"]); });
+        for (var n = 0; n < SD().planTargets; n++) opts.push(["plan:" + n, "plan target " + (n + 1) + " (needs a scan)"]);
+        var cur = obj[k], v = cur === null || cur === undefined ? "hull" : typeof cur === "string" ? cur : cur.weak ? "weak:" + cur.weak : "plan:" + cur.plan;
+        return sel(opts, v, function (val) { if (val === "hull") obj[k] = null; else if (val.indexOf("weak:") === 0) obj[k] = { weak: val.slice(5) }; else if (val.indexOf("plan:") === 0) obj[k] = { plan: parseInt(val.slice(5), 10) }; else obj[k] = val; });
+      }
+      default: return null;   // flags: reinforce, scan, board
+    }
   }
 
   // ---- skills ----------------------------------------------------------------

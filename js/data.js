@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.21.0",
+  version: "0.22.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -1227,6 +1227,8 @@ BS.Data = {
     traceMax: 60,                  // trace entries kept per ship
     planTargets: 3,                // targets a plan may name, in order
     defaultTemplate: "brawler",    // what a ship undocks with when no script is assigned
+    maxRules: 12,                  // rules per script in the editor
+    dryRun: { maxSeconds: 600, stepsPerChunk: 1200 },   // the hangar's dry run: one simulated battle, stepped in chunks so the page stays responsive
     conditions: {
       dKmBelow:         { label: "they are closer than {v}", kind: "km", def: 5 },
       dKmAbove:         { label: "they are farther than {v}", kind: "km", def: 10 },

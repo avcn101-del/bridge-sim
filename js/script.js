@@ -129,7 +129,7 @@ BS.Script = (function () {
     if (act.reinforce) S.startReinforce(ship);
     if (act.scan) { if (!ship.scanned && !ship.scanning) { ship.scanning = BS.Data.science.scanDuration; BS.Events.emit("scanStarted", { ship: ship, target: target, time: ship.scanning }); } }
     if (act.board) { var br = BS.Boarding.start(ship, target); if (br !== "ok") note = "boarding: " + br; }
-    if (act.aim !== undefined) { var an = aim(ship, target, act.aim); if (an) note = an; }
+    if (act.aim !== undefined) { var an = aim(ship, target, act.aim); if (an) { note = an; if (ship.script && /scan/.test(an)) ship.script.waitingAim = act.aim; } else if (ship.script) ship.script.waitingAim = null; }
     return note;
   }
   // aim: null / block type / "exposed" / "structure" / { weak: kind } / { plan: n } (planned targets need a scan)
@@ -211,7 +211,12 @@ BS.Script = (function () {
     }
     if (pick < 0 && held) pick = sc.active;
     if (pick < 0) pick = dflt;
-    if (pick < 0 || pick === sc.active) return;
+    if (pick < 0 || pick === sc.active) {
+      // the standing rule's aim was waiting for a scan: take it now that the scan is in
+      if (sc.waitingAim && ship.scanned && sc.active >= 0) { var wa = sc.waitingAim; sc.waitingAim = null; var an2 = aim(ship, target, wa); trace(ship, sc.active, "scan is in: " + describeDo({ aim: wa }) + (an2 ? " (" + an2 + ")" : ""), "standing"); }
+      return;
+    }
+    sc.waitingAim = null;
     sc.active = pick; sc.activeSince = sc.t;
     var n2 = apply(ship, target, rules[pick].do || {}, rules[pick]);
     trace(ship, pick, describe(rules[pick], def) + (n2 ? " (" + n2 + ")" : ""), "standing");

@@ -2,6 +2,26 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.22.0] — 2026-10-18 (script editor and plan, PR B of "build & fight")
+
+### Added
+- **Script editor** in the hangar: templates and own scripts in a dropdown;
+  Copy as new / Rename / Save / Delete / Assign to this build. Rules are
+  cards built from dropdowns whose entries are the sentences of
+  `script.conditions / actions` (number boxes for km / s, 0–100% sliders
+  for fractions, on / off, dropdowns for stances, plays, sides, block
+  types, weak points and plan targets); each card reads back as a sentence
+  with warnings (aim needs a scan, Otherwise not last, empty rule). Kinds:
+  Standing orders / Once / Every N s, with UNTIL and "At most N s".
+- **Plan**: up to three targets on the next enemy, tapped on the intel
+  drawing (numbered markers) or chosen by type without intel; saved per
+  encounter and read by `aim: plan target n`.
+- **Dry run vs next enemy**: one simulated battle with the current build,
+  script and seeded enemy in about a second, result line plus the first
+  trace lines; nothing is saved (`BS.Game.dryRun`).
+- A standing rule whose aim waited for a scan takes it when the scan is in
+  ("scan is in: aim at plan target 1").
+
 ## [0.21.0] — 2026-10-18 (bridge scripts, PR A of "build & fight")
 
 ### Added

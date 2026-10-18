@@ -33,13 +33,16 @@ BS.Game = (function () {
     BS.Events.on("shipCaptured", function (e) { endBattle(e.ship, "captured"); });
   }
 
-  function startBattle() {
-    var B = BS.Data.balance;
+  // opts.dry: a dry run from the hangar (BS.Game.dryRun): the same battle set-up without touching the interface, stepped
+  // by hand and never settled. opts.script overrides the player's script.
+  function startBattle(opts) {
+    opts = opts || {};
+    var B = BS.Data.balance, dry = !!opts.dry;
     BS.Weapons.reset();
     BS.Effects.reset();
     BS.Renderer.resetCamera();
-    BS.UI.clearLog();
-    BS.UI.hideOverlays();
+    if (!dry) { BS.UI.clearLog(); BS.UI.hideOverlays(); }
+    state.dry = dry;
     state.time = 0; state.paused = false; state.result = null; state.resultHow = null; state.endTimer = 0; state.hover = null; state.reward = null; state.lockTime = 0; state.boardingLog = null;
     state.zoom = BS.Data.balance.zoom.start; state.zoomBias = 1;
     var save = BS.Campaign.get();
@@ -58,17 +61,43 @@ BS.Game = (function () {
     var es = BS.Script.resolve(BS.Data.script.enemyScripts[enc.script] || BS.Data.script.enemyScripts.doctrine);
     BS.Script.start(enemy, player, bindDoctrine(es, enc.doctrine));
     BS.EnemyAI.setStance(player, enemy, BS.Data.helm.defaultStance);   // the helm flies the default stance from the start
-    BS.Script.start(player, enemy, BS.Campaign.scriptFor(save.shipClass));
+    BS.Script.start(player, enemy, opts.script || BS.Campaign.scriptFor(save.shipClass));
     state.player = player; state.enemy = enemy; state.ships = [player, enemy];
     BS.Crew.reset(player, enemy);
+    state.phase = "battle";
+    if (dry) { state.paused = true; return; }
     BS.UI.setAlert("none");
     BS.UI.setShipName(player.name.toUpperCase());
     BS.UI.buildModuleBar(player);
-    state.phase = "battle";
     BS.Events.emit("battleStarted", state);
     BS.UI.addLog("computer", "Simulation running. You have the conn, Captain.", "system");
     BS.Crew.battleStart();
   }
+
+  // Dry run (hangar): one simulated battle of the current ship, script and next enemy, stepped in chunks between
+  // frames; onDone gets { result, how, time, hullPct, enemyHullPct, trace }. Nothing is settled or saved; the hangar
+  // stays open. Hit rolls are random, so it is one possible fight, not a verdict.
+  var dryToken = 0;
+  function dryRun(script, onProgress, onDone) {
+    var DR = BS.Data.script.dryRun, token = ++dryToken;
+    startBattle({ dry: true, script: script });
+    var p = state.player, e = state.enemy, dt = B().simStep;
+    function chunk() {
+      if (token !== dryToken) return;
+      var n = 0;
+      while (state.phase === "battle" && state.time < DR.maxSeconds && n++ < DR.stepsPerChunk) step(dt);
+      if (state.phase === "battle" && state.time < DR.maxSeconds) { if (onProgress) onProgress(state.time); setTimeout(chunk, 0); return; }
+      var guard = 0; while (state.phase === "ending" && guard++ < 2000) step(dt);
+      var blockMax = p.grid.blocks.reduce(function (a, b) { return a + (b.structural ? 0 : b.maxHp); }, 0), blockNow = p.grid.blocks.reduce(function (a, b) { return a + (b.alive && !b.structural ? b.hp : 0); }, 0);
+      var out = { result: state.result || "stalemate", how: state.resultHow, time: state.time, hullPct: Math.round(100 * blockNow / Math.max(1, blockMax)), enemyHullPct: Math.round(100 * e.hull / e.hullMax), trace: (p.scriptTrace || []).slice(), scanned: !!p.scanned };
+      state.phase = "ended"; state.dry = false; state.paused = false;
+      if (onDone) onDone(out);
+    }
+    setTimeout(chunk, 0);
+    return token;
+  }
+  function cancelDryRun() { dryToken++; if (state.dry) { state.phase = "ended"; state.dry = false; state.paused = false; } }
+  function B() { return BS.Data.balance; }
 
   // An enemy script's "doctrine: encounter" means the doctrine the encounter rolled.
   function bindDoctrine(sc, doctrineId) {
@@ -109,7 +138,7 @@ BS.Game = (function () {
     if (state.phase === "battle") { state.time += dt; if (p.lock.target === e && p.lock.locked) state.lockTime += dt; }   // lock time feeds intel
     if (state.phase === "ending") {
       state.endTimer -= dt;
-      if (state.endTimer <= 0) { state.phase = "ended"; state.reward = BS.Campaign.settleBattle(state); BS.UI.showResult(state); }
+      if (state.endTimer <= 0) { if (state.dry) { state.phase = "ended"; return; } state.phase = "ended"; state.reward = BS.Campaign.settleBattle(state); BS.UI.showResult(state); }
     }
   }
 
@@ -139,6 +168,6 @@ BS.Game = (function () {
 
   function openHangar() { BS.UI.hideOverlays(); state.phase = state.player ? "ended" : "start"; BS.Hangar.show(); }
 
-  var api = { init: init, startBattle: startBattle, openHangar: openHangar, command: command, togglePause: togglePause, setHover: setHover, setZoom: setZoom, state: state, step: step };
+  var api = { init: init, startBattle: startBattle, dryRun: dryRun, cancelDryRun: cancelDryRun, openHangar: openHangar, command: command, togglePause: togglePause, setHover: setHover, setZoom: setZoom, state: state, step: step };
   return api;
 })();
