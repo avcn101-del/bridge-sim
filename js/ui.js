@@ -92,6 +92,7 @@ BS.UI = (function () {
     mk("circle", { class: "bg", cx: C, cy: C, r: 50, "stroke-width": 7 });
     gauge.capbg = mk("path", { class: "capbg", d: arcPath(C, C, 50, -Math.PI / 2, Math.PI * 1.5 - 0.001), "stroke-width": 7 });
     gauge.cap = mk("path", { class: "cap", d: "", "stroke-width": 7 });
+    gauge.heat = mk("path", { class: "heat", d: "", "stroke-width": 3 });
     mk("circle", { class: "bg", cx: C, cy: C, r: 38, "stroke-width": 8 });
     // facings: fore top, starboard right, aft bottom, port left; each spans 80° around its centre
     gauge.sh = {};
@@ -117,6 +118,11 @@ BS.UI = (function () {
     gauge.cap.setAttribute("d", cf > 0.002 ? arcPath(C, C, 50, -Math.PI / 2, -Math.PI / 2 + U.TAU * Math.min(0.999, cf)) : "");
     gauge.cap.style.opacity = cf < 0.2 ? 0.5 + 0.5 * Math.sin(performance.now() / 100) : 1;
     gauge.capnum.textContent = "CAP " + Math.round(p.capacitor) + " / " + p.capMax;
+    var hf2 = p.stats.heatCap > 0 ? p.heat / p.stats.heatCap : 0;
+    gauge.heat.setAttribute("d", hf2 > 0.01 ? arcPath(C, C, 56, -Math.PI / 2, -Math.PI / 2 + U.TAU * Math.min(0.999, hf2)) : "");
+    gauge.heat.style.stroke = p.overload > 0 ? "#ff4040" : hf2 > 0.75 ? "#ff8a3d" : "#f2c14e";
+    gauge.heat.style.opacity = p.overload > 0 ? 0.5 + 0.5 * Math.sin(performance.now() / 80) : 1;
+    gauge.lbl.textContent = p.overload > 0 ? "OVERLOAD" : "HULL";
   }
 
   // Module bar: one round button per fitted module, F-key labelled.
@@ -335,10 +341,10 @@ BS.UI = (function () {
       me.el.classList.toggle("active", m.active);
       me.el.classList.toggle("running", m.running);
       var weapon = BS.Modules.isWeapon(m);
-      ["nocap", "nolock", "range", "notarmed", "arc", "none"].forEach(function (st) { me.el.classList.toggle(st, m.active && m.state === st); });
+      ["nocap", "nolock", "range", "notarmed", "arc", "none", "heat", "overload"].forEach(function (st) { me.el.classList.toggle(st, m.active && m.state === st); });
       me.ring.style.setProperty("--p", weapon ? (100 * (1 - m.readiness)).toFixed(1) : (m.running ? (100 * (1 - m.cycleLeft / m.cycleTime)).toFixed(1) : 0));
       me.el.classList.toggle("running", weapon ? m.active && m.readiness < 1 : m.running);
-      me.state.textContent = m.active && m.state !== "running" && m.state !== "off" && m.state !== "ok" ? ({ nocap: "no cap", nolock: "no lock", range: "range", notarmed: "safe", arc: "no arc", none: "lost" })[m.state] || "" : "";
+      me.state.textContent = m.active && m.state !== "running" && m.state !== "off" && m.state !== "ok" ? ({ nocap: "no cap", nolock: "no lock", range: "range", notarmed: "safe", arc: "no arc", none: "lost", heat: "hot", overload: "OVERLOAD" })[m.state] || "" : "";
     }
   }
 

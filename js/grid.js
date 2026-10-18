@@ -17,7 +17,7 @@ BS.Grid = (function () {
   function build(cls, layoutRows, statMult) {
     statMult = statMult || 1;
     var mask = cls.mask, h = mask.length, w = mask[0].length, cellPx = G().cellPx;
-    var grid = { w: w, h: h, mask: mask, blocks: [], at: {}, cellPx: cellPx, dirty: true, bridge: null };
+    var grid = { w: w, h: h, mask: mask, blocks: [], at: {}, cellPx: cellPx, dirty: true, bridge: null, cls: cls };
     var layout = layoutRows || cls.layout;
     for (var y = 0; y < h; y++) {
       for (var x = 0; x < w; x++) {
@@ -39,6 +39,10 @@ BS.Grid = (function () {
     return grid;
   }
 
+  function isRim(grid, b) {
+    for (var i = 0; i < 4; i++) { var d = [[1, 0], [-1, 0], [0, 1], [0, -1]][i], q = grid.at[(b.x + d[0]) + "," + (b.y + d[1])]; if (!q || !q.alive) return true; }
+    return false;
+  }
   function facingOf(b) {
     var a = Math.abs(b.outward);
     if (a < Math.PI / 4) return "fore";
@@ -50,7 +54,8 @@ BS.Grid = (function () {
   function derive(grid) {
     var g = G(), s = { mass: 0, thrust: 0, cap: g.capBase, shieldMax: { fore: g.shieldBase, aft: g.shieldBase, port: g.shieldBase, starboard: g.shieldBase },
       regen: { fore: g.regenBase, aft: g.regenBase, port: g.regenBase, starboard: g.regenBase }, sensors: g.sensorBase, repair: g.repairBase,
-      counts: {}, alive: {}, hullTotal: 0, hullAlive: 0, weapons: [], bridgeAlive: false };
+      counts: {}, alive: {}, hullTotal: 0, hullAlive: 0, weapons: [], bridgeAlive: false, powerUsed: 0, powerMax: grid.cls.powerBase || 0,
+      heatCap: g.heat.base, heatDissipation: g.heat.dissipationBase, rimCells: 0 };
     grid.blocks.forEach(function (b) {
       if (b.structural) return;
       s.counts[b.type] = (s.counts[b.type] || 0) + 1;
@@ -59,6 +64,10 @@ BS.Grid = (function () {
       s.alive[b.type] = (s.alive[b.type] || 0) + 1;
       s.hullAlive += b.hp;
       s.mass += b.def.mass;
+      s.powerUsed += b.def.power || 0;
+      if (b.type === "reactor") s.powerMax += g.powerPerReactor;
+      s.heatCap += g.heat.perBlock;
+      if (isRim(grid, b)) { s.rimCells++; s.heatDissipation += g.heat.dissipationPerRimCell; }
       var f = facingOf(b);
       switch (b.type) {
         case "engine": s.thrust += b.nacelle ? g.nacelleThrustMult : 1; break;
@@ -72,6 +81,8 @@ BS.Grid = (function () {
     });
     if (g.lineOfFire) s.weapons.forEach(function (b) { updateFacing(grid, b); });
     s.speedMult = s.mass > 0 ? U.clamp(s.thrust * g.thrustPerPoint / s.mass, g.speedMultMin, g.speedMultMax) : g.speedMultMin;
+    // brownout: with reactors gone the surviving systems share what is left
+    s.powerFactor = s.powerUsed > s.powerMax ? Math.max(g.brownoutMin, s.powerMax / s.powerUsed) : 1;
     grid.stats = s; grid.dirty = false;
     return s;
   }
@@ -314,6 +325,7 @@ BS.Grid = (function () {
     var st = derive(grid);
     if (!st.weapons.length) errors.push("No weapons.");
     if (st.thrust === 0) errors.push("No engines.");
+    if (st.powerUsed > st.powerMax) errors.push("Power grid overloaded: " + st.powerUsed + " / " + st.powerMax + ". Fewer systems or more reactors.");
     // warnings do not block undocking
     var warnings = [], masked = st.weapons.filter(function (b) { return arcCoverage(grid, b) <= 0; }).length;
     if (masked) warnings.push(masked + " weapon(s) cannot fire past the hull.");

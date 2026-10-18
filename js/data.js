@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.6.0",
+  version: "0.7.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -70,7 +70,11 @@ BS.Data = {
     nacelleThrustMult: 2,         // engine blocks in nacelle cells count double
     speedMultMin: 0.35, speedMultMax: 1.25,
     sensorBase: 8, sensorAdd: 2,
+    powerPerReactor: 15,          // power grid per alive reactor, on top of the class powerBase; blocks.*.power is what each system draws
+    brownoutMin: 0.4,             // when reactors die and draw exceeds supply, weapons cycle and shields regen at supply/draw (never below this)
     repairBase: 0.6, repairAdd: 0.5,   // hp/s restored to damaged (not destroyed) blocks
+    // heat: every shot adds its weapon's heat; capacity grows with hull size, dissipation with hull surface (rim cells)
+    heat: { base: 80, perBlock: 2, dissipationBase: 6, dissipationPerRimCell: 0.25, overloadTime: 6, aiFireBelow: 0.85 },
     hitScatter: 1.0,              // shots land anywhere across the facing: sideways offset up to this × the hull half-extent
     penetration: 2,               // beam penetration points: each block on the path costs its pierceCost (armor 2, structure 3, systems 1); the beam stops at 0
     lineOfFire: true,             // a weapon cannot fire through the ship's own alive blocks (editor shows masked weapons)
@@ -95,16 +99,16 @@ BS.Data = {
   // ---------------------------------------------------------------- blocks
   blocks: {
     armor:    { letter: "A", name: "Armor plating",   short: "AR", hp: 60, mass: 2, cost: 20,  color: "#a3aabb", pierceCost: 2, desc: "Cheap and tough. Stops a beam dead: nothing behind a plate is hit until the plate is gone." },
-    phaser:   { letter: "P", name: "Phaser emitter",  short: "PH", hp: 50, mass: 2, cost: 120, color: "#ff8a3d", desc: "Beam weapon. Fires into the 180° arc facing away from the ship's centre.",
-                weapon: { kind: "turret", damage: 28, cycle: 2.6, cap: 2.5, optimalKm: 8, falloffKm: 7, tracking: 0.9, accuracy: 0.95, arc: 180, color: "#ff8a3d", coreColor: "#fff3e0", beamLife: 0.4 } },
-    torpedo:  { letter: "T", name: "Torpedo tube",    short: "TT", hp: 50, mass: 3, cost: 180, color: "#ffb347", desc: "Heavy warhead, slow reload. Fires into the 220° arc facing away from the ship's centre: mount tubes where you want to shoot.",
-                weapon: { kind: "launcher", damage: 170, cycle: 11, cap: 14, rangeKm: 30, speedKmS: 4, explosionRadius: 280, explosionVelocity: 1.5, turnRate: 160, arc: 220, color: "#ffb347", coreColor: "#ffffff" } },
-    shield:   { letter: "S", name: "Shield emitter",  short: "SH", hp: 40, mass: 2, cost: 90,  color: "#6fb6ff", desc: "+70 shield and +0.4/s regen on the facing it sits on." },
-    reactor:  { letter: "R", name: "Reactor",         short: "RE", hp: 40, mass: 3, cost: 100, color: "#f2c14e", explosion: { damage: 80, radius: 1 }, desc: "+80 capacitor. Explodes when destroyed: 80 damage to every block around it, and a reactor next to it goes up too. Keep them apart and armored." },
-    engine:   { letter: "E", name: "Impulse engine",  short: "EN", hp: 45, mass: 2, cost: 80,  color: "#7fd8ff", desc: "Thrust. Counts double inside nacelles. Speed = thrust / mass." },
-    sensor:   { letter: "N", name: "Sensor array",    short: "SE", hp: 35, mass: 1, cost: 110, color: "#cc99cc", desc: "Faster locks and better tracking." },
+    phaser:   { letter: "P", name: "Phaser emitter",  short: "PH", hp: 50, mass: 2, cost: 120, power: 5, color: "#ff8a3d", desc: "Beam weapon. Fires into the 180° arc facing away from the ship's centre.",
+                weapon: { kind: "turret", damage: 28, cycle: 2.6, cap: 2.5, heat: 6, optimalKm: 8, falloffKm: 7, tracking: 0.9, accuracy: 0.95, arc: 180, color: "#ff8a3d", coreColor: "#fff3e0", beamLife: 0.4 } },
+    torpedo:  { letter: "T", name: "Torpedo tube",    short: "TT", hp: 50, mass: 3, cost: 180, power: 8, color: "#ffb347", desc: "Heavy warhead, slow reload. Fires into the 220° arc facing away from the ship's centre: mount tubes where you want to shoot.",
+                weapon: { kind: "launcher", damage: 170, cycle: 11, cap: 14, heat: 30, rangeKm: 30, speedKmS: 4, explosionRadius: 280, explosionVelocity: 1.5, turnRate: 160, arc: 220, color: "#ffb347", coreColor: "#ffffff" } },
+    shield:   { letter: "S", name: "Shield emitter",  short: "SH", hp: 40, mass: 2, cost: 90,  power: 4,  color: "#6fb6ff", desc: "+70 shield and +0.4/s regen on the facing it sits on." },
+    reactor:  { letter: "R", name: "Reactor",         short: "RE", hp: 40, mass: 3, cost: 100, color: "#f2c14e", explosion: { damage: 80, radius: 1 }, desc: "+80 capacitor and +15 power for the grid. Explodes when destroyed: 80 damage to every block around it, and a reactor next to it goes up too. Keep them apart and armored." },
+    engine:   { letter: "E", name: "Impulse engine",  short: "EN", hp: 45, mass: 2, cost: 80,  power: 1,  color: "#7fd8ff", desc: "Thrust. Counts double inside nacelles. Speed = thrust / mass." },
+    sensor:   { letter: "N", name: "Sensor array",    short: "SE", hp: 35, mass: 1, cost: 110, power: 3, color: "#cc99cc", desc: "Faster locks and better tracking." },
     bridge:   { letter: "B", name: "Bridge",          short: "BR", hp: 200, mass: 2, cost: 0,   color: "#ffffff", unique: true, desc: "Exactly one. If it dies, the ship is lost. Blocks cut off from it break away." },
-    quarters: { letter: "Q", name: "Crew quarters",   short: "CQ", hp: 35, mass: 1, cost: 40,  color: "#d3bfa6", desc: "+0.5 hp/s damage-control repair of damaged blocks." },
+    quarters: { letter: "Q", name: "Crew quarters",   short: "CQ", hp: 35, mass: 1, cost: 40,  power: 1,  color: "#d3bfa6", desc: "+0.5 hp/s damage-control repair of damaged blocks." },
   },
 
   // ---------------------------------------------------------------- modules
@@ -126,6 +130,7 @@ BS.Data = {
       id: "constitution", name: "USS Constitution", className: "Constitution class",
       role: "Heavy cruiser", faction: "federation", cost: 0, purchasable: true,
       speed: 95, turnRate: 90, signature: 400, lockRangeKm: 45,
+      powerBase: 50,              // power grid before reactors (grid.powerPerReactor each)
       preferredRangeKm: 7,
       mask: [
         "..........................",
@@ -165,17 +170,17 @@ BS.Data = {
       ],
       visual: { kind: "grid", sprite: null, nacelleColor: "90,160,255", hullTint: "#c6ccda" },
       presets: {
-        brawler: { name: "Brawler", desc: "Fourteen phaser emitters, armored bow, three tubes. Orbit close.", rows: [
+        brawler: { name: "Brawler", desc: "Ten phaser emitters on the flanks, armored bow, three tubes. Orbit close and keep them on your beam.", rows: [
           "..........................",
           ".EEEEEAAAA.........A......",
           ".EEEEEAAAA......APAPAAA...",
           "...............PSAAAASAA..",
           "..............SAAAAAAAAAP.",
           ".......AA.....AAARAAQAAAT.",
-          "...AA..AAAAA.PARAAQARAANAP",
-          "..ASAAAAAAAA...AAAAAAAAAAP",
+          "...AA..AAAAA.AARAAQARAANAA",
+          "..ASAAAAAAAA...AAAAAAAAAAA",
           "..ASAAAAAAAA...AAABAAAAAAP",
-          "...AA..AAAAA.PARAAQARAANAP",
+          "...AA..AAAAA.AARAAQARAANAP",
           ".......AA.....AAARAAQAANT.",
           "..............SAAAAAAAAAP.",
           "...............PSAAAASAT..",
@@ -207,6 +212,7 @@ BS.Data = {
       id: "miranda", name: "USS Reliant", className: "Miranda class",
       role: "Light cruiser", faction: "federation", cost: 800, purchasable: true,
       speed: 100, turnRate: 100, signature: 340, lockRangeKm: 40,
+      powerBase: 30,              // power grid before reactors (grid.powerPerReactor each)
       preferredRangeKm: 6,
       mask: [
         "......................",
@@ -264,6 +270,7 @@ BS.Data = {
       id: "defiant", name: "USS Defiant", className: "Defiant class",
       role: "Escort", faction: "federation", cost: 2400, purchasable: true,
       speed: 130, turnRate: 140, signature: 220, lockRangeKm: 40,
+      powerBase: 30,              // power grid before reactors (grid.powerPerReactor each)
       preferredRangeKm: 4,
       mask: [
         "..................",
@@ -315,6 +322,7 @@ BS.Data = {
       id: "excelsior", name: "USS Excelsior", className: "Excelsior class",
       role: "Heavy cruiser", faction: "federation", cost: 3200, purchasable: true,
       speed: 95, turnRate: 80, signature: 450, lockRangeKm: 50,
+      powerBase: 55,              // power grid before reactors (grid.powerPerReactor each)
       preferredRangeKm: 8,
       mask: [
         "..............................",
@@ -384,6 +392,7 @@ BS.Data = {
       id: "galaxy", name: "USS Galaxy", className: "Galaxy class",
       role: "Explorer", faction: "federation", cost: 5600, purchasable: true,
       speed: 85, turnRate: 60, signature: 600, lockRangeKm: 55,
+      powerBase: 80,              // power grid before reactors (grid.powerPerReactor each)
       preferredRangeKm: 8,
       mask: [
         "....................................",
@@ -459,6 +468,7 @@ BS.Data = {
       id: "sovereign", name: "USS Sovereign", className: "Sovereign class",
       role: "Battleship", faction: "federation", cost: 8000, purchasable: true,
       speed: 100, turnRate: 75, signature: 520, lockRangeKm: 60,
+      powerBase: 90,              // power grid before reactors (grid.powerPerReactor each)
       preferredRangeKm: 8,
       mask: [
         "......................................",
@@ -528,6 +538,7 @@ BS.Data = {
       id: "bird_of_prey", name: "IKS Rotarran", className: "B'rel class Bird-of-Prey",
       role: "Raider", faction: "klingon", cost: 0, purchasable: false,
       speed: 105, turnRate: 110, signature: 250, lockRangeKm: 40,
+      powerBase: 35,              // power grid before reactors (grid.powerPerReactor each)
       preferredRangeKm: 6,
       mask: [
         "nnn.....................",
@@ -633,6 +644,7 @@ BS.Data = {
       id: "ktinga", name: "IKS Amar", className: "K't'inga class battlecruiser",
       role: "Battlecruiser", faction: "klingon", cost: 0, purchasable: false,
       speed: 85, turnRate: 70, signature: 480, lockRangeKm: 45,
+      powerBase: 50,              // power grid before reactors (grid.powerPerReactor each)
       preferredRangeKm: 7, aiProfile: "ktinga",
       mask: [
         "nnnn............................",
@@ -742,6 +754,9 @@ BS.Data = {
       moduleNoCap: "Capacitor is dry! {module} has shut down.",
       capLow: "Capacitor at {pct} percent, Captain.",
       capEmpty: "Capacitor empty! Everything's going offline.",
+      heatHigh: "Weapons are running hot, Captain. Ease off or we overload.",
+      overload: "Heat overload! Weapons and systems are down until it bleeds off!",
+      enemyOverload: "Their ship just overloaded, Captain. Everything they have is offline. Hit them now!",
       hail: "Hailing the Klingon vessel... they're responding, Captain.",
       hail_noResponse: "No response, Captain. They've cut the channel.",
       targetShielded: "Their {facing} shields are absorbing it, Captain. We need to drop that shield to reach their {label}.",

@@ -29,7 +29,7 @@ BS.Ships = (function () {
       grid: grid, stats: st, statMult: statMult, mods: mods,
       hullMax: st.hullTotal, hull: st.hullAlive,
       shieldMax: {}, shields: {}, shieldRegen: {},
-      capMax: 0, capacitor: 0,
+      capMax: 0, capacitor: 0, heat: 0, overload: 0,
       signature: cls.signature,
       flags: { alert: "none", destroyed: false, disabled: false, armed: false },
       selected: null, lock: { target: null, progress: 0, locked: false, time: 0 }, aimType: null,
@@ -258,10 +258,12 @@ BS.Ships = (function () {
     if (f < 0.02) rate = (ship.capMax / g.capRechargeTime) * 0.4 * capRechargeMult(ship);
     ship.capacitor = Math.min(ship.capMax, ship.capacitor + rate * dt);
     FACINGS.forEach(function (fc) {
-      var regen = ship.shieldRegen[fc] * shieldsMult(ship) * dt;
+      var regen = ship.shieldRegen[fc] * shieldsMult(ship) * (ship.stats.powerFactor || 1) * dt;
       if (ship.shields[fc] < ship.shieldMax[fc]) ship.shields[fc] = Math.min(ship.shieldMax[fc], ship.shields[fc] + regen);
     });
     if (ship.reinforceCooldown > 0) ship.reinforceCooldown -= dt;
+    ship.heat = Math.max(0, ship.heat - ship.stats.heatDissipation * dt);
+    if (ship.overload > 0) ship.overload -= dt;
     var r = ship.reinforce;
     if (r) {
       var step = Math.min(r.perSecond * dt, r.remaining, ship.shields[r.from]);

@@ -269,6 +269,10 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
 .hg-msg { min-height: 18px; font-size: 12px; color: var(--c-peach); margin: 4px 0; }
 .hg-msg.bad { color: #ff8f7a; }
 .bad { color: #ff8f7a; }
+#gauge svg path.heat { fill: none; stroke-linecap: round; }
+#module-bar .module.heat .short { color: #ff8a3d; }
+#module-bar .module.overload { box-shadow: 0 0 10px #ff4040; }
+#module-bar .module.overload .short { color: #ff4040; }
 .warn { color: #f2c14e; }
 .hg-fit .lcars-btn.big { margin-top: 6px; font-size: 17px; padding: 9px 20px; }
 @media (max-width: 1000px) { .hangar-grid { grid-template-columns: 1fr; } }

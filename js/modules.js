@@ -38,11 +38,13 @@ BS.Modules = (function () {
     var ready = 0, fired = 0, reason = "ok";
     blocks.forEach(function (b) {
       var w = b.def.weapon;
-      var cycle = w.cycle * ship.mods.cycleMult;
+      var cycle = w.cycle * ship.mods.cycleMult / (ship.stats.powerFactor || 1);   // brownout: fewer reactors, slower cycling
       if (b.cycleLeft > 0) b.cycleLeft -= dt;
       if (b.cycleLeft <= 0) ready++;
       if (!m.active || b.cycleLeft > 0) return;
       if (!ship.flags.armed || ship.flags.disabled) { reason = "notarmed"; return; }
+      if (ship.overload > 0) { reason = "overload"; return; }
+      if (ship.heat >= ship.stats.heatCap || (ship.aiProfile && ship.heat > ship.stats.heatCap * BS.Data.grid.heat.aiFireBelow)) { reason = "heat"; return; }
       if (!target) { reason = "nolock"; return; }
       var dKm = BS.Ships.distanceKm(ship, target);
       var maxKm = w.kind === "turret" ? w.optimalKm + w.falloffKm * 2.5 : w.rangeKm;
@@ -52,6 +54,8 @@ BS.Modules = (function () {
       ship.capacitor -= w.cap;
       if (w.kind === "turret") BS.Weapons.fireTurretBlock(ship, b, target); else BS.Weapons.fireLauncherBlock(ship, b, target);
       b.cycleLeft = cycle; fired++;
+      ship.heat += w.heat || 0;
+      if (ship.heat > ship.stats.heatCap && ship.overload <= 0) { ship.overload = BS.Data.grid.heat.overloadTime; BS.Events.emit("overload", { ship: ship }); }
     });
     m.readiness = ready / blocks.length;
     m.running = m.active && fired > 0 || (m.active && ready < blocks.length);
@@ -92,6 +96,7 @@ BS.Modules = (function () {
     for (var i = 0; i < order.length; i++) {
       var m = order[i];
       if (isWeapon(m)) { updateWeaponGroup(ship, m, dt); continue; }
+      if (ship.overload > 0) { m.state = m.active ? "overload" : "off"; continue; }   // overloaded: nothing cycles or starts
       if (m.running) {
         m.cycleLeft -= dt;
         if (m.cycleLeft <= 0) {

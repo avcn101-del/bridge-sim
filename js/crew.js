@@ -105,6 +105,9 @@ BS.Crew = (function () {
     var cap = ship.capacitor / ship.capMax;
     if (cap < 0.2 && !rs.capLow) { rs.capLow = true; report("engineering", "capLow", { pct: Math.round(cap * 100) }, "warn"); }
     else if (cap > 0.4 && rs.capLow) rs.capLow = false;
+    var heat = ship.stats.heatCap ? ship.heat / ship.stats.heatCap : 0;
+    if (heat > 0.8 && !rs.heatHigh && ship.overload <= 0) { rs.heatHigh = true; report("engineering", "heatHigh", {}, "warn"); }
+    else if (heat < 0.5 && rs.heatHigh) rs.heatHigh = false;
   }
 
   function subscribe() {
@@ -125,6 +128,7 @@ BS.Crew = (function () {
       if (e.ship === ship) say("engineering", BS.Data.blockReports.reactorExploded, "warn");
       else if (e.ship === enemy) say("tactical", BS.Data.blockReports.enemyReactorExploded);
     });
+    BS.Events.on("overload", function (e) { if (e.ship === ship) report("engineering", "overload", {}, "warn"); else if (e.ship === enemy) report("tactical", "enemyOverload"); });
     BS.Events.on("shipDisabled", function (e) { if (e.ship === enemy) report("tactical", "enemyDisabled"); else if (e.ship === ship) report("engineering", "shipDisabled", {}, "warn"); });
     BS.Events.on("lockAcquired", function (e) { if (e.ship === ship) report("tactical", "lockDone"); else if (e.target === ship) say("tactical", D().events.enemyLocking, "warn"); });
     BS.Events.on("lockLost", function (e) { if (e.ship === ship && e.reason === "range") report("tactical", "lockLost", {}, "warn"); });
