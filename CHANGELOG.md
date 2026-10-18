@@ -2,6 +2,28 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.23.0] — 2026-10-18 (bridge calls and the watching battle, PR C of "build & fight")
+
+### Added
+- **Bridge calls**: two per battle (● ●), never refilled: Change play
+  (45 s), Change side (45 s), Disengage (until the weakest shield is over
+  60%), Reinforce (now), Focus block (tap a block on the scan panel or the
+  display, confirm; 30 s). A button fires on the second press within 3 s.
+  Calls are overrides on the running script that hand back when they end;
+  the Helm acknowledges, the trace records them (`bridgeCall` event,
+  `state.callLog` for the battle report).
+- **Trace band** under the log ticker (last three rule firings); scan
+  panel lines *Standing* and *Aiming*.
+- **Speed** 1× / 2× / 4× in the top bar (`balance.speeds`,
+  `balance.maxStepsPerFrame`).
+- Hangar checkbox **Manual bridge (debug)** (`settings.manualBridge`).
+
+### Changed
+- The hand-flown helm column, top-bar Reinforce, aim chips, module clicks,
+  canvas steering (long-press, double-tap, right-click) and the stance /
+  play / side / aim keys are hidden and inert unless the manual bridge is
+  on; Space, G and ? keep working. The phone drawer ORDERS is BRIDGE.
+
 ## [0.22.0] — 2026-10-18 (script editor and plan, PR B of "build & fight")
 
 ### Added

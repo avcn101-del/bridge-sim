@@ -26,14 +26,15 @@
       <div id="drawer-tabs">
         <button class="lcars-btn c-orange" data-drawer="status" title="Ship, blocks and target panel">SHIP</button>
         <button class="lcars-btn c-peach" data-drawer="scan" title="Enemy scan panel">SCAN</button>
-        <button class="lcars-btn c-blue" data-drawer="orders" title="Helm, stances, plays, transporter">ORDERS</button>
+        <button class="lcars-btn c-blue" data-drawer="orders" title="Bridge calls and the overview">BRIDGE</button>
       </div>
-      <button class="lcars-btn c-purple" data-cmd="reinforce" title="Move shield strength from the strongest facing to the weakest (20 s cooldown)">REINFORCE</button>
+      <button class="lcars-btn c-purple manual-only" data-cmd="reinforce" title="Move shield strength from the strongest facing to the weakest (20 s cooldown)">REINFORCE</button>
       <button class="lcars-btn c-peach" data-cmd="hail" title="Hail the enemy">HAIL</button>
       <button id="btn-redalert" class="lcars-btn c-red" title="Arm weapons, shields to full (R)">RED ALERT</button>
       <button id="btn-help" class="lcars-btn c-blue sq" title="Controls">?</button>
       <button id="btn-zoom-out" class="lcars-btn c-blue sq" title="Zoom out (mouse wheel)">−</button>
       <button id="btn-zoom-in" class="lcars-btn c-blue sq" title="Zoom in (mouse wheel)">+</button>
+      <div id="speed-buttons" title="Battle speed"></div>
       <button id="btn-pause" class="lcars-btn c-peach" title="Pause (Space)">PAUSE</button>
       <button id="btn-full" class="lcars-btn c-blue sq" title="Fullscreen (landscape on phones)">⛶</button>
       <div class="lcars-cap right"></div>
@@ -92,6 +93,7 @@
         <ul id="log"></ul>
         <button id="btn-log" class="log-btn" title="Show / hide the full bridge log (key G)">LOG</button>
       </div>
+      <div id="trace" title="Script trace: the rules that took over or called out, latest last"></div>
       <div id="pause-overlay" class="hidden"><span>SIMULATION PAUSED</span><small>Commands may still be given</small></div>
       <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
     </main>
@@ -105,6 +107,18 @@
           <tbody></tbody>
         </table>
 
+        <h3 class="officer helm">Bridge calls <small id="call-tokens">● ●</small></h3>
+        <div id="bridge-calls">
+          <div class="call-row"><select id="call-play" class="lcars-select" title="A play the bridge runs for 45 s, then the script has the conn again"></select><button class="lcars-btn c-blue" data-call="play">Change play</button></div>
+          <div class="call-row"><select id="call-side" class="lcars-select" title="Shadow one side for 45 s, then the script has the conn again"></select><button class="lcars-btn c-blue" data-call="side">Change side</button></div>
+          <div class="btn-grid">
+            <button class="lcars-btn c-lilac" data-call="disengage" title="Open the range at full burn until the weakest shield is back over 60%">Disengage</button>
+            <button class="lcars-btn c-purple" data-call="reinforce" title="Move shield strength from the strongest facing to the weakest now">Reinforce</button>
+          </div>
+          <div class="btn-grid"><button id="btn-focus" class="lcars-btn c-orange wide off" data-call="focus" title="Tap a block on the scan panel, then confirm: every weapon on it for 30 s">Focus block · tap on SCAN</button></div>
+          <div class="dim call-hint">Two calls a battle, never refilled. A call stands for a while, then the script has the conn again. Press a button twice to confirm.</div>
+        </div>
+        <div id="manual-helm">
         <h3 class="officer helm">Helm · vs <span id="sel-name">nothing</span></h3>
         <div class="btn-grid">
           <button class="lcars-btn c-orange" data-cmd="lock" title="L">Lock target</button>
@@ -127,6 +141,7 @@
         <div class="sub-label">Transporter · spare crew boards them (T)</div>
         <div class="btn-grid">
           <button id="btn-board" class="lcars-btn c-red wide" data-cmd="board" title="T: beam a boarding party across. Needs a lock, under 3 km, and their shield facing you at zero. The party is gone for the rest of the battle; take their bridge and the ship is yours.">Board · transporter</button>
+        </div>
         </div>
 
       </div>
@@ -251,6 +266,7 @@
             <button id="btn-import" class="lcars-btn c-blue">Import save</button>
             <button id="btn-reset" class="lcars-btn c-red">Reset progress</button>
           </div>
+          <label class="dim hg-manual" title="Debug: show the hand-flown helm controls (stances, plays, sides, aim chips, module clicks, keys) in battle"><input type="checkbox" id="hg-manual"> Manual bridge (debug)</label>
           <input type="file" id="hg-import-file" accept="application/json,.json" class="hidden">
         </section>
       </div>

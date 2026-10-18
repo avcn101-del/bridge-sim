@@ -47,9 +47,11 @@ tell the helm how to fly relative to it, and you switch modules on and off.
   **Plan** names up to three targets on the next enemy (tap its intel
   drawing); a rule can aim at plan target 1 after a scan. **Dry run vs
   next enemy** fights one simulated battle in a second and shows the
-  trace. In battle the log reads every rule that takes over; a stance,
-  play or side given by hand pauses the script. The two bridge calls per
-  battle come next.
+  trace. In battle the script has the conn: watch at 1× / 2× / 4×, read
+  the trace band, and spend your **two bridge calls** (Bridge panel:
+  change play, change side, disengage, reinforce, or focus a block tapped
+  on the scan panel; press a button twice to confirm). The old hand-flown
+  controls live behind "Manual bridge (debug)" in the hangar.
 - Pick a **stance** (Helm panel, keys 1–4) and the helm flies it:
   **Engage** (default) orbits inside phaser range and reverses on its own
   when the other side has more guns or a fresher shield, **Skirmish** orbits
@@ -209,7 +211,8 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `ew.*`, `science.cloakDetectRangeKm` | Jam strength and duration, cloak timings, surge and drain, decloak strike (`ew.strike`: window, shield bypass, damage), field radii (`cloakRadius`, `jamRadius`), detection range |
 | `ew.decoy`, `ew.neut`, `enemyAI.*.drainedBelow / drainedUntil / drainedTime` | Decoy life, lure radius, speed; neutraliser range, drain per block, the enemy's flee range and when a drained enemy opens the range |
 | `grid.boarding` | Transporter range, party size, transport time, shield window thresholds, defenders per crew deck and bridge guard, fight rate |
-| `script.*` | Rule tick, charging speed, trace length, plan targets, default template, rules per script, dry-run length, the sentence for every condition / action / policy, the templates and the enemy scripts |
+| `script.*` | Rule tick, charging speed, trace length, plan targets, default template, rules per script, dry-run length, bridge calls (`bridgeCall`: tokens, hold and focus seconds, confirm window), the sentence for every condition / action / policy, the templates and the enemy scripts |
+| `balance.speeds / maxStepsPerFrame` | Battle speed buttons and the fixed steps a frame may run |
 | `campaign.firstFight`, `campaign.encounters[].script` | The first fight's enemy overrides; which script each encounter runs |
 | `campaign.salvage` | Share of the enemy's surviving block value paid after a win (destroyed / disabled / captured) |
 | `grid.variant` | How much a random enemy variant differs from its base layout |

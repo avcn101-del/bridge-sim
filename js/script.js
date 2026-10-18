@@ -38,6 +38,29 @@ BS.Script = (function () {
     return true;
   }
   function stop(ship) { ship.script = null; }
+  // A bridge call: an override rule that stands above every scripted rule for a while, then hands back.
+  // call = { kind: "play" | "side" | "disengage" | "reinforce" | "focus", value } → the rule it becomes, or null.
+  function callRule(call) {
+    var BC = BS.Data.script.bridgeCall;
+    switch (call.kind) {
+      case "play": return { when: {}, do: { play: call.value }, holdMax: BC.holdSeconds, call: true };
+      case "side": return { when: {}, do: { side: call.value }, holdMax: BC.holdSeconds, call: true };
+      case "disengage": return { when: {}, do: { stance: "disengage" }, until: { weakestAbove: BC.disengageUntil }, holdMax: BC.holdSeconds, call: true };
+      case "reinforce": return { when: {}, do: { reinforce: true }, once: true, call: true };
+      case "focus": return { when: {}, do: { aim: { x: call.value.x, y: call.value.y } }, holdMax: BC.focusSeconds, call: true };
+      default: return null;
+    }
+  }
+  function bridgeCall(ship, call) {
+    var sc = ship.script, r = callRule(call);
+    if (!sc || !r) return false;
+    var target = sc.target;
+    if (r.once) { var n0 = apply(ship, target, r.do, r); trace(ship, null, "BRIDGE CALL: " + describeDo(r.do) + (n0 ? " (" + n0 + ")" : ""), "call"); return true; }
+    sc.override = { rule: r, since: sc.t };
+    var n1 = apply(ship, target, r.do, r);
+    trace(ship, null, "BRIDGE CALL: " + describe(r, sc.def) + (n1 ? " (" + n1 + ")" : ""), "call");
+    return true;
+  }
   function suspend(ship, why) { if (ship.script && !ship.script.suspended) { ship.script.suspended = true; trace(ship, null, "manual: " + (why || "helm order") + ", script paused", "manual"); BS.Events.emit("scriptSuspended", { ship: ship, why: why }); } }
   function resume(ship) { if (ship.script) { ship.script.suspended = false; ship.script.active = -1; trace(ship, null, "script resumed", "manual"); } }
 
@@ -132,10 +155,12 @@ BS.Script = (function () {
     if (act.aim !== undefined) { var an = aim(ship, target, act.aim); if (an) { note = an; if (ship.script && /scan/.test(an)) ship.script.waitingAim = act.aim; } else if (ship.script) ship.script.waitingAim = null; }
     return note;
   }
-  // aim: null / block type / "exposed" / "structure" / { weak: kind } / { plan: n } (planned targets need a scan)
+  // aim: null / block type / "exposed" / "structure" / { weak: kind } / { plan: n } (planned targets need a scan) /
+  // { x, y } one block (a bridge call: no scan needed, the captain pointed at it)
   function aim(ship, target, a) {
     if (a === null || a === "hull" || a === "") { ship.aimType = null; S.setAimBlock(ship, null, null); ship.scriptAim = true; return null; }
     if (typeof a === "string") { ship.aimType = a; S.setAimBlock(ship, null, null); ship.scriptAim = true; return null; }
+    if (a.x !== undefined && a.plan === undefined) { var fb = target.grid.at[a.x + "," + a.y]; if (!fb || !fb.alive) return "that block is already gone"; S.setAimBlock(ship, target, fb); ship.scriptAim = true; BS.Events.emit("scriptAim", { ship: ship, target: target, block: fb, label: (fb.structural ? "structure" : fb.def.name) + " at " + fb.x + "," + fb.y }); return null; }
     if (!ship.scanned) return "waiting for a scan before aiming at " + (a.weak ? "their " + a.weak : "plan target " + (a.plan + 1));
     var block = null, label = null;
     if (a.weak) { var wps = BS.Grid.weakPoints(target).filter(function (w) { return a.weak === "any" || w.kind === a.weak; }); if (wps.length) { block = wps[0].block; label = wps[0].label; } }
@@ -197,6 +222,13 @@ BS.Script = (function () {
       if (note && r.once) continue;   // a once rule that could not act yet tries again (a scan not yet done)
       sc.fired[i] = true; sc.lastFire[i] = sc.t;
       trace(ship, i, describe(r, def) + (note ? " (" + note + ")" : ""), "callout");
+    }
+    // a bridge call override stands above everything until its until / holdMax; when it ends the script re-picks
+    if (sc.override) {
+      var ov = sc.override.rule, over = (ov.holdMax && sc.t - sc.override.since > ov.holdMax) || (ov.until && conditions(ship, target, ov.until, sc.t));
+      if (!over) return;
+      sc.override = null; sc.active = -1;
+      trace(ship, null, "bridge call over: the script has the conn", "call");
     }
     // standing orders: the first standing rule whose conditions hold; a held rule keeps the orders
     var held = sc.active >= 0 && rules[sc.active] && rules[sc.active].until && !conditions(ship, target, rules[sc.active].until, sc.t) && !(rules[sc.active].holdMax && sc.t - sc.activeSince > rules[sc.active].holdMax);
@@ -262,10 +294,11 @@ BS.Script = (function () {
     if (typeof a === "string") return BS.Data.blocks[a] ? "their " + BS.Data.blocks[a].name.toLowerCase() + "s" : a;
     if (a.weak) return a.weak === "any" ? "their top weak point" : "their weak point: " + (D().weakKinds[a.weak] || a.weak);
     if (a.plan !== undefined) return "plan target " + (a.plan + 1);
+    if (a.x !== undefined) return "the block at " + a.x + "," + a.y;
     return "?";
   }
   function describe(rule, def) {
-    var s = describeWhen(rule.when) + ": " + describeDo(rule.do);
+    var s = (rule.call ? "" : describeWhen(rule.when) + ": ") + describeDo(rule.do);
     if (rule.until) s += " — until " + describeWhen(rule.until).replace(/^when /, "");
     if (rule.holdMax) s += " (at most " + rule.holdMax + " s)";
     if (rule.once) s += " (once)";
@@ -280,5 +313,5 @@ BS.Script = (function () {
     return out;
   }
 
-  return { start: start, stop: stop, suspend: suspend, resume: resume, update: update, conditions: conditions, apply: apply, describe: describe, describeScript: describeScript, describeWhen: describeWhen, describeDo: describeDo, resolve: resolve, focusType: focusType };
+  return { start: start, stop: stop, suspend: suspend, resume: resume, update: update, bridgeCall: bridgeCall, callRule: callRule, conditions: conditions, apply: apply, describe: describe, describeScript: describeScript, describeWhen: describeWhen, describeDo: describeDo, resolve: resolve, focusType: focusType };
 })();
