@@ -63,10 +63,12 @@ BS.Hangar = (function () {
     sc.intelShip = null; sc.enc = enc;
     if (!it) {
       c.fillStyle = "rgba(255,255,255,0.08)"; c.font = "13px Antonio, 'Arial Narrow', sans-serif"; c.textAlign = "center"; c.fillText("NO LAYOUT ON FILE", cv.width / 2, cv.height / 2);
-      info.innerHTML = "<div class='dim'>" + enc.cls.className + (enc.variantName ? " · " + enc.variantName : "") + " · " + enc.doctrine + (enc.counterReason ? " (" + enc.counterReason + ")" : "") + ".<br>Hold a lock for " + BS.Data.campaign.intelMinLockSeconds + " s in battle to record its layout, or buy it now.</div>" +
+      info.innerHTML = (enc.retry ? "<div class='warn'>Retry of the last fight: " + enc.name + " waits for you. <button id='btn-letgo' class='lcars-btn c-lilac'>Let it go</button></div>" : "") +
+        "<div class='dim'>" + enc.cls.className + (enc.variantName ? " · " + enc.variantName : "") + " · " + enc.doctrine + (enc.counterReason ? " (" + enc.counterReason + ")" : "") + ".<br>Hold a lock for " + BS.Data.campaign.intelMinLockSeconds + " s in battle to record its layout, or buy it now.</div>" +
         "<button id='btn-intel' class='lcars-btn c-purple'>Buy intel · " + BS.Data.campaign.intelCost + " cr</button>";
       var btn = document.getElementById("btn-intel");
       btn.addEventListener("click", function () { var err = C.buyIntel(enc); if (err) el["hg-msg"].textContent = err; render(); });
+      var lg0 = document.getElementById("btn-letgo"); if (lg0) lg0.addEventListener("click", function () { C.letGo(); render(); say("Let it go. The sector sends what it sends."); });
       return;
     }
     var ship = BS.Ships.create(it.classId, { layout: it.rows, pos: { x: 0, y: 0 }, heading: 0, statMult: C.enemyStatMult(enc.aiProfile) });
@@ -77,20 +79,22 @@ BS.Hangar = (function () {
     var weapons = {};
     st.weapons.forEach(function (b) { weapons[b.def.short] = (weapons[b.def.short] || 0) + 1; });
     var facings = BS.Ships.FACINGS.map(function (f) { return f.charAt(0).toUpperCase() + " " + ship.shieldMax[f]; }).join(" · ");
-    info.innerHTML = "<div><b>" + enc.cls.className + (enc.variantName ? " · " + enc.variantName : "") + "</b> <span class='dim'>(" + it.how + ")</span> · " + enc.doctrine + (enc.counterReason ? " <span class='dim'>(" + enc.counterReason + ")</span>" : "") + "</div>" +
+    info.innerHTML = (enc.retry ? "<div class='warn'>Retry of the last fight: " + enc.name + " waits for you. <button id='btn-letgo' class='lcars-btn c-lilac'>Let it go</button></div>" : "") +
+      "<div><b>" + enc.cls.className + (enc.variantName ? " · " + enc.variantName : "") + "</b> <span class='dim'>(" + it.how + ")</span> · " + enc.doctrine + (enc.counterReason ? " <span class='dim'>(" + enc.counterReason + ")</span>" : "") + "</div>" +
       "<div>Weapons " + (Object.keys(weapons).map(function (k) { return k + " " + weapons[k]; }).join(" · ") || "none") + " · shields " + facings + " · hull " + st.hullTotal + "</div>" +
       "<div>Reactors " + (st.counts.reactor || 0) + " · quarters " + (st.counts.quarters || 0) + " · cover " + Math.round(100 * st.coverFrac) + "%" + (st.cloakCover.sources ? " · cloak" : "") + (st.jamCover.sources ? " · ECM" : "") + "</div>" +
       (wps.length ? "<div class='hg-wps'>" + wps.slice(0, 3).map(function (w) { return "<div class='wp'>" + w.label + "</div>"; }).join("") + "</div>" : "");
+    var lg = document.getElementById("btn-letgo"); if (lg) lg.addEventListener("click", function () { C.letGo(); render(); say("Let it go. The sector sends what it sends."); });
   }
   function render() {
     var s = C.get(), cls = C.currentClass();
     if (ed.classId !== s.shipClass || !ed.rows) { ed.classId = s.shipClass; ed.rows = C.layoutFor(s.shipClass).slice(); ed.dirty = false; }
     el["hg-credits"].textContent = s.credits.toLocaleString() + " cr";
     var mb = document.getElementById("hg-manual"); if (mb) mb.checked = !!(s.settings && s.settings.manualBridge);
-    el["hg-record"].textContent = s.campaign.battlesWon + " won · " + s.campaign.battlesLost + " lost" + (s.campaign.streak > 1 ? " · streak " + s.campaign.streak : "");
+    el["hg-record"].textContent = s.campaign.battlesWon + " won · " + s.campaign.battlesLost + " lost" + (s.campaign.cleanWins ? " · " + s.campaign.cleanWins + " clean" : "") + (s.campaign.streak > 1 ? " · streak " + s.campaign.streak : "");
     var enc = C.encounter();
     var docLabel = BS.Data.enemyAI.stateLabels[enc.doctrine] || enc.doctrine;
-    el["hg-threat"].textContent = "Next: " + enc.label + " · strength " + Math.round(C.enemyStatMult(enc.aiProfile) * 100) + "% · " + enc.doctrine + (enc.counterReason ? " (" + enc.counterReason + ")" : "");
+    el["hg-threat"].textContent = (enc.retry ? "Retry: " : "Next: ") + enc.label + " · strength " + Math.round(C.enemyStatMult(enc.aiProfile) * 100) + "% · " + enc.doctrine + (enc.counterReason ? " (" + enc.counterReason + ")" : "");
     el["hg-threat"].title = "Sensors report a " + enc.cls.className + (enc.variantName ? " (" + enc.variantName + " layout)" : "") + ". Reward ×" + enc.rewardMult + ". Doctrine: " + enc.doctrine + (enc.counterReason ? ": " + enc.counterReason + ". Change your build and they change their plan." : ".");
     renderIntel(enc);
     renderPlan(enc);
@@ -441,7 +445,8 @@ BS.Hangar = (function () {
       var o = sc.dry.out, d2 = document.createElement("div"); d2.className = "sc-dry";
       var res = o.result === "victory" ? "Victory" + (o.how === "captured" ? " (captured)" : o.how === "disabled" ? " (disabled)" : "") : o.result === "defeat" ? "Defeat" : "Stalemate";
       d2.innerHTML = "<b>" + res + "</b> in " + U.formatTime(o.time) + " · our blocks " + o.hullPct + "% · their hull " + o.enemyHullPct + "%" + (o.scanned ? " · scanned" : " · never scanned") + "<br>" +
-        o.trace.slice(0, 8).map(function (e) { return "<span class='t'>" + U.formatTime(e.t) + "</span> " + (e.rule !== null && e.rule !== undefined ? (e.rule + 1) + ". " : "") + escapeHtml(e.text); }).join("<br>") + (o.trace.length > 8 ? "<br><span class='t'>… " + (o.trace.length - 8) + " more</span>" : "");
+        o.trace.slice(0, 8).map(function (e) { return "<span class='t'>" + U.formatTime(e.t) + "</span> " + (e.rule !== null && e.rule !== undefined ? (e.rule + 1) + ". " : "") + escapeHtml(e.text); }).join("<br>") + (o.trace.length > 8 ? "<br><span class='t'>… " + (o.trace.length - 8) + " more</span>" : "") +
+        (o.neverFired && o.neverFired.length ? "<br>" + o.neverFired.slice(0, 3).map(function (e) { return "<span class='nf'>Rule " + (e.rule + 1) + " never fired: " + escapeHtml(e.reason) + "</span>"; }).join("<br>") : "");
       box.appendChild(d2);
     }
   }

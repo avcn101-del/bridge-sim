@@ -2,6 +2,22 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.24.0] — 2026-10-18 (battle report, refit & retry, PR D of "build & fight")
+
+### Added
+- **Battle report**: the script's timeline (every rule firing and bridge
+  call, then the end), and **Never fired**: each rule that never fired
+  with the reason and how close it came ("they never came inside 5 km
+  (closest 6.2 km)", "it held at 01:41 but rule 2 stood above it").
+  `BS.Script.explain`; the dry run shows the same lines.
+- **Clean bridge**: a win with no bridge call spent pays ×1.2 on the win
+  credits (`script.bridgeCall.noCallBonus`), counted as clean wins in the
+  hangar record.
+- **Refit & retry**: pins the enemy just fought for the next undock (same
+  seed: layout, name, doctrine; counter read off the new build); "Retry:"
+  in the hangar header and *Let it go* in the Intel box. A loss still
+  counts.
+
 ## [0.23.0] — 2026-10-18 (bridge calls and the watching battle, PR C of "build & fight")
 
 ### Added

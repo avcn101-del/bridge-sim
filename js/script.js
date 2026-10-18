@@ -32,7 +32,7 @@ BS.Script = (function () {
   function start(ship, target, def) {
     var sc = resolve(def);
     if (!sc || !target) return false;
-    ship.script = { def: sc, target: target, active: -1, activeSince: 0, t: 0, tick: 0, fired: {}, lastFire: {}, suspended: false, waiting: null };
+    ship.script = { def: sc, target: target, active: -1, activeSince: 0, t: 0, tick: 0, fired: {}, lastFire: {}, suspended: false, waiting: null, firedRules: {}, everTrue: {}, firstTrue: {}, extremes: null };
     ship.scriptTrace = [];
     ship.scanned = ship.scanned || false; ship.scanning = ship.scanning || 0;
     return true;
@@ -191,6 +191,7 @@ BS.Script = (function () {
   // ---- trace -------------------------------------------------------------------------------------------------
   function trace(ship, rule, text, kind) {
     var t = BS.Game.state ? BS.Game.state.time : 0, entry = { t: t, rule: rule, text: text, kind: kind || "rule" };
+    if (ship.script && rule !== null && rule !== undefined) ship.script.firedRules[rule] = true;
     ship.scriptTrace = ship.scriptTrace || [];
     ship.scriptTrace.push(entry);
     if (ship.scriptTrace.length > D().traceMax) ship.scriptTrace.shift();
@@ -209,6 +210,7 @@ BS.Script = (function () {
     if (sc.tick > 0) return;
     sc.tick = D().tickSeconds;
     var def = sc.def, rules = def.rules || [];
+    record(ship, target, sc);
     policies(ship, target, def.policies || {});
     // call-outs
     var i, r;
@@ -252,6 +254,66 @@ BS.Script = (function () {
     sc.active = pick; sc.activeSince = sc.t;
     var n2 = apply(ship, target, rules[pick].do || {}, rules[pick]);
     trace(ship, pick, describe(rules[pick], def) + (n2 ? " (" + n2 + ")" : ""), "standing");
+  }
+
+  // ---- what the battle looked like, for the report: extremes of every measured quantity and which rules ever held ----
+  function record(ship, target, sc) {
+    var x = sc.extremes || (sc.extremes = { dKmMin: Infinity, dKmMax: 0, weakestMin: 1, facingMin: 1, heatMax: 0, capMin: 1, capMax: 0, hullMin: 1, efacingMin: 1, ecapMin: 1, ehullMin: 1, incomingMax: 0, ever: {} });
+    var dKm = S.distanceKm(ship, target), st = ship.stats;
+    x.dKmMin = Math.min(x.dKmMin, dKm); x.dKmMax = Math.max(x.dKmMax, dKm);
+    x.weakestMin = Math.min(x.weakestMin, S.shieldFrac(ship, S.weakestFacing(ship)));
+    x.facingMin = Math.min(x.facingMin, S.shieldFrac(ship, S.facingToward(ship, target.pos.x, target.pos.y)));
+    x.heatMax = Math.max(x.heatMax, st.heatCap ? ship.heat / st.heatCap : 0);
+    var cap = ship.capMax ? ship.capacitor / ship.capMax : 0; x.capMin = Math.min(x.capMin, cap); x.capMax = Math.max(x.capMax, cap);
+    x.hullMin = Math.min(x.hullMin, ship.hull / ship.hullMax);
+    x.efacingMin = Math.min(x.efacingMin, S.shieldFrac(target, S.facingToward(target, ship.pos.x, ship.pos.y)));
+    x.ecapMin = Math.min(x.ecapMin, target.capMax ? target.capacitor / target.capMax : 0);
+    x.ehullMin = Math.min(x.ehullMin, target.hull / target.hullMax);
+    x.incomingMax = Math.max(x.incomingMax, BS.Weapons.incoming(ship, 99));
+    ["scanned", "boardable", "overloaded", "cloaked", "cloakOff", "noCloak", "noTubes", "noPhasers", "enemyReactorsGone", "enemyShieldsDown", "enemyCharging", "enemyCloaking", "enemyCloaked", "enemyRolling", "enemyBreaching", "enemyKiting"].forEach(function (k) {
+      if (!x.ever[k]) { var w = {}; w[k] = true; if (conditions(ship, target, w, sc.t)) x.ever[k] = sc.t; }
+    });
+    (sc.def.rules || []).forEach(function (r, i) {
+      if (sc.everTrue[i]) return;
+      if (r.when && Object.keys(r.when).length && conditions(ship, target, r.when, sc.t)) { sc.everTrue[i] = true; sc.firstTrue[i] = { t: sc.t, above: sc.override ? "call" : sc.active }; }
+    });
+  }
+  // Why a rule never fired, in a sentence: the first of its conditions that never held, with how close it came.
+  function explain(ship) {
+    var sc = ship.script; if (!sc) return [];
+    var out = [], V = D().conditions, x = sc.extremes || {}, rules = sc.def.rules || [];
+    function pct(v) { return Math.round(v * 100) + "%"; }
+    function km(v) { return (v === Infinity ? "—" : v.toFixed(1)) + " km"; }
+    rules.forEach(function (r, i) {
+      if (sc.firedRules[i]) return;
+      var why = null;
+      if (sc.everTrue[i]) { var ft = sc.firstTrue[i]; why = "it held at " + BS.Util.formatTime(ft.t) + " but " + (ft.above === "call" ? "a bridge call" : ft.above >= 0 ? "rule " + (ft.above + 1) : "a held rule") + " stood above it"; }
+      else {
+        var keys = Object.keys(r.when || {});
+        for (var k0 = 0; k0 < keys.length && !why; k0++) {
+          var k = keys[k0], v = r.when[k];
+          switch (k) {
+            case "dKmBelow": if (!(x.dKmMin < v)) why = "they never came inside " + v + " km (closest " + km(x.dKmMin) + ")"; break;
+            case "dKmAbove": if (!(x.dKmMax > v)) why = "they never got beyond " + v + " km (farthest " + km(x.dKmMax) + ")"; break;
+            case "weakestBelow": if (!(x.weakestMin < v)) why = "our weakest shield never fell under " + pct(v) + " (lowest " + pct(x.weakestMin) + ")"; break;
+            case "facingBelow": if (!(x.facingMin < v)) why = "our shield facing them never fell under " + pct(v) + " (lowest " + pct(x.facingMin) + ")"; break;
+            case "heatAbove": if (!(x.heatMax > v)) why = "our heat never rose over " + pct(v) + " (peak " + pct(x.heatMax) + ")"; break;
+            case "capBelow": if (!(x.capMin < v)) why = "our capacitor never fell under " + pct(v) + " (lowest " + pct(x.capMin) + ")"; break;
+            case "hullBelow": if (!(x.hullMin < v)) why = "our hull never fell under " + pct(v) + " (lowest " + pct(x.hullMin) + ")"; break;
+            case "time": if (!(sc.t > v)) why = "the battle lasted " + Math.round(sc.t) + " s, not " + v; break;
+            case "enemyFacingBelow": if (!(x.efacingMin < v)) why = "their shield facing us never fell under " + pct(v) + " (lowest " + pct(x.efacingMin) + ")"; break;
+            case "enemyCapBelow": if (!(x.ecapMin < v)) why = "their capacitor never fell under " + pct(v) + " (lowest " + pct(x.ecapMin) + ")"; break;
+            case "enemyHullBelow": if (!(x.ehullMin < v)) why = "their hull never fell under " + pct(v) + " (lowest " + pct(x.ehullMin) + ")"; break;
+            case "incomingTorpedoes": if (!(x.incomingMax >= v)) why = "never " + v + " torpedoes at once (at most " + x.incomingMax + ")"; break;
+            case "scanned": if (v && !x.ever.scanned) why = "we never scanned them"; break;
+            default: if (V[k] && V[k].kind === "flag" && !(x.ever && x.ever[k])) why = "\"" + V[k].label + "\" never happened"; break;
+          }
+        }
+        if (!why) why = "its conditions never all held at the same time";
+      }
+      out.push({ rule: i, text: describe(r, sc.def), reason: why });
+    });
+    return out;
   }
 
   // ---- sentences ---------------------------------------------------------------------------------------------
@@ -313,5 +375,5 @@ BS.Script = (function () {
     return out;
   }
 
-  return { start: start, stop: stop, suspend: suspend, resume: resume, update: update, bridgeCall: bridgeCall, callRule: callRule, conditions: conditions, apply: apply, describe: describe, describeScript: describeScript, describeWhen: describeWhen, describeDo: describeDo, resolve: resolve, focusType: focusType };
+  return { start: start, stop: stop, suspend: suspend, resume: resume, update: update, bridgeCall: bridgeCall, callRule: callRule, explain: explain, conditions: conditions, apply: apply, describe: describe, describeScript: describeScript, describeWhen: describeWhen, describeDo: describeDo, resolve: resolve, focusType: focusType };
 })();

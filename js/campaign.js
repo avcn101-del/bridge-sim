@@ -193,8 +193,11 @@ BS.Campaign = (function () {
   // The next enemy, chosen from campaign.encounters by battlesWon. Seeded by the battle record so the
   // hangar threat line and the battle agree, and a reload does not re-roll the enemy.
   function encounter() {
-    var c = save.campaign, rng = U.seededRandom(1 + c.battlesWon * 7919 + c.battlesLost * 104729);
-    var pool = D().campaign.encounters.filter(function (e) { return c.battlesWon >= e.minWins && D().shipClasses[e.enemyClass]; });
+    var c = save.campaign, rt = c.retry;
+    // a retry pins the last fight: the same seed and unlock pool give the same enemy, layout and name
+    var seed = rt ? rt.seed : c.battlesWon * 7919 + c.battlesLost * 104729, wonAt = rt ? rt.battlesWon : c.battlesWon;
+    var rng = U.seededRandom(1 + seed);
+    var pool = D().campaign.encounters.filter(function (e) { return wonAt >= e.minWins && D().shipClasses[e.enemyClass]; });
     var total = pool.reduce(function (a, e) { return a + e.weight; }, 0), r = rng() * total, pick = pool[0];
     for (var i = 0; i < pool.length; i++) { r -= pool[i].weight; if (r < 0) { pick = pool[i]; break; } }
     var cls = D().shipClasses[pick.enemyClass], rows, variantName = null;
@@ -221,10 +224,14 @@ BS.Campaign = (function () {
         if (ok) { if (ru[hullKey] && D().enemyAI.doctrines[ru[hullKey]]) doc = ru[hullKey]; counterReason = ru.reason; counterWeak = ru.weakPointChance || null; break; }
       }
     }
-    if (c.battlesWon === 0 && D().campaign.firstFight && counterWeak === null) counterWeak = D().campaign.firstFight.weakPointChance;   // the first fight: no weak-point hunting
-    return { id: pick.id, classId: pick.enemyClass, cls: cls, rows: rows, name: name, variantName: variantName, seed: c.battlesWon * 7919 + c.battlesLost * 104729, rewardMult: pick.rewardMult, play: pick.play || null, script: pick.script || "doctrine", damageMult: pick.damageMult || null, counterReason: counterReason, weakPointChance: counterWeak, aiProfile: cls.aiProfile || "default",
+    if (wonAt === 0 && D().campaign.firstFight && counterWeak === null) counterWeak = D().campaign.firstFight.weakPointChance;   // the first fight: no weak-point hunting
+    return { id: pick.id, classId: pick.enemyClass, cls: cls, rows: rows, name: name, variantName: variantName, seed: seed, battlesWon: wonAt, retry: !!rt, rewardMult: pick.rewardMult, play: pick.play || null, script: pick.script || "doctrine", damageMult: pick.damageMult || null, counterReason: counterReason, weakPointChance: counterWeak, aiProfile: cls.aiProfile || "default",
       doctrine: doc || D().enemyAI[cls.aiProfile || "default"].doctrine, label: cls.className + (variantName ? " · " + variantName : "") };
   }
+  // Refit & retry: pin the last enemy for the next fight (cleared when that fight is settled, or by letGo).
+  function setRetry(enc) { if (!enc) return; save.campaign.retry = { encounterId: enc.id, seed: enc.seed, battlesWon: enc.battlesWon !== undefined ? enc.battlesWon : save.campaign.battlesWon }; persist(); }
+  function letGo() { save.campaign.retry = null; persist(); }
+
   // Intel: a layout held under lock long enough is remembered for that encounter id (random variants by seed).
   function recordIntel(enc, how) {
     if (!enc) return;
@@ -264,11 +271,13 @@ BS.Campaign = (function () {
     var cr = D().campaign.credits, p = state.player, won = state.result === "victory";
     if (state.encounter && ((state.lockTime || 0) >= D().campaign.intelMinLockSeconds || p.scanned)) recordIntel(state.encounter, "scanned");
     var hullLostPct = Math.round(100 * (1 - p.hull / p.hullMax));
-    var earned, salvage = 0;
+    var earned, salvage = 0, cleanBonus = 0, clean = won && !(state.callsUsed > 0);
     if (won) {
       save.campaign.battlesWon++; save.campaign.streak++;
       var mult = state.encounter ? state.encounter.rewardMult : 1;
       earned = cr.win * mult - hullLostPct * cr.hullLostPenaltyPerPct + Math.min(5, save.campaign.streak - 1) * cr.winStreakBonus;
+      // a clean bridge (no bridge call spent) pays script.bridgeCall.noCallBonus on the win credits, before salvage
+      if (clean) { cleanBonus = Math.round(Math.max(50, earned) * (D().script.bridgeCall.noCallBonus - 1)); save.campaign.cleanWins = (save.campaign.cleanWins || 0) + 1; }
       // salvage: whatever of the enemy is still in one piece has value; a disabled ship is captured nearly intact
       var e = state.enemy, frac = D().campaign.salvage[state.resultHow === "disabled" ? "disabled" : state.resultHow === "captured" ? "captured" : "destroyed"];
       if (e) salvage = Math.round(e.grid.blocks.reduce(function (a, b) { return a + (b.alive && !b.structural ? b.def.cost : 0); }, 0) * frac);
@@ -276,10 +285,11 @@ BS.Campaign = (function () {
       save.campaign.battlesLost++; save.campaign.streak = 0;
       earned = cr.loss;
     }
-    earned = Math.max(50, Math.round(earned)) + salvage;
+    earned = Math.max(50, Math.round(earned)) + cleanBonus + salvage;
     save.credits += earned;
+    save.campaign.retry = null;   // the pinned fight, won or lost, is over
     persist();
-    return { earned: earned, salvage: salvage, hullLostPct: hullLostPct, streak: save.campaign.streak, how: state.resultHow };
+    return { earned: earned, salvage: salvage, cleanBonus: cleanBonus, clean: clean, hullLostPct: hullLostPct, streak: save.campaign.streak, how: state.resultHow, cleanWins: save.campaign.cleanWins || 0 };
   }
 
   function get() { return save; }
@@ -287,7 +297,7 @@ BS.Campaign = (function () {
   return { load: load, persist: persist, reset: reset, exportJSON: exportJSON, importJSON: importJSON, hasSave: hasSave, get: get,
     currentClass: currentClass, layoutFor: layoutFor, setLayout: setLayout, battleLayout: battleLayout, buyShip: buyShip, selectShip: selectShip,
     layoutDelta: layoutDelta, countBlocks: countBlocks, applyLayout: applyLayout, builds: builds, saveBuild: saveBuild, deleteBuild: deleteBuild, intelFor: intelFor, buyIntel: buyIntel,
-    scriptFor: scriptFor, setScriptFor: setScriptFor, saveScript: saveScript, deleteScript: deleteScript, planFor: planFor, setPlan: setPlan,
+    scriptFor: scriptFor, setScriptFor: setScriptFor, saveScript: saveScript, deleteScript: deleteScript, planFor: planFor, setPlan: setPlan, setRetry: setRetry, letGo: letGo,
     updateTraining: updateTraining, startTraining: startTraining, cancelTraining: cancelTraining, skillMods: skillMods, skillHours: skillHours,
     layoutStats: layoutStats, enemyStatMult: enemyStatMult, encounter: encounter, settleBattle: settleBattle };
 })();

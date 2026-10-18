@@ -372,6 +372,18 @@ body:not(.manual-bridge) #module-bar .module { cursor: default; } body:not(.manu
 #speed-buttons .lcars-btn.active { background: var(--c-orange); }
 .hg-manual { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; cursor: pointer; }
 
+/* -------------------------------------------------------- battle report: script timeline */
+.rs-script { margin-top: 10px; font-size: 12.5px; text-align: left; }
+.rs-script h4 { margin: 8px 0 3px; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--c-peach); border-bottom: 1px solid #1a1a30; padding-bottom: 2px; }
+.rs-script .tl { max-height: 150px; overflow-y: auto; scrollbar-width: thin; }
+.rs-script .tr { display: flex; gap: 6px; padding: 1px 0; color: #cfcfe0; line-height: 1.3; }
+.rs-script .tr .t { color: var(--c-dim); width: 42px; flex-shrink: 0; } .rs-script .tr .r { color: var(--c-peach); width: 36px; flex-shrink: 0; font-weight: 700; }
+.rs-script .tr.call .r { color: var(--c-orange); } .rs-script .tr.manual .r { color: var(--c-yellow); } .rs-script .tr.end .r { color: #9cff9c; }
+.rs-script .nf { padding: 2px 0 2px 8px; border-left: 2px solid #3a3a60; margin: 3px 0; color: #cfcfe0; line-height: 1.3; }
+.rs-script .nf b { color: var(--c-peach); } .rs-script .nf .why { color: var(--c-yellow); }
+.overlay-card .btn-grid .lcars-btn.big { margin-top: 10px; font-size: 16px; }
+.sc-dry .nf { color: var(--c-yellow); }
+
 /* -------------------------------------------------------- script editor */
 .hg-plan { font-size: 12px; margin: 2px 0 6px; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
 .hg-plan .pt { padding: 2px 8px; border-radius: 10px; border: 1px solid #2a2a40; background: #0b0c1c; color: var(--c-peach); cursor: pointer; }

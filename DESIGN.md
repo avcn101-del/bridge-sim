@@ -71,6 +71,31 @@ Top bar: ship name, clock, alert state, **Reinforce**, **Hail**, **Red
 alert** (also set automatically the first time a weapon module is switched
 on), **?** help overlay, zoom, pause.
 
+### Battle report since 0.24: timeline, never fired, refit & retry
+The result overlay adds a **Clean bridge** row (a win with no bridge call
+spent pays `script.bridgeCall.noCallBonus` ×1.2 on the win credits before
+salvage, and counts `save.campaign.cleanWins`, shown in the hangar record
+as "n clean"), the script's **timeline** (every trace entry: time, rule or
+CALL, sentence, then the end: enemy destroyed / disabled / captured, ship
+lost, stalemate) and **Never fired**: every standing rule and call-out
+that never fired, with the reason from `BS.Script.explain(ship)`. The
+engine records per tick the extremes of what the conditions measure
+(`script.extremes`: closest and farthest range, lowest weakest and engaged
+facing, peak heat, lowest capacitor and hull on both sides, most torpedoes
+in flight, the first time each flag condition held) and, per rule, the
+first time its conditions all held and what stood above it then. The
+reason is the first condition that never held, with how close it came
+("they never came inside 5 km (closest 6.2 km)", "our weakest shield never
+fell under 25% (lowest 41%)", "we never scanned them"), or "it held at
+01:41 but rule 2 stood above it". The dry run shows the same reasons.
+**Refit & retry** pins the enemy just fought (`save.campaign.retry = {
+encounterId, seed, battlesWon }`): `BS.Campaign.encounter()` re-rolls from
+that seed and unlock pool, so the hangar's "Retry:" line, the intel on
+file, the dry run and the next undock all meet the same ship, layout and
+name, while the counter-doctrine is read off the new build. A lost fight
+still counts (loss credits, streak reset). The pin clears when that fight
+is settled, or with *Let it go* in the Intel box.
+
 ### Battle screen since 0.23: watch, trace, bridge calls
 The tactical view is the screen; the captain does not fly. Left panel as
 before (ship, blocks, target). The right panel opens with **Bridge calls**:
@@ -906,7 +931,7 @@ ew: { jamPerBlock, jamDuration, cloakTime, decloakTime, surgeTime, cloakDrain, c
 grid.boarding: { rangeKm, minParty, partyMax, transportTime, bridgeGuard, defenderPerQuarters, gapStart, gapAbort, abortRangeMult, rate, floor }
 script: { tickSeconds, chargingKmS, traceMax, planTargets, defaultTemplate, maxRules, dryRun: { maxSeconds, stepsPerChunk }, bridgeCall: { tokens, holdSeconds, focusSeconds, confirmSeconds, disengageUntil, noCallBonus }, conditions: { id: { label, kind, def, negLabel? } }, actions: { id: { label, kind } }, policies: { id: { label } }, weakKinds,
           templates: { id: { name, desc, requires?, policies, rules: [{ when, do, until?, holdMax?, once?, every? }] } }, enemyScripts: { id: { name, rules } } }
-campaign.firstFight: { weakPointChance }; campaign.encounters[].script; save: scripts[], scriptByBuild{}, plans{}, settings.manualBridge
+campaign.firstFight: { weakPointChance }; campaign.encounters[].script; save: scripts[], scriptByBuild{}, plans{}, settings.manualBridge, campaign.cleanWins, campaign.retry
 campaign.salvage: { destroyed, disabled, captured }; enemyAI.*: drainedBelow, drainedUntil, drainedTime; enemyAI.counters[].when.neutMin
 shipClasses: { id: { name, className, role, faction, cost, purchasable, speed, turnRate, signature, lockRangeKm, powerBase,
                      mask: [rows], layout: [rows], presets: { id: { name, desc, rows } }, variants: { id: { name, desc, rows } } (enemies),
@@ -1284,6 +1309,7 @@ than slower (it is nearly untouched, as intended).
 | v0.11.0 (done) | Cloak and ECM fields: a ship cloaks only with every block inside a cloak field (several devices per hull), a partial ECM field steers the jammed enemy's fire onto the uncovered blocks |
 | v0.12.0 (done) | Disruptor cannons (punch, penetration, poor tracking) and pulse phasers (tracking, knife range) as blocks and weapon groups; Klingons mount cannons |
 | v0.13.0 (done) | Crew: systems need hands, the bridge and crew quarters supply them, manning slows weapons and shields, blocks far from quarters repair slowly; every layout re-fitted |
+| v0.24.0 (done) | Battle report with the script timeline and never-fired reasons, clean-bridge bonus, refit & retry against the same enemy |
 | v0.23.0 (done) | Battle screen: bridge calls (2 a battle, confirm by pressing twice, overrides that hand back), trace band, speed 1× / 2× / 4×, manual bridge behind a debug setting |
 | v0.22.0 (done) | Hangar script editor (sentence dropdowns, templates, copy / save / assign), plan targets on the intel drawing, dry run against the next enemy |
 | v0.21.0 (done) | Bridge scripts: when → do rules with policies, call-outs, templates from the plays, enemy scripts on the same engine, scan before weak points, sentences for every rule; balance: K't'inga stern cannons, Torpedo boat two tubes, first fight without weak-point hunting |

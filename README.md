@@ -50,8 +50,10 @@ tell the helm how to fly relative to it, and you switch modules on and off.
   trace. In battle the script has the conn: watch at 1× / 2× / 4×, read
   the trace band, and spend your **two bridge calls** (Bridge panel:
   change play, change side, disengage, reinforce, or focus a block tapped
-  on the scan panel; press a button twice to confirm). The old hand-flown
-  controls live behind "Manual bridge (debug)" in the hangar.
+  on the scan panel; press a button twice to confirm). A win without a
+  call pays ×1.2. The battle report shows the script's timeline and why
+  each unfired rule never fired; **Refit & retry** brings the same enemy
+  back. The old hand-flown controls live behind "Manual bridge (debug)".
 - Pick a **stance** (Helm panel, keys 1–4) and the helm flies it:
   **Engage** (default) orbits inside phaser range and reverses on its own
   when the other side has more guns or a fresher shield, **Skirmish** orbits
