@@ -91,6 +91,20 @@ BS.Grid = (function () {
     s.speedMult = s.mass > 0 ? U.clamp(s.thrust * g.thrustPerPoint / s.mass, g.speedMultMin, g.speedMultMax) : g.speedMultMin;
     // brownout: with reactors gone the surviving systems share what is left
     s.powerFactor = s.powerUsed > s.powerMax ? Math.max(g.brownoutMin, s.powerMax / s.powerUsed) : 1;
+    // crew: systems need hands (blocks.*.crew), the bridge and the quarters supply them; manning = supply / need, and a
+    // system far from any quarters or the bridge (grid.crew.radius) is slow to repair (b.farCrew)
+    var cr = g.crew, need = 0, supply = s.bridgeAlive ? cr.bridge : 0, far = 0, hands = grid.blocks.filter(function (b) { return b.alive && (b.type === "quarters" || b.type === "bridge"); });
+    grid.blocks.forEach(function (b) {
+      if (!b.alive || b.structural) return;
+      if (b.type === "quarters") supply += cr.perQuarters;
+      var c = b.def.crew || 0; need += c; b.farCrew = false;
+      if (c > 0) {
+        var near = false;
+        for (var i = 0; i < hands.length && !near; i++) { var dx = hands[i].x - b.x, dy = hands[i].y - b.y; if (dx * dx + dy * dy <= cr.radius * cr.radius) near = true; }
+        if (!near) { b.farCrew = true; far++; }
+      }
+    });
+    s.crew = { need: need, supply: supply, far: far, manning: need > 0 ? U.clamp(supply / need, cr.minManning, 1) : 1 };
     grid.stats = s; grid.dirty = false;
     return s;
   }
@@ -349,9 +363,10 @@ BS.Grid = (function () {
     var budget = rate * dt, pool = grid.blocks.filter(function (b) { return b.alive && b.hp < b.maxHp; });
     if (!pool.length) return;
     pool.sort(function (a, b) { return (b.type === priorityType) - (a.type === priorityType) || (a.hp / a.maxHp) - (b.hp / b.maxHp); });
+    var farMult = G().crew.farRepairMult;
     for (var i = 0; i < pool.length && budget > 0; i++) {
       var b = pool[i], d = Math.min(b.maxHp - b.hp, budget);
-      b.hp += d; budget -= d;
+      b.hp += b.farCrew ? d * farMult : d; budget -= d;   // a block far from the crew decks costs the same time for half the repair
     }
   }
 
@@ -387,6 +402,7 @@ BS.Grid = (function () {
     if (!st.weapons.length) errors.push("No weapons.");
     if (st.thrust === 0) errors.push("No engines.");
     if (st.powerUsed > st.powerMax) errors.push("Power grid overloaded: " + st.powerUsed + " / " + st.powerMax + ". Fewer systems or more reactors.");
+    if (st.crew.supply < st.crew.need) errors.push("Undermanned: " + st.crew.supply + " crew for " + st.crew.need + " posts. Add crew quarters (8 each) or fewer systems.");
     // warnings do not block undocking
     var warnings = [], masked = st.weapons.filter(function (b) { return arcCoverage(grid, b) <= 0; }).length;
     if (masked) warnings.push(masked + " weapon(s) cannot fire past the hull.");
@@ -399,6 +415,7 @@ BS.Grid = (function () {
       for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) { var q = grid.at[(b.x + dx) + "," + (b.y + dy)]; if (q && q !== b && (q.type === "reactor" || q.type === "bridge")) hot++; }
     });
     if (hot) warnings.push("Reactors touch each other or the bridge: one breach will chain.");
+    if (st.crew.far) warnings.push(st.crew.far + " system block(s) more than " + G().crew.radius + " cells from crew quarters or the bridge repair at half speed.");
     return { ok: errors.length === 0, errors: errors, warnings: warnings, counts: counts, stats: st, masked: masked, grid: grid };
   }
   // Random variant of a layout: re-roll a fraction of the editable cells (armor ↔ system blocks, weighted by

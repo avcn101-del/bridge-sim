@@ -154,6 +154,7 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `helm` | Stances (doctrine, ranges from fitted weapons, keys), auto-flip interval and shield thresholds, keep geometry (`bearingStep / keepBand / keepRunBelow / holdSpeed / keepFireFraction / kiteMinBearing`), plays (phases, module policies, exit conditions) |
 | `balance.zoom` | Auto-fit camera limits and margin, manual zoom bias range |
 | `grid.capBase / capAdd / capRechargeTime` | Capacitor from reactors |
+| `grid.crew`, `blocks.*.crew` | Crew posts per system, bridge and quarters supply, manning floor, far-from-quarters radius and repair penalty |
 | `grid.thrustPerPoint / nacelleThrustMult / speedMultMin / speedMultMax` | Speed from engines and mass |
 | `grid.hitScatter / penetration / torpedoSplash / aimRadius / aimScatter / deadFraction / structureHp` | Where shots land, how damage travels through the hull, when a ship is lost |
 | `blocks.*.pierceCost`, `grid.structurePierceCost` | How much of a beam's penetration each block type eats (armor 2, structure 3) |

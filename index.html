@@ -42,6 +42,7 @@
         <div class="row"><label>Speed</label><span class="num wide" id="own-speed">0.0 km/s</span></div>
         <div class="row"><label>Helm</label><span class="num wide" id="own-cmd">All stop</span></div>
         <div class="row"><label>Heat</label><span class="num wide" id="own-heat">0 / 0</span></div>
+        <div class="row"><label>Crew</label><span class="num wide" id="own-crew" title="Crew on hand / posts to man. Short of crew, weapons and shields slow down.">0 / 0</span></div>
 
         <h3>Blocks <small>alive / total · click: repair priority</small></h3>
         <div class="sub-grid" id="own-subsystems"></div>
@@ -156,6 +157,7 @@
         <li>Weapons fire only where the hull does not block them, so a saucer fights best with the enemy on its beam; the helm reverses the orbit when the other side has more guns to bring to bear.</li>
         <li><b>Plays</b> (5–0) are whole strategies the bridge runs in phases: <b>Alpha strike</b> closes cold, dumps everything with the governor off and breaks off to cool; <b>Siege</b> holds station at torpedo range with everything that reaches; <b>Turtle</b> holds a broadside with hardener and reinforce; <b>Hunter</b> goes for reactors then bare hull; <b>Ambush</b> cloaks in, decloaks for a 10 s strike that doubles damage through their shields, and slips away cloaked (needs a cloak); <b>Hit &amp; fade</b> engages until a shield runs low, fades into a tight afterburner orbit until it recovers, then re-engages. The Helm row shows the phase. Any stance, Stop or fly-to cancels the play; you can still toggle modules by hand.</li>
         <li><b>Shield bubbles</b>: each emitter protects the blocks within 5 cells; the rings you see are that cover. Hull outside every ring takes hits unshielded. The <b>EXPOSED</b> chip aims at the enemy's bare hull; the hangar paints yours red.</li>
+        <li><b>Crew</b>: every system needs hands (the Ship panel shows crew on hand / posts). The bridge gives 10, each crew quarters 8; short of crew, weapons and shields run slower, and blocks far from any quarters repair at half speed. Lose crew decks in battle and the whole ship slows down.</li>
         <li><b>Cloak and ECM fields</b>: a cloaking device covers 10 cells and a jammer 7. You can cloak only when every block is inside a cloak field (the hangar frames the rest in purple), and a jam breaks the enemy's lock only when your whole ship is inside the ECM field; otherwise it just steers their fire onto the blocks outside it (green frames).</li>
         <li><b>Heat</b>: the bar under the module bar. Every shot adds heat (phasers a little, torpedoes a lot); at the cap weapons stop, and a salvo that crosses it overloads everything for six seconds. The pale mark shows where your next full salvo would land. <b>GOV</b> (H) is the heat governor: on, your weapons hold fire above 85% and resume at 60%; off, you can alpha-strike into an overload.</li>
         <li>Keys: L lock · 1 engage · 2 skirmish · 3 standoff · 4 disengage · 5–0 plays · S stop (manual) · R red alert · H heat governor · Space pause.</li>

@@ -17,7 +17,7 @@ BS.UI = (function () {
     ["own-speed", "own-cmd", "own-subsystems", "enemy-subsystems", "gauge", "help-screen", "btn-help", "btn-help-close",
      "target-none", "target-info", "tg-name", "tg-hull", "tg-hull-val", "tg-shield", "tg-shield-val", "tg-range", "tg-angular", "tg-chance", "tg-aim",
      "clock", "alert-label", "btn-pause", "btn-redalert", "btn-zoom-in", "btn-zoom-out", "pause-overlay", "start-screen", "result-screen", "result-title", "result-sub", "result-head",
-     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "rs-credits", "rs-salvage", "heat-bar", "heat-num", "btn-governor", "own-heat", "ship-name", "view", "module-bar", "overview", "sel-name", "play-buttons"]
+     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "rs-credits", "rs-salvage", "heat-bar", "heat-num", "btn-governor", "own-heat", "own-crew", "ship-name", "view", "module-bar", "overview", "sel-name", "play-buttons"]
       .forEach(function (id) { el[id] = $(id); });
     logList = $("log");
     buildGauge();
@@ -273,6 +273,9 @@ BS.UI = (function () {
     bar.classList.toggle("holding", p.governorHold && p.overload <= 0);
     el["heat-num"].textContent = p.overload > 0 ? "OVERLOAD " + p.overload.toFixed(1) + " s" : p.governorHold ? "HOLD " + Math.round(hf * 100) + "%" : Math.round(p.heat) + " / " + Math.round(cap);
     el["btn-governor"].classList.toggle("active", p.heatGovernor);
+    var cw = p.stats.crew || { supply: 0, need: 0, manning: 1 };
+    el["own-crew"].textContent = cw.supply + " / " + cw.need + " · " + Math.round(cw.manning * 100) + "%" + (cw.manning < 1 ? " undermanned" : "");
+    el["own-crew"].style.color = cw.manning < 0.7 ? "#e0463c" : cw.manning < 1 ? "#f2c14e" : "";
     el["own-heat"].textContent = Math.round(p.heat) + " / " + Math.round(cap) + " · −" + p.stats.heatDissipation.toFixed(0) + "/s" + (p.overload > 0 ? " · OVERLOAD" : p.governorHold ? " · holding" : "");
   }
 

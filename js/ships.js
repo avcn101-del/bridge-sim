@@ -342,7 +342,7 @@ BS.Ships = (function () {
     if (f < 0.02) rate = (ship.capMax / g.capRechargeTime) * 0.4 * capRechargeMult(ship);
     ship.capacitor = Math.min(ship.capMax, ship.capacitor + rate * dt);
     FACINGS.forEach(function (fc) {   // the pools recharge whether or not they are projected (cloaked: at the condition-green rate)
-      var regen = ship.shieldRegen[fc] * shieldsMult(ship) * (ship.stats.powerFactor || 1) * (shieldsUp(ship) ? 1 : BS.Data.balance.noAlertShieldRegenMult) * dt;
+      var regen = ship.shieldRegen[fc] * shieldsMult(ship) * (ship.stats.powerFactor || 1) * (ship.stats.crew ? ship.stats.crew.manning : 1) * (shieldsUp(ship) ? 1 : BS.Data.balance.noAlertShieldRegenMult) * dt;
       if (ship.shields[fc] < ship.shieldMax[fc]) ship.shields[fc] = Math.min(ship.shieldMax[fc], ship.shields[fc] + regen);
     });
     if (ship.jammed > 0) ship.jammed -= dt;

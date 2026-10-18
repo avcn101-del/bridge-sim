@@ -38,7 +38,7 @@ BS.Modules = (function () {
     var ready = 0, fired = 0, reason = "ok";
     blocks.forEach(function (b) {
       var w = b.def.weapon;
-      var cycle = w.cycle * ship.mods.cycleMult / (ship.stats.powerFactor || 1);   // brownout: fewer reactors, slower cycling
+      var cycle = w.cycle * ship.mods.cycleMult / ((ship.stats.powerFactor || 1) * (ship.stats.crew ? ship.stats.crew.manning : 1));   // brownout / short crew: slower cycling
       if (b.cycleLeft > 0) b.cycleLeft -= dt;
       if (b.cycleLeft <= 0) ready++;
       if (!m.active || b.cycleLeft > 0) return;

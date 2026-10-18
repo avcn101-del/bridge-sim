@@ -2,10 +2,28 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.13.0] — 2026-10-18 (crew manning)
+
+### Added
+- **Crew** (`grid.crew`, `blocks.*.crew`): every system block needs hands
+  (phaser / cannon 2, pulse 1, tube 3, reactor 2, shield 1, engine 1, sensor
+  1, jammer 1, cloak 2); the bridge supplies 10, each crew quarters 8.
+  Manning = supply / need (floor 0.4) scales weapon cycling and shield
+  regen like a brownout, so losing quarters in battle slows the ship. A
+  build short of crew cannot undock. Hangar "Crew" line and a Ship-panel
+  "Crew" row.
+- Blocks more than 6 cells from any quarters or the bridge repair at half
+  speed (amber dots in the hangar, validator warning).
+
+### Changed
+- Every default build, preset and enemy layout gained crew quarters
+  (placed to cover the systems: Constitution 8, Galaxy 11, Bird-of-Prey 6,
+  K't'inga 8); quarters draw no power.
+
 ## [0.12.0] — 2026-10-18 (disruptor cannons and pulse phasers)
 
 ### Added
-- **Disruptor cannon** (block `D`, group DIS): 42 damage every 3.2 s,
+- **Disruptor cannon** (block `D`, group DIS): 32 damage every 2.5 s,
   optimal 5 km, falloff 6 km, tracking 0.75 rad/s, one extra penetration
   point (through a plate of armor), drawn as a travelling bolt.
 - **Pulse phaser** (block `U`, group PUL): 9.5 damage every second, tracking
@@ -15,9 +33,9 @@ All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
 ### Changed
 - Klingon layouts (Bird-of-Prey and all variants, K't'inga and Siege) mount
-  disruptor cannons instead of phasers; the Gunboat carries seven pulse
-  guns and four cannons. The broadside doctrine holds 4.5–7 km (was 5.5–8.5) so cannons stay
-  in optimal. Constitution **Brawler** preset: six pulse phasers on the
+  disruptor cannons instead of phasers. The broadside doctrine holds
+  4.5–7 km (was 5.5–8.5) so cannons stay in optimal. The Gunboat goes back
+  to the brawl doctrine (its Hit & fade with cannons stalled fights). Constitution **Brawler** preset: six pulse phasers on the
   saucer rim, four cannons at the bow.
 - Stance ranges, plays (`noPhasers`), the target panel and the fit
   statistics treat any turret as a beam (`weapon.kind`), not just phasers.

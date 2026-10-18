@@ -169,7 +169,7 @@ BS.Campaign = (function () {
       ok: v.ok, errors: v.errors, warnings: v.warnings || [], masked: v.masked || 0, counts: v.counts,
       dps: Math.round(turretDps + launcherDps), turretDps: Math.round(turretDps), launcherDps: Math.round(launcherDps),
       cap: capMax, drain: drain.toFixed(1), peakRecharge: peak.toFixed(1), stableAt: stableAt, lasts: lasts,
-      powerUsed: st.powerUsed, powerMax: st.powerMax, coverFrac: st.coverFrac, exposed: st.exposed, cloakCover: st.cloakCover, jamCover: st.jamCover,
+      powerUsed: st.powerUsed, powerMax: st.powerMax, coverFrac: st.coverFrac, exposed: st.exposed, cloakCover: st.cloakCover, jamCover: st.jamCover, crew: st.crew,
       heatCap: Math.round(st.heatCap), heatDissipation: st.heatDissipation.toFixed(1), salvoHeat: salvoHeat, heatPerSec: heatPerSec.toFixed(1),
       heatNeutral: Math.min(1, heatPerSec > 0 ? st.heatDissipation / heatPerSec : 1),
       speed: (cls.speed * st.speedMult * mods.speedMult / D().units.pxPerKm).toFixed(1), speedMult: st.speedMult.toFixed(2), mass: st.mass, thrust: st.thrust,

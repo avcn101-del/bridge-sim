@@ -1,6 +1,6 @@
 # DESIGN.md — Bridge Sim
 
-Version: 0.12.0 (disruptor cannons and pulse phasers). Keep this file in sync with the game.
+Version: 0.13.0 (crew manning). Keep this file in sync with the game.
 
 ## 1. Concept
 
@@ -201,7 +201,7 @@ on), **?** help overlay, zoom, pause.
 - Block types (hp / mass / cost / power draw): armor 60/2/20/0, phaser
   emitter 50/2/120/5, torpedo tube 50/3/180/8, shield emitter 40/2/90/4,
   reactor 40/3/100/0 (+15 power), impulse engine 45/2/80/1, sensor array
-  35/1/110/3, bridge 200/2/0 (exactly one), crew quarters 35/1/40/1, ECM
+  35/1/110/3, bridge 200/2/0 (exactly one), crew quarters 35/1/40/0 (8 crew), ECM
   jammer 35/2/110/6, cloaking device 40/3/400/12 (one per ship). Jammed
   ships cannot lock for 4 s. System
   blocks survive one enemy beam hit, so damage control can save them.
@@ -250,12 +250,12 @@ on), **?** help overlay, zoom, pause.
   per crew quarters hp/s to damaged blocks.
 - Weapons: phaser emitter 28 dmg / 2.6 s, 2.5 cap, optimal 8 km, falloff
   7 km, tracking 0.9 rad/s, 180° arc. **Disruptor cannon** (block `D`, 130
-  cr, 5 power) 42 dmg / 3.2 s, 3 cap, 9 heat, optimal 5 km, falloff 6 km,
+  cr, 5 power) 32 dmg / 2.5 s, 2.6 cap, 7 heat, optimal 5 km, falloff 6 km,
   tracking 0.75, 160° arc, `pierceBonus` 1 (three penetration points: through
   one plate of armor into the block behind), drawn as a travelling bolt.
   **Pulse phaser** (block `U`, 110 cr, 4 power) 9.5 dmg / 1 s, 1 cap, 2.2
   heat, optimal 4 km, falloff 3 km, tracking 1.6, 180° arc. The three beams
-  deliver about the same dps on paper (10.8 / 13.1 / 9.5) and trade range,
+  deliver about the same dps on paper (10.8 / 12.8 / 9.5) and trade range,
   tracking and penetration: phasers for reach, cannons to crack armor from a
   slow orbit, pulses to hit a Bird-of-Prey on the afterburner. Each beam type
   is its own weapon group (F-keys, module bar). Klingon ships mount
@@ -312,7 +312,23 @@ on), **?** help overlay, zoom, pause.
 ### Repair
 Damage control restores hp to damaged (not destroyed) blocks at the ship's
 repair rate, the repair-priority type first, then the most damaged.
-Destroyed blocks stay gone for the battle.
+Destroyed blocks stay gone for the battle. A block more than
+`grid.crew.radius` (6) cells from the nearest alive crew quarters or the
+bridge (`b.farCrew`) takes the same repair time for half the hp
+(`farRepairMult`); the hangar marks such blocks with an amber dot.
+
+### Crew (`grid.crew`, `blocks.*.crew`)
+Every system block needs hands: phaser and cannon 2, pulse 1, torpedo tube
+3, reactor 2, shield emitter 1, engine 1, sensor 1, jammer 1, cloaking
+device 2. The bridge supplies 10 and each crew quarters 8
+(`stats.crew = { need, supply, manning, far }`). **Manning** = supply /
+need, clamped to `minManning` (0.4): weapons cycle and shields regenerate
+at that fraction, exactly like a brownout, so quarters lost in battle
+(casualties) slow the whole ship down. A build short of crew cannot undock;
+the hangar shows "Crew x / y posts · manning n%" and the Ship panel the same
+in battle. Every default build, preset and enemy layout was re-fitted with
+6–13 quarters placed where they cover the most systems (Constitution 8,
+Galaxy 11, Bird-of-Prey 6, K't'inga 8); quarters draw no power.
 
 ### Electronic warfare (`BS.Data.ew`, blocks jammer and cloak)
 - **Fields** (`ew.cloakRadius` 10, `ew.jamRadius` 7, `BS.Grid.fieldCover`):
@@ -580,7 +596,24 @@ every fight once that side's phasers are gone.
 | Galaxy vs K't'inga **siege** (6 wins) | straightforward | 4 of 4 wins in 4:17–4:58 keeping 97–99% |
 | Miranda / Defiant vs Raider strafe | speed tank (orbit 3 km + afterburner, no reverse) | mostly stalemates: the script never reverses, so the stripped side stays toward the enemy |
 
-v0.12.0 (disruptor cannons 42 / 3.2 s / tracking 0.75 on every Klingon,
+v0.13.0 (crew manning, quarters added to every layout in interior cells,
+cannon 32 / 2.5 s; 1–3 runs):
+
+| Matchup | Captain | Outcome |
+|---|---|---|
+| Constitution vs Raider | Engage / Skirmish / no orders | 3 of 3 in 2:36–3:48 keeping 78–88% / 3:05 keeping 99% / lost in 4:30 |
+| Constitution vs Raider | Siege / Ambush (Shadow hunter) / Brawler Engage | 2 of 3 in 2:59–3:05 keeping 70–78% / 3 of 3 in 3:42–5:59 keeping 80–95% / 2:33 keeping 91% |
+| Constitution vs Gunboat / Torpedo boat / K't'inga broadside | Engage | 2 of 2 in 3:40–4:16 keeping 75–84% / 1 of 2 (one stalemate at 15 km) / 4:42 keeping 79% |
+| Galaxy vs K't'inga Siege | Engage | 3:21 keeping 100% |
+
+With the 42-damage cannon (first 0.13.0 batch) Siege was 1 of 3 and Ambush 1 of 3: ×1.5 bolts
+one-shot a 50-hp rim system before damage control could touch it, which the
+block rules promise never happens, hence the retune. Manning stayed at 100%
+in every traced fight: quarters sit inside the hull now and the systems die
+before the crew runs short, so the mechanic bites mostly in the editor and
+when crew decks are targeted.
+
+v0.12.0 (disruptor cannons on every Klingon; measured at 42 / 3.2 s, re-tuned to 32 / 2.5 s in 0.13.0 because ×1.5 bolts one-shot rim systems,
 pulse phasers 9.5 / 1 s / tracking 1.6; broadside band 4.5–7 km; 2–4 runs):
 
 | Matchup | Captain | Outcome |
@@ -753,5 +786,6 @@ than slower (it is nearly untouched, as intended).
 | v0.10.0 (done) | Firing-bearing keep geometry (hold station, kite with guns bearing), shields kept through the cloak, decloak strike, Siege and Ambush re-tuned, enemy plays (Gunboat Hit & fade, Torpedo boat Siege) |
 | v0.11.0 (done) | Cloak and ECM fields: a ship cloaks only with every block inside a cloak field (several devices per hull), a partial ECM field steers the jammed enemy's fire onto the uncovered blocks |
 | v0.12.0 (done) | Disruptor cannons (punch, penetration, poor tracking) and pulse phasers (tracking, knife range) as blocks and weapon groups; Klingons mount cannons |
+| v0.13.0 (done) | Crew: systems need hands, the bridge and crew quarters supply them, manning slows weapons and shields, blocks far from quarters repair slowly; every layout re-fitted |
 | later | Fire spreading put out by crew quarters; reactor power range; audio; sector map; sprites |
 | later | Audio via events, sector map and missions, science scans and cloaked ships, optional image sprites |
