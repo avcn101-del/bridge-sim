@@ -449,7 +449,7 @@ blockExploded, shipDisabled, shipDestroyed, overload, jammed, cloakChanged,
 alertChanged, stateChanged, orbitFlipped, stanceChanged, enemyRolled, commandGiven,
 log, battleStarted, battleEnded, skillTrained`.
 
-## 8. Measured balance (v0.5.3, accelerated simulation, scripted captains, default builds, no skills)
+## 8. Measured balance (accelerated simulation, scripted captains, default builds, no skills)
 
 Harness: `BS.Game.state.paused = true`, `BS.Game.step(1/60)` in a loop, the
 captain script runs once per simulated second. Enemy strength as at the
@@ -476,7 +476,38 @@ every fight once that side's phasers are gone.
 | Galaxy vs K't'inga **siege** (6 wins) | straightforward | 4 of 4 wins in 4:17–4:58 keeping 97–99% |
 | Miranda / Defiant vs Raider strafe | speed tank (orbit 3 km + afterburner, no reverse) | mostly stalemates: the script never reverses, so the stripped side stays toward the enemy |
 
-v0.7.0 (power grid, heat, electronic warfare; same straightforward captain, 4 runs each):
+v0.8.0 (shield bubbles, stance helm, shield-facing fix, Bird-of-Prey ×1.4 strength /
+×1.5 damage; 3 runs each). The captain picks a stance at t = 0, locks, keeps
+weapons on, pulses the booster below 50% facing, hardener above 20% cap and
+Reinforce below 20%; the helm does the rest. "No orders" is the default
+Engage stance with nothing locked or armed.
+
+| Matchup | Stance | Outcome |
+|---|---|---|
+| Constitution vs Raider **strafe** (0 wins) | Engage | 3 of 3 wins in 2:05–3:14 keeping 85–91% block hp |
+| Constitution vs Raider strafe | Skirmish | 3 of 3 wins in 3:18–5:04 keeping 72–90% (slower, as intended) |
+| Constitution vs Raider strafe | Standoff | 0 of 3: two tubes cannot kill a strafer from 15 km; a stance for torpedo builds |
+| Constitution vs Raider strafe | no orders | lost in 2:52–3:39 (disabled or hull fraction) |
+| Constitution vs Gunboat **brawl** (1 win) | Engage / Skirmish | 3 of 3 in 2:52–4:47 keeping 81–89% / 3 of 3 in 3:47–4:37 keeping 97–98% |
+| Constitution vs Torpedo boat **standoff** (1 win) | Engage | 3 of 3 in 3:37–3:56 untouched (Engage chases it down) |
+| Constitution vs K't'inga **broadside** (4 wins) | Engage | 3 of 3 in 4:43–5:35 keeping 88–100% |
+| Excelsior vs K't'inga broadside | Engage | 3 of 3 in 4:44–5:16 keeping 94–99% |
+| Galaxy vs K't'inga **siege** (6 wins) | Engage | 3 of 3 in 2:50–4:20 keeping 98–99% |
+| Constitution vs Shadow **ambush** (3 wins) | Engage | 3 of 3 in 2:29–3:28 keeping 90–99% |
+| Constitution vs Jammer boat (2 wins, seeded) | Engage | 3 of 3 in 2:53–4:41 keeping 81–87%: the tactical officer now re-locks on its own |
+| Miranda vs Raider strafe | Skirmish | 1 of 3 (8:53), two 10-minute stalemates: the fast orbit out-tracks the raider both ways |
+| Defiant vs Raider strafe | Skirmish | 3 of 3 in 3:31–7:21 keeping 89–94% |
+
+Against the stated targets: the straightforward (Engage) fight lands at
+2–5 min but loses 10–20% rather than 30–50%; the speed tank (Skirmish)
+wins slower and nearly untouched as intended on the Constitution and
+Defiant, and stalls on the Miranda; no orders loses in about 3 min. The
+bigger hulls are comfortably ahead of the cruiser at their unlock wins.
+Headless only; no hand play this session.
+
+v0.7.0 (power grid, heat, electronic warfare; straightforward captain with
+orbit and reverse commands, 4 runs each; measured while the shield-facing
+bug kept every facing at 80):
 
 | Matchup | Outcome |
 |---|---|
