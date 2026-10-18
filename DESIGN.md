@@ -507,6 +507,31 @@ every fight once that side's phasers are gone.
 | Galaxy vs K't'inga **siege** (6 wins) | straightforward | 4 of 4 wins in 4:17–4:58 keeping 97–99% |
 | Miranda / Defiant vs Raider strafe | speed tank (orbit 3 km + afterburner, no reverse) | mostly stalemates: the script never reverses, so the stripped side stays toward the enemy |
 
+v0.9.0 (150 px/km, plays; 3 runs each, same enemy multipliers as 0.8.0). The
+world rescale changed nothing in km, and Engage vs the raider re-measured at
+2:24–2:38 keeping 83%. Play captains lock, start the play and do nothing else.
+
+| Matchup | Play | Outcome |
+|---|---|---|
+| Constitution vs Raider strafe (0 wins) | Alpha strike | 3 of 3 in 2:36–3:04 keeping 81–85% |
+| Constitution vs Raider strafe | Hit & fade | 3 of 3 in 3:11–3:41 keeping 84–95% |
+| Constitution vs Raider strafe | Turtle / Hunter (earlier run) | 2 of 3 / 2 of 3; Turtle 2:42–3:37 keeping 80–85% when it wins |
+| Constitution vs Raider strafe | Siege | 1 of 3: two tubes from 15 km do not kill a strafer |
+| Constitution **Sniper** (4 tubes) vs Raider | Siege / Alpha strike | 0 of 3 / 3 of 3 in 3:29–4:31 keeping 75–82% |
+| Constitution Sniper vs Torpedo boat | Siege | 0 of 3: a torpedo duel at range goes to the ×1.5 damage side |
+| Excelsior **Lancer** (7 tubes) vs K't'inga | Siege | 0 of 3 (one 10-minute stalemate at 81%) |
+| Constitution **Shadow hunter** vs Raider | Ambush | 0 of 3: six phasers in 35 s bursts cannot out-damage a strafer between cloaks |
+| Constitution vs Gunboat brawl (1 win) | Alpha strike / Hit & fade / Turtle / Hunter | 3 of 3 each, 2:39–4:59, keeping 63–97% |
+| Constitution vs K't'inga broadside (4 wins) | Alpha strike / Hit & fade / Turtle | 3 of 3 in 2:48–6:07 / 2 of 3 / 3 of 3 in 3:40–5:22 keeping 85–100% |
+| Defiant vs Raider strafe | Hit & fade | 3 of 3 in 4:00–4:23 keeping 82–99% |
+
+Honest reading: the brawling plays (Alpha strike, Hit & fade, Turtle,
+Hunter) all work and differ in how much hull they trade; the standoff
+plays do not. **Siege** and **Ambush** lose with every stock build tried,
+because torpedoes do little to small fast hulls and a cloaked ship cannot
+fire. They stay in as data for torpedo-heavy and cloak builds the player
+may invent, and are the first thing to re-tune.
+
 v0.8.0 (shield bubbles, stance helm, shield-facing fix, Bird-of-Prey ×1.4 strength /
 ×1.5 damage; 3 runs each). The captain picks a stance at t = 0, locks, keeps
 weapons on, pulses the booster below 50% facing, hardener above 20% cap and
