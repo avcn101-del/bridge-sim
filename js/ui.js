@@ -298,6 +298,7 @@ BS.UI = (function () {
     var st = p.ai ? (BS.Data.enemyAI.stateLabels[p.ai.state] || p.ai.state) : "";
     if (p.cmd.type === "shadow") st = "shadowing " + (p.attackSide === "blind" ? "blind sector" : p.attackSide);
     if (p.tumble > 0) st = "TUMBLING";
+    if (p.breach > 0) st = "CORE BREACH " + p.breach.toFixed(0) + " s";
     if (p.play && p.ai && !p.ai.suspended) { var ph = p.play.def.phases[p.play.phase]; return p.play.def.label + " · " + ph.label + " · " + st; }
     if (p.ai && !p.ai.suspended && p.stance) return BS.Data.helm.stances[p.stance].label + " · " + st;
     if (p.ai && !p.ai.suspended) return (p.doctrineId || "helm") + " · " + st;
@@ -409,6 +410,8 @@ BS.UI = (function () {
       c.lineWidth = 1.2;
       if (st.cloakCover && st.cloakCover.sources) { c.strokeStyle = "rgba(155,140,255,0.95)"; g.blocks.forEach(function (b) { if (b.alive && !b.structural && !b.cloakCovered) c.strokeRect(b.lx - half + 0.6, b.ly - half + 0.6, cp - 1.2, cp - 1.2); }); }
       if (st.jamCover && st.jamCover.sources) { c.strokeStyle = "rgba(53,224,143,0.95)"; g.blocks.forEach(function (b) { if (b.alive && !b.structural && !b.jamCovered) c.strokeRect(b.lx - half + 1.6, b.ly - half + 1.6, cp - 3.2, cp - 3.2); }); }
+      c.fillStyle = "rgba(0,0,0,0.45)";   // out of reactor range: dimmed
+      g.blocks.forEach(function (b) { if (b.alive && !b.structural && !b.powered && (b.def.crew || 0) > 0) c.fillRect(b.lx - half, b.ly - half, cp, cp); });
       // the block type we aim at, if any
       if (p.aimType && p.aimType !== "exposed" && p.aimType !== "unjammed") { c.strokeStyle = "rgba(255,230,120,0.9)"; g.blocks.forEach(function (b) { if (b.alive && b.type === p.aimType) c.strokeRect(b.lx - half - 0.5, b.ly - half - 0.5, cp + 1, cp + 1); }); }
       c.restore();
@@ -428,7 +431,7 @@ BS.UI = (function () {
     order.forEach(function (t) { var n = st2.counts[t]; if (!n) return; var a = st2.alive[t] || 0; html += "<div class='sl'><label>" + D.blocks[t].short + "</label><span class='v " + (a === 0 ? "bad" : a < n ? "warn" : "") + "'>" + a + " / " + n + "</span></div>"; });
     var cw = st2.crew || { manning: 1, supply: 0, need: 0 };
     html += "<div class='sl'><label>Crew</label><span class='v " + cls(cw.manning, 0.7, 1) + "'>" + cw.supply + " / " + cw.need + " · " + pct(cw.manning) + "</span></div>";
-    html += "<div class='sl'><label>Power</label><span class='v " + cls(st2.powerFactor, 0.7, 1) + "'>" + st2.powerUsed + " / " + st2.powerMax + " · " + pct(st2.powerFactor) + "</span></div>";
+    html += "<div class='sl'><label>Power</label><span class='v " + cls(st2.powerFactor, 0.7, 1) + "'>" + st2.powerUsed + " / " + st2.powerMax + " · " + pct(st2.powerFactor) + (st2.unpowered ? " · " + st2.unpowered + " dark" : "") + (e.breach > 0 ? " <span class='good'>BREACH " + e.breach.toFixed(0) + " s</span>" : "") + "</span></div>";
     html += "<div class='sl'><label>Heat</label><span class='v'>" + Math.round(e.heat) + " / " + Math.round(st2.heatCap) + (e.overload > 0 ? " <span class='good'>OVERLOADED</span>" : "") + "</span></div>";
     html += "</div><div><h4>Tactical</h4>";
     var total = st2.weapons.filter(function (b) { return b.alive; }).length, bearing = BS.EnemyAI.bearingCount(e, p, false);
@@ -471,6 +474,7 @@ BS.UI = (function () {
       var stLabel = s.ai ? (BS.Data.enemyAI.stateLabels[s.ai.state] || s.ai.state) : "";
       if (s.play && s.cloak.state === "off") stLabel = s.play.def.label + " · " + stLabel;
       if (s.tumble > 0) stLabel = "tumbling";
+      if (s.breach > 0) stLabel = "CORE BREACH " + s.breach.toFixed(0) + " s";
       cells[4].textContent = s.flags.destroyed ? "destroyed" : s.flags.disabled ? "disabled" : s.cloak.state !== "off" ? s.cloak.state : stLabel;
       row.classList.toggle("selected", p.selected === s);
       row.classList.toggle("locked", p.lock.target === s && p.lock.locked);

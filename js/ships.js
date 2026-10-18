@@ -29,7 +29,7 @@ BS.Ships = (function () {
       grid: grid, stats: st, statMult: statMult, mods: mods,
       hullMax: st.hullTotal, hull: st.hullAlive,
       shieldMax: {}, shields: {}, shieldRegen: {},
-      capMax: 0, capacitor: 0, heat: 0, overload: 0, heatGovernor: true, governorHold: false, jammed: 0, partialJam: 0, partialJamBy: null, shieldDelay: { fore: 0, aft: 0, port: 0, starboard: 0 }, attackSide: "auto", tumble: 0, tumbleDir: 1, cloak: { state: "off", t: 0, surge: 0, strike: 0 },
+      capMax: 0, capacitor: 0, heat: 0, overload: 0, heatGovernor: true, governorHold: false, jammed: 0, partialJam: 0, partialJamBy: null, shieldDelay: { fore: 0, aft: 0, port: 0, starboard: 0 }, attackSide: "auto", tumble: 0, tumbleDir: 1, breach: 0, hadReactors: false, cloak: { state: "off", t: 0, surge: 0, strike: 0 },
       signature: cls.signature,
       flags: { alert: "none", destroyed: false, disabled: false, armed: false },
       selected: null, lock: { target: null, progress: 0, locked: false, time: 0 }, aimType: null, stance: null, play: null,
@@ -62,6 +62,9 @@ BS.Ships = (function () {
   function refreshDerived(ship, initial) {
     var st = Gr.derive(ship.grid);
     ship.stats = st;
+    if (initial) ship.hadReactors = (st.alive.reactor || 0) > 0;
+    // the last reactor gone: the core goes critical (grid.breach); the countdown runs in updateSystems
+    if (!initial && ship.hadReactors && !(st.alive.reactor > 0) && ship.breach <= 0 && !ship.flags.destroyed) { ship.breach = BS.Data.grid.breach.time; BS.Events.emit("coreBreach", { ship: ship, time: ship.breach }); }
     ship.hull = st.hullAlive; ship.hullMax = st.hullTotal;
     FACINGS.forEach(function (f) {
       ship.shieldMax[f] = Math.round(st.shieldMax[f] * ship.statMult * ship.mods.shieldMaxMult);
@@ -202,6 +205,24 @@ BS.Ships = (function () {
     L.progress += dt / L.time;
     if (L.progress >= 1) { L.progress = 1; L.locked = true; BS.Events.emit("lockAcquired", { ship: ship, target: L.target }); }
   }
+
+  // ---- warp core breach: the ship is lost and everything inside the radius takes the blast ------------------------
+  function coreBlast(ship) {
+    var B = BS.Data.grid.breach, R = px(B.radiusKm), hits = [];
+    (BS.Game.state.ships || []).forEach(function (o) {
+      if (o === ship || o.flags.destroyed) return;
+      var d = distanceTo(ship, o), k = 1 - d / R;
+      if (k <= 0) return;
+      var dmg = B.damage * k;
+      var res = applyDamage(o, dmg, ship.pos.x, ship.pos.y, null, ship, "blast");
+      hits.push({ ship: o, damage: dmg, result: res });
+    });
+    ship.flags.destroyed = true; ship.destroyedTimer = 0;
+    BS.Events.emit("coreBlast", { ship: ship, hits: hits, radius: R });
+    BS.Events.emit("shipDestroyed", { ship: ship, killer: null, breach: true });
+  }
+  // Drifting debris (a severed section) hits a ship: plain hull damage from its direction, no aim.
+  function debrisHit(ship, amount, fromX, fromY) { return applyDamage(ship, amount, fromX, fromY, null, null, "debris"); }
 
   // ---- critical hits (grid.crits): the ship-level consequences; reactors and quarters were already lost in Grid.hit ----
   function applyCrit(ship, block, kind, attacker) {
@@ -373,6 +394,7 @@ BS.Ships = (function () {
       if (ship.shields[fc] < ship.shieldMax[fc]) ship.shields[fc] = Math.min(ship.shieldMax[fc], ship.shields[fc] + regen);
     });
     if (ship.jammed > 0) ship.jammed -= dt;
+    if (ship.breach > 0) { ship.breach -= dt; if (ship.breach <= 0) coreBlast(ship); }
     if (ship.partialJam > 0) { ship.partialJam -= dt; if (ship.partialJam <= 0) ship.partialJamBy = null; }
     updateCloak(ship, dt);
     if (ship.reinforceCooldown > 0) ship.reinforceCooldown -= dt;
@@ -404,7 +426,7 @@ BS.Ships = (function () {
     facingToward: facingToward, facingOffset: facingOffset, strongestFacing: strongestFacing, weakestFacing: weakestFacing, shieldFrac: shieldFrac,
     distanceTo: distanceTo, distanceKm: distanceKm, bearingTo: bearingTo, angularVelocity: angularVelocity, speedKmS: speedKmS,
     setCommand: setCommand, setAlert: setAlert, startReinforce: startReinforce, startLock: startLock, clearLock: clearLock, lockTime: lockTime,
-    trackingMult: trackingMult, maxSpeed: maxSpeed, firingBearings: firingBearings, shieldsUp: shieldsUp, effectiveAim: effectiveAim, cloakFieldComplete: cloakFieldComplete, capRechargeMult: capRechargeMult, blockTypes: blockTypes,
+    trackingMult: trackingMult, maxSpeed: maxSpeed, firingBearings: firingBearings, shieldsUp: shieldsUp, effectiveAim: effectiveAim, cloakFieldComplete: cloakFieldComplete, debrisHit: debrisHit, capRechargeMult: capRechargeMult, blockTypes: blockTypes,
     isCloaked: isCloaked, visibility: visibility, detectRangeKm: detectRangeKm, setCloak: setCloak,
   };
 })();

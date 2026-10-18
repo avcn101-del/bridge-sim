@@ -56,11 +56,16 @@ BS.Grid = (function () {
       regen: { fore: g.regenBase, aft: g.regenBase, port: g.regenBase, starboard: g.regenBase }, sensors: g.sensorBase, repair: g.repairBase,
       counts: {}, alive: {}, hullTotal: 0, hullAlive: 0, weapons: [], bridgeAlive: false, powerUsed: 0, powerMax: grid.cls.powerBase || 0,
       heatCap: g.heat.base, heatDissipation: g.heat.dissipationBase, rimCells: 0 };
+    // reactor power range: systems outside every alive reactor's radius run at g.unpoweredFactor (b.powered, b.powerMult)
+    var pc = fieldCover(grid, "reactor", g.powerRadius, "powered");
+    s.powered = pc.covered; s.unpowered = pc.exposed; s.poweredFrac = pc.frac;
     grid.blocks.forEach(function (b) {
       if (b.structural) return;
       s.counts[b.type] = (s.counts[b.type] || 0) + 1;
       s.hullTotal += b.maxHp;
       if (!b.alive) return;
+      b.powerMult = b.powered ? 1 : g.unpoweredFactor;
+      var pm = b.powerMult;
       s.alive[b.type] = (s.alive[b.type] || 0) + 1;
       s.hullAlive += b.hp;
       s.mass += b.def.mass;
@@ -70,10 +75,10 @@ BS.Grid = (function () {
       if (isRim(grid, b)) { s.rimCells++; s.heatDissipation += g.heat.dissipationPerRimCell; }
       var f = facingOf(b);
       switch (b.type) {
-        case "engine": s.thrust += b.nacelle ? g.nacelleThrustMult : 1; break;
+        case "engine": s.thrust += (b.nacelle ? g.nacelleThrustMult : 1) * pm; break;
         case "reactor": s.cap += g.capAdd; break;
-        case "shield": s.shieldMax[f] += g.shieldAdd; s.regen[f] += g.regenAdd; break;
-        case "sensor": s.sensors += g.sensorAdd; break;
+        case "shield": s.shieldMax[f] += g.shieldAdd * pm; s.regen[f] += g.regenAdd * pm; break;
+        case "sensor": s.sensors += g.sensorAdd * pm; break;
         case "quarters": s.repair += g.repairAdd; break;
         case "bridge": s.bridgeAlive = true; break;
       }
@@ -421,6 +426,8 @@ BS.Grid = (function () {
     });
     if (hot) warnings.push("Reactors touch each other or the bridge: one breach will chain.");
     if (st.crew.far) warnings.push(st.crew.far + " system block(s) more than " + G().crew.radius + " cells from crew quarters or the bridge repair at half speed.");
+    var unp = grid.blocks.filter(function (b) { return b.alive && !b.structural && !b.powered && (b.def.crew || 0) > 0; }).length;
+    if (unp) warnings.push(unp + " system block(s) more than " + G().powerRadius + " cells from a reactor run at " + Math.round(100 * G().unpoweredFactor) + "% power (dim cells).");
     return { ok: errors.length === 0, errors: errors, warnings: warnings, counts: counts, stats: st, masked: masked, grid: grid };
   }
   // Random variant of a layout: re-roll a fraction of the editable cells (armor ↔ system blocks, weighted by

@@ -1,6 +1,6 @@
 # DESIGN.md — Bridge Sim
 
-Version: 0.15.0 (shield recharge delay, attack side, critical hits). Keep this file in sync with the game.
+Version: 0.16.0 (reactor power range, section physics, core breach). Keep this file in sync with the game.
 
 ## 1. Concept
 
@@ -323,6 +323,36 @@ on), **?** help overlay, zoom, pause.
   disabled** (`shipDisabled`): it stops, its modules shut down and the
   battle ends; for the enemy that is a victory by capture.
 
+### Reactor power range (`grid.powerRadius` 15, `grid.unpoweredFactor` 0.5)
+A system block within 15 cells of an alive reactor runs at full power;
+outside every reactor's range it runs at half (`b.powered`, `b.powerMult`):
+weapon cycle, shield emitter strength and regen, engine thrust, sensor
+strength. Losing a reactor browns out its neighbourhood (the saucer goes
+dim when the engineering-hull reactors die), so big hulls need reactors
+spread out: every default, preset and enemy layout had its reactors
+re-placed by a solver (mirrored, interior, never adjacent to another reactor
+or the bridge) for 100% coverage. The hangar dims unpowered cells and shows
+"Reactors n · range 15 · powered n%"; the scan panel dims them on the enemy
+and counts "n dark".
+
+### Warp core breach (`grid.breach`)
+When a ship's last reactor dies (`coreBreach`) the core goes critical: 8 s
+later the ship is destroyed (`coreBlast`, `shipDestroyed` with `breach`)
+and everything within 2 km takes up to 900 damage with linear falloff.
+Engineering counts down ("Core breach in 8 seconds, get us clear!"),
+Tactical warns of the enemy's; both AIs enter the `clear` state and keep
+3.2 km away on the afterburner until it blows (the player's helm does it
+too under any stance; manual helm must run by itself). A reactor-hunting
+captain who stays at 3 km is safe; one who brawls at 2 km is not.
+
+### Section physics (`visuals.fragments`)
+A severed section keeps the ship's full momentum, burns its engines for
+1.2 s (pushing it on), cooks off its reactors after 0.8–1.8 s (80 damage
+per reactor to a ship it touches) and is solid while whole: a ship it
+drifts into takes 6 damage per cell as plain hull damage from its
+direction (`debrisHit`, Engineering reports the impact). A nacelle torn off
+a cruiser can tumble into the ship that cut it.
+
 ### Critical hits (`grid.crits`)
 A hit that leaves a system block (anything with a crew need) under 50% of
 its hp rolls 25% for a critical effect by type, applied in `Grid.hit`
@@ -642,6 +672,25 @@ every fight once that side's phasers are gone.
 | Galaxy vs K't'inga **siege** (6 wins) | straightforward | 4 of 4 wins in 4:17–4:58 keeping 97–99% |
 | Miranda / Defiant vs Raider strafe | speed tank (orbit 3 km + afterburner, no reverse) | mostly stalemates: the script never reverses, so the stripped side stays toward the enemy |
 
+v0.16.0 (reactor power range 15 with reactors re-placed, core breach, section
+physics; Torpedo boat back to ×1.0; 1–3 runs):
+
+| Matchup | Captain | Outcome |
+|---|---|---|
+| Constitution vs Raider | Engage auto | 5 of 6 in 2:43–4:58 keeping 58–83% (median ~78%): the first batch at 30–50% loss the target asks for, with one disabled loss |
+| Constitution vs Raider | Engage blind / Skirmish / no orders | 4 of 4 in 2:12–3:34 keeping 86–98% / 3:49–4:02 keeping 82–93% / lost in 1:59–3:01 |
+| Constitution vs Raider | Siege / Hunter / Hit & fade / Ambush (Shadow hunter) / Brawler Engage | 1 of 3 / 1 of 2 / 3:31 keeping 81% / 3 of 4 in 4:34–7:21 keeping 74–88%, one stalemate / 3 of 4 in 2:22–6:17 keeping 54–85% |
+| Constitution vs Gunboat / K't'inga broadside; Galaxy vs K't'inga Siege | Engage | 4:15 keeping 73% / 4:51–5:02 keeping 97–99% / 2:46–5:32 keeping 89–94% |
+| Defiant vs K't'inga broadside | Engage blind | 2 of 2 in 4:43–6:52 keeping 99–100% |
+| Constitution vs Torpedo boat (×1.25) | Engage | 0 of 3 (one stalemate): with the recharge delay its steady stream keeps a facing down for good, so it drops to ×1.0. At ×1.0 Engage auto is still 1 of 3 (its booster out-heals fire spread over four facings while its stream pins one of yours), but **Engage aft** wins in 6:30 keeping 82% (its tubes are all forward), **Alpha strike** in 4:15 keeping 87% (a burst beats the booster) and Engage blind 1 of 2. The first encounter that is a tactics puzzle rather than a dps check |
+
+Bugs found by the harness on the way: a severed section spawned inside its
+own hull and "hit" its own ship (now immune to its own fresh sections for
+1.5 s); the first run of this batch scored 0 of 3 Engage because of it.
+Honest reading: the game is harder than 0.15 in brawls (crits and the
+recharge delay cut both ways) and the blind-sector shadow remains the safe
+line; the Torpedo boat and Siege need another look.
+
 v0.15.0 (shield recharge delay 4 s, attack sides, critical hits, enemy
 comes about when nothing bears; 1–3 runs):
 
@@ -853,6 +902,7 @@ than slower (it is nearly untouched, as intended).
 | v0.11.0 (done) | Cloak and ECM fields: a ship cloaks only with every block inside a cloak field (several devices per hull), a partial ECM field steers the jammed enemy's fire onto the uncovered blocks |
 | v0.12.0 (done) | Disruptor cannons (punch, penetration, poor tracking) and pulse phasers (tracking, knife range) as blocks and weapon groups; Klingons mount cannons |
 | v0.13.0 (done) | Crew: systems need hands, the bridge and crew quarters supply them, manning slows weapons and shields, blocks far from quarters repair slowly; every layout re-fitted |
+| v0.16.0 (done) | Reactor power range (systems outside 15 cells of a reactor run at half; every layout re-placed its reactors), warp core breach with a blast and the AIs clearing it, severed sections that keep momentum, burn engines, cook off reactors and hit what they drift into |
 | v0.15.0 (done) | Shield recharge delay (hit facings pause 4 s), attack side / blind-sector shadowing with an enemy counter-roll, critical hits by system |
 | v0.14.0 (done) | Enemy scan panel in place of the full-width log (block grid with damage, shield bubbles and bare hull, cloak / ECM field gaps, systems, crew, power, heat, weapons bearing on us, threat); the bridge log is a two-line ticker over the display, LOG / G expands it |
 | later | Science scan (`science.scanDuration`) gating the panel's detail; weakness bonus |

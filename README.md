@@ -159,6 +159,7 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `grid.lineOfFire / lineOfFireMuzzle / lineOfFireRangeCells` | Whether and how the own hull masks weapons |
 | `grid.shieldBase / shieldAdd / regenBase / regenAdd / shieldRadius / shieldRechargeDelay` | Shield facings from emitters; bubble radius in cells; seconds a hit facing waits before regenerating |
 | `grid.crits` | Critical hits: hp threshold, chance, tumble time and spin, sensor blind time, emitter drain, weapon jam cycles |
+| `grid.powerRadius / unpoweredFactor`, `grid.breach` | Reactor power range and the penalty outside it; core breach countdown, radius and damage |
 | `helm.sides`, `helm.shadow`, `enemyAI.*.blindTolerance` | Attack sides (bearings from the target's heading, blind-sector hysteresis, station radius) and how long an enemy tolerates nothing bearing before it comes about |
 | `helm` | Stances (doctrine, ranges from fitted weapons, keys), auto-flip interval and shield thresholds, keep geometry (`bearingStep / keepBand / keepRunBelow / holdSpeed / keepFireFraction / kiteMinBearing`), plays (phases, module policies, exit conditions) |
 | `balance.zoom` | Auto-fit camera limits and margin, manual zoom bias range |
@@ -182,7 +183,7 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `balance.capCurve / lockBase / zoom` | Capacitor curve, lock time, zoom |
 | `enemyAI.doctrines` | How each doctrine flies (enemy encounters and player stances): strafe pass range and timing, brawl orbit and flip timer, standoff hold and kite ranges, broadside band and roll timer, evade range |
 | `enemyAI.default / ktinga` | Enemy accuracy, damage and stat multipliers, retreat thresholds, aim weights (`none` = spray) |
-| `visuals.fragments` | Section break-off and ship shatter: piece count, speed, spin, lifetime |
+| `visuals.fragments` | Section break-off and ship shatter: piece count, speed, spin, lifetime, inertia, engine burn, reactor fuse and blast, debris damage per cell |
 | `crew.reports`, `crew.events`, `blockReports` | All officer dialogue |
 
 Later features (audio, sector map, science scans, sprites) have their data

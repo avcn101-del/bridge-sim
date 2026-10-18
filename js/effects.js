@@ -60,8 +60,10 @@ BS.Effects = (function () {
     var w = BS.Grid.localToWorld(ship, cx, cy);
     var away = (cx === 0 && cy === 0) ? U.rand(0, U.TAU) : Math.atan2(cy, cx) + ship.heading + U.rand(-0.35, 0.35);
     var sp = speed * U.rand(0.6, 1.3), V = BS.Data.visuals.fragments;
-    var f = { ship: ship, x: w.x, y: w.y, vx: ship.vel.x * 0.5 + Math.cos(away) * sp, vy: ship.vel.y * 0.5 + Math.sin(away) * sp, heading: ship.heading, rot: 0,
+    var engines = blocks.filter(function (b) { return b.type === "engine"; }).length, reactors = blocks.filter(function (b) { return b.type === "reactor"; }).length;
+    var f = { ship: ship, x: w.x, y: w.y, vx: ship.vel.x * V.inertia + Math.cos(away) * sp, vy: ship.vel.y * V.inertia + Math.sin(away) * sp, heading: ship.heading, rot: 0,
       spin: U.rand(-V.spin, V.spin) * (death ? 1.4 : 1), life: life, maxLife: life, cellPx: ship.grid.cellPx, tint: ship.visual.hullTint, nacelleColor: ship.visual.nacelleColor, death: !!death,
+      thrust: engines ? V.thrustTime : 0, fuse: reactors ? U.rand(V.reactorFuse[0], V.reactorFuse[1]) : -1, reactors: reactors, solid: !death, radius: Math.sqrt(blocks.length) * ship.grid.cellPx * 0.6, age: 0,
       cells: blocks.map(function (b) { return { dx: b.lx - cx, dy: b.ly - cy, color: b.structural ? "#8a90a0" : b.def.color, type: b.type, nacelle: b.nacelle, armor: b.type === "armor" }; }) };
     fragments.push(f);
     return f;
@@ -160,6 +162,14 @@ BS.Effects = (function () {
       debris(e.pos.x, e.pos.y, 10, 120, [242, 193, 78]);
       addShake(e.ship.isPlayer ? 9 : 4);
     });
+    BS.Events.on("coreBreach", function (e) { addShake(e.ship.isPlayer ? 5 : 2); });
+    BS.Events.on("coreBlast", function (e) {
+      var s = e.ship;
+      flash(s.pos.x, s.pos.y, e.radius * 0.9, [200, 230, 255], 1.2); flash(s.pos.x, s.pos.y, e.radius * 0.35, [255, 255, 255], 0.5);
+      rings.push({ x: s.pos.x, y: s.pos.y, life: 1.6, maxLife: 1.6, radius: e.radius * 1.1 }); rings.push({ x: s.pos.x, y: s.pos.y, life: 2.4, maxLife: 2.4, radius: e.radius * 0.6 });
+      sparks(s.pos.x, s.pos.y, 160, 420, [210, 240, 255]); debris(s.pos.x, s.pos.y, 40, 240, [200, 210, 230]);
+      addShake(14);
+    });
     BS.Events.on("criticalHit", function (e) {
       flash(e.pos.x, e.pos.y, 26, [255, 240, 200], 0.45); sparks(e.pos.x, e.pos.y, 22, 190, [255, 230, 140]); smoke(e.pos.x, e.pos.y, 5);
       addShake(e.ship.isPlayer ? 7 : 3);
@@ -224,8 +234,24 @@ BS.Effects = (function () {
       var f = fragments[i];
       f.life -= dt;
       if (f.life <= 0) { fragments.splice(i, 1); continue; }
-      f.x += f.vx * dt; f.y += f.vy * dt; f.rot += f.spin * dt;
+      f.x += f.vx * dt; f.y += f.vy * dt; f.rot += f.spin * dt; f.age += dt;
       var k = Math.max(0, 1 - 0.35 * dt); f.vx *= k; f.vy *= k;
+      var V2 = BS.Data.visuals.fragments;
+      var own = function (o) { return o === f.ship && f.age < V2.ownImmunity; };   // a section just torn off is still clearing its own hull
+      // a severed section: its engines still burn, its reactors cook off, and it is solid while it is whole
+      if (f.thrust > 0) { f.thrust -= dt; var ha = f.heading + f.rot; f.vx += Math.cos(ha) * V2.thrustPush * dt; f.vy += Math.sin(ha) * V2.thrustPush * dt; if (Math.random() < dt * 20) { var tail = { x: f.x - Math.cos(ha) * f.radius, y: f.y - Math.sin(ha) * f.radius }; fire(tail.x, tail.y, 1); } }
+      if (f.fuse > 0) { f.fuse -= dt; if (f.fuse <= 0) { flash(f.x, f.y, 30 + f.reactors * 10, [255, 225, 150], 0.5); sparks(f.x, f.y, 30, 220, [255, 210, 120]); smoke(f.x, f.y, 8, [90, 80, 80], 30); addShake(3); f.vx *= 0.5; f.vy *= 0.5; ships.forEach(function (o) { if (!o.flags.destroyed && !own(o) && U.dist(f.x, f.y, o.pos.x, o.pos.y) < o.visual.length * 0.6 + f.radius) BS.Ships.debrisHit(o, V2.reactorBlast * f.reactors, f.x, f.y); }); } }
+      if (f.solid && f.life / f.maxLife > V2.fadeFrom) {
+        for (var si = 0; si < ships.length; si++) {
+          var o = ships[si];
+          if (o.flags.destroyed || own(o) || U.dist(f.x, f.y, o.pos.x, o.pos.y) > o.visual.length * 0.45 + f.radius) continue;
+          f.solid = false; var dmg = V2.damagePerCell * f.cells.length;
+          BS.Ships.debrisHit(o, dmg, f.x, f.y); sparks(f.x, f.y, 18, 160, [255, 230, 170]); flash(f.x, f.y, 18, [255, 240, 210], 0.3); addShake(o.isPlayer ? 6 : 2);
+          BS.Events.emit("debrisHit", { ship: o, fragment: f, damage: dmg });
+          f.vx *= -0.3; f.vy *= -0.3;
+          break;
+        }
+      }
       if (f.death && Math.random() < dt * 2.5) { var c = f.cells[Math.floor(Math.random() * f.cells.length)], q = fragmentCellWorld(f, c); smoke(q.x, q.y, 1, [90, 85, 90], 12); if (Math.random() < 0.5) fire(q.x, q.y, 1); }
     }
     shake.intensity = Math.max(0, shake.intensity - BS.Data.visuals.shakeDecay * dt * (1 + shake.intensity * 0.1));

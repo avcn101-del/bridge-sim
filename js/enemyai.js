@@ -168,6 +168,9 @@ BS.EnemyAI = (function () {
     var dKm = S.distanceKm(ship, target);
     var engaged = ai.state !== "approach" && ai.state !== "retreat" && ai.state !== "stalk";
 
+    // the target's core is going critical: everybody with a working helm clears the blast radius
+    if (target.breach > 0 && ai.state !== "clear") { setState(ship, "clear"); keep(ship, target, BS.Data.grid.breach.radiusKm * 1.6); setModule(ship, "afterburner", true); return; }
+    if (ai.state === "clear") { if (target.breach <= 0) enter(ship, target, d); return; }
     if (enemy) {
       // module management shared by all states: weapons stay on whenever there is capacitor for them. An enemy running a
       // play (ship.play) leaves weapons, hardener and booster to the play's phase policies.
