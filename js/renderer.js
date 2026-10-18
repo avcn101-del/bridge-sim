@@ -218,7 +218,7 @@ BS.Renderer = (function () {
     for (var i = 0; i < blocks.length; i++) if (blocks[i].alive) alive.push(blocks[i]);
     // 1. plates
     for (i = 0; i < alive.length; i++) {
-      var b = alive[i], col = b.structural ? [138, 144, 160] : mix(hexToRgb(b.def.color), tint, b.type === "armor" ? 0.35 : 0.15);
+      var b = alive[i], col = b.structural ? [138, 144, 160] : b.type === "armor" ? mix(hexToRgb(b.def.color), tint, 0.35) : mix(mix(hexToRgb(b.def.color), tint, 0.5), dark, 0.45);
       var frac = b.hp / b.maxHp;
       if (frac < 1) col = mix(col, red, (1 - frac) * 0.7);
       // subtle per-cell variation reads as panelling
@@ -260,23 +260,18 @@ BS.Renderer = (function () {
         gl.addColorStop(0, "rgba(" + nac + "," + (0.55 * pulse).toFixed(2) + ")"); gl.addColorStop(1, "rgba(" + nac + ",0)");
         c.fillStyle = gl; c.beginPath(); c.arc(b.lx, b.ly, cp * 1.6, 0, U.TAU); c.fill();
       } else if (b.type === "reactor") {
-        c.fillStyle = "rgba(255,210,90," + (0.35 + 0.3 * Math.sin(t * 6 + b.x)).toFixed(2) + ")"; c.beginPath(); c.arc(b.lx, b.ly, cp * 0.3, 0, U.TAU); c.fill();
-      } else if (b.type === "phaser") {
-        c.fillStyle = "rgba(255,150,80,0.9)"; c.beginPath(); c.arc(b.lx, b.ly, cp * 0.28, 0, U.TAU); c.fill();
-      } else if (b.type === "torpedo") {
-        c.fillStyle = "rgba(255,200,120,0.8)"; c.fillRect(b.lx - cp * 0.1, b.ly - cp * 0.3, cp * 0.5, cp * 0.6);
-      } else if (b.type === "shield") {
-        c.fillStyle = "rgba(120,190,255,0.7)"; c.beginPath(); c.arc(b.lx, b.ly, cp * 0.22, 0, U.TAU); c.fill();
-      } else if (b.type === "sensor") {
-        c.fillStyle = "rgba(220,170,255,0.8)"; c.beginPath(); c.arc(b.lx, b.ly, cp * 0.22, 0, U.TAU); c.fill();
+        c.fillStyle = "rgba(255,210,90," + (0.25 + 0.25 * Math.sin(t * 6 + b.x)).toFixed(2) + ")"; c.beginPath(); c.arc(b.lx, b.ly, cp * 0.7, 0, U.TAU); c.fill();
       } else if (b.type === "bridge") {
-        c.fillStyle = "rgba(255,255,255,0.95)"; c.beginPath(); c.arc(b.lx, b.ly, cp * 0.3, 0, U.TAU); c.fill();
         var bg = c.createRadialGradient(b.lx, b.ly, 0, b.lx, b.ly, cp * 1.2); bg.addColorStop(0, "rgba(255,255,255,0.35)"); bg.addColorStop(1, "rgba(255,255,255,0)");
         c.fillStyle = bg; c.beginPath(); c.arc(b.lx, b.ly, cp * 1.2, 0, U.TAU); c.fill();
-      } else if (b.type === "quarters" && ((t * 2 + b.x) % 3 < 1.5)) {
-        c.fillStyle = "rgba(255,240,200,0.5)"; c.fillRect(b.lx - cp * 0.15, b.ly - cp * 0.15, cp * 0.3, cp * 0.3);
       }
     }
+    c.restore();
+    // 5. block glyphs: one distinct shape and colour per system type (same drawing as the palette icons)
+    c.save();
+    for (i = 0; i < alive.length; i++) { b = alive[i]; if (!b.structural && b.type !== "armor") drawBlockGlyph(c, b.type, b.lx, b.ly, cp, t); }
+    c.restore();
+    c.save(); c.globalCompositeOperation = "lighter";
     // running lights at the port/starboard extremes
     if (!opts.still && Math.sin(t * 6) > 0.6) {
       var minY = Infinity, maxY = -Infinity, pb = null, sb = null;
@@ -288,6 +283,59 @@ BS.Renderer = (function () {
   }
 
   drawers.grid = function (ship, t) { drawGridShip(ctx, ship, t); };
+
+  // One glyph per block type, drawn centred on (x, y) in a cell of `size` px: bright shape with a dark outline.
+  function drawBlockGlyph(c, type, x, y, size, t) {
+    var d = BS.Data.blocks[type]; if (!d) return;
+    var r = size * 0.5, col = d.color, g = d.glyph || "plate";
+    c.save(); c.translate(x, y); c.lineJoin = "round"; c.lineCap = "round";
+    function outline() { c.strokeStyle = "rgba(10,12,20,0.9)"; c.lineWidth = size * 0.16; c.stroke(); }
+    switch (g) {
+      case "lens":      // phaser: ring with a hot core
+        c.beginPath(); c.arc(0, 0, r * 0.62, 0, U.TAU); outline(); c.strokeStyle = col; c.lineWidth = size * 0.14; c.stroke();
+        c.fillStyle = "#fff3e0"; c.beginPath(); c.arc(0, 0, r * 0.22, 0, U.TAU); c.fill(); break;
+      case "warhead":   // torpedo: diamond
+        c.beginPath(); c.moveTo(0, -r * 0.8); c.lineTo(r * 0.55, 0); c.lineTo(0, r * 0.8); c.lineTo(-r * 0.55, 0); c.closePath(); outline(); c.fillStyle = col; c.fill(); break;
+      case "shield":    // shield emitter: half-ring facing out (up)
+        c.beginPath(); c.arc(0, r * 0.15, r * 0.7, Math.PI * 1.1, Math.PI * 1.9); outline(); c.strokeStyle = col; c.lineWidth = size * 0.18; c.stroke();
+        c.fillStyle = col; c.beginPath(); c.arc(0, r * 0.25, r * 0.18, 0, U.TAU); c.fill(); break;
+      case "core":      // reactor: four-ray burst
+        c.beginPath(); for (var k = 0; k < 4; k++) { var a = k * Math.PI / 2; c.moveTo(0, 0); c.lineTo(Math.cos(a) * r * 0.8, Math.sin(a) * r * 0.8); } outline(); c.strokeStyle = col; c.lineWidth = size * 0.16; c.stroke();
+        c.fillStyle = "#fff6c8"; c.beginPath(); c.arc(0, 0, r * 0.26, 0, U.TAU); c.fill(); break;
+      case "thrust":    // engine: chevron pointing aft
+        c.beginPath(); c.moveTo(r * 0.5, -r * 0.65); c.lineTo(-r * 0.4, 0); c.lineTo(r * 0.5, r * 0.65); outline(); c.strokeStyle = col; c.lineWidth = size * 0.18; c.stroke(); break;
+      case "dish":      // sensor: two arcs and a dot (radar)
+        c.beginPath(); c.arc(-r * 0.3, 0, r * 0.45, -0.9, 0.9); c.moveTo(r * 0.5, 0); c.arc(-r * 0.3, 0, r * 0.8, -0.9, 0.9); outline(); c.strokeStyle = col; c.lineWidth = size * 0.14; c.stroke();
+        c.fillStyle = col; c.beginPath(); c.arc(-r * 0.3, 0, r * 0.2, 0, U.TAU); c.fill(); break;
+      case "star":      // bridge: four-point star
+        c.beginPath(); for (var j = 0; j < 8; j++) { var ang = j * Math.PI / 4 - Math.PI / 2, rr = j % 2 ? r * 0.3 : r * 0.85; c.lineTo(Math.cos(ang) * rr, Math.sin(ang) * rr); } c.closePath(); outline(); c.fillStyle = col; c.fill(); break;
+      case "windows":   // crew quarters: 2×2 lit windows
+        c.fillStyle = "rgba(10,12,20,0.9)"; c.fillRect(-r * 0.7, -r * 0.7, r * 1.4, r * 1.4);
+        c.fillStyle = col; [[-0.45, -0.45], [0.1, -0.45], [-0.45, 0.1], [0.1, 0.1]].forEach(function (p) { c.fillRect(p[0] * r, p[1] * r, r * 0.35, r * 0.35); }); break;
+      case "wave":      // jammer: zigzag
+        c.beginPath(); c.moveTo(-r * 0.8, 0); c.lineTo(-r * 0.4, -r * 0.5); c.lineTo(0, r * 0.5); c.lineTo(r * 0.4, -r * 0.5); c.lineTo(r * 0.8, 0); outline(); c.strokeStyle = col; c.lineWidth = size * 0.16; c.stroke(); break;
+      case "eye":       // cloak: eye
+        c.beginPath(); c.moveTo(-r * 0.85, 0); c.quadraticCurveTo(0, -r * 0.9, r * 0.85, 0); c.quadraticCurveTo(0, r * 0.9, -r * 0.85, 0); c.closePath(); outline(); c.strokeStyle = col; c.lineWidth = size * 0.13; c.stroke();
+        c.fillStyle = col; c.beginPath(); c.arc(0, 0, r * 0.28, 0, U.TAU); c.fill(); break;
+      default: break;   // armor: the plate itself
+    }
+    c.restore();
+  }
+  // A small canvas icon of a block type for the DOM (palette, chips, rows).
+  function blockIcon(type, px) {
+    var cv = document.createElement("canvas"), s = px || 16, dpr2 = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width = s * dpr2; cv.height = s * dpr2; cv.style.width = s + "px"; cv.style.height = s + "px"; cv.className = "blk-icon";
+    var c = cv.getContext("2d"); c.scale(dpr2, dpr2);
+    var d = BS.Data.blocks[type], rgb = d ? hexToRgb(d.color) : [120, 120, 130];
+    c.fillStyle = type === "armor" ? "rgb(" + mix(rgb, [198, 204, 218], 0.35).join(",") + ")" : "rgb(" + mix(mix(rgb, [198, 204, 218], 0.5), [18, 20, 30], 0.45).join(",") + ")";
+    roundRectOn(c, 0.5, 0.5, s - 1, s - 1, 3); c.fill(); c.strokeStyle = "rgba(10,12,20,0.9)"; c.lineWidth = 1; c.stroke();
+    drawBlockGlyph(c, type, s / 2, s / 2, s * 0.9, 0);
+    return cv;
+  }
+  function roundRectOn(c, x, y, w, h, r) {
+    c.beginPath(); c.moveTo(x + r, y); c.lineTo(x + w - r, y); c.quadraticCurveTo(x + w, y, x + w, y + r); c.lineTo(x + w, y + h - r); c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    c.lineTo(x + r, y + h); c.quadraticCurveTo(x, y + h, x, y + h - r); c.lineTo(x, y + r); c.quadraticCurveTo(x, y, x + r, y); c.closePath();
+  }
 
   // Image sprite drawer: assets/ships/<file>, drawn pointing +x, centred.
   drawers.sprite = function (ship, t) {
@@ -572,7 +620,7 @@ BS.Renderer = (function () {
     ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
   }
 
-  return { init: init, draw: draw, resize: resize, resetCamera: resetCamera, drawers: drawers, camera: camera, shieldColor: shieldColor, drawPreview: drawPreview, drawGridShip: drawGridShip,
+  return { init: init, draw: draw, resize: resize, resetCamera: resetCamera, drawers: drawers, camera: camera, shieldColor: shieldColor, drawPreview: drawPreview, drawGridShip: drawGridShip, drawBlockGlyph: drawBlockGlyph, blockIcon: blockIcon,
     screenToWorld: function (x, y) { return { x: (x - W / 2) / zoom + camera.x, y: (y - H / 2) / zoom + camera.y }; },
     worldToScreen: function (x, y) { return { x: (x - camera.x) * zoom + W / 2, y: (y - camera.y) * zoom + H / 2 }; } };
 })();

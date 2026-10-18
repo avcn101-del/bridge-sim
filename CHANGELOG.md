@@ -29,6 +29,12 @@ All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
   hunter** (cloak, two jammers, six phasers).
 
 ### Changed
+- **Block icons**: every system block has its own glyph (phaser lens,
+  torpedo diamond, shield half-ring, reactor burst, engine chevron, sensor
+  dish, bridge star, crew windows, jammer zigzag, cloak eye) and a more
+  distinct colour, drawn on the hull in battle and in the editor, in the
+  palette and on the Blocks and Target chips. System plates are darker so
+  the glyph reads.
 - Brawler preset is ten phasers (power); Bird-of-Prey power base 35.
 
 ### Measured (DESIGN.md §8)

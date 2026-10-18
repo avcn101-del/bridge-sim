@@ -330,6 +330,12 @@ flicker, torpedo orbs with trails, shield facing arcs with ripples, sparks,
 smoke, shockwave, screen shake. Module bar with conic cooldown rings.
 Renderer dispatches on `ship.visual.kind` (grid / sprite).
 
+**Block glyphs** (`blocks.*.glyph`, `BS.Renderer.drawBlockGlyph`): every
+system block carries one shape in its own colour (lens, warhead, shield,
+core, thrust, dish, star, windows, wave, eye) on a darker plate; armor is
+the bare plate. The same drawing makes the palette icons and the chips
+(`BS.Renderer.blockIcon`), so a block looks the same everywhere.
+
 **Destruction** (`visuals.fragments`, `effects.js`): a destroyed block
 throws sparks, smoke and debris in its own colour plus a tumbling plate. A
 section cut off from the bridge leaves as one **fragment**: the blocks keep

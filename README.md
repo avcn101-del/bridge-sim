@@ -131,7 +131,7 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | Where | What it changes |
 |---|---|
 | `units.pxPerKm`, `grid.cellPx` | World scale and cell size |
-| `blocks.*` | Every block: hp, mass, cost, colour, weapon stats (damage, cycle, cap, optimal / falloff / tracking, arc), effects |
+| `blocks.*` | Every block: hp, mass, cost, colour, glyph, weapon stats (damage, cycle, cap, optimal / falloff / tracking, arc), effects |
 | `grid.lineOfFire / lineOfFireMuzzle / lineOfFireRangeCells` | Whether and how the own hull masks weapons |
 | `grid.shieldBase / shieldAdd / regenBase / regenAdd` | Shield facings from emitters |
 | `grid.capBase / capAdd / capRechargeTime` | Capacitor from reactors |

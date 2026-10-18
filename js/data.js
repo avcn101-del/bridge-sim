@@ -98,19 +98,19 @@ BS.Data = {
 
   // ---------------------------------------------------------------- blocks
   blocks: {
-    armor:    { letter: "A", name: "Armor plating",   short: "AR", hp: 60, mass: 2, cost: 20,  color: "#a3aabb", pierceCost: 2, desc: "Cheap and tough. Stops a beam dead: nothing behind a plate is hit until the plate is gone." },
-    phaser:   { letter: "P", name: "Phaser emitter",  short: "PH", hp: 50, mass: 2, cost: 120, power: 5, color: "#ff8a3d", desc: "Beam weapon. Fires into the 180° arc facing away from the ship's centre.",
+    armor:    { letter: "A", name: "Armor plating",   short: "AR", hp: 60, mass: 2, cost: 20,  color: "#a3aabb", glyph: "plate", pierceCost: 2, desc: "Cheap and tough. Stops a beam dead: nothing behind a plate is hit until the plate is gone." },
+    phaser:   { letter: "P", name: "Phaser emitter",  short: "PH", hp: 50, mass: 2, cost: 120, power: 5, color: "#ff8a3d", glyph: "lens", desc: "Beam weapon. Fires into the 180° arc facing away from the ship's centre.",
                 weapon: { kind: "turret", damage: 28, cycle: 2.6, cap: 2.5, heat: 6, optimalKm: 8, falloffKm: 7, tracking: 0.9, accuracy: 0.95, arc: 180, color: "#ff8a3d", coreColor: "#fff3e0", beamLife: 0.4 } },
-    torpedo:  { letter: "T", name: "Torpedo tube",    short: "TT", hp: 50, mass: 3, cost: 180, power: 8, color: "#ffb347", desc: "Heavy warhead, slow reload. Fires into the 220° arc facing away from the ship's centre: mount tubes where you want to shoot.",
-                weapon: { kind: "launcher", damage: 170, cycle: 11, cap: 14, heat: 30, rangeKm: 30, speedKmS: 4, explosionRadius: 280, explosionVelocity: 1.5, turnRate: 160, arc: 220, color: "#ffb347", coreColor: "#ffffff" } },
-    shield:   { letter: "S", name: "Shield emitter",  short: "SH", hp: 40, mass: 2, cost: 90,  power: 4,  color: "#6fb6ff", desc: "+70 shield and +0.4/s regen on the facing it sits on." },
-    reactor:  { letter: "R", name: "Reactor",         short: "RE", hp: 40, mass: 3, cost: 100, color: "#f2c14e", explosion: { damage: 80, radius: 1 }, desc: "+80 capacitor and +15 power for the grid. Explodes when destroyed: 80 damage to every block around it, and a reactor next to it goes up too. Keep them apart and armored." },
-    engine:   { letter: "E", name: "Impulse engine",  short: "EN", hp: 45, mass: 2, cost: 80,  power: 1,  color: "#7fd8ff", desc: "Thrust. Counts double inside nacelles. Speed = thrust / mass." },
-    sensor:   { letter: "N", name: "Sensor array",    short: "SE", hp: 35, mass: 1, cost: 110, power: 3, color: "#cc99cc", desc: "Faster locks and better tracking." },
-    bridge:   { letter: "B", name: "Bridge",          short: "BR", hp: 200, mass: 2, cost: 0,   color: "#ffffff", unique: true, desc: "Exactly one. If it dies, the ship is lost. Blocks cut off from it break away." },
-    jammer:   { letter: "J", name: "ECM jammer",      short: "JM", hp: 35, mass: 2, cost: 110, power: 6, color: "#8fd1c9", desc: "Electronic warfare. Each 5 s cycle (10 cap) rolls jam strength 3 against the enemy's sensors: on a hit their lock drops and they cannot lock for 4 s, and their torpedoes in flight go blind." },
-    cloak:    { letter: "C", name: "Cloaking device", short: "CL", hp: 40, mass: 3, cost: 400, power: 12, unique: true, color: "#7a6fb0", desc: "One per ship. While cloaked you cannot be locked or seen beyond sensor range, but shields are down, weapons are cold and the capacitor drains 8/s. Decloaking takes 2 s and shields stay down 8 s more." },
-    quarters: { letter: "Q", name: "Crew quarters",   short: "CQ", hp: 35, mass: 1, cost: 40,  power: 1,  color: "#d3bfa6", desc: "+0.5 hp/s damage-control repair of damaged blocks." },
+    torpedo:  { letter: "T", name: "Torpedo tube",    short: "TT", hp: 50, mass: 3, cost: 180, power: 8, color: "#ff4d6d", glyph: "warhead", desc: "Heavy warhead, slow reload. Fires into the 220° arc facing away from the ship's centre: mount tubes where you want to shoot.",
+                weapon: { kind: "launcher", damage: 170, cycle: 11, cap: 14, heat: 30, rangeKm: 30, speedKmS: 4, explosionRadius: 280, explosionVelocity: 1.5, turnRate: 160, arc: 220, color: "#ff4d6d", coreColor: "#ffffff" } },
+    shield:   { letter: "S", name: "Shield emitter",  short: "SH", hp: 40, mass: 2, cost: 90,  power: 4,  color: "#3f8cff", glyph: "shield", desc: "+70 shield and +0.4/s regen on the facing it sits on." },
+    reactor:  { letter: "R", name: "Reactor",         short: "RE", hp: 40, mass: 3, cost: 100, color: "#ffd23f", glyph: "core", explosion: { damage: 80, radius: 1 }, desc: "+80 capacitor and +15 power for the grid. Explodes when destroyed: 80 damage to every block around it, and a reactor next to it goes up too. Keep them apart and armored." },
+    engine:   { letter: "E", name: "Impulse engine",  short: "EN", hp: 45, mass: 2, cost: 80,  power: 1,  color: "#5fe9ff", glyph: "thrust", desc: "Thrust. Counts double inside nacelles. Speed = thrust / mass." },
+    sensor:   { letter: "N", name: "Sensor array",    short: "SE", hp: 35, mass: 1, cost: 110, power: 3, color: "#d26bff", glyph: "dish", desc: "Faster locks and better tracking." },
+    bridge:   { letter: "B", name: "Bridge",          short: "BR", hp: 200, mass: 2, cost: 0,   color: "#ffffff", glyph: "star", unique: true, desc: "Exactly one. If it dies, the ship is lost. Blocks cut off from it break away." },
+    jammer:   { letter: "J", name: "ECM jammer",      short: "JM", hp: 35, mass: 2, cost: 110, power: 6, color: "#35e08f", glyph: "wave", desc: "Electronic warfare. Each 5 s cycle (10 cap) rolls jam strength 3 against the enemy's sensors: on a hit their lock drops and they cannot lock for 4 s, and their torpedoes in flight go blind." },
+    cloak:    { letter: "C", name: "Cloaking device", short: "CL", hp: 40, mass: 3, cost: 400, power: 12, unique: true, color: "#9b8cff", glyph: "eye", desc: "One per ship. While cloaked you cannot be locked or seen beyond sensor range, but shields are down, weapons are cold and the capacitor drains 8/s. Decloaking takes 2 s and shields stay down 8 s more." },
+    quarters: { letter: "Q", name: "Crew quarters",   short: "CQ", hp: 35, mass: 1, cost: 40,  power: 1,  color: "#c9a97a", glyph: "windows", desc: "+0.5 hp/s damage-control repair of damaged blocks." },
   },
 
   // ---------------------------------------------------------------- modules

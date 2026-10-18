@@ -224,8 +224,12 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
 .hangar-grid { display: grid; grid-template-columns: 1fr 1.7fr; gap: 14px; padding: 10px 16px 16px; overflow: auto; min-height: 0; }
 .hg-editor { width: 100%; height: auto; background: radial-gradient(ellipse at center, #0e1026, #05060f); border-radius: 12px; border: 1px solid #1f2040; cursor: crosshair; display: block; }
 .hg-palette { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin: 6px 0; }
-.pal { display: grid; grid-template-columns: 12px 1fr; grid-template-rows: auto auto; column-gap: 6px; align-items: center; text-align: left; padding: 3px 6px; border-radius: 8px; border: 1px solid #2a2a40; background: #0b0c1c; color: var(--c-text); cursor: pointer; font-family: inherit; }
-.pal i { grid-row: 1 / span 2; width: 12px; height: 12px; border-radius: 3px; background: #333; }
+.pal { display: grid; grid-template-columns: 22px 1fr; grid-template-rows: auto auto; column-gap: 6px; align-items: center; text-align: left; padding: 3px 6px; border-radius: 8px; border: 1px solid #2a2a40; background: #0b0c1c; color: var(--c-text); cursor: pointer; font-family: inherit; }
+.pal i, .pal canvas { grid-row: 1 / span 2; width: 22px; height: 22px; border-radius: 3px; }
+.pal i.erase-icon { background: repeating-linear-gradient(45deg, #333 0 3px, #111 3px 6px); border: 1px solid #555; }
+.blk-icon { vertical-align: middle; margin-right: 4px; }
+.chip .blk-icon { margin-right: 3px; }
+.sub-grid .row label { display: inline-flex; align-items: center; gap: 3px; }
 .pal.erase i { background: transparent; border: 1px dashed #777; }
 .pal b { font-size: 11px; letter-spacing: 0.03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pal small { font-size: 9.5px; color: var(--c-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -58,10 +58,12 @@ BS.UI = (function () {
       var d = blocks[type];
       var row = document.createElement("div"); row.className = "row"; row.title = d.name + ": " + d.desc + " Click to make it the repair priority.";
       row.innerHTML = '<label>' + d.name.split(" ")[0] + '</label><div class="bar sub"><div class="fill"></div></div><span class="num">0</span>';
+      row.querySelector("label").insertBefore(BS.Renderer.blockIcon(type, 12), row.querySelector("label").firstChild);
       row.addEventListener("click", function () { game.command("repair", { type: type }); });
       el["own-subsystems"].appendChild(row);
       el["sub-" + type] = row.querySelector(".fill"); el["sub-" + type + "-val"] = row.querySelector(".num"); el["subrow-" + type] = row;
-      var chip = document.createElement("span"); chip.className = "chip"; chip.textContent = d.short; chip.title = "Aim at their " + d.name.toLowerCase() + "s";
+      var chip = document.createElement("span"); chip.className = "chip"; chip.title = "Aim at their " + d.name.toLowerCase() + "s";
+      chip.appendChild(BS.Renderer.blockIcon(type, 12)); var chipText = document.createElement("span"); chipText.textContent = d.short; chip.appendChild(chipText);
       chip.addEventListener("click", function () { game.command("aim", { type: type }); });
       el["enemy-subsystems"].appendChild(chip); el["en-" + type] = chip;
     });
@@ -295,7 +297,7 @@ BS.UI = (function () {
         var et = est.counts[type] || 0, ea = est.alive[type] || 0;
         el["en-" + type].style.display = et ? "" : "none";
         el["en-" + type].style.backgroundColor = e.flags.destroyed ? "#15162a" : hullColor(et ? ea / et : 0);
-        el["en-" + type].textContent = BS.Data.blocks[type].short + " " + ea + "/" + et;
+        el["en-" + type].lastChild.textContent = BS.Data.blocks[type].short + " " + ea + "/" + et;
         el["en-" + type].classList.toggle("targeted", p.aimType === type);
       }
     });

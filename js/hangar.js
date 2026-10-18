@@ -89,13 +89,15 @@ BS.Hangar = (function () {
     Object.keys(BS.Data.blocks).forEach(function (type) {
       var d = BS.Data.blocks[type];
       var b = document.createElement("button"); b.className = "pal" + (ed.brush === type ? " active" : "");
-      b.innerHTML = "<i style='background:" + d.color + "'></i><b>" + d.name + "</b><small>" + (d.cost ? d.cost + " cr" : "free") + " · " + d.hp + " hp</small>";
+      b.innerHTML = "<b>" + d.name + "</b><small>" + (d.cost ? d.cost + " cr" : "free") + " · " + d.hp + " hp</small>";
+      b.insertBefore(BS.Renderer.blockIcon(type, 22), b.firstChild);
       b.title = d.desc;
       b.addEventListener("click", function () { ed.brush = type; renderPalette(); });
       box.appendChild(b);
     });
     var e = document.createElement("button"); e.className = "pal erase" + (ed.brush === "erase" ? " active" : "");
     e.innerHTML = "<i></i><b>Erase</b><small>right-click also erases</small>";
+    e.querySelector("i").className = "erase-icon";
     e.addEventListener("click", function () { ed.brush = "erase"; renderPalette(); });
     box.appendChild(e);
   }
