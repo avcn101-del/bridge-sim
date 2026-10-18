@@ -16,6 +16,11 @@ All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
   the shot that crosses it overloads the ship for 6 s. Heat ring on the
   gauge, "hot"/"OVERLOAD" states in the module bar, salvo and sustained
   figures in the editor, Engineering warnings; the AI stops at 85%.
+- **Heat bar and governor**: a HEAT bar under the module bar shows heat /
+  capacity with a marker for the next full salvo and colour zones (amber
+  60%, red 85%). The **GOV** button (key H, on by default) holds fire above
+  85% and releases below 60%, so the ship never overloads by accident;
+  switch it off for an alpha strike. Engineering reports hold/release.
 - **ECM jammer** block and module (F6): rolls jam strength against the
   enemy's sensors every 5 s; a hit breaks their lock for 4 s and blinds
   their torpedoes in flight.

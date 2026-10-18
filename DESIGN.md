@@ -78,7 +78,7 @@ on), **?** help overlay, zoom, pause.
   empty space: fly there. Wheel: zoom.
 - Keys: F1–F8 toggle modules (F6 jammer, F7 cloak when fitted), L lock,
   A approach, O orbit 6 km, V reverse orbit, K keep 10 km, C come about,
-  S stop, R red alert, Space pause.
+  S stop, R red alert, H heat governor, Space pause.
 - **Reverse** (orbit row, V) flips the orbit direction so the other side of
   the ship faces the enemy: with line of fire, a saucer fights with the
   guns on the engaged side, and once they are gone you turn the other
@@ -151,9 +151,14 @@ on), **?** help overlay, zoom, pause.
   + 0.25 per rim cell (hull surface). A weapon cannot fire at capacity; the
   shot that crosses it **overloads** the ship for 6 s: nothing fires or
   cycles. A Constitution (cap 480) can alpha-strike 16 tubes, not 100. The
-  gauge shows heat as the thin outer ring; the editor shows the full-salvo
-  heat and whether sustained fire is heat-neutral. The AI stops firing at
-  85% heat.
+  gauge shows heat as the thin outer ring, and the **heat bar** under the
+  module bar shows heat / capacity with a marker for what the next full
+  salvo would add (green, amber above 60%, red above 85%). The **heat
+  governor** (GOV button, key H, on by default; `heat.governorHigh/Low`)
+  holds fire above 85% heat and releases it below 60%, so the player ship
+  never overloads unless the governor is switched off. The editor shows
+  the full-salvo heat and whether sustained fire is heat-neutral. The AI
+  stops firing at 85% heat.
 - **Reactor breach** (`blocks.reactor.explosion`, after Cosmoteer): a
   destroyed reactor deals 80 damage to each of its eight neighbours; a
   reactor among them explodes in turn, so touching reactors chain. Armor
@@ -355,7 +360,7 @@ balance: { ..., capCurve, lockBase, lockRefSignature, lockRefSensor, orbitRanges
 subsystems: { weapons, torpedoes, engines, shields, sensors, bridge: { label, short, effect, targetReport, damaged, repaired } }
 subsystemEffects: { sensorsAccuracyFloor, sensorsLockMaxMult, bridgeCapMinMult, targetAccuracyMult }
 modules: { id: { slot, kind: turret|launcher|active|passive, name, short, cycle, cap, pg, cpu, cost, desc, ...stats, effect } }
-grid: { cellPx, structureHp, structurePierceCost, shield*/regen*/cap*/thrust*/sensor*/repair*, powerPerReactor, brownoutMin, heat: { base, perBlock, dissipationBase, dissipationPerRimCell, overloadTime, aiFireBelow },
+grid: { cellPx, structureHp, structurePierceCost, shield*/regen*/cap*/thrust*/sensor*/repair*, powerPerReactor, brownoutMin, heat: { base, perBlock, dissipationBase, dissipationPerRimCell, overloadTime, aiFireBelow, governorHigh, governorLow },
         hitScatter, penetration, lineOfFire, lineOfFireStep, lineOfFireMuzzle, lineOfFireRangeCells, torpedoSplash, aimRadius, aimScatter, deadFraction,
         variant: { fraction, attempts, systemWeights }, maskLegend, layoutLegend }
 blocks: { type: { letter, name, short, hp, mass, cost, power, color, desc, unique?, pierceCost?, explosion?: { damage, radius }, weapon?: { ..., heat } } }

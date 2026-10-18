@@ -74,7 +74,8 @@ BS.Data = {
     brownoutMin: 0.4,             // when reactors die and draw exceeds supply, weapons cycle and shields regen at supply/draw (never below this)
     repairBase: 0.6, repairAdd: 0.5,   // hp/s restored to damaged (not destroyed) blocks
     // heat: every shot adds its weapon's heat; capacity grows with hull size, dissipation with hull surface (rim cells)
-    heat: { base: 80, perBlock: 2, dissipationBase: 6, dissipationPerRimCell: 0.25, overloadTime: 6, aiFireBelow: 0.85 },
+    heat: { base: 80, perBlock: 2, dissipationBase: 6, dissipationPerRimCell: 0.25, overloadTime: 6, aiFireBelow: 0.85,
+            governorHigh: 0.85, governorLow: 0.6 },   // heat governor (H): holds fire above governorHigh until heat falls below governorLow
     hitScatter: 1.0,              // shots land anywhere across the facing: sideways offset up to this × the hull half-extent
     penetration: 2,               // beam penetration points: each block on the path costs its pierceCost (armor 2, structure 3, systems 1); the beam stops at 0
     lineOfFire: true,             // a weapon cannot fire through the ship's own alive blocks (editor shows masked weapons)
@@ -832,6 +833,9 @@ BS.Data = {
       capLow: "Capacitor at {pct} percent, Captain.",
       capEmpty: "Capacitor empty! Everything's going offline.",
       heatHigh: "Weapons are running hot, Captain. Ease off or we overload.",
+      governorOn: "Heat governor on: weapons hold fire above 85 percent and resume at 60.",
+      governorOff: "Heat governor off. Weapons will fire until we overload, Captain.",
+      governorHold: "Governor holding fire: letting the heat bleed off.",
       overload: "Heat overload! Weapons and systems are down until it bleeds off!",
       enemyOverload: "Their ship just overloaded, Captain. Everything they have is offline. Hit them now!",
       hail: "Hailing the Klingon vessel... they're responding, Captain.",

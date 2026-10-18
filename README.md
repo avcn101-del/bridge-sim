@@ -58,9 +58,10 @@ tell the helm how to fly relative to it, and you switch modules on and off.
   reactor; the editor shows "Power 118 / 140" and refuses a build that
   draws more. Lose reactors in battle and your weapons and shields slow
   down. **Heat**: every shot heats the ship (thin outer ring of the
-  gauge); at the cap weapons stop, and a salvo that crosses it overloads
-  everything for six seconds. Big alpha strikes are possible, spamming is
-  not.
+  gauge and the HEAT bar under the module bar, with a marker for the next
+  salvo); at the cap weapons stop, and a salvo that crosses it overloads
+  everything for six seconds. The **GOV** heat governor (key H, on by
+  default) holds fire at 85% heat; switch it off for a big alpha strike.
 - **Electronic warfare**: an **ECM jammer** block (F6) rolls against the
   enemy's sensors every five seconds and breaks their lock; a **cloaking
   device** (F7, one per ship, 400 cr) makes you unlockable and unseen

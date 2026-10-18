@@ -67,6 +67,7 @@ BS.Crew = (function () {
         break;
       }
       case "module": BS.Modules.toggle(ship, args.module); break;
+      case "governor": ship.heatGovernor = args.on !== undefined ? !!args.on : !ship.heatGovernor; report("engineering", ship.heatGovernor ? "governorOn" : "governorOff"); break;
       case "repair": {
         var rs = args.type;
         if (!rs || ship.repairPriority === rs || !BS.Data.blocks[rs]) { ship.repairPriority = null; report("engineering", "repairAuto"); }
@@ -141,6 +142,7 @@ BS.Crew = (function () {
         else if (e.state === "decloaking") say("tactical", U.template(D().events.enemyDecloak, { facing: S.facingToward(ship, enemy.pos.x, enemy.pos.y) }), "warn");
       }
     });
+    BS.Events.on("governorHold", function (e) { if (e.ship === ship && e.holding) report("engineering", "governorHold"); });
     BS.Events.on("overload", function (e) { if (e.ship === ship) report("engineering", "overload", {}, "warn"); else if (e.ship === enemy) report("tactical", "enemyOverload"); });
     BS.Events.on("shipDisabled", function (e) { if (e.ship === enemy) report("tactical", "enemyDisabled"); else if (e.ship === ship) report("engineering", "shipDisabled", {}, "warn"); });
     BS.Events.on("lockAcquired", function (e) { if (e.ship === ship) report("tactical", "lockDone"); else if (e.target === ship) say("tactical", D().events.enemyLocking, "warn"); });

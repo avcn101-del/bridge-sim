@@ -46,6 +46,7 @@ BS.Modules = (function () {
       if (ship.overload > 0) { reason = "overload"; return; }
       if (ship.cloak.state !== "off") { reason = "cloaked"; return; }
       if (ship.heat >= ship.stats.heatCap || (ship.aiProfile && ship.heat > ship.stats.heatCap * BS.Data.grid.heat.aiFireBelow)) { reason = "heat"; return; }
+      if (ship.governorHold) { reason = "heat"; return; }
       if (!target) { reason = "nolock"; return; }
       var dKm = BS.Ships.distanceKm(ship, target);
       var maxKm = w.kind === "turret" ? w.optimalKm + w.falloffKm * 2.5 : w.rangeKm;
@@ -103,6 +104,12 @@ BS.Modules = (function () {
   }
   function update(ship, dt) {
     var eff = { speedMult: 1, shieldResist: 0, lockMult: 1, trackingMult: 1 }, order = updateOrder(ship);
+    // heat governor: hold fire above the high mark until the heat falls below the low mark (hysteresis)
+    var H = BS.Data.grid.heat, hf = ship.stats.heatCap > 0 ? ship.heat / ship.stats.heatCap : 0;
+    if (ship.heatGovernor && !ship.aiProfile) {
+      if (!ship.governorHold && hf > H.governorHigh) { ship.governorHold = true; BS.Events.emit("governorHold", { ship: ship, holding: true }); }
+      else if (ship.governorHold && hf < H.governorLow) { ship.governorHold = false; BS.Events.emit("governorHold", { ship: ship, holding: false }); }
+    } else ship.governorHold = false;
     for (var i = 0; i < order.length; i++) {
       var m = order[i];
       if (isWeapon(m)) { updateWeaponGroup(ship, m, dt); continue; }
@@ -139,5 +146,11 @@ BS.Modules = (function () {
   function find(ship, id) { return ship.modules.filter(function (m) { return m.id === id; }); }
   function weapons(ship) { return ship.modules.filter(isWeapon); }
 
-  return { fit: fit, update: update, setActive: setActive, toggle: toggle, find: find, weapons: weapons, isWeapon: isWeapon, weaponBlocks: weaponBlocks, blockCanFire: blockCanFire };
+  // Heat of the next full salvo: every ready weapon that is active and could fire
+  function pendingSalvoHeat(ship) {
+    var total = 0;
+    ship.modules.forEach(function (m) { if (!isWeapon(m) || !m.active) return; weaponBlocks(ship, m).forEach(function (b) { if (b.cycleLeft <= 0 && b.facing !== null) total += b.def.weapon.heat || 0; }); });
+    return total;
+  }
+  return { fit: fit, update: update, setActive: setActive, pendingSalvoHeat: pendingSalvoHeat, toggle: toggle, find: find, weapons: weapons, isWeapon: isWeapon, weaponBlocks: weaponBlocks, blockCanFire: blockCanFire };
 })();

@@ -29,7 +29,7 @@ BS.Ships = (function () {
       grid: grid, stats: st, statMult: statMult, mods: mods,
       hullMax: st.hullTotal, hull: st.hullAlive,
       shieldMax: {}, shields: {}, shieldRegen: {},
-      capMax: 0, capacitor: 0, heat: 0, overload: 0, jammed: 0, cloak: { state: "off", t: 0, surge: 0 },
+      capMax: 0, capacitor: 0, heat: 0, overload: 0, heatGovernor: true, governorHold: false, jammed: 0, cloak: { state: "off", t: 0, surge: 0 },
       signature: cls.signature,
       flags: { alert: "none", destroyed: false, disabled: false, armed: false },
       selected: null, lock: { target: null, progress: 0, locked: false, time: 0 }, aimType: null,

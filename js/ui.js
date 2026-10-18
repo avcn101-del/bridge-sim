@@ -17,7 +17,7 @@ BS.UI = (function () {
     ["own-speed", "own-cmd", "own-subsystems", "enemy-subsystems", "gauge", "help-screen", "btn-help", "btn-help-close",
      "target-none", "target-info", "tg-name", "tg-hull", "tg-hull-val", "tg-shield", "tg-shield-val", "tg-range", "tg-angular", "tg-chance", "tg-aim",
      "clock", "alert-label", "btn-pause", "btn-redalert", "btn-zoom-in", "btn-zoom-out", "pause-overlay", "start-screen", "result-screen", "result-title", "result-sub", "result-head",
-     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "rs-credits", "rs-salvage", "ship-name", "view", "module-bar", "overview", "sel-name", "orbit-buttons", "keep-buttons"]
+     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "rs-credits", "rs-salvage", "heat-bar", "heat-num", "btn-governor", "own-heat", "ship-name", "view", "module-bar", "overview", "sel-name", "orbit-buttons", "keep-buttons"]
       .forEach(function (id) { el[id] = $(id); });
     logList = $("log");
     buildGauge();
@@ -34,6 +34,7 @@ BS.UI = (function () {
     });
     el["btn-pause"].addEventListener("click", function () { game.togglePause(); el["btn-pause"].blur(); });
     el["btn-redalert"].addEventListener("click", function () { game.command("redAlert"); el["btn-redalert"].blur(); });
+    el["btn-governor"].addEventListener("click", function () { game.command("governor"); el["btn-governor"].blur(); });
     el["btn-zoom-in"].addEventListener("click", function () { game.setZoom(game.state.zoom + BS.Data.balance.zoom.step); });
     el["btn-zoom-out"].addEventListener("click", function () { game.setZoom(game.state.zoom - BS.Data.balance.zoom.step); });
     $("btn-start").addEventListener("click", function () { game.openHangar(); });
@@ -201,6 +202,7 @@ BS.UI = (function () {
         case "a": game.command("approach"); break;
         case "o": game.command("orbit", { rangeKm: BS.Data.balance.orbitRangesKm[1] }); break;
         case "v": game.command("orbit", { flip: true }); break;
+        case "h": game.command("governor"); break;
         case "k": game.command("keep", { rangeKm: BS.Data.balance.keepRangesKm[1] }); break;
         case "c": game.command("comeAbout"); break;
         case "s": game.command("stop"); break;
@@ -256,6 +258,20 @@ BS.UI = (function () {
     el["rs-salvage"].textContent = rw && rw.salvage ? "+" + rw.salvage + " cr from the wreck" + (rw.how === "disabled" ? " (captured intact)" : "") : "—";
   }
 
+  // Heat bar: fill, warning zones, where the next full salvo would land, governor state, overload countdown.
+  function updateHeatBar(p) {
+    var cap = p.stats.heatCap || 1, hf = U.clamp(p.heat / cap, 0, 1), bar = el["heat-bar"], track = bar.querySelector(".hb-track");
+    track.querySelector(".hb-fill").style.width = (hf * 100).toFixed(1) + "%";
+    var salvo = BS.Modules.pendingSalvoHeat(p), sm = track.querySelector(".hb-salvo");
+    if (salvo > 0 && p.overload <= 0) { sm.style.display = "block"; sm.style.left = (Math.min(1, (p.heat + salvo) / cap) * 100).toFixed(1) + "%"; sm.style.background = p.heat + salvo > cap ? "#ff4040" : "rgba(255,255,255,0.7)"; } else sm.style.display = "none";
+    bar.classList.toggle("hot", hf > 0.6 && p.overload <= 0);
+    bar.classList.toggle("overload", p.overload > 0);
+    bar.classList.toggle("holding", p.governorHold && p.overload <= 0);
+    el["heat-num"].textContent = p.overload > 0 ? "OVERLOAD " + p.overload.toFixed(1) + " s" : p.governorHold ? "HOLD " + Math.round(hf * 100) + "%" : Math.round(p.heat) + " / " + Math.round(cap);
+    el["btn-governor"].classList.toggle("active", p.heatGovernor);
+    el["own-heat"].textContent = Math.round(p.heat) + " / " + Math.round(cap) + " · −" + p.stats.heatDissipation.toFixed(0) + "/s" + (p.overload > 0 ? " · OVERLOAD" : p.governorHold ? " · holding" : "");
+  }
+
   // ---- per-frame update ---------------------------------------------------
   function pctColor(frac) { var c = BS.Renderer.shieldColor(frac); return "rgb(" + c[0] + "," + c[1] + "," + c[2] + ")"; }
   function hullColor(frac) { return frac > 0.6 ? "#7fd8a0" : frac > 0.3 ? "#f2c14e" : "#e0463c"; }
@@ -282,6 +298,7 @@ BS.UI = (function () {
     el["pause-overlay"].classList.toggle("hidden", !state.paused);
 
     updateGauge(p);
+    updateHeatBar(p);
     el["own-speed"].textContent = S.speedKmS(p).toFixed(1) + " km/s" + (p.activeEffects.speedMult > 1 ? " · AB" : "");
     el["own-cmd"].textContent = cmdText(p);
     var st = p.stats, est = e ? e.stats : null;

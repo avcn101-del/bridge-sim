@@ -41,6 +41,7 @@
         <h3>Ship</h3>
         <div class="row"><label>Speed</label><span class="num wide" id="own-speed">0.0 km/s</span></div>
         <div class="row"><label>Helm</label><span class="num wide" id="own-cmd">All stop</span></div>
+        <div class="row"><label>Heat</label><span class="num wide" id="own-heat">0 / 0</span></div>
 
         <h3>Blocks <small>alive / total · click: repair priority</small></h3>
         <div class="sub-grid" id="own-subsystems"></div>
@@ -65,7 +66,15 @@
       <canvas id="view"></canvas>
       <div id="hud">
         <div id="gauge" title="Hull (centre), shield facings (middle ring), capacitor (outer ring)"></div>
-        <div id="module-bar" title="Click or press F1–F8 to toggle a module"></div>
+        <div id="hud-right">
+          <div id="module-bar" title="Click or press F1–F8 to toggle a module"></div>
+          <div id="heat-bar" title="Heat: every shot adds heat; at the cap weapons stop and a salvo past it overloads the ship for six seconds. The pale mark shows where the next full salvo would put you.">
+            <span class="hb-label">HEAT</span>
+            <div class="hb-track"><div class="hb-zone warn"></div><div class="hb-zone danger"></div><div class="hb-fill"></div><div class="hb-salvo"></div><div class="hb-gov"></div></div>
+            <span class="hb-num" id="heat-num">0 / 0</span>
+            <button id="btn-governor" class="hb-gov-btn active" title="H: heat governor. On: weapons hold fire above 85% heat and resume at 60%, so you never overload. Off: fire until the ship overloads (alpha strike).">GOV</button>
+          </div>
+        </div>
       </div>
       <div id="pause-overlay" class="hidden"><span>SIMULATION PAUSED</span><small>Commands may still be given</small></div>
       <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
@@ -142,7 +151,8 @@
         <li>Hover the locked enemy to see its blocks; click one to aim at all blocks of that type (−15% accuracy). Shots hit the outer blocks first and armor stops a beam dead; blocks cut off from the bridge break away. A destroyed reactor explodes and takes its neighbours with it. A ship with no weapons and no engines left is disabled: the fight ends and the wreck pays salvage. Click your own block rows to set repair priority.</li>
         <li>Top bar: <b>Reinforce</b> moves shield strength to the weakest facing, <b>Red alert</b> arms weapons (automatic when you switch a weapon on), <b>+/−</b> zoom.</li>
         <li>Weapons fire only where the hull does not block them, so a saucer fights best with the enemy on its beam. <b>Reverse</b> (V) flips your orbit to bring the other side's weapons to bear.</li>
-        <li>Keys: L lock · A approach · O orbit 6 km · V reverse orbit · K keep 10 km · C come about · S stop · R red alert · Space pause.</li>
+        <li><b>Heat</b>: the bar under the module bar. Every shot adds heat (phasers a little, torpedoes a lot); at the cap weapons stop, and a salvo that crosses it overloads everything for six seconds. The pale mark shows where your next full salvo would land. <b>GOV</b> (H) is the heat governor: on, your weapons hold fire above 85% and resume at 60%; off, you can alpha-strike into an overload.</li>
+        <li>Keys: L lock · A approach · O orbit 6 km · V reverse orbit · K keep 10 km · C come about · S stop · R red alert · H heat governor · Space pause.</li>
       </ul>
       <button id="btn-help-close" class="lcars-btn c-blue big">Back to the bridge</button>
     </div>
