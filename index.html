@@ -88,7 +88,7 @@
           <button class="lcars-btn c-blue" data-cmd="stop" title="S">Stop ship</button>
         </div>
         <div class="sub-label">Orbit at</div>
-        <div class="btn-grid four" id="orbit-buttons"></div>
+        <div class="btn-grid five" id="orbit-buttons"></div>
         <div class="sub-label">Keep at range</div>
         <div class="btn-grid three" id="keep-buttons"></div>
         <div class="btn-grid">
@@ -139,9 +139,10 @@
         <li><b>Orbit / Keep at range / Approach</b> tell the helm how to fly relative to the target. <b>Right-click</b> the enemy to orbit at 6 km; right-click or double-click empty space to fly there.</li>
         <li><b>Module bar</b> (bottom of the display, F1–F8): phasers, torpedoes, shield booster, hardener, afterburner. Each cycle costs capacitor; the gauge's outer ring is your capacitor, the middle ring your four shield facings, the centre your hull.</li>
         <li>Phasers hit best inside 8 km and against slow targets. Torpedoes always home in but lose damage against small fast ships.</li>
-        <li>Hover the locked enemy to see its blocks; click one to aim at all blocks of that type (−15% accuracy). Shots hit the outer blocks first, so armor protects what is behind it; blocks cut off from the bridge break away. Click your own block rows to set repair priority.</li>
+        <li>Hover the locked enemy to see its blocks; click one to aim at all blocks of that type (−15% accuracy). Shots hit the outer blocks first and armor stops a beam dead; blocks cut off from the bridge break away. A destroyed reactor explodes and takes its neighbours with it. A ship with no weapons and no engines left is disabled: the fight ends and the wreck pays salvage. Click your own block rows to set repair priority.</li>
         <li>Top bar: <b>Reinforce</b> moves shield strength to the weakest facing, <b>Red alert</b> arms weapons (automatic when you switch a weapon on), <b>+/−</b> zoom.</li>
-        <li>Keys: L lock · A approach · O orbit 6 km · K keep 10 km · C come about · S stop · R red alert · Space pause.</li>
+        <li>Weapons fire only where the hull does not block them, so a saucer fights best with the enemy on its beam. <b>Reverse</b> (V) flips your orbit to bring the other side's weapons to bear.</li>
+        <li>Keys: L lock · A approach · O orbit 6 km · V reverse orbit · K keep 10 km · C come about · S stop · R red alert · Space pause.</li>
       </ul>
       <button id="btn-help-close" class="lcars-btn c-blue big">Back to the bridge</button>
     </div>
@@ -207,6 +208,7 @@
         <tr><td>Phaser hits</td><td id="rs-phasers">0 / 0</td></tr>
         <tr><td>Torpedo hits</td><td id="rs-torps">0 / 0</td></tr>
         <tr><td>Credits earned</td><td id="rs-credits">—</td></tr>
+        <tr><td>Salvage</td><td id="rs-salvage">—</td></tr>
       </table>
       <button id="btn-restart" class="lcars-btn c-orange big">Return to hangar</button>
     </div>

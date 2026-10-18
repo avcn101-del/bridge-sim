@@ -151,6 +151,14 @@ BS.Effects = (function () {
       chunk(e.pos.x, e.pos.y, s.grid.cellPx * U.rand(0.5, 0.9), col, s.vel.x * 0.6, s.vel.y * 0.6);
       if (s.isPlayer) addShake(4);
     });
+    BS.Events.on("blockExploded", function (e) {
+      var r = e.ship.grid.cellPx * (e.radius + 1.5);
+      flash(e.pos.x, e.pos.y, r * 2.2, [255, 220, 120], 0.45);
+      rings.push({ x: e.pos.x, y: e.pos.y, life: 0.6, maxLife: 0.6, radius: r * 2.4 });
+      sparks(e.pos.x, e.pos.y, 40, 220, [255, 210, 120]); fire(e.pos.x, e.pos.y, 18); smoke(e.pos.x, e.pos.y, 10, [80, 70, 60], 40);
+      debris(e.pos.x, e.pos.y, 10, 120, [242, 193, 78]);
+      addShake(e.ship.isPlayer ? 9 : 4);
+    });
     BS.Events.on("sectionLost", function (e) {
       var V = BS.Data.visuals.fragments;
       // the whole section drifts off as one piece; sparks along the break

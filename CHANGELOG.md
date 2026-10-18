@@ -2,6 +2,48 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.6.0] — 2026-10-17 (Cosmoteer ideas: breaches, line of fire, armor, salvage)
+
+### Added
+- **Reactor breaches**: a destroyed reactor deals 80 damage to its eight
+  neighbours; reactors among them go up too (chain reaction). Big flash,
+  shockwave and debris; Engineering and Tactical report breaches. The
+  editor warns when reactors touch each other or the bridge.
+- **Line of fire**: a weapon cannot fire through the ship's own blocks
+  near it (muzzle 1 cell out, hull within 3 cells masks). Its arc is
+  centred on the open side of the hull, so rim weapons face outward and a
+  ship fights with the guns on the engaged side. The editor marks fully
+  masked weapons with a red cross, lists them in the warnings, leaves them
+  out of the dps figure, and shows the hovered weapon's clear arc.
+- **Reverse orbit** (button in the Orbit row, key V): flips the orbit
+  direction to bring the other side's weapons to bear. Helm reports it.
+- **Disabled ships and salvage**: a ship with no weapons and no engines
+  left is dead in space and the battle ends. A win pays salvage on top of
+  the reward: 10% of the enemy's surviving block value for a wreck, 25% for
+  a ship disabled intact. The result screen has a Salvage row.
+
+### Changed
+- **Armor stops beams**: beams carry 2 penetration points; armor costs 2,
+  structure 3, systems 1. A beam ends in the first plate it meets but still
+  chews two deep through exposed systems.
+- Phaser damage 24 → 28, torpedo 150 → 170 (half the guns bear at any
+  moment now); enemy damage ×1.6 → ×1.35 (their guns got the same rule and
+  their wing mounts fire properly). Constitution default: phasers moved to
+  the port and starboard rim (four a side), tubes at the bow.
+- Every default layout, preset and enemy variant was rebuilt for the new
+  rules: weapons moved to the rim with a clear line of fire, reactors spread
+  at least one cell apart and away from the bridge. Counts changed where
+  the rim ran out of room: Defiant 8 phasers 2 tubes, Galaxy 10 phasers
+  2 tubes, Sovereign 7 reactors, Interceptor preset no tube, Dreadnought
+  8 reactors, Fortress 10 reactors.
+
+### Measured (DESIGN.md §8)
+- Straightforward Constitution that matches the raider's range and reverses
+  its orbit when its engaged side is stripped: 5 of 5 wins, typically
+  3:30–4:00, keeping 59–86% block hp. Orbit 6 km without ever reversing:
+  0 of 5. No orders: disabled in about 3 minutes. K't'inga broadside beats
+  a stock Constitution and is a 3-of-4 win for the Excelsior.
+
 ## [0.5.3] — 2026-10-17 (enemy doctrines)
 
 ### Changed

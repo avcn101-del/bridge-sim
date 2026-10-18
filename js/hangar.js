@@ -143,6 +143,7 @@ BS.Hangar = (function () {
       c.strokeStyle = "rgba(255,255,255,0.08)"; c.lineWidth = 0.3 / ed.scale * 2; c.strokeRect(lx - half, ly - half, cp, cp);
     }
     BS.Renderer.drawGridShip(c, ed.ship, 0.5, { still: true });
+    drawFireArcs(c, g);
     // mirror line
     if (ed.mirror) { c.strokeStyle = "rgba(255,200,120,0.35)"; c.setLineDash([3, 3]); c.lineWidth = 0.6; c.beginPath(); c.moveTo(-g.w * cp / 2, 0); c.lineTo(g.w * cp / 2, 0); c.stroke(); c.setLineDash([]); }
     // hover
@@ -156,6 +157,22 @@ BS.Hangar = (function () {
     renderStats();
   }
 
+  // Weapons that cannot fire past the hull get a red mark; the hovered weapon shows its clear arc as a wedge.
+  function drawFireArcs(c, g) {
+    var cp = g.cellPx, hov = ed.hover ? g.at[ed.hover.x + "," + ed.hover.y] : null;
+    g.stats.weapons.forEach(function (b) {
+      var w = b.def.weapon, cov = Gr.arcCoverage(g, b), facing = Gr.weaponFacing(b);
+      if (cov <= 0) { c.strokeStyle = "rgba(255,70,60,0.95)"; c.lineWidth = 0.9; c.beginPath(); c.moveTo(b.lx - cp * 0.3, b.ly - cp * 0.3); c.lineTo(b.lx + cp * 0.3, b.ly + cp * 0.3); c.moveTo(b.lx + cp * 0.3, b.ly - cp * 0.3); c.lineTo(b.lx - cp * 0.3, b.ly + cp * 0.3); c.stroke(); }
+      if (b !== hov) return;
+      var half = w.arc / 2, R = cp * 9;
+      for (var a = -half; a < half; a += 5) {
+        var a0 = facing + a * U.DEG, a1 = facing + (a + 5) * U.DEG, clear = Gr.lineOfFireClear(g, b, a0 + 2.5 * U.DEG);
+        c.fillStyle = clear ? "rgba(255,170,90,0.22)" : "rgba(255,70,60,0.12)";
+        c.beginPath(); c.moveTo(b.lx, b.ly); c.arc(b.lx, b.ly, R, a0, a1); c.closePath(); c.fill();
+      }
+    });
+  }
+
   function renderStats() {
     var st = C.layoutStats(ed.classId, ed.rows), delta = C.layoutDelta(ed.classId, ed.rows), s = C.get();
     var capLine = st.lasts !== null ? "<span class='bad'>runs dry in " + Math.round(st.lasts) + " s with everything on</span>" : "stable at " + st.stableAt + "% with everything on";
@@ -163,6 +180,7 @@ BS.Hangar = (function () {
     var counts = Object.keys(st.counts).map(function (t) { return BS.Data.blocks[t].short + " " + st.counts[t]; }).join(" · ");
     el["hg-stats"].innerHTML =
       (st.ok ? "" : "<div class='bad'>" + st.errors.join(" ") + "</div>") +
+      (st.warnings.length ? "<div class='warn'>" + st.warnings.join(" ") + "</div>" : "") +
       "<div><label>Build</label><span>" + st.blocks + " blocks · mass " + st.mass + " · value " + st.cost.toLocaleString() + " cr <span class='dim'>(" + counts + ")</span></span></div>" +
       "<div><label>Damage</label><span>" + st.dps + " dps <span class='dim'>(beams " + st.turretDps + " · torpedoes " + st.launcherDps + ")</span></span></div>" +
       "<div><label>Capacitor</label><span>" + st.cap + " · " + capLine + " <span class='dim'>(drain " + st.drain + "/s · peak " + st.peakRecharge + "/s)</span></span></div>" +

@@ -32,7 +32,13 @@ BS.Crew = (function () {
     var target = args.target || ship.lock.target || ship.selected;
     switch (id) {
       case "approach": if (!target) return report("tactical", "lockNoTarget"); S.setCommand(ship, "approach", { target: target }); report("helm", "approach"); break;
-      case "orbit": if (!target) return report("tactical", "lockNoTarget"); S.setCommand(ship, "orbit", { target: target, rangeKm: args.rangeKm }); report("helm", "orbit", { range: args.rangeKm }); break;
+      case "orbit": {
+        if (!target) return report("tactical", "lockNoTarget");
+        var range = args.rangeKm !== undefined ? args.rangeKm : (ship.cmd.type === "orbit" ? S.km(ship.cmd.range) : BS.Data.balance.orbitRangesKm[1]);
+        S.setCommand(ship, "orbit", { target: target, rangeKm: range, flipOrbit: !!args.flip });
+        if (args.flip) report("helm", "orbitReverse", { range: range }); else report("helm", "orbit", { range: range });
+        break;
+      }
       case "keep": if (!target) return report("tactical", "lockNoTarget"); S.setCommand(ship, "keep", { target: target, rangeKm: args.rangeKm }); report("helm", "keepRange", { range: args.rangeKm }); break;
       case "flyTo": S.setCommand(ship, "flyTo", { point: args.point }); report("helm", "flyTo"); break;
       case "stop": S.setCommand(ship, "idle"); report("helm", "stop"); break;
@@ -112,6 +118,14 @@ BS.Crew = (function () {
       if (e.ship !== ship) return;
       say("engineering", U.template(BS.Data.blockReports.cutOff, { n: e.blocks.length }), "warn");
     });
+    var lastExplosion = -99;
+    BS.Events.on("blockExploded", function (e) {
+      if (now() - lastExplosion < 4) return;
+      lastExplosion = now();
+      if (e.ship === ship) say("engineering", BS.Data.blockReports.reactorExploded, "warn");
+      else if (e.ship === enemy) say("tactical", BS.Data.blockReports.enemyReactorExploded);
+    });
+    BS.Events.on("shipDisabled", function (e) { if (e.ship === enemy) report("tactical", "enemyDisabled"); else if (e.ship === ship) report("engineering", "shipDisabled", {}, "warn"); });
     BS.Events.on("lockAcquired", function (e) { if (e.ship === ship) report("tactical", "lockDone"); else if (e.target === ship) say("tactical", D().events.enemyLocking, "warn"); });
     BS.Events.on("lockLost", function (e) { if (e.ship === ship && e.reason === "range") report("tactical", "lockLost", {}, "warn"); });
     BS.Events.on("moduleOffline", function (e) { if (e.ship === ship) say("engineering", U.template(D().reports.moduleNoCap, { module: e.module.def.name }), "warn"); });

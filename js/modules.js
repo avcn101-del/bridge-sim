@@ -23,9 +23,12 @@ BS.Modules = (function () {
   function weaponBlocks(ship, m) { return ship.grid.blocks.filter(function (b) { return b.alive && b.type === m.def.block; }); }
 
   function blockCanFire(ship, b, target) {
-    // every weapon fires away from the ship centre: compare the target bearing with the block's outward direction
+    // every weapon fires away from the ship centre: compare the target bearing with the block's outward direction,
+    // and the ship's own hull must not be in the way
     var w = b.def.weapon, bearing = BS.Ships.bearingTo(ship, target);
-    return Math.abs(U.normAngle(bearing - b.outward)) <= (w.arc / 2) * U.DEG;
+    if (BS.Data.grid.lineOfFire && b.facing === null) return false;   // buried: nothing in the open
+    if (Math.abs(U.normAngle(bearing - BS.Grid.weaponFacing(b))) > (w.arc / 2) * U.DEG) return false;
+    return !BS.Data.grid.lineOfFire || BS.Grid.lineOfFireClear(ship.grid, b, bearing);
   }
 
   function updateWeaponGroup(ship, m, dt) {
@@ -39,7 +42,7 @@ BS.Modules = (function () {
       if (b.cycleLeft > 0) b.cycleLeft -= dt;
       if (b.cycleLeft <= 0) ready++;
       if (!m.active || b.cycleLeft > 0) return;
-      if (!ship.flags.armed) { reason = "notarmed"; return; }
+      if (!ship.flags.armed || ship.flags.disabled) { reason = "notarmed"; return; }
       if (!target) { reason = "nolock"; return; }
       var dKm = BS.Ships.distanceKm(ship, target);
       var maxKm = w.kind === "turret" ? w.optimalKm + w.falloffKm * 2.5 : w.rangeKm;

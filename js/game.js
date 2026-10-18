@@ -20,13 +20,16 @@ BS.Game = (function () {
   }
 
   function subscribe() {
-    BS.Events.on("shipDestroyed", function (e) {
+    function endBattle(ship, how) {
       if (state.phase !== "battle") return;
-      state.result = e.ship.isPlayer ? "defeat" : "victory";
+      state.result = ship.isPlayer ? "defeat" : "victory";
+      state.resultHow = how;
       state.phase = "ending";
       state.endTimer = BS.Data.balance.destroyedEndDelay;
-      BS.Events.emit("battleEnded", { result: state.result, state: state });
-    });
+      BS.Events.emit("battleEnded", { result: state.result, how: how, state: state });
+    }
+    BS.Events.on("shipDestroyed", function (e) { endBattle(e.ship, "destroyed"); });
+    BS.Events.on("shipDisabled", function (e) { endBattle(e.ship, "disabled"); });
   }
 
   function startBattle() {
@@ -36,7 +39,7 @@ BS.Game = (function () {
     BS.Renderer.resetCamera();
     BS.UI.clearLog();
     BS.UI.hideOverlays();
-    state.time = 0; state.paused = false; state.result = null; state.endTimer = 0; state.hover = null; state.reward = null;
+    state.time = 0; state.paused = false; state.result = null; state.resultHow = null; state.endTimer = 0; state.hover = null; state.reward = null;
     state.zoom = BS.Data.balance.zoom.start;
     var save = BS.Campaign.get();
     var player = BS.Ships.create(save.shipClass, { isPlayer: true, pos: { x: 0, y: 0 }, heading: -Math.PI / 2, layout: BS.Campaign.battleLayout(save.shipClass), mods: BS.Campaign.skillMods() });

@@ -27,7 +27,7 @@ BS.Grid = (function () {
         if (m === "p") { type = "structure"; structural = true; }
         else { var ch = layout[y] ? layout[y][x] : "."; type = typeForLetter(ch); }
         if (!type) continue;
-        var def = structural ? { hp: G().structureHp, mass: 1, color: "#8a90a0", name: "Structure" } : BS.Data.blocks[type];
+        var def = structural ? { hp: G().structureHp, mass: 1, color: "#8a90a0", name: "Structure", pierceCost: G().structurePierceCost } : BS.Data.blocks[type];
         var hp = Math.round(def.hp * statMult);
         var b = { x: x, y: y, type: type, def: def, hp: hp, maxHp: hp, alive: true, structural: structural, nacelle: m === "n",
                   lx: (x + 0.5 - w / 2) * cellPx, ly: (y + 0.5 - h / 2) * cellPx, cycleLeft: 0, id: y * w + x };
@@ -70,6 +70,7 @@ BS.Grid = (function () {
         case "phaser": case "torpedo": s.weapons.push(b); break;
       }
     });
+    if (g.lineOfFire) s.weapons.forEach(function (b) { updateFacing(grid, b); });
     s.speedMult = s.mass > 0 ? U.clamp(s.thrust * g.thrustPerPoint / s.mass, g.speedMultMin, g.speedMultMax) : g.speedMultMin;
     grid.stats = s; grid.dirty = false;
     return s;
@@ -152,6 +153,46 @@ BS.Grid = (function () {
     }
     return out;
   }
+  function pierceCost(b) { return b.def.pierceCost || 1; }
+  // Blocks a beam with `points` penetration points reaches: it enters each block while points remain, and each block costs its pierceCost.
+  function beamChain(ship, first, fromX, fromY, points) {
+    var chain = [first], left = points - pierceCost(first);
+    if (left > 0) blocksBehind(ship, first, fromX, fromY, points).some(function (q) { chain.push(q); left -= pierceCost(q); return left <= 0; });
+    return chain;
+  }
+
+  // ---- line of fire ---------------------------------------------------------------
+  // True when nothing of the ship's own alive hull lies between weapon block `b` and the given local direction.
+  function lineOfFireClear(grid, b, angle) {
+    // the shot leaves the block's centre and travels in `angle`; any other alive block of this ship on the way masks it
+    var g = G(), step = grid.cellPx * g.lineOfFireStep, R = grid.cellPx * (g.lineOfFireRangeCells + 0.5);
+    var ux = Math.cos(angle), uy = Math.sin(angle);
+    for (var d = grid.cellPx * g.lineOfFireMuzzle; d < R; d += step) {
+      var c = cellOfLocal(grid, b.lx + ux * d, b.ly + uy * d);
+      if (c.x < 0 || c.y < 0 || c.x >= grid.w || c.y >= grid.h) return true;
+      var q = grid.at[c.x + "," + c.y];
+      if (q && q !== b && q.alive) return false;
+    }
+    return true;
+  }
+  // A weapon faces the open side of the hull: its arc is centred on the mean of the clear directions around it.
+  // Sets b.facing (null when nothing is clear) and b.coverage (fraction of the weapon's arc that is clear).
+  function updateFacing(grid, b) {
+    var w = b.def.weapon, sx = 0, sy = 0, any = false;
+    for (var a = 0; a < 360; a += 10) { var r = a * U.DEG; if (lineOfFireClear(grid, b, r)) { sx += Math.cos(r); sy += Math.sin(r); any = true; } }
+    b.facing = any ? Math.atan2(sy, sx) : null;
+    if (!any) { b.coverage = 0; return; }
+    var half = w.arc / 2, n = 0, clear = 0;
+    for (var d = -half; d <= half; d += 10) { n++; if (lineOfFireClear(grid, b, b.facing + d * U.DEG)) clear++; }
+    b.coverage = n ? clear / n : 1;
+  }
+  // Fraction of a weapon's arc that has a clear line of fire.
+  function arcCoverage(grid, b) {
+    if (!b.def.weapon) return 1;
+    if (b.coverage === undefined) updateFacing(grid, b);
+    return b.coverage;
+  }
+  function facingOf(b) { return b.facing === undefined || b.facing === null ? b.outward : b.facing; }
   function nearestOfType(grid, b, type, radius) {
     var best = null, bestD = Infinity;
     for (var dy = -radius; dy <= radius; dy++) for (var dx = -radius; dx <= radius; dx++) {
@@ -169,18 +210,31 @@ BS.Grid = (function () {
   // kind "torpedo": explodes on the entry block and splashes into its neighbours.
   function hit(ship, amount, fromX, fromY, aimType, kind) {
     var grid = ship.grid, g = G();
-    var res = { hits: [], destroyed: [], cutOff: [] };
+    var res = { hits: [], destroyed: [], cutOff: [], explosions: [] };
     var entry = entryBlock(ship, fromX, fromY);
     if (!entry) return res;
     var first = entry;
     // aiming steers the shot line through the nearest block of that type; armor in front of it still takes the hit first
     if (aimType) { var aimed = nearestOfType(grid, entry, aimType, g.aimRadius); if (aimed) first = entryBlockThrough(ship, fromX, fromY, aimed); }
+    var toExplode = [];
     function damage(b, d) {
       if (!b.alive || d <= 0) return 0;
       var taken = Math.min(b.hp, d);
       b.hp -= taken; res.hits.push({ block: b, dmg: taken });
-      if (b.hp <= 0) { b.alive = false; res.destroyed.push(b); }
+      if (b.hp <= 0) { b.alive = false; res.destroyed.push(b); if (b.def.explosion) toExplode.push(b); }
       return taken;
+    }
+    // a destroyed reactor blows up its neighbours; reactors among them explode in turn (chain reaction)
+    function runExplosions() {
+      while (toExplode.length) {
+        var src = toExplode.shift(), ex = src.def.explosion;
+        res.explosions.push(src);
+        for (var dy = -ex.radius; dy <= ex.radius; dy++) for (var dx = -ex.radius; dx <= ex.radius; dx++) {
+          if (!dx && !dy) continue;
+          var q = grid.at[(src.x + dx) + "," + (src.y + dy)];
+          if (q && q.alive) damage(q, ex.damage);
+        }
+      }
     }
     if (kind === "torpedo") {
       var splash = g.torpedoSplash, left = amount - damage(first, amount * splash.centre);
@@ -188,10 +242,11 @@ BS.Grid = (function () {
       nbs.forEach(function (q) { left -= damage(q, amount * splash.neighbour); });
       if (!first.alive && left > 0) { var deeper = blocksBehind(ship, first, fromX, fromY, 1); if (deeper.length) damage(deeper[0], left); }
     } else {
-      var chain = [first].concat(blocksBehind(ship, first, fromX, fromY, g.penetration - 1));
+      var chain = beamChain(ship, first, fromX, fromY, g.penetration);
       var rem = amount;
       for (var i = 0; i < chain.length && rem > 0.01; i++) rem -= damage(chain[i], rem);
     }
+    runExplosions();
     if (res.destroyed.length) {
       res.cutOff = pruneDisconnected(grid);
       grid.dirty = true;
@@ -259,7 +314,16 @@ BS.Grid = (function () {
     var st = derive(grid);
     if (!st.weapons.length) errors.push("No weapons.");
     if (st.thrust === 0) errors.push("No engines.");
-    return { ok: errors.length === 0, errors: errors, counts: counts, stats: st };
+    // warnings do not block undocking
+    var warnings = [], masked = st.weapons.filter(function (b) { return arcCoverage(grid, b) <= 0; }).length;
+    if (masked) warnings.push(masked + " weapon(s) cannot fire past the hull.");
+    var hot = 0;
+    grid.blocks.forEach(function (b) {
+      if (b.type !== "reactor") return;
+      for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) { var q = grid.at[(b.x + dx) + "," + (b.y + dy)]; if (q && q !== b && (q.type === "reactor" || q.type === "bridge")) hot++; }
+    });
+    if (hot) warnings.push("Reactors touch each other or the bridge: one breach will chain.");
+    return { ok: errors.length === 0, errors: errors, warnings: warnings, counts: counts, stats: st, masked: masked, grid: grid };
   }
   // Random variant of a layout: re-roll a fraction of the editable cells (armor ↔ system blocks, weighted by
   // grid.variant.systemWeights), keep the bridge, and only accept a layout that validates. `rng` returns [0,1).
@@ -289,6 +353,6 @@ BS.Grid = (function () {
   }
 
   return { build: build, derive: derive, facingOf: facingOf, worldToLocal: worldToLocal, localToWorld: localToWorld, cellOfLocal: cellOfLocal,
-    blockAtWorld: blockAtWorld, blockWorld: blockWorld, entryBlock: entryBlock, entryBlockThrough: entryBlockThrough, hit: hit, repair: repair, pruneDisconnected: pruneDisconnected,
+    blockAtWorld: blockAtWorld, blockWorld: blockWorld, entryBlock: entryBlock, entryBlockThrough: entryBlockThrough, hit: hit, lineOfFireClear: lineOfFireClear, arcCoverage: arcCoverage, weaponFacing: facingOf, repair: repair, pruneDisconnected: pruneDisconnected,
     layoutFromGrid: layoutFromGrid, validateLayout: validateLayout, randomVariant: randomVariant, layoutCost: layoutCost, typeForLetter: typeForLetter };
 })();

@@ -31,7 +31,7 @@ BS.Ships = (function () {
       shieldMax: {}, shields: {}, shieldRegen: {},
       capMax: 0, capacitor: 0,
       signature: cls.signature,
-      flags: { alert: "none", destroyed: false, armed: false },
+      flags: { alert: "none", destroyed: false, disabled: false, armed: false },
       selected: null, lock: { target: null, progress: 0, locked: false, time: 0 }, aimType: null,
       cmd: { type: "idle", target: null, range: 0, point: null, orbitDir: Math.random() < 0.5 ? 1 : -1, facing: null },
       desiredHeading: options.heading || 0, desiredSpeed: 0,
@@ -48,6 +48,16 @@ BS.Ships = (function () {
     return ship;
   }
 
+  // No weapons and no engines left: dead in space. The battle ends; the enemy is captured for salvage.
+  function checkDisabled(ship, by) {
+    var st = ship.stats;
+    if (ship.flags.disabled || ship.flags.destroyed || st.weapons.length || st.thrust > 0) return false;
+    ship.flags.disabled = true;
+    BS.Modules.weapons(ship).forEach(function (m) { BS.Modules.setActive(ship, m, false); });
+    setCommand(ship, "idle");
+    BS.Events.emit("shipDisabled", { ship: ship, by: by || null });
+    return true;
+  }
   // Recompute block-derived numbers; `initial` fills shields and capacitor.
   function refreshDerived(ship, initial) {
     var st = Gr.derive(ship.grid);
@@ -61,6 +71,7 @@ BS.Ships = (function () {
     ship.capMax = Math.round(st.cap * ship.mods.capMult);
     if (initial) ship.capacitor = ship.capMax; else ship.capacitor = Math.min(ship.capacitor, ship.capMax);
     ship.sensorStrength = st.sensors;
+    if (!initial) checkDisabled(ship, null);
     return st;
   }
 
@@ -161,11 +172,11 @@ BS.Ships = (function () {
     var shieldsDown = ship.shields[facing] <= 0 && shield > 0;
     var ang = U.angleTo(ship.pos.x, ship.pos.y, fromX, fromY);
     var impact = { x: ship.pos.x + Math.cos(ang) * ship.visual.length * 0.5, y: ship.pos.y + Math.sin(ang) * ship.visual.length * 0.5 };
-    var result = { ship: ship, facing: facing, absorbed: absorbed, hullDamage: hullDamage, shieldsDown: shieldsDown, impact: impact, angle: ang, kind: kind, amount: amount, attacker: attacker, hits: [], destroyed: [], cutOff: [] };
+    var result = { ship: ship, facing: facing, absorbed: absorbed, hullDamage: hullDamage, shieldsDown: shieldsDown, impact: impact, angle: ang, kind: kind, amount: amount, attacker: attacker, hits: [], destroyed: [], cutOff: [], explosions: [] };
     if (absorbed > 0) BS.Events.emit("shieldHit", result);
     if (hullDamage > 0) {
       var hr = Gr.hit(ship, hullDamage, fromX, fromY, aimType, kind);
-      result.hits = hr.hits; result.destroyed = hr.destroyed; result.cutOff = hr.cutOff;
+      result.hits = hr.hits; result.destroyed = hr.destroyed; result.cutOff = hr.cutOff; result.explosions = hr.explosions;
       var dealt = hr.hits.reduce(function (a, h) { return a + h.dmg; }, 0);
       ship.battle.damageTaken += dealt;
       if (attacker) attacker.battle.damageDealt += dealt;
@@ -176,12 +187,13 @@ BS.Ships = (function () {
         if (attacker) attacker.battle.blocksKilled += hr.destroyed.length + hr.cutOff.length;
         refreshDerived(ship, false);
         hr.destroyed.forEach(function (b) { BS.Events.emit("blockDestroyed", { ship: ship, block: b, pos: Gr.blockWorld(ship, b), attacker: attacker }); });
+        hr.explosions.forEach(function (b) { BS.Events.emit("blockExploded", { ship: ship, block: b, pos: Gr.blockWorld(ship, b), radius: b.def.explosion.radius, attacker: attacker }); });
         if (hr.cutOff.length) BS.Events.emit("sectionLost", { ship: ship, blocks: hr.cutOff, positions: hr.cutOff.map(function (b) { return Gr.blockWorld(ship, b); }) });
         var st = ship.stats;
         if (!st.bridgeAlive || st.hullAlive / st.hullTotal < BS.Data.grid.deadFraction) {
           ship.flags.destroyed = true; ship.destroyedTimer = 0;
           BS.Events.emit("shipDestroyed", { ship: ship, killer: attacker });
-        }
+        } else checkDisabled(ship, attacker);
       } else ship.hull = ship.stats.hullAlive = ship.grid.blocks.reduce(function (a, b) { return a + (b.alive && !b.structural ? b.hp : 0); }, 0);
     }
     return result;

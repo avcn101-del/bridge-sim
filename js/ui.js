@@ -17,7 +17,7 @@ BS.UI = (function () {
     ["own-speed", "own-cmd", "own-subsystems", "enemy-subsystems", "gauge", "help-screen", "btn-help", "btn-help-close",
      "target-none", "target-info", "tg-name", "tg-hull", "tg-hull-val", "tg-shield", "tg-shield-val", "tg-range", "tg-angular", "tg-chance", "tg-aim",
      "clock", "alert-label", "btn-pause", "btn-redalert", "btn-zoom-in", "btn-zoom-out", "pause-overlay", "start-screen", "result-screen", "result-title", "result-sub", "result-head",
-     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "rs-credits", "ship-name", "view", "module-bar", "overview", "sel-name", "orbit-buttons", "keep-buttons"]
+     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "rs-credits", "rs-salvage", "ship-name", "view", "module-bar", "overview", "sel-name", "orbit-buttons", "keep-buttons"]
       .forEach(function (id) { el[id] = $(id); });
     logList = $("log");
     buildGauge();
@@ -28,6 +28,7 @@ BS.UI = (function () {
       btn.addEventListener("click", function () {
         var args = {};
         if (btn.hasAttribute("data-range")) args.rangeKm = parseFloat(btn.getAttribute("data-range"));
+        if (btn.hasAttribute("data-flip")) args.flip = true;
         game.command(btn.getAttribute("data-cmd"), args); btn.blur();
       });
     });
@@ -71,6 +72,7 @@ BS.UI = (function () {
     B.orbitRangesKm.forEach(function (r) {
       var b = document.createElement("button"); b.className = "lcars-btn c-blue"; b.setAttribute("data-cmd", "orbit"); b.setAttribute("data-range", r); b.textContent = r + " km"; el["orbit-buttons"].appendChild(b);
     });
+    var flip = document.createElement("button"); flip.className = "lcars-btn c-blue"; flip.setAttribute("data-cmd", "orbit"); flip.setAttribute("data-flip", "1"); flip.textContent = "Reverse"; flip.title = "V: reverse the orbit direction (bring the other side's weapons to bear)"; el["orbit-buttons"].appendChild(flip);
     B.keepRangesKm.forEach(function (r) {
       var b = document.createElement("button"); b.className = "lcars-btn c-lilac"; b.setAttribute("data-cmd", "keep"); b.setAttribute("data-range", r); b.textContent = r + " km"; el["keep-buttons"].appendChild(b);
     });
@@ -190,6 +192,7 @@ BS.UI = (function () {
         case "l": game.command("lock"); break;
         case "a": game.command("approach"); break;
         case "o": game.command("orbit", { rangeKm: BS.Data.balance.orbitRangesKm[1] }); break;
+        case "v": game.command("orbit", { flip: true }); break;
         case "k": game.command("keep", { rangeKm: BS.Data.balance.keepRangesKm[1] }); break;
         case "c": game.command("comeAbout"); break;
         case "s": game.command("stop"); break;
@@ -229,8 +232,11 @@ BS.UI = (function () {
     el["result-screen"].classList.remove("hidden");
     el["result-screen"].classList.toggle("victory", won); el["result-screen"].classList.toggle("defeat", !won);
     el["result-title"].textContent = won ? "Victory" : "Defeat";
-    el["result-head"].textContent = won ? "BATTLE REPORT · ENEMY DESTROYED" : "BATTLE REPORT · SHIP LOST";
-    el["result-sub"].textContent = won ? "The Klingon vessel has been destroyed. Starfleet Command sends its compliments, Captain." : "The ship was lost with all hands. Starfleet will review the sensor logs.";
+    var disabled = state.resultHow === "disabled";
+    el["result-head"].textContent = won ? (disabled ? "BATTLE REPORT · ENEMY DISABLED" : "BATTLE REPORT · ENEMY DESTROYED") : (disabled ? "BATTLE REPORT · SHIP DISABLED" : "BATTLE REPORT · SHIP LOST");
+    el["result-sub"].textContent = won
+      ? (disabled ? "The Klingon vessel is dead in space, without weapons or engines. Salvage teams recover what they can." : "The Klingon vessel has been destroyed. Starfleet Command sends its compliments, Captain.")
+      : (disabled ? "Without weapons or engines the ship drifted until the Klingons boarded. Starfleet will review the sensor logs." : "The ship was lost with all hands. Starfleet will review the sensor logs.");
     el["rs-time"].textContent = U.formatTime(state.time);
     el["rs-dealt"].textContent = Math.round(p.stats.damageDealt);
     el["rs-taken"].textContent = Math.round(p.stats.damageTaken);
@@ -239,6 +245,7 @@ BS.UI = (function () {
     el["rs-torps"].textContent = p.stats.torpedoHits + " / " + p.stats.torpedoesFired;
     var rw = state.reward;
     el["rs-credits"].textContent = rw ? "+" + rw.earned + " cr" + (rw.streak > 1 ? " (streak " + rw.streak + ")" : "") + " · " + BS.Campaign.get().credits.toLocaleString() + " cr total" : "—";
+    el["rs-salvage"].textContent = rw && rw.salvage ? "+" + rw.salvage + " cr from the wreck" + (rw.how === "disabled" ? " (captured intact)" : "") : "—";
   }
 
   // ---- per-frame update ---------------------------------------------------
@@ -316,7 +323,7 @@ BS.UI = (function () {
     // overview
     updateOverview(state);
     el["sel-name"].textContent = p.selected ? p.selected.name : "nothing";
-    document.querySelectorAll("[data-cmd='orbit'],[data-cmd='keep']").forEach(function (b) {
+    document.querySelectorAll("[data-cmd='orbit'][data-range],[data-cmd='keep']").forEach(function (b) {
       var r = parseFloat(b.getAttribute("data-range"));
       b.classList.toggle("active", p.cmd.type === b.getAttribute("data-cmd") && Math.abs(S.km(p.cmd.range) - r) < 0.01);
     });
@@ -352,7 +359,7 @@ BS.UI = (function () {
       cells[1].textContent = s.flags.destroyed ? "—" : fmtKm(S.distanceKm(p, s));
       cells[2].textContent = s.flags.destroyed ? "—" : S.speedKmS(s).toFixed(1);
       cells[3].textContent = s.flags.destroyed ? "—" : S.angularVelocity(p, s).toFixed(2);
-      cells[4].textContent = s.flags.destroyed ? "destroyed" : s.ai ? (BS.Data.enemyAI.stateLabels[s.ai.state] || s.ai.state) : "";
+      cells[4].textContent = s.flags.destroyed ? "destroyed" : s.flags.disabled ? "disabled" : s.ai ? (BS.Data.enemyAI.stateLabels[s.ai.state] || s.ai.state) : "";
       row.classList.toggle("selected", p.selected === s);
       row.classList.toggle("locked", p.lock.target === s && p.lock.locked);
     });

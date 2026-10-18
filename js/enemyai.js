@@ -42,7 +42,7 @@ BS.EnemyAI = (function () {
   function keep(ship, player, rangeKm) { if (ship.cmd.type !== "keep" || Math.abs(S.km(ship.cmd.range) - rangeKm) > 0.01) S.setCommand(ship, "keep", { target: player, rangeKm: rangeKm }); }
 
   function update(ship, player, dt) {
-    if (!ship.ai || ship.flags.destroyed || !player || player.flags.destroyed) return;
+    if (!ship.ai || ship.flags.destroyed || ship.flags.disabled || !player || player.flags.destroyed) return;
     var ai = ship.ai, p = ship.aiProfile, d = ship.doctrine;
     ai.timer += dt; ai.decision -= dt; ai.flipTimer += dt; ai.rollTimer += dt;
     // tail-chase detector: both ships circling the same way at the same pace means almost no angular velocity
@@ -134,8 +134,8 @@ BS.EnemyAI = (function () {
       // ---- broadside: hold a range band on a slow course, rolling the strongest shield toward the player
       case "broadside":
         setModule(ship, "afterburner", false);
+        // too far: close in; otherwise hold the broadside (a cruiser that runs shows its tail and fires nothing)
         if (dKm > d.bandKm[1]) { if (ship.cmd.type !== "approach") S.setCommand(ship, "approach", { target: player }); }
-        else if (dKm < d.bandKm[0]) keep(ship, player, d.bandKm[1]);
         else if (ship.cmd.type !== "comeAbout" || ai.rollTimer > d.rollEvery || (facingPct < p.repositionShield && S.strongestFacing(ship) !== facing)) {
           S.setCommand(ship, "comeAbout", { target: player }); ai.rollTimer = 0;
           BS.Events.emit("enemyRolled", { ship: ship, facing: ship.cmd.facing });

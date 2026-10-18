@@ -44,12 +44,19 @@ tell the helm how to fly relative to it, and you switch modules on and off.
 - Damage hits the shield facing toward the enemy. **Reinforce** (top bar)
   or **Come about** when one facing collapses.
 - Ships are made of blocks. Shots land anywhere on the side facing the
-  attacker and hit the outer blocks first; beams dig two blocks deep,
+  attacker and hit the outer blocks first; a beam stops in the first armor
+  plate it meets but digs two blocks deep through exposed systems;
   torpedoes blast the entry block and its neighbours. Blocks cut off from
   the bridge break away as a drifting section. Hover the locked enemy to
   see its blocks; click one to aim at that block type (−15% accuracy; the
   shot still has to get through whatever armor is in front). Click your own
   block rows to set repair priority.
+- **Reactors explode** when destroyed and take their neighbours with them;
+  reactors that touch chain. Aim at the enemy's reactors; keep your own
+  apart and armored.
+- A ship with no weapons and no engines left is **disabled** and the battle
+  ends. Disabling the enemy instead of destroying it pays 25% of its
+  remaining block value as **salvage** (10% for a wreck).
 - Enemies: Bird-of-Prey raiders in several layouts (and random variants
   from the third battle), then the heavier K't'inga battlecruiser from the
   fifth battle onward. Every win makes them 4% stronger; bigger enemies pay
@@ -61,6 +68,11 @@ tell the helm how to fly relative to it, and you switch modules on and off.
   **standoff** torpedo boat sits at 14 km and runs when you close (chase it,
   or let your own torpedoes reach it); the **broadside** cruiser turns
   slowly to keep a fresh shield toward you.
+- Weapons only fire where your own hull does not block them, so a saucer
+  fights with the guns on the side facing the enemy. When that side's
+  guns are gone, **Reverse** (V) flips your orbit and brings the other
+  side round. Paint weapons on the rim; a weapon buried inside the hull
+  shows a red cross in the editor and never fires.
 - **Space** pauses; commands still work while paused. Mouse wheel zooms.
   The **?** button lists all controls.
 - Destroy the enemy to win. The result screen shows the credits you earned;
@@ -77,7 +89,10 @@ tell the helm how to fly relative to it, and you switch modules on and off.
   The statistics update as you paint: block count, mass and value, damage
   per second, capacitor stability, shields per facing, speed from thrust
   over mass. Rules: exactly one bridge, every block connected to it, at
-  least one weapon and one engine.
+  least one weapon and one engine. Warnings (you can still undock): a
+  weapon the hull masks completely is marked with a red cross and does not
+  count toward dps (hover a weapon to see its clear arc); reactors touching
+  each other or the bridge will chain when one is breached.
 - **Paying for it**: **Apply build** charges the price of the blocks you
   added and refunds 60% for the ones you removed; the delta is shown before
   you pay. You cannot undock with unapplied changes. **Save build** keeps up
@@ -103,10 +118,14 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 |---|---|
 | `units.pxPerKm`, `grid.cellPx` | World scale and cell size |
 | `blocks.*` | Every block: hp, mass, cost, colour, weapon stats (damage, cycle, cap, optimal / falloff / tracking, arc), effects |
+| `grid.lineOfFire / lineOfFireMuzzle / lineOfFireRangeCells` | Whether and how the own hull masks weapons |
 | `grid.shieldBase / shieldAdd / regenBase / regenAdd` | Shield facings from emitters |
 | `grid.capBase / capAdd / capRechargeTime` | Capacitor from reactors |
 | `grid.thrustPerPoint / nacelleThrustMult / speedMultMin / speedMultMax` | Speed from engines and mass |
 | `grid.hitScatter / penetration / torpedoSplash / aimRadius / aimScatter / deadFraction / structureHp` | Where shots land, how damage travels through the hull, when a ship is lost |
+| `blocks.*.pierceCost`, `grid.structurePierceCost` | How much of a beam's penetration each block type eats (armor 2, structure 3) |
+| `blocks.reactor.explosion`, `grid.lineOfFire` | Reactor breach damage and radius; whether the own hull masks weapons |
+| `campaign.salvage` | Share of the enemy's surviving block value paid after a win (destroyed / disabled) |
 | `grid.variant` | How much a random enemy variant differs from its base layout |
 | `shipClasses.*.mask / layout / variants` | Hull shapes, default builds, enemy layouts |
 | `modules.*` (booster, hardener, afterburner) | Built-in active systems |
