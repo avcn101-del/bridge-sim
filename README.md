@@ -39,6 +39,11 @@ tell the helm how to fly relative to it, and you switch modules on and off.
   block on the drawing) to focus every weapon on it; the enemy reads yours.
 - Pick an **attack side** (B): shadow their blind sector, a flank or their
   tail instead of circling; the scan panel shows their fire per sector.
+- The bridge fights by a **script**: ordered "when → do" rules (for now
+  the Brawler template: Engage, weapons, hardener, booster and reinforce
+  when shields run low). The log reads every rule that takes over. Giving
+  a stance, play or side by hand pauses the script. The hangar script
+  editor and the two bridge calls per battle come in the next versions.
 - Pick a **stance** (Helm panel, keys 1–4) and the helm flies it:
   **Engage** (default) orbits inside phaser range and reverses on its own
   when the other side has more guns or a fresher shield, **Skirmish** orbits
@@ -198,6 +203,8 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `ew.*`, `science.cloakDetectRangeKm` | Jam strength and duration, cloak timings, surge and drain, decloak strike (`ew.strike`: window, shield bypass, damage), field radii (`cloakRadius`, `jamRadius`), detection range |
 | `ew.decoy`, `ew.neut`, `enemyAI.*.drainedBelow / drainedUntil / drainedTime` | Decoy life, lure radius, speed; neutraliser range, drain per block, the enemy's flee range and when a drained enemy opens the range |
 | `grid.boarding` | Transporter range, party size, transport time, shield window thresholds, defenders per crew deck and bridge guard, fight rate |
+| `script.*` | Rule tick, charging speed, trace length, plan targets, default template, the sentence for every condition / action / policy, the templates and the enemy scripts |
+| `campaign.firstFight`, `campaign.encounters[].script` | The first fight's enemy overrides; which script each encounter runs |
 | `campaign.salvage` | Share of the enemy's surviving block value paid after a win (destroyed / disabled / captured) |
 | `grid.variant` | How much a random enemy variant differs from its base layout |
 | `shipClasses.*.mask / layout / variants` | Hull shapes, default builds, enemy layouts |
@@ -221,7 +228,7 @@ shapes defined in the same file where they exist. See `DESIGN.md`.
 ```
 index.html      entry point
 css/            LCARS interface styles
-js/             data, grid, game loop, ships, modules, weapons, boarding, crew, enemy AI, campaign, hangar, UI, renderer, effects
+js/             data, grid, game loop, ships, modules, weapons, boarding, crew, enemy AI, plays, scripts, campaign, hangar, UI, renderer, effects
 assets/         optional sprites / sounds (empty in MVP)
 DESIGN.md       full game design and data structures
 CHANGELOG.md    version history

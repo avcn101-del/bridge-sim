@@ -2,6 +2,33 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.21.0] — 2026-10-18 (bridge scripts, PR A of "build & fight")
+
+### Added
+- **Bridge scripts** (`js/script.js`, `BS.Data.script`): ordered when → do
+  rules with standing orders, `until` / `holdMax` phases, once / every
+  call-outs and standing policies; every condition and action carries a
+  sentence, `BS.Script.describe` reads a rule as orders, the trace and the
+  log record each takeover with the reason an action waited.
+- Seven templates (Brawler, Alpha strike, Siege, Turtle, Hunter, Ambush,
+  Hit & fade) as rules; a hull undocks with its assigned script or the
+  Brawler. Enemy encounters run scripts on the same engine (doctrine, the
+  Torpedo boat's Siege play, scan rules).
+- **Scan** action (4 s, beams hold fire, module state `scan`): weak-point
+  and plan aims need it, for the enemy too (`pickTarget` requires a scan).
+  A scan records intel.
+- Save: `scripts`, `scriptByBuild`, `plans`, `settings.manualBridge`
+  (editor and battle view follow in PR B / C).
+
+### Changed
+- K't'inga default and Siege layouts carry two stern disruptors;
+  `enemyAI.ktinga.blindTolerance` 4 → 2.5 s.
+- Torpedo boat: two tubes (was three).
+- The first fight (0 wins) has no weak-point hunting
+  (`campaign.firstFight`).
+- A manual stance / play / side / fly-to / stop pauses the player's script
+  (Helm row "Manual").
+
 ## [0.20.0] — 2026-10-18 (phone landscape)
 
 ### Added

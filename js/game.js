@@ -48,11 +48,17 @@ BS.Game = (function () {
     var dist = BS.Ships.px(B.arenaStartDistanceKm);
     var enc = BS.Campaign.encounter();
     var enemy = BS.Ships.create(enc.classId, { name: enc.name, layout: enc.rows, pos: { x: Math.cos(ang) * dist, y: Math.sin(ang) * dist }, heading: ang + Math.PI, statMult: BS.Campaign.enemyStatMult(enc.aiProfile), mods: { damageMult: enc.damageMult || BS.Data.enemyAI[enc.aiProfile].damageMult } });
-    BS.EnemyAI.attach(enemy, player, enc.aiProfile, enc.doctrine, enc.weakPointChance ? { weakPointChance: enc.weakPointChance } : null);
-    if (enc.play && BS.Plays.available(enemy, enc.play)) BS.Plays.start(enemy, player, enc.play);   // an enemy bridge may run a play over its doctrine
+    var overrides = {};
+    if (enc.weakPointChance !== null && enc.weakPointChance !== undefined) overrides.weakPointChance = enc.weakPointChance;
+    BS.EnemyAI.attach(enemy, player, enc.aiProfile, enc.doctrine, Object.keys(overrides).length ? overrides : null);
     state.encounter = enc;
     player.selected = enemy;
+    // both bridges fight by a script (BS.Script): the enemy's names its doctrine ("encounter") and plays; the player's
+    // is the one assigned to this hull in the hangar, a template by default
+    var es = BS.Script.resolve(BS.Data.script.enemyScripts[enc.script] || BS.Data.script.enemyScripts.doctrine);
+    BS.Script.start(enemy, player, bindDoctrine(es, enc.doctrine));
     BS.EnemyAI.setStance(player, enemy, BS.Data.helm.defaultStance);   // the helm flies the default stance from the start
+    BS.Script.start(player, enemy, BS.Campaign.scriptFor(save.shipClass));
     state.player = player; state.enemy = enemy; state.ships = [player, enemy];
     BS.Crew.reset(player, enemy);
     BS.UI.setAlert("none");
@@ -62,6 +68,13 @@ BS.Game = (function () {
     BS.Events.emit("battleStarted", state);
     BS.UI.addLog("computer", "Simulation running. You have the conn, Captain.", "system");
     BS.Crew.battleStart();
+  }
+
+  // An enemy script's "doctrine: encounter" means the doctrine the encounter rolled.
+  function bindDoctrine(sc, doctrineId) {
+    var out = JSON.parse(JSON.stringify(sc));
+    (out.rules || []).forEach(function (r) { if (r.do && r.do.doctrine === "encounter") r.do.doctrine = doctrineId; });
+    return out;
   }
 
   function command(id, args) {
@@ -81,6 +94,8 @@ BS.Game = (function () {
   function step(dt) {
     var p = state.player, e = state.enemy;
     BS.Crew.update(dt);
+    BS.Script.update(e, dt);
+    BS.Script.update(p, dt);
     BS.Plays.update(e, dt);
     BS.EnemyAI.update(e, p, dt);
     BS.Plays.update(p, dt);

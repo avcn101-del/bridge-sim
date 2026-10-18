@@ -699,6 +699,68 @@ the ECM boat sensors were. Counter-doctrine rule: a battle layout with two
 or more neutralisers makes a flagged Bird-of-Prey stand off and a K't'inga
 siege ("they will stay out of your neutraliser range").
 
+### Bridge scripts (`js/script.js`, `BS.Data.script`, `save.scripts / scriptByBuild / plans`)
+The direction since 0.21: the contest is decided before the fight (build,
+intel, script); in the fight the bridge runs the script. A script is
+`{ name, policies, rules }`, and both bridges run the same engine every
+`script.tickSeconds` (0.5 s):
+- **Standing rules** are read top to bottom; the first whose conditions all
+  hold gives the standing orders, and its actions are applied once, when
+  it takes over (an order the helm already flies is not re-issued). A rule
+  with `until` holds its orders until that condition holds, or `holdMax`
+  seconds pass, unless a rule above it takes over: that is how phases are
+  written ("when heat is over 90%: weapons off, until heat is under 30%").
+  A rule with no conditions is the default and stands when nothing above
+  it does.
+- **Call-outs** (`once: true` or `every: N`) fire their actions whenever
+  their conditions hold, once ever or at most every N seconds, without
+  changing the standing orders: scan, reinforce, the boarding party. A
+  once rule that could not act yet (a scan still running) tries again.
+- **Policies** run every tick: `lock` (keep a lock), `booster` / `reinforce`
+  (the play policies, `helm.playPolicy`), `hardener`, `decoy` (drop one
+  when torpedoes are inside `ew.decoy.aiIncomingKm`), `neut` (run it in
+  range).
+- **Conditions** (`script.conditions`, each with a sentence): every play
+  condition (`dKm`, `facing`, `weakest`, `heat`, `cap`, `time`, cloak and
+  weapon states, `enemyReactorsGone`, `enemyShieldsDown`) plus `scanned`,
+  `hullBelow`, `incomingTorpedoes`, `boardable`, `enemyFacingBelow`,
+  `enemyCapBelow`, `enemyHullBelow`, `enemyCharging` (running in and
+  closing faster than `chargingKmS` 1 km/s), `enemyCloaking`,
+  `enemyCloaked`, `enemyRolling` (reposition / come about), `enemyBreaching`,
+  `enemyKiting`, `enemyFocusing: type` (their fire is steered at that block
+  type of ours), `enemyState`. All conditions in a rule must hold.
+- **Actions** (`script.actions`): `stance` (player ranges from the build),
+  `doctrine` (fixed ranges: enemy scripts), `play`, `side`, `aim` (block
+  type, `exposed`, `structure`, `{ weak: kind }`, `{ plan: n }`), `weapons`,
+  `modules`, `governor`, `repair`, `reinforce`, `scan`, `board`.
+- **Scan** (`science.scanDuration` 4 s): the beam turrets hold fire
+  (module state `scan`), then `ship.scanned` is set; aiming at a weak point
+  or a plan target needs it (the rule still stands, the trace says
+  "waiting for a scan"). The enemy reads weak points off a scan as well:
+  `pickTarget` rolls `weakPointChance` only when the enemy ship has
+  scanned, so its scripts carry a scan rule (Raider inside 12 km, K't'inga
+  inside 14 km, Siege inside 20 km). A scan also records intel.
+- **Sentences**: `BS.Script.describe(rule)` turns a rule into "When they
+  are closer than 5 km: run the Alpha strike play (at most 30 s)";
+  `describeScript` lists a script. The trace (`ship.scriptTrace`, event
+  `scriptRule`, read into the log by the computer) records every takeover
+  and call-out with the reason an action could not be done.
+- **Templates** (`script.templates`): Brawler (the default fight: Engage,
+  weapons, hardener, governor), Alpha strike, Siege, Turtle, Hunter, Ambush,
+  Hit & fade, each the play rewritten as rules. A hull undocks with
+  `save.scriptByBuild[classId]` (an own script by id, PR B's editor, or a
+  template), else `script.defaultTemplate`. A manual helm order (stance,
+  play, side, fly-to, stop) suspends the player's script: the Helm row
+  reads "Manual".
+- **Enemy scripts** (`script.enemyScripts`, `campaign.encounters[].script`):
+  `doctrine: "encounter"` flies the doctrine the encounter rolled; the
+  Torpedo boat runs the Siege play as before; the Raider, K't'inga and
+  Siege cruiser scan first. The enemy AI keeps its own module policies in
+  `enemyai.js`; a script that sets an aim keeps it (`ship.scriptAim`).
+- **Plans** (`save.plans[encounterId].targets`, up to `script.planTargets`
+  3, `{ x, y }` on the intel layout or `{ type }`): read by `aim: { plan: n }`;
+  the hangar side arrives with PR B.
+
 ### Win / lose
 Enemy hull 0 → Victory; player hull 0 → Defeat; enemy bridge taken by a
 boarding party → Victory ("captured"). Result overlay with stats.
@@ -784,6 +846,9 @@ modules: { phaser_group, torpedo_group, shield_booster, shield_hardener, afterbu
 ew: { jamPerBlock, jamDuration, cloakTime, decloakTime, surgeTime, cloakDrain, cloakMinCap, detectPerSensor, ghostAlpha, ownCloakAlpha, cloakRadius, jamRadius, strike,
       decoy: { life, lureKm, speedKmS, hitKm, spreadDeg, aiIncomingKm }, neut: { rangeKm, perBlock, aiMinCap, warnCapBelow, drainMemory, fleeKm } }
 grid.boarding: { rangeKm, minParty, partyMax, transportTime, bridgeGuard, defenderPerQuarters, gapStart, gapAbort, abortRangeMult, rate, floor }
+script: { tickSeconds, chargingKmS, traceMax, planTargets, defaultTemplate, conditions: { id: { label, kind, def, negLabel? } }, actions: { id: { label, kind } }, policies: { id: { label } }, weakKinds,
+          templates: { id: { name, desc, requires?, policies, rules: [{ when, do, until?, holdMax?, once?, every? }] } }, enemyScripts: { id: { name, rules } } }
+campaign.firstFight: { weakPointChance }; campaign.encounters[].script; save: scripts[], scriptByBuild{}, plans{}, settings.manualBridge
 campaign.salvage: { destroyed, disabled, captured }; enemyAI.*: drainedBelow, drainedUntil, drainedTime; enemyAI.counters[].when.neutMin
 shipClasses: { id: { name, className, role, faction, cost, purchasable, speed, turnRate, signature, lockRangeKm, powerBase,
                      mask: [rows], layout: [rows], presets: { id: { name, desc, rows } }, variants: { id: { name, desc, rows } } (enemies),
@@ -801,7 +866,8 @@ subsystems{6}, lock{target, progress, locked, time}, selected, targetSubsystem,
 cmd{type, target, range, point, orbitDir, facing}, modules[{id, def, slot,
 active, running, cycleLeft, cycleTime, state}], fitEffects, activeEffects,
 repairPriority, reinforce, stats, mods, aiProfile, ai{state, timer, suspended, relock, ...}, stance, doctrine, play{id, def, phase, t, target},
-neuted, boarding{target, phase, t, party, partyMax, defenders, defendersMax}`; `grid.crewAway`; torpedo: `lured`; `BS.Weapons.decoys[]`;
+neuted, boarding{target, phase, t, party, partyMax, defenders, defendersMax}, script{def, target, active, activeSince, t, fired, lastFire, suspended},
+scriptTrace[], scanned, scanning, scriptAim`; `grid.crewAway`; torpedo: `lured`; `BS.Weapons.decoys[]`;
 block: `covered, coverBy` from derive.
 
 ## 7. Events
@@ -811,7 +877,7 @@ torpedoExpired, shieldHit, hullHit, blockDestroyed, sectionLost,
 blockExploded, shipDisabled, shipDestroyed, overload, jammed, cloakChanged,
 alertChanged, stateChanged, orbitFlipped, stanceChanged, playChanged, playPhase, enemyRolled, commandGiven,
 decoyLaunched, decoyExpired, torpedoLured, torpedoDecoyed, neutralised, boardingStarted, boardingAborted,
-boardingFight, boardingEnded, shipCaptured,
+boardingFight, boardingEnded, shipCaptured, scriptRule, scriptSuspended, scriptAim, scanStarted, scanned,
 log, battleStarted, battleEnded, skillTrained`.
 
 ## 8. Measured balance (accelerated simulation, scripted captains, default builds, no skills)
@@ -820,6 +886,29 @@ Harness: `BS.Game.state.paused = true`, `BS.Game.step(1/60)` in a loop, the
 captain script runs once per simulated second. Enemy strength as at the
 given number of wins. Hit rolls and the enemy's aim choice are random, so
 single runs vary a lot; ranges below are over 4–6 runs.
+
+v0.21.0 (bridge scripts on both sides, scan before weak points, K't'inga
+stern cannons, Torpedo boat two tubes, first fight without weak-point
+hunting; the harness captain is now a script: `BS.Script.start(player,
+enemy, template | inline)`; 2–6 runs):
+
+| Matchup | Captain | Outcome |
+|---|---|---|
+| Constitution vs Raider (0 wins, no weak points) | **Brawler** template | 4 of 6 in 1:59–3:31 keeping 76–90%, two losses keeping 12–29% |
+| same | old hand-flown Engage captain | 2 of 4 in 3:33–4:44 keeping 64–68%, one stalemate |
+| Constitution vs Raider (1 win: it scans at 12 km, then hunts weak points) | Brawler | 2 of 3 in 2:42–3:49 keeping 75–79%, one disabled loss |
+| Constitution vs **Torpedo boat, two tubes** (1 win) | Brawler | 3 of 3 in 4:21–5:46 keeping 90–99% (three tubes, 0.19: 2 of 3 in 5:54–7:37 keeping 70–90%): now easier than the cruiser, as the unlock order says |
+| Constitution vs K't'inga **with stern cannons** (4 wins) | Brawler | 2 of 3 in 3:09–4:55 keeping 54–81%, one loss |
+| same | Brawler shadowing the **blind** sector | 3 of 3 in 4:29–5:45 keeping 96–100%, with `blindTolerance` 2.5 s: **not met**, the two stern cannons (about 25 dps into a hardened Constitution) do not make the tail costly |
+| same | "Neck cutter": scan, Standoff aiming the neck weak point, aft when they roll | 1 of 2 (5:18 keeping 87%) and one stalemate; the K't'inga offers no `neck` weak point so the rule fell back to structure (the trace says so) |
+| Galaxy vs Siege K't'inga (6 wins) | Brawler | 2 of 2 in 4:03–4:58 keeping 90% (with the Siege play wrongly given to the cruiser it was two stalemates: kept on its doctrine) |
+| Constitution vs Raider (0 wins) | Alpha strike / Hunter / Hit & fade templates | 1 of 2 (7:03) / 2 of 2 in 2:11–5:30 keeping 77–79% / 1 of 2 (2:33) |
+
+Honest reading: the script engine reproduces the hand-flown fights (the
+Brawler template is the old Engage captain) and the balance fixes land as
+intended except the blind sector on the cruiser, which stays a free win;
+making the stern a real threat needs more than two cannons (a torpedo tube
+aft, or a faster roll), left for the encounter "lock" pass.
 
 v0.19.0 (decoys, neutralisers, boarding, Leech, drained enemies; harness
 re-written: captain script once per simulated second with lock / stance /
@@ -1137,6 +1226,7 @@ than slower (it is nearly untouched, as intended).
 | v0.11.0 (done) | Cloak and ECM fields: a ship cloaks only with every block inside a cloak field (several devices per hull), a partial ECM field steers the jammed enemy's fire onto the uncovered blocks |
 | v0.12.0 (done) | Disruptor cannons (punch, penetration, poor tracking) and pulse phasers (tracking, knife range) as blocks and weapon groups; Klingons mount cannons |
 | v0.13.0 (done) | Crew: systems need hands, the bridge and crew quarters supply them, manning slows weapons and shields, blocks far from quarters repair slowly; every layout re-fitted |
+| v0.21.0 (done) | Bridge scripts: when → do rules with policies, call-outs, templates from the plays, enemy scripts on the same engine, scan before weak points, sentences for every rule; balance: K't'inga stern cannons, Torpedo boat two tubes, first fight without weak-point hunting |
 | v0.19.0 (done) | Decoy launchers (torpedo lures, enemy Siege K't'inga carries them), energy neutralisers (capacitor drain, `drained` enemy state, Leech encounter, counter rule), boarding parties (transporter window, defenders per crew deck, capture as a victory) |
 | v0.18.0 (done) | Cut the neck (structure 400 hp, torpedoes ×2 on it, STRUCT aim, two-block necks in the analysis), hangar intel (scanned or bought enemy layouts drawn with weak points before the fight) |
 | v0.17.0 (done) | Weak-point analysis with click-to-focus-fire on any block, enemies that aim at your weak points, counter-doctrines announced in the hangar |

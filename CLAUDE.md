@@ -36,6 +36,7 @@ These rules apply to every session working in this repository.
   - `js/crew.js` — crew voices: instant commands with reports, warnings
   - `js/enemyai.js` — doctrine machine for both ships (enemy doctrines, player stances, auto-flip)
   - `js/plays.js` — plays: scripted phase sequences (stance/doctrine, module policy, governor, aim, exit conditions) from `helm.plays`
+  - `js/script.js` — bridge scripts: ordered when → do rules with policies and call-outs, run by both bridges; sentences from `script.conditions/actions`
   - `js/campaign.js` — progress between battles: save/load/export/import, credits, ownership, fitting rules, fit stats, real-time skills, enemy scaling
   - `js/hangar.js` — hangar screen DOM: ship, fitting, market, skills, save buttons
   - `js/ui.js` — DOM panels, order buttons, comms log, alert states

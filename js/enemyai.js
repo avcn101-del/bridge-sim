@@ -32,7 +32,7 @@ BS.EnemyAI = (function () {
   // What the enemy aims at next: with weakPointChance, its target's top weak point (a specific block); otherwise a block
   // type or the bare hull by targetWeights.
   function pickTarget(p, ship, target) {
-    if (ship && target && p.weakPointChance && Math.random() < p.weakPointChance) {
+    if (ship && target && p.weakPointChance && ship.scanned && Math.random() < p.weakPointChance) {   // weak points are read off a scan (script action), same rule as the player
       var wps = BS.Grid.weakPoints(target).filter(function (w) { return !p.weakPointKinds || p.weakPointKinds.indexOf(w.kind) >= 0; });
       if (wps.length) { S.setAimBlock(ship, target, wps[0].block); BS.Events.emit("enemyFocus", { ship: ship, target: target, point: wps[0] }); return "block"; }
     }
@@ -194,7 +194,7 @@ BS.EnemyAI = (function () {
       var EW = BS.Data.ew;
       setModule(ship, "neut", engaged && capPct > EW.neut.aiMinCap && dKm <= EW.neut.rangeKm && ship.cloak.state === "off" && ship.lock.locked);
       setModule(ship, "decoy", ship.cloak.state === "off" && BS.Weapons.incoming(ship, EW.decoy.aiIncomingKm) > 0);
-      if (ai.timer > 20 && engaged) { ship.aimType = pickTarget(p, ship, target); ai.timer = 0; }
+      if (ai.timer > 20 && engaged && !ship.scriptAim) { ship.aimType = pickTarget(p, ship, target); ai.timer = 0; }   // a script that set the aim keeps it
       // retreat is shared by all doctrines: once per battle, when the hull gets low
       if (engaged && hullPct < p.retreatHull && ai.canRetreat) {
         setState(ship, "retreat"); keep(ship, target, p.retreatRangeKm); ship.repairPriority = "shield"; return;
