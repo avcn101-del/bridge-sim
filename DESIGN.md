@@ -1,6 +1,6 @@
 # DESIGN.md — Bridge Sim
 
-Version: 0.13.0 (crew manning). Keep this file in sync with the game.
+Version: 0.14.0 (enemy scan panel). Keep this file in sync with the game.
 
 ## 1. Concept
 
@@ -60,7 +60,7 @@ shield facing management, part targeting. Movement is the helm's job.
 |             | (gauge) [F1][F2][F3][F4][F5]   |  keep N km     |
 |             |  hull/shields/cap  module bar  |  come about    |
 +-------------+--------------------------------+----------------+
-| COMMS log (newest on top)                                      |
+| SCAN: locked enemy's blocks, shields, fields, crew, threat     |
 +----------------------------------------------------------------+
 ```
 
@@ -462,6 +462,22 @@ fitting answer differs per doctrine and is picked as a stance (Engage
 closes on a standoff ship, Skirmish out-tracks a brawler) while the helm
 handles the flips.
 
+### Enemy scan panel (`#scan`, `BS.UI.updateScan`)
+The bottom row shows the locked enemy (no lock: a prompt; cloaked: "sensors
+show nothing"). Left, a top-down drawing of its block grid through
+`BS.Renderer.drawGridShip` with damage tint, the shield bubbles, bare hull
+in red, cloak-field gaps in purple, ECM-field gaps in green and the aimed
+block type framed in yellow. Right, three columns: hull and the four
+facings with cover and fields; systems alive / total per block type with
+crew manning, power factor and heat; tactical: how many of its alive
+weapons bear on us (`BS.EnemyAI.bearingCount`), its orders (doctrine or
+play phase and state), range, speed and angular velocity, the threat (its
+beam hit chance on us, its torpedo damage multiplier on us) and its cloak
+state including the decloak strike countdown. The bridge log moved into a
+two-line ticker at the top-left of the tactical view; LOG (key G) expands
+it to the full scrollable log. `science.scanDuration` stays reserved for a
+later science scan that gates this detail.
+
 ### Win / lose
 Enemy hull 0 → Victory; player hull 0 → Defeat. Result overlay with stats.
 
@@ -787,5 +803,7 @@ than slower (it is nearly untouched, as intended).
 | v0.11.0 (done) | Cloak and ECM fields: a ship cloaks only with every block inside a cloak field (several devices per hull), a partial ECM field steers the jammed enemy's fire onto the uncovered blocks |
 | v0.12.0 (done) | Disruptor cannons (punch, penetration, poor tracking) and pulse phasers (tracking, knife range) as blocks and weapon groups; Klingons mount cannons |
 | v0.13.0 (done) | Crew: systems need hands, the bridge and crew quarters supply them, manning slows weapons and shields, blocks far from quarters repair slowly; every layout re-fitted |
+| v0.14.0 (done) | Enemy scan panel in place of the full-width log (block grid with damage, shield bubbles and bare hull, cloak / ECM field gaps, systems, crew, power, heat, weapons bearing on us, threat); the bridge log is a two-line ticker over the display, LOG / G expands it |
+| later | Science scan (`science.scanDuration`) gating the panel's detail; weakness bonus |
 | later | Fire spreading put out by crew quarters; reactor power range; audio; sector map; sprites |
 | later | Audio via events, sector map and missions, science scans and cloaked ships, optional image sprites |

@@ -45,6 +45,11 @@ tell the helm how to fly relative to it, and you switch modules on and off.
 - The camera keeps both ships in view; wheel or +/− zooms on top of that.
   A Constitution measures about 1 km on the game's scale (three times its
   real size, so you can see the blocks).
+- The bottom row is the **scan panel**: once you hold a lock it shows the
+  enemy's blocks and damage, shields and bare hull, cloak and ECM field
+  gaps, crew, power, heat, how many of its weapons bear on you and what its
+  torpedoes would do to you. The bridge log is the two-line ticker at the
+  top of the display; LOG (G) opens the full log.
 - Switch on systems in the bar at the bottom of the display (click or
   F1–F8): F1 fires every phaser emitter that can bear (cannons and pulse phasers get their own groups), F2 every torpedo
   tube, then shield booster, shield hardener, afterburner. Every cycle costs **capacitor**: the dashed outer ring of the

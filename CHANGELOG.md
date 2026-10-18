@@ -2,6 +2,21 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.14.0] — 2026-10-18 (enemy scan panel)
+
+### Added
+- **Enemy scan panel** in the bottom row: the locked ship's block grid with
+  damage, shield bubbles, bare hull, cloak and ECM field gaps and the aimed
+  block type; hull and facings; systems alive / total, crew manning, power
+  and heat; weapons bearing on us, orders, motion, threat (their hit chance
+  on us, their torpedo damage on us) and cloak state with the decloak strike
+  countdown. Cloaked targets show nothing.
+
+### Changed
+- The bridge log is a two-line ticker at the top-left of the tactical view;
+  **LOG** (key G) expands it to the full scrollable log. The full-width
+  comms row is gone.
+
 ## [0.13.0] — 2026-10-18 (crew manning)
 
 ### Added
