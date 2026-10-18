@@ -11,7 +11,7 @@ BS.Weapons = (function () {
 
   function baseAccuracy(ship, target, w) {
     var acc = (w.accuracy !== undefined ? w.accuracy : 1) + ship.mods.accuracyBonus;
-    if (ship.aimType) acc *= BS.Data.subsystemEffects.targetAccuracyMult;
+    if (S.effectiveAim(ship, target)) acc *= BS.Data.subsystemEffects.targetAccuracyMult;
     if (ship.aiProfile) acc *= ship.aiProfile.accuracyMult;
     return U.clamp(acc, 0.05, 1);
   }
@@ -68,7 +68,7 @@ BS.Weapons = (function () {
         b.damageApplied = true;
         if (b.hit) {
           var e = beamEndpoints(b, 1);
-          var res = S.applyDamage(b.target, b.damage, e.x1, e.y1, b.source.aimType, b.source, "phaser");
+          var res = S.applyDamage(b.target, b.damage, e.x1, e.y1, S.effectiveAim(b.source, b.target), b.source, "phaser");
           if (res && res.impact) b.hitPos = { x: res.impact.x, y: res.impact.y };
         }
       }
@@ -87,7 +87,7 @@ BS.Weapons = (function () {
         var hitR = tg.visual.length * BS.Data.balance.hitRadiusFactor;
         if (U.dist(t.x, t.y, tg.pos.x, tg.pos.y) < hitR) {
           var mult = torpedoDamageMult(t.w, tg);
-          var r2 = S.applyDamage(tg, t.damage * mult, t.x, t.y, t.source.aimType, t.source, "torpedo");
+          var r2 = S.applyDamage(tg, t.damage * mult, t.x, t.y, S.effectiveAim(t.source, tg), t.source, "torpedo");
           t.source.battle.torpedoHits++; t.dead = true;
           BS.Events.emit("torpedoHit", { torpedo: t, ship: tg, result: r2, mult: mult });
         }

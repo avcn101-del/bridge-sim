@@ -67,6 +67,7 @@ BS.Plays = (function () {
         case "time": return time > v;
         case "cloakOff": return ship.cloak.state === "off";
         case "cloaked": return ship.cloak.state === "cloaked";
+        case "noCloak": return ship.cloak.state === "off" && !S.cloakFieldComplete(ship);   // the field is broken: fight without it
         case "overloaded": return ship.overload > 0;
         case "noTubes": return !(alive.torpedo > 0);
         case "noPhasers": return !(alive.phaser > 0);

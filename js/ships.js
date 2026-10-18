@@ -29,7 +29,7 @@ BS.Ships = (function () {
       grid: grid, stats: st, statMult: statMult, mods: mods,
       hullMax: st.hullTotal, hull: st.hullAlive,
       shieldMax: {}, shields: {}, shieldRegen: {},
-      capMax: 0, capacitor: 0, heat: 0, overload: 0, heatGovernor: true, governorHold: false, jammed: 0, cloak: { state: "off", t: 0, surge: 0, strike: 0 },
+      capMax: 0, capacitor: 0, heat: 0, overload: 0, heatGovernor: true, governorHold: false, jammed: 0, partialJam: 0, partialJamBy: null, cloak: { state: "off", t: 0, surge: 0, strike: 0 },
       signature: cls.signature,
       flags: { alert: "none", destroyed: false, disabled: false, armed: false },
       selected: null, lock: { target: null, progress: 0, locked: false, time: 0 }, aimType: null, stance: null, play: null,
@@ -140,8 +140,11 @@ BS.Ships = (function () {
     return c.state === "cloaking" ? U.lerp(1, hidden, k) : U.lerp(hidden, 1, k);
   }
   function detectRangeKm(viewer) { return BS.Data.science.cloakDetectRangeKm + BS.Data.ew.detectPerSensor * ((viewer.stats.alive && viewer.stats.alive.sensor) || 0); }
+  // A ship can cloak only while every alive block lies inside a cloak field (stats.cloakCover, ew.cloakRadius).
+  function cloakFieldComplete(ship) { var cc = ship.stats.cloakCover; return !!cc && cc.sources > 0 && cc.frac >= 1; }
   function setCloak(ship, on) {
     var c = ship.cloak;
+    if (on && c.state === "off" && !cloakFieldComplete(ship)) { BS.Events.emit("cloakRefused", { ship: ship, exposed: ship.stats.cloakCover ? ship.stats.cloakCover.exposed : 0 }); return false; }
     if (on && c.state === "off") { c.state = "cloaking"; c.t = 0; BS.Events.emit("cloakChanged", { ship: ship, state: c.state }); return true; }
     if (!on && isCloaked(ship)) { c.state = "decloaking"; c.t = 0; BS.Events.emit("cloakChanged", { ship: ship, state: c.state }); return true; }
     return false;
@@ -157,11 +160,16 @@ BS.Ships = (function () {
       ship.capacitor = Math.max(0, ship.capacitor - E.cloakDrain * dt);
       if (ship.capacitor < E.cloakMinCap) { c.state = "decloaking"; c.t = 0; BS.Events.emit("cloakChanged", { ship: ship, state: "decloaking", reason: "nocap" }); }
     }
+    // a block outside every cloak field (a cloaking device lost, a section cut off) collapses the cloak
+    if (isCloaked(ship) && !cloakFieldComplete(ship)) { c.state = "decloaking"; c.t = 0; BS.Events.emit("cloakChanged", { ship: ship, state: "decloaking", reason: "field" }); }
     if (c.state === "decloaking" && c.t >= E.decloakTime) { c.state = "off"; c.t = 0; c.surge = E.surgeTime; c.strike = E.strike.window; BS.Events.emit("cloakChanged", { ship: ship, state: "off" }); }
   }
   // Shields are projected only with the cloak off and the decloak surge over; cloaked or surging, the pools are kept but
   // absorb nothing, so an ambusher comes out of cloak with the shields it went in with.
   function shieldsUp(ship) { return ship.cloak.state === "off" && ship.cloak.surge <= 0; }
+  // What a shot at `target` is steered at: a partial jam (their ECM field does not cover the whole ship) forces the
+  // attacker's fire onto the blocks outside that field; otherwise the captain's aim.
+  function effectiveAim(ship, target) { return ship.partialJam > 0 && ship.partialJamBy === target ? "unjammed" : ship.aimType; }
 
   // ---- locking ----------------------------------------------------------
   function lockTime(ship, target) {
@@ -338,6 +346,7 @@ BS.Ships = (function () {
       if (ship.shields[fc] < ship.shieldMax[fc]) ship.shields[fc] = Math.min(ship.shieldMax[fc], ship.shields[fc] + regen);
     });
     if (ship.jammed > 0) ship.jammed -= dt;
+    if (ship.partialJam > 0) { ship.partialJam -= dt; if (ship.partialJam <= 0) ship.partialJamBy = null; }
     updateCloak(ship, dt);
     if (ship.reinforceCooldown > 0) ship.reinforceCooldown -= dt;
     ship.heat = Math.max(0, ship.heat - ship.stats.heatDissipation * dt);
@@ -368,7 +377,7 @@ BS.Ships = (function () {
     facingToward: facingToward, facingOffset: facingOffset, strongestFacing: strongestFacing, weakestFacing: weakestFacing, shieldFrac: shieldFrac,
     distanceTo: distanceTo, distanceKm: distanceKm, bearingTo: bearingTo, angularVelocity: angularVelocity, speedKmS: speedKmS,
     setCommand: setCommand, setAlert: setAlert, startReinforce: startReinforce, startLock: startLock, clearLock: clearLock, lockTime: lockTime,
-    trackingMult: trackingMult, maxSpeed: maxSpeed, firingBearings: firingBearings, shieldsUp: shieldsUp, capRechargeMult: capRechargeMult, blockTypes: blockTypes,
+    trackingMult: trackingMult, maxSpeed: maxSpeed, firingBearings: firingBearings, shieldsUp: shieldsUp, effectiveAim: effectiveAim, cloakFieldComplete: cloakFieldComplete, capRechargeMult: capRechargeMult, blockTypes: blockTypes,
     isCloaked: isCloaked, visibility: visibility, detectRangeKm: detectRangeKm, setCloak: setCloak,
   };
 })();

@@ -1,6 +1,6 @@
 # DESIGN.md — Bridge Sim
 
-Version: 0.10.0 (firing bearings, decloak strike, enemy plays). Keep this file in sync with the game.
+Version: 0.11.0 (cloak and ECM fields). Keep this file in sync with the game.
 
 ## 1. Concept
 
@@ -143,7 +143,7 @@ on), **?** help overlay, zoom, pause.
   (`dKmBelow/Above`, `heatAbove/Below`, `facingBelow/Above` for the engaged
   facing, `weakestBelow/Above` for the weakest, `capBelow/Above`, `time`,
   `cloakOff`, `cloaked`, `overloaded`, `noTubes`, `noPhasers`,
-  `enemyReactorsGone`, `enemyShieldsDown`), never before the phase's
+  `noCloak`, `enemyReactorsGone`, `enemyShieldsDown`), never before the phase's
   `minTime` (default 3 s). `next` names the following phase (default: the
   next one, wrapping). Standing policies: `booster: "auto"` (booster when
   the weakest facing < 50% and cap > 40%), `reinforce: true` (Reinforce when
@@ -303,15 +303,35 @@ repair rate, the repair-priority type first, then the most damaged.
 Destroyed blocks stay gone for the battle.
 
 ### Electronic warfare (`BS.Data.ew`, blocks jammer and cloak)
+- **Fields** (`ew.cloakRadius` 10, `ew.jamRadius` 7, `BS.Grid.fieldCover`):
+  like shield cover, a jammer and a cloaking device each project a field
+  over the blocks within their radius (`b.jamCovered`, `b.cloakCovered`,
+  `stats.jamCover / cloakCover` = covered, exposed, frac). The hangar frames
+  cells outside the cloak field in purple and outside the ECM field in
+  green, and the validator warns about both.
 - **ECM jammer** (block `J`, module F6, 5 s cycle, 10 cap): each cycle
   rolls jam strength (3 per alive jammer block) against the target's
-  sensor strength: `chance = jam / (jam + sensors)`. On a hit the target
-  loses its lock, cannot lock for 4 s (`jammed`), and torpedoes it has in
-  flight go blind. Sensor arrays are the counter.
-- **Cloaking device** (block `C`, one per ship, module F7): 3 s to cloak.
-  Cloaked, a ship cannot be locked (locks on it drop), its shields are
-  down, its weapons are cold and its capacitor drains 8/s (it decloaks by
-  itself below 5). It is invisible beyond the viewer's detection range
+  sensor strength: `chance = jam / (jam + sensors)`. On a hit, if every
+  block sits inside an ECM field the target loses its lock, cannot lock for
+  4 s (`jammed`), and torpedoes it has in flight go blind. With a **partial
+  field** the target keeps its lock but its sensors can only fix the blocks
+  outside the field: for 4 s (`partialJam`) its fire is steered at the
+  nearest uncovered block (aim type `unjammed`, `BS.Ships.effectiveAim`,
+  with the aim accuracy penalty). A half-covered field is therefore a
+  liability that focuses the enemy on whatever sticks out, nacelles
+  included; the Jammer boat covers only its core, so a jam from it pushes
+  your fire onto its wings. Sensor arrays are the counter to the roll.
+- **Cloaking device** (block `C`, several per ship, module F7, 5 power,
+  250 cr): a ship can cloak only while every alive block is inside a cloak
+  field; otherwise the module reads "no field" and Engineering says how
+  many blocks are outside (`cloakRefused`). Losing a device or a section
+  while cloaked collapses the cloak (`cloakChanged` reason `field`, forced
+  decloak with the surge). A Constitution needs three (saucer plus two in
+  the engineering hull, `Shadow hunter`), the Shadow Bird-of-Prey five.
+  The Ambush play falls back to fighting (`noCloak` condition) when the
+  field is broken. 3 s to cloak. Cloaked, a ship cannot be locked (locks
+  on it drop), its shields are down, its weapons are cold and its
+  capacitor drains 8/s (it decloaks by itself below 5). It is invisible beyond the viewer's detection range
   (`science.cloakDetectRangeKm` 10 km + 1 km per sensor array) and a faint
   ghost inside it, still unlockable. Decloaking takes 2 s and shields stay
   down for 5 s more (surge). The helm loses an invisible target and holds
@@ -546,6 +566,12 @@ every fight once that side's phasers are gone.
 | Galaxy vs K't'inga **siege** (6 wins) | straightforward | 4 of 4 wins in 4:17–4:58 keeping 97–99% |
 | Miranda / Defiant vs Raider strafe | speed tank (orbit 3 km + afterburner, no reverse) | mostly stalemates: the script never reverses, so the stripped side stays toward the enemy |
 
+v0.11.0 (cloak and ECM fields; Shadow hunter re-fitted with three cloaking
+devices and no jammers; 6 runs): Shadow hunter Ambush vs Raider **5 of 6 in 2:41–9:06 keeping 63–97%**, one loss (it no longer breaks the raider's lock, so it trades more hull than in 0.10.0).
+Engage vs Shadow (five devices) 2 of 2 in 2:42–2:47 keeping 83–88%; Engage
+vs Jammer boat (partial field, pushes fire onto its wings) 3 of 3 in
+3:26–6:05 keeping 76–85% (in 0.7.0 its lock-breaking won 3 of 4).
+
 v0.10.0 (firing-bearing keep, shields kept through the cloak, decloak
 strike, enemy plays; Bird-of-Prey ×1.4 / ×1.5, Torpedo boat ×1.25, Shadow
 ×1.2; 2–3 runs each, some matchups re-measured across several tuning rounds,
@@ -694,5 +720,6 @@ than slower (it is nearly untouched, as intended).
 | v0.8.0 (done) | Shield bubbles (cover radius, exposed hull), stance helm (Engage / Skirmish / Standoff / Disengage, auto-flip), shield-facing bug fix and re-tune |
 | v0.9.0 (done) | World scale 150 px/km with an auto-fitting camera; plays (Alpha strike, Siege, Turtle, Hunter, Ambush, Hit & fade) as scripted phase sequences |
 | v0.10.0 (done) | Firing-bearing keep geometry (hold station, kite with guns bearing), shields kept through the cloak, decloak strike, Siege and Ambush re-tuned, enemy plays (Gunboat Hit & fade, Torpedo boat Siege) |
+| v0.11.0 (done) | Cloak and ECM fields: a ship cloaks only with every block inside a cloak field (several devices per hull), a partial ECM field steers the jammed enemy's fire onto the uncovered blocks |
 | later | Fire spreading put out by crew quarters; reactor power range; audio; sector map; sprites |
 | later | Audio via events, sector map and missions, science scans and cloaked ships, optional image sprites |

@@ -81,22 +81,33 @@ BS.Grid = (function () {
     });
     if (g.lineOfFire) s.weapons.forEach(function (b) { updateFacing(grid, b); });
     // shield cover: a block is protected only while an alive emitter sits within grid.shieldRadius cells (b.coverBy = nearest)
-    var emitters = grid.blocks.filter(function (b) { return b.alive && b.type === "shield"; }), R2 = g.shieldRadius * g.shieldRadius;
-    s.covered = 0; s.exposed = 0;
-    grid.blocks.forEach(function (b) {
-      if (!b.alive) return;
-      var best = null, bestD = Infinity;
-      for (var i = 0; i < emitters.length; i++) { var e = emitters[i], dx = e.x - b.x, dy = e.y - b.y, d2 = dx * dx + dy * dy; if (d2 <= R2 && d2 < bestD) { bestD = d2; best = e; } }
-      b.coverBy = best; b.covered = !!best;
-      if (!b.structural) { if (best) s.covered++; else s.exposed++; }
-    });
-    s.coverFrac = s.covered + s.exposed ? s.covered / (s.covered + s.exposed) : 0;
+    var sc = fieldCover(grid, "shield", g.shieldRadius, "covered", "coverBy");
+    s.covered = sc.covered; s.exposed = sc.exposed; s.coverFrac = sc.frac;
+    // cloak and ECM fields (ew.cloakRadius / jamRadius): a cloak needs every block inside a field; blocks outside the
+    // ECM field can still be targeted through a jam
+    s.cloakCover = fieldCover(grid, "cloak", BS.Data.ew.cloakRadius, "cloakCovered");
+    s.jamCover = fieldCover(grid, "jammer", BS.Data.ew.jamRadius, "jamCovered");
     grid.rev = (grid.rev || 0) + 1;
     s.speedMult = s.mass > 0 ? U.clamp(s.thrust * g.thrustPerPoint / s.mass, g.speedMultMin, g.speedMultMax) : g.speedMultMin;
     // brownout: with reactors gone the surviving systems share what is left
     s.powerFactor = s.powerUsed > s.powerMax ? Math.max(g.brownoutMin, s.powerMax / s.powerUsed) : 1;
     grid.stats = s; grid.dirty = false;
     return s;
+  }
+
+  // Blocks within `radius` cells of an alive block of `type` are inside its field: sets b[flag] (and b[byKey] = the nearest
+  // such block when asked) and counts the non-structural blocks in and out. frac is 1 only when every block is covered.
+  function fieldCover(grid, type, radius, flag, byKey) {
+    var sources = grid.blocks.filter(function (b) { return b.alive && b.type === type; }), R2 = radius * radius, out = { covered: 0, exposed: 0, sources: sources.length };
+    grid.blocks.forEach(function (b) {
+      if (!b.alive) return;
+      var best = null, bestD = Infinity;
+      for (var i = 0; i < sources.length; i++) { var e = sources[i], dx = e.x - b.x, dy = e.y - b.y, d2 = dx * dx + dy * dy; if (d2 <= R2 && d2 < bestD) { bestD = d2; best = e; } }
+      b[flag] = !!best; if (byKey) b[byKey] = best;
+      if (!b.structural) { if (best) out.covered++; else out.exposed++; }
+    });
+    out.frac = out.covered + out.exposed ? out.covered / (out.covered + out.exposed) : 0;
+    return out;
   }
 
   // ---- geometry -----------------------------------------------------------------
@@ -245,22 +256,24 @@ BS.Grid = (function () {
     return best;
   }
 
-  // Nearest alive block outside shield cover (aim type "exposed").
-  function nearestExposed(grid, from) {
+  // Nearest alive block outside a field: shield cover (aim type "exposed", flag "covered") or the ECM field ("unjammed").
+  function nearestExposed(grid, from, flag) {
     var best = null, bestD = Infinity;
+    flag = flag || "covered";
     grid.blocks.forEach(function (q) {
-      if (!q.alive || q.covered) return;
+      if (!q.alive || q[flag]) return;
       var d = Math.abs(q.x - from.x) + Math.abs(q.y - from.y);
       if (d < bestD) { bestD = d; best = q; }
     });
     return best;
   }
   // The block a shot from a world point lands on, after aiming. Null when the line misses the hull.
-  // aimType: a block type (steer at the nearest one), "exposed" (nearest block outside shield cover) or null (spray).
+  // aimType: a block type (steer at the nearest one), "exposed" (nearest block outside shield cover), "unjammed" (nearest
+  // block outside the ECM field, forced on a partially jammed attacker) or null (spray).
   function resolveEntry(ship, fromX, fromY, aimType) {
     var grid = ship.grid, entry = entryBlock(ship, fromX, fromY);
     if (!entry || !aimType) return entry;
-    var aimed = aimType === "exposed" ? nearestExposed(grid, entry) : nearestOfType(grid, entry, aimType, G().aimRadius);
+    var aimed = aimType === "exposed" ? nearestExposed(grid, entry) : aimType === "unjammed" ? nearestExposed(grid, entry, "jamCovered") : nearestOfType(grid, entry, aimType, G().aimRadius);
     return aimed ? entryBlockThrough(ship, fromX, fromY, aimed) : entry;
   }
 
@@ -378,6 +391,8 @@ BS.Grid = (function () {
     var warnings = [], masked = st.weapons.filter(function (b) { return arcCoverage(grid, b) <= 0; }).length;
     if (masked) warnings.push(masked + " weapon(s) cannot fire past the hull.");
     if (st.exposed && st.coverFrac < 0.9) warnings.push(st.exposed + " block(s) outside shield cover (" + G().shieldRadius + " cells from an emitter) take hits unshielded.");
+    if (st.cloakCover.sources && st.cloakCover.exposed) warnings.push(st.cloakCover.exposed + " block(s) outside the cloak field (" + BS.Data.ew.cloakRadius + " cells from a cloaking device): the ship cannot cloak.");
+    if (st.jamCover.sources && st.jamCover.exposed) warnings.push(st.jamCover.exposed + " block(s) outside the ECM field (" + BS.Data.ew.jamRadius + " cells from a jammer): a jammed enemy can still hit them.");
     var hot = 0;
     grid.blocks.forEach(function (b) {
       if (b.type !== "reactor") return;
@@ -414,6 +429,6 @@ BS.Grid = (function () {
   }
 
   return { build: build, derive: derive, facingOf: facingOf, worldToLocal: worldToLocal, localToWorld: localToWorld, cellOfLocal: cellOfLocal,
-    blockAtWorld: blockAtWorld, blockWorld: blockWorld, entryBlock: entryBlock, entryBlockThrough: entryBlockThrough, resolveEntry: resolveEntry, hit: hit, blockFacing: facingOf, lineOfFireClear: lineOfFireClear, arcCoverage: arcCoverage, weaponFacing: weaponFacingOf, bearingProfile: bearingProfile, repair: repair, pruneDisconnected: pruneDisconnected,
+    blockAtWorld: blockAtWorld, blockWorld: blockWorld, entryBlock: entryBlock, entryBlockThrough: entryBlockThrough, resolveEntry: resolveEntry, hit: hit, blockFacing: facingOf, lineOfFireClear: lineOfFireClear, arcCoverage: arcCoverage, weaponFacing: weaponFacingOf, bearingProfile: bearingProfile, fieldCover: fieldCover, repair: repair, pruneDisconnected: pruneDisconnected,
     layoutFromGrid: layoutFromGrid, validateLayout: validateLayout, randomVariant: randomVariant, layoutCost: layoutCost, typeForLetter: typeForLetter };
 })();

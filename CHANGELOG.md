@@ -2,6 +2,26 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.11.0] — 2026-10-18 (cloak and ECM fields)
+
+### Added
+- **Cloak field** (`ew.cloakRadius` 10): every cloaking device covers the
+  blocks within 10 cells; a ship can cloak only while every alive block is
+  inside a field (module reads "no field", Engineering counts the blocks
+  outside), and losing a device or a section while cloaked collapses the
+  cloak. Several devices per hull (5 power, 250 cr each, no longer unique).
+  Shadow hunter carries three, the Shadow Bird-of-Prey five. The hangar
+  frames cells outside the field in purple; play condition `noCloak`.
+- **ECM field** (`ew.jamRadius` 7): a jam breaks the lock only when every
+  block sits inside a jammer's field. A partial field keeps the enemy's lock
+  but steers its fire onto the blocks outside the field for 4 s (aim
+  `unjammed`), so half cover is a liability. Hangar frames those cells in
+  green; the validator warns about both fields.
+
+### Changed
+- Shadow hunter preset: no jammers (its half field only pushed fire onto the
+  nacelles), cloaks deep in the engineering hull. Jammer boat description.
+
 ## [0.10.0] — 2026-10-18 (firing bearings, decloak strike, enemy plays)
 
 ### Added

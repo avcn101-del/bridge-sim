@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.10.0",
+  version: "0.11.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -108,8 +108,8 @@ BS.Data = {
     engine:   { letter: "E", name: "Impulse engine",  short: "EN", hp: 45, mass: 2, cost: 80,  power: 1,  color: "#5fe9ff", glyph: "thrust", desc: "Thrust. Counts double inside nacelles. Speed = thrust / mass." },
     sensor:   { letter: "N", name: "Sensor array",    short: "SE", hp: 35, mass: 1, cost: 110, power: 3, color: "#d26bff", glyph: "dish", desc: "Faster locks and better tracking." },
     bridge:   { letter: "B", name: "Bridge",          short: "BR", hp: 200, mass: 2, cost: 0,   color: "#ffffff", glyph: "star", unique: true, desc: "Exactly one. If it dies, the ship is lost. Blocks cut off from it break away." },
-    jammer:   { letter: "J", name: "ECM jammer",      short: "JM", hp: 35, mass: 2, cost: 110, power: 6, color: "#35e08f", glyph: "wave", desc: "Electronic warfare. Each 5 s cycle (10 cap) rolls jam strength 3 against the enemy's sensors: on a hit their lock drops and they cannot lock for 4 s, and their torpedoes in flight go blind." },
-    cloak:    { letter: "C", name: "Cloaking device", short: "CL", hp: 40, mass: 3, cost: 400, power: 12, unique: true, color: "#9b8cff", glyph: "eye", desc: "One per ship. While cloaked you cannot be locked or seen beyond sensor range, but shields are down (the pools keep, recharging slowly), weapons are cold and the capacitor drains 8/s. Decloaking takes 2 s and shields stay down 5 s more; for 10 s after decloaking your hits deal double and most of it goes straight through their shields." },
+    jammer:   { letter: "J", name: "ECM jammer",      short: "JM", hp: 35, mass: 2, cost: 110, power: 6, color: "#35e08f", glyph: "wave", desc: "Electronic warfare with a 7-cell field. Each 5 s cycle (10 cap) rolls jam strength 3 against the enemy's sensors. On a hit, if every block sits inside a jammer's field their lock drops for 4 s and their torpedoes go blind; otherwise they keep the lock but can only hit the blocks outside the field." },
+    cloak:    { letter: "C", name: "Cloaking device", short: "CL", hp: 40, mass: 3, cost: 250, power: 5, color: "#9b8cff", glyph: "eye", desc: "Projects a cloak field 10 cells around it; the ship can cloak only while every block sits inside a field, and losing one collapses the cloak. Cloaked you cannot be locked or seen beyond sensor range, but shields are down (the pools keep, recharging slowly), weapons are cold and the capacitor drains 8/s. Decloaking takes 2 s and shields stay down 5 s more; for 10 s after decloaking your hits deal double and most of it goes straight through their shields." },
     quarters: { letter: "Q", name: "Crew quarters",   short: "CQ", hp: 35, mass: 1, cost: 40,  power: 1,  color: "#c9a97a", glyph: "windows", desc: "+0.5 hp/s damage-control repair of damaged blocks." },
   },
 
@@ -173,17 +173,17 @@ BS.Data = {
       ],
       visual: { kind: "grid", sprite: null, nacelleColor: "90,160,255", hullTint: "#c6ccda" },
       presets: {
-        shadowhunter: { name: "Shadow hunter", desc: "A cloaking device and two ECM jammers in the crew decks, six phasers. Cloak, close, decloak on their flank, jam their lock and fire.", rows: [
+        shadowhunter: { name: "Shadow hunter", desc: "Three cloaking devices (one in the saucer, two deep in the engineering hull) so the whole hull sits inside the cloak field, six phasers, two tubes. Cloak, close, decloak on their flank and hit the reactors. No jammer: a half-covered ECM field would only steer their fire onto the nacelles.", rows: [
           "..........................",
           ".EEEEESAAA.........P......",
           ".EEEEEAAAA......PAAAAAP...",
           "...............SAAAAAASA..",
           "..............AAAAASAAAAA.",
           ".......SA.....AAARAACAAAA.",
-          "...AA..AAAAA.AARAAJARAANAT",
-          "..AAAAAAAAAA...AAAAAAAAAAA",
-          "..AAAAAAAAAA...AAABAAAAAAA",
-          "...AA..AAAAA.AARAAJARAANAT",
+          "...AA..AAAAA.AARAAAARAANAT",
+          "..AAACAAAAAA...AAAAAAAAAAA",
+          "..AAACAAAAAA...AAABAAAAAAA",
+          "...AA..AAAAA.AARAAAARAANAT",
           ".......SA.....AAARAAQAAAA.",
           "..............AAAAASAAAAA.",
           "...............SAAAAAASA..",
@@ -605,31 +605,31 @@ BS.Data = {
       ],
       visual: { kind: "grid", sprite: null, nacelleColor: "110,255,120", hullTint: "#5d7a5c" },
       variants: {
-        shadow: { name: "Shadow", desc: "A cloaking device in place of the crew decks, six disruptors. It stalks you cloaked and decloaks at knife range.", rows: [
+        shadow: { name: "Shadow", desc: "Five cloaking devices spread over the hull so the field covers it all, six disruptors. It stalks you cloaked and decloaks at knife range.", rows: [
           "EEE.....................",
           "EEEP....................",
-          "..SAP...................",
+          "..SCP...................",
           "...AAA..................",
           "....AAA.................",
           ".....AAA................",
           "......SAA...............",
           ".......AAA..............",
-          ".....AAARAA.......AAA...",
+          ".....AAARAA.......CAA...",
           "....ARAACAAP....AAAAAAA.",
-          "...AAAAAAAAAAAAAAASAANAA",
+          "...AAAAAAAAAAARAAASAANAA",
           "...AAAAABAAAAAAAAASAAAAT",
           "....ARAAQAAP....AAAAAAA.",
-          ".....AAARAA.......AAA...",
+          ".....AAARAA.......CAA...",
           ".......AAA..............",
           "......SAA...............",
           ".....AAA................",
           "....AAA.................",
           "...AAA..................",
-          "..SAP...................",
+          "..SCP...................",
           "EEEP....................",
           "EEE....................."
         ] },
-        jammer: { name: "Jammer boat", desc: "Two ECM jammers, six disruptors. Breaks your target lock every few seconds.", rows: [
+        jammer: { name: "Jammer boat", desc: "Two ECM jammers in the hull, six disruptors. Its field covers only the core, so a jam pushes your fire onto the wings and nacelles instead of breaking the lock.", rows: [
           "EEE.....................",
           "EEEP....................",
           "..SAP...................",
@@ -817,6 +817,10 @@ BS.Data = {
       lockCloaked: "Can't get a lock, Captain. They're cloaked.",
       jammedUs: "They're jamming our targeting! Lock lost.",
       jammedThem: "Their lock just dropped. The jammer is working.",
+      jammedUsPartial: "They're jamming us, Captain. We can only get a fix on the {n} blocks outside their ECM field.",
+      jammedThemPartial: "Jam is holding, but {n} of our blocks sit outside the field. They'll aim for those.",
+      cloakField: "Can't cloak, Captain: {n} blocks are outside the cloak field. Every block needs a cloaking device within range.",
+      cloakCollapsed: "Cloak field collapsed! We're visible!",
       cloakOn: "Cloak engaged. Shields down, weapons cold, Captain.",
       cloakOff: "Decloaking. Shields will take a moment to come back.",
       cloakNoCap: "Capacitor too low to hold the cloak. We're decloaking!",
@@ -913,7 +917,7 @@ BS.Data = {
     // Plays: scripted sequences of phases (js/plays.js). A phase sets a stance or a doctrine, a module policy
     // (module id or "weapons" → on/off), governor, aim and repair priority, and moves on when any condition in
     // `until` holds or every condition in `untilAll` holds (dKmBelow/Above, heatAbove/Below, facingBelow/Above,
-    // weakestBelow/Above (weakest facing), capBelow/Above, time, cloakOff, cloaked, overloaded, noTubes, noPhasers,
+    // weakestBelow/Above (weakest facing), capBelow/Above, time, cloakOff, cloaked, noCloak (field broken), overloaded, noTubes, noPhasers,
     // enemyReactorsGone, enemyShieldsDown). A phase never ends before minTime (default playPolicy.minPhaseTime).
     // `next` names the phase to go to (default: the following one, wrapping round). booster "auto" and reinforce
     // true are standing policies (playPolicy). Picking a stance, Stop or fly-to ends the play.
@@ -946,10 +950,10 @@ BS.Data = {
       ambush:  { label: "Ambush", key: "9", requires: "cloak", desc: "Cloak, close to knife range, decloak and hit their reactors with the governor off while the decloak strike lasts (10 s: double damage, most of it through their shields), then cloak and slip away to do it again. Needs a cloaking device.",
                  say: "Ambush, aye. Cloaking and closing.",
                  phases: [
-                   { label: "stalking", doctrine: "closein", modules: { weapons: false, cloak: true, shield_hardener: false }, governor: true, until: { dKmBelow: 3.5, capBelow: 0.15 } },
+                   { label: "stalking", doctrine: "closein", modules: { weapons: false, cloak: true, shield_hardener: false }, governor: true, until: { dKmBelow: 3.5, capBelow: 0.15, noCloak: true } },
                    { label: "decloaking", doctrine: "closein", modules: { cloak: false }, say: "Dropping the cloak!", minTime: 0, until: { cloakOff: true } },
                    { label: "strike", stance: "engage", modules: { weapons: true, shield_hardener: true }, governor: false, aim: "reactor", booster: "auto", reinforce: true, minTime: 8, until: { heatAbove: 0.85, weakestBelow: 0.25, time: 12 } },
-                   { label: "slipping away", stance: "disengage", modules: { weapons: false, shield_hardener: false, cloak: true }, governor: true, booster: "auto", say: "Cloaking. Breaking off to come round again.", minTime: 8, untilAll: { cloaked: true, weakestAbove: 0.6 }, until: { time: 40, capBelow: 0.2 }, next: 0 },
+                   { label: "slipping away", stance: "disengage", modules: { weapons: false, shield_hardener: false, cloak: true }, governor: true, booster: "auto", say: "Cloaking. Breaking off to come round again.", minTime: 8, untilAll: { cloaked: true, weakestAbove: 0.6 }, until: { time: 40, capBelow: 0.2, noCloak: true }, next: 0 },
                  ] },
       hitfade: { label: "Hit & fade", key: "0", desc: "Engage until a shield facing runs low, then fade into a tight afterburner orbit they cannot track while the shields recover, and engage again.",
                  say: "Hit and fade, aye. Engaging until the shields say otherwise.",
@@ -1038,6 +1042,9 @@ BS.Data = {
   science: { scanDuration: 4, weaknessBonus: 1.25, cloakDetectRangeKm: 10 },
   // electronic warfare: ECM rolls jam / (jam + target sensors); cloak timings in seconds; detection grows with sensor arrays
   ew: { jamPerBlock: 3, jamDuration: 4, cloakTime: 3, decloakTime: 2, surgeTime: 5, cloakDrain: 8, cloakMinCap: 5, detectPerSensor: 1, ghostAlpha: 0.25, ownCloakAlpha: 0.35,
+        // fields (cells from the block): a ship cloaks only with every block inside a cloak field; a jam breaks the lock only
+        // with every block inside an ECM field, otherwise it just forces their fire onto the blocks outside it
+        cloakRadius: 10, jamRadius: 7,
         // decloak strike: for `window` seconds after decloaking, hits deal ×damageMult and shieldBypass of each hit skips the
         // target's shield straight into the hull (their emitters have not re-tuned to the sudden contact): the strike is
         // the whole point of a cloak, so it is short and decisive

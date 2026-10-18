@@ -72,8 +72,12 @@ BS.Modules = (function () {
       var target = ship.lock.target || ship.selected, strength = weaponBlocks(ship, m).length * BS.Data.ew.jamPerBlock;
       if (target && !target.flags.destroyed && strength > 0) {
         var chance = strength / (strength + Math.max(1, target.stats.sensors)), hit = Math.random() < chance;
-        if (hit) { target.jammed = BS.Data.ew.jamDuration; BS.Ships.clearLock(target, "jammed"); }
-        BS.Events.emit("jammed", { ship: ship, target: target, hit: hit, chance: chance });
+        // a complete ECM field (every block inside ew.jamRadius of a jammer) breaks their lock; a partial one only hides the
+        // blocks inside it, so their fire is forced onto the rest
+        var jc = ship.stats.jamCover, partial = !jc || jc.frac < 1;
+        if (hit && !partial) { target.jammed = BS.Data.ew.jamDuration; BS.Ships.clearLock(target, "jammed"); }
+        else if (hit) { target.partialJam = BS.Data.ew.jamDuration; target.partialJamBy = ship; }
+        BS.Events.emit("jammed", { ship: ship, target: target, hit: hit, chance: chance, partial: partial, exposed: jc ? jc.exposed : 0 });
       }
     }
     if (def.effect && def.effect.shieldBoost) {
@@ -118,7 +122,7 @@ BS.Modules = (function () {
         if (!weaponBlocks(ship, m).length) { if (cs !== "off") BS.Ships.setCloak(ship, false); m.active = false; m.state = "none"; continue; }
         if (cs === "off" && m.active) m.active = false;   // dropped for lack of capacitor
         m.running = cs !== "off"; m.cycleTime = 1; m.cycleLeft = 0;
-        m.state = cs === "off" ? (ship.cloak.surge > 0 ? "surge" : "off") : cs;
+        m.state = cs === "off" ? (ship.cloak.surge > 0 ? "surge" : !BS.Ships.cloakFieldComplete(ship) ? "field" : "off") : cs;
         continue;
       }
       if (ship.overload > 0) { m.state = m.active ? "overload" : "off"; continue; }   // overloaded: nothing cycles or starts
