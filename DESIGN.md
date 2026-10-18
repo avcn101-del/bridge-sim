@@ -71,6 +71,33 @@ Top bar: ship name, clock, alert state, **Reinforce**, **Hail**, **Red
 alert** (also set automatically the first time a weapon module is switched
 on), **?** help overlay, zoom, pause.
 
+### Battle screen since 0.23: watch, trace, bridge calls
+The tactical view is the screen; the captain does not fly. Left panel as
+before (ship, blocks, target). The right panel opens with **Bridge calls**:
+`script.bridgeCall.tokens` (2) per battle, shown as ● ● → ○ ○, never
+refilled. Buttons: *Change play* (a helm play for `holdSeconds` 45 s),
+*Change side* (45 s), *Disengage* (until the weakest shield is back over
+`disengageUntil` 60%, at most 45 s), *Reinforce* (at once), *Focus block*
+(tap a block on the scan drawing, a weak-point line or the enemy on the
+display, then confirm: every weapon on it for `focusSeconds` 30 s). A
+button pressed once arms ("Confirm · 1 call") for `confirmSeconds` 3 s and
+fires on the second press. A call is an override rule on the running
+script (`BS.Script.bridgeCall`, `script.override`): it stands above every
+rule until its until / holdMax, then the trace says "bridge call over: the
+script has the conn" and the script re-picks. Events `bridgeCall` (with
+`state.callLog`) and `bridgeCallRefused`; the Helm officer acknowledges.
+The **trace band** under the log ticker shows the last three rule firings
+("00:41 CALL BRIDGE CALL: keep to their blind (at most 45 s)"); the full
+log keeps them all. The scan panel adds *Standing* (the rule in force, or
+the call) and *Aiming* (what the weapons are on, and a focus candidate
+waiting for confirmation). **Speed** 1× / 2× / 4× (`balance.speeds`,
+`balance.maxStepsPerFrame`) in the top bar; Space pauses. The old helm
+column (lock, stances, sides, plays, stop, transporter), the top-bar
+Reinforce, aim chips, module clicks, canvas steering and the keys are the
+**manual bridge**: hidden unless `settings.manualBridge` (hangar checkbox
+"Manual bridge (debug)", `body.manual-bridge`); a manual order pauses the
+script. On a phone the ORDERS drawer is now BRIDGE.
+
 ### Hangar: plan and script editor (0.22, `js/hangar.js`)
 The left column of the hangar carries the pre-battle thinking:
 - **Plan** under Intel: up to `script.planTargets` (3) targets on the next
@@ -877,7 +904,7 @@ modules: { phaser_group, torpedo_group, shield_booster, shield_hardener, afterbu
 ew: { jamPerBlock, jamDuration, cloakTime, decloakTime, surgeTime, cloakDrain, cloakMinCap, detectPerSensor, ghostAlpha, ownCloakAlpha, cloakRadius, jamRadius, strike,
       decoy: { life, lureKm, speedKmS, hitKm, spreadDeg, aiIncomingKm }, neut: { rangeKm, perBlock, aiMinCap, warnCapBelow, drainMemory, fleeKm } }
 grid.boarding: { rangeKm, minParty, partyMax, transportTime, bridgeGuard, defenderPerQuarters, gapStart, gapAbort, abortRangeMult, rate, floor }
-script: { tickSeconds, chargingKmS, traceMax, planTargets, defaultTemplate, maxRules, dryRun: { maxSeconds, stepsPerChunk }, conditions: { id: { label, kind, def, negLabel? } }, actions: { id: { label, kind } }, policies: { id: { label } }, weakKinds,
+script: { tickSeconds, chargingKmS, traceMax, planTargets, defaultTemplate, maxRules, dryRun: { maxSeconds, stepsPerChunk }, bridgeCall: { tokens, holdSeconds, focusSeconds, confirmSeconds, disengageUntil, noCallBonus }, conditions: { id: { label, kind, def, negLabel? } }, actions: { id: { label, kind } }, policies: { id: { label } }, weakKinds,
           templates: { id: { name, desc, requires?, policies, rules: [{ when, do, until?, holdMax?, once?, every? }] } }, enemyScripts: { id: { name, rules } } }
 campaign.firstFight: { weakPointChance }; campaign.encounters[].script; save: scripts[], scriptByBuild{}, plans{}, settings.manualBridge
 campaign.salvage: { destroyed, disabled, captured }; enemyAI.*: drainedBelow, drainedUntil, drainedTime; enemyAI.counters[].when.neutMin
@@ -908,7 +935,7 @@ torpedoExpired, shieldHit, hullHit, blockDestroyed, sectionLost,
 blockExploded, shipDisabled, shipDestroyed, overload, jammed, cloakChanged,
 alertChanged, stateChanged, orbitFlipped, stanceChanged, playChanged, playPhase, enemyRolled, commandGiven,
 decoyLaunched, decoyExpired, torpedoLured, torpedoDecoyed, neutralised, boardingStarted, boardingAborted,
-boardingFight, boardingEnded, shipCaptured, scriptRule, scriptSuspended, scriptAim, scanStarted, scanned,
+boardingFight, boardingEnded, shipCaptured, scriptRule, scriptSuspended, scriptAim, scanStarted, scanned, bridgeCall, bridgeCallRefused, speedChanged,
 log, battleStarted, battleEnded, skillTrained`.
 
 ## 8. Measured balance (accelerated simulation, scripted captains, default builds, no skills)
@@ -1257,6 +1284,7 @@ than slower (it is nearly untouched, as intended).
 | v0.11.0 (done) | Cloak and ECM fields: a ship cloaks only with every block inside a cloak field (several devices per hull), a partial ECM field steers the jammed enemy's fire onto the uncovered blocks |
 | v0.12.0 (done) | Disruptor cannons (punch, penetration, poor tracking) and pulse phasers (tracking, knife range) as blocks and weapon groups; Klingons mount cannons |
 | v0.13.0 (done) | Crew: systems need hands, the bridge and crew quarters supply them, manning slows weapons and shields, blocks far from quarters repair slowly; every layout re-fitted |
+| v0.23.0 (done) | Battle screen: bridge calls (2 a battle, confirm by pressing twice, overrides that hand back), trace band, speed 1× / 2× / 4×, manual bridge behind a debug setting |
 | v0.22.0 (done) | Hangar script editor (sentence dropdowns, templates, copy / save / assign), plan targets on the intel drawing, dry run against the next enemy |
 | v0.21.0 (done) | Bridge scripts: when → do rules with policies, call-outs, templates from the plays, enemy scripts on the same engine, scan before weak points, sentences for every rule; balance: K't'inga stern cannons, Torpedo boat two tubes, first fight without weak-point hunting |
 | v0.19.0 (done) | Decoy launchers (torpedo lures, enemy Siege K't'inga carries them), energy neutralisers (capacitor drain, `drained` enemy state, Leech encounter, counter rule), boarding parties (transporter window, defenders per crew deck, capture as a victory) |

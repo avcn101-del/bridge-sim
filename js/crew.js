@@ -193,6 +193,8 @@ BS.Crew = (function () {
     BS.Events.on("governorHold", function (e) { if (e.ship === ship && e.holding) report("engineering", "governorHold"); });
     // the bridge script: every rule that takes over or calls out is read into the log by the computer
     BS.Events.on("scriptRule", function (e) { if (e.ship === ship) say("computer", "Script " + (e.entry.rule !== null && e.entry.rule !== undefined ? (e.entry.rule + 1) + ": " : "") + e.entry.text, "system"); });
+    BS.Events.on("bridgeCall", function (e) { if (e.ship === ship) report("helm", "bridgeCall", { text: e.entry.text, left: e.left }); });
+    BS.Events.on("bridgeCallRefused", function () { report("helm", "bridgeCallNone", {}, "warn"); });
     BS.Events.on("scanStarted", function (e) { if (e.ship === ship) report("tactical", "scanStart", { t: Math.round(e.time) }); else if (e.ship === enemy) report("tactical", "enemyScanning"); });
     BS.Events.on("scanned", function (e) { if (e.ship === ship) report("tactical", "scanDone"); });
     BS.Events.on("scriptAim", function (e) { if (e.ship === ship) report("tactical", "aimWeak", { label: e.label }); });

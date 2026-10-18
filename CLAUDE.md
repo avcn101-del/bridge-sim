@@ -48,11 +48,16 @@ These rules apply to every session working in this repository.
   (`"vector"` or `"sprite"`). Game logic never touches the canvas. Swapping
   vector silhouettes for image sprites in `assets/` must not require changes
   outside `renderer.js` and `data.js`.
-- **Controls are EVE-style commands.** The player never steers directly:
-  `BS.Game.command(id, args)` → `BS.Crew.command` executes instantly on the
-  player ship (select, lock, stance, play, flyTo, stop, module, aim, repair,
-  reinforce, governor, redAlert, hail) and the officer reports. Movement is
-  the helm's: the player picks a stance and `BS.EnemyAI` flies it with the
+- **The script has the conn.** Since 0.21 the contest is decided before
+  the fight: build, intel, plan and a bridge script (`BS.Script`, when → do
+  rules written in the hangar). In battle both bridges run their scripts;
+  the player watches and has `script.bridgeCall.tokens` (2) **bridge
+  calls** (`BS.Game.bridgeCall`: play, side, disengage, reinforce, focus
+  block), overrides that stand for a while and hand back. The hand-flown
+  controls (`BS.Game.command(id, args)` → `BS.Crew.command`: stance, play,
+  side, aim, modules, keys) still exist behind `settings.manualBridge` for
+  debugging and the harness; a manual order pauses the script. Movement is
+  always the helm's: a stance or doctrine is flown by `BS.EnemyAI` with the
   same doctrine machine and the same `BS.Ships.setCommand` /
   `BS.Modules.setActive` the enemy uses.
 - **Ships are block grids.** A class gives a hull `mask` (`.` empty, `#`

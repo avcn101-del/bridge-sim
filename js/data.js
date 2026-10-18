@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.22.0",
+  version: "0.23.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -13,6 +13,8 @@ BS.Data = {
   balance: {
     simStep: 1 / 60,
     maxFrameTime: 0.1,
+    maxStepsPerFrame: 32,         // fixed steps a frame may run (speed 4× at 60 fps needs 4)
+    speeds: [1, 2, 4],            // battle speed buttons (state.speed)
     shieldBleedThrough: 0.15,     // fraction of absorbed shield damage that still leaks to hull
     subsystemDamageFactor: 0.45,  // hull damage × this = subsystem damage on an untargeted (random) hit
     targetedSubsystemDamageFactor: 0.7, // same for a hit on the subsystem you are targeting
@@ -925,6 +927,8 @@ BS.Data = {
       targetHull: "Targeting whatever we can hit, Captain. Full accuracy.",
       aimBlock: "Focusing fire on their {name} at {x},{y}, Captain.",
       scanStart: "Science scan running, Captain: {t} seconds, phasers on hold.",
+      bridgeCall: "Bridge call, aye: {text}. {left} left.",
+      bridgeCallNone: "No bridge calls left, Captain. The script has the conn.",
       scanDone: "Scan complete. We have their layout and their weak points.",
       enemyScanning: "They're scanning us, Captain. They're reading our layout.",
       aimWeak: "Aye. {label}.",
@@ -1228,6 +1232,11 @@ BS.Data = {
     planTargets: 3,                // targets a plan may name, in order
     defaultTemplate: "brawler",    // what a ship undocks with when no script is assigned
     maxRules: 12,                  // rules per script in the editor
+    // bridge calls (BS.Script.bridgeCall, BS.Game.bridgeCall): the captain's `tokens` interventions per battle, never
+    // refilled. A play or side call is an override that stands for holdSeconds and then hands back to the script;
+    // Disengage stands until the weakest shield is back over disengageUntil (or holdSeconds); Reinforce acts at once;
+    // Focus aims every weapon at one block for focusSeconds. A button asks to be pressed twice within confirmSeconds.
+    bridgeCall: { tokens: 2, holdSeconds: 45, focusSeconds: 30, confirmSeconds: 3, disengageUntil: 0.6, noCallBonus: 1.2 },
     dryRun: { maxSeconds: 600, stepsPerChunk: 1200 },   // the hangar's dry run: one simulated battle, stepped in chunks so the page stays responsive
     conditions: {
       dKmBelow:         { label: "they are closer than {v}", kind: "km", def: 5 },

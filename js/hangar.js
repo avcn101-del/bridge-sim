@@ -26,6 +26,8 @@ BS.Hangar = (function () {
       if (window.confirm("Reset all progress? Credits, ships, builds and skills will be lost.")) { C.reset(); ed.rows = null; render(); say("Progress reset."); }
     });
     el["btn-mirror"].addEventListener("click", function () { ed.mirror = !ed.mirror; renderEditor(); });
+    var manual = document.getElementById("hg-manual");
+    if (manual) manual.addEventListener("change", function () { var s = C.get(); s.settings.manualBridge = manual.checked; C.persist(); BS.UI.setManual(manual.checked); });
     el["btn-fill"].addEventListener("click", function () { fillEmpty("A"); });
     el["btn-clear"].addEventListener("click", function () { clearAll(); });
     el["btn-revert"].addEventListener("click", function () { ed.rows = C.layoutFor(ed.classId).slice(); ed.dirty = false; renderEditor(); say("Build reverted to the current layout."); });
@@ -84,6 +86,7 @@ BS.Hangar = (function () {
     var s = C.get(), cls = C.currentClass();
     if (ed.classId !== s.shipClass || !ed.rows) { ed.classId = s.shipClass; ed.rows = C.layoutFor(s.shipClass).slice(); ed.dirty = false; }
     el["hg-credits"].textContent = s.credits.toLocaleString() + " cr";
+    var mb = document.getElementById("hg-manual"); if (mb) mb.checked = !!(s.settings && s.settings.manualBridge);
     el["hg-record"].textContent = s.campaign.battlesWon + " won · " + s.campaign.battlesLost + " lost" + (s.campaign.streak > 1 ? " · streak " + s.campaign.streak : "");
     var enc = C.encounter();
     var docLabel = BS.Data.enemyAI.stateLabels[enc.doctrine] || enc.doctrine;

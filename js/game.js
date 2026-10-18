@@ -3,7 +3,7 @@ window.BS = window.BS || {};
 
 BS.Game = (function () {
   var U = BS.Util;
-  var state = { phase: "start", time: 0, paused: false, player: null, enemy: null, ships: [], result: null, endTimer: 0, hover: null, zoom: 1, zoomBias: 1, reward: null, encounter: null };
+  var state = { phase: "start", time: 0, paused: false, player: null, enemy: null, ships: [], result: null, endTimer: 0, hover: null, zoom: 1, zoomBias: 1, reward: null, encounter: null, speed: 1, calls: 0, callsUsed: 0 };
   var accumulator = 0, lastFrame = 0, running = false;
   var subscribed = false;
 
@@ -44,6 +44,7 @@ BS.Game = (function () {
     if (!dry) { BS.UI.clearLog(); BS.UI.hideOverlays(); }
     state.dry = dry;
     state.time = 0; state.paused = false; state.result = null; state.resultHow = null; state.endTimer = 0; state.hover = null; state.reward = null; state.lockTime = 0; state.boardingLog = null;
+    state.speed = 1; state.calls = BS.Data.script.bridgeCall.tokens; state.callsUsed = 0; state.callLog = [];
     state.zoom = BS.Data.balance.zoom.start; state.zoomBias = 1;
     var save = BS.Campaign.get();
     var player = BS.Ships.create(save.shipClass, { isPlayer: true, pos: { x: 0, y: 0 }, heading: -Math.PI / 2, layout: BS.Campaign.battleLayout(save.shipClass), mods: BS.Campaign.skillMods() });
@@ -110,6 +111,18 @@ BS.Game = (function () {
     if (state.phase !== "battle") return;
     BS.Crew.command(id, args);
   }
+  // The captain's bridge call (script.bridgeCall.tokens per battle): an override on the running script.
+  function bridgeCall(call) {
+    if (state.phase !== "battle" || !state.player) return "phase";
+    if (state.calls <= 0) { BS.Events.emit("bridgeCallRefused", { call: call }); return "none"; }
+    if (!BS.Script.bridgeCall(state.player, call)) return "failed";
+    state.calls--; state.callsUsed++;
+    var entry = { t: state.time, call: call, text: BS.Script.describeDo(BS.Script.callRule(call).do) };
+    state.callLog.push(entry);
+    BS.Events.emit("bridgeCall", { ship: state.player, call: call, left: state.calls, entry: entry });
+    return "ok";
+  }
+  function setSpeed(x) { var ok = BS.Data.balance.speeds; state.speed = ok.indexOf(x) >= 0 ? x : 1; BS.Events.emit("speedChanged", { speed: state.speed }); }
   function setHover(h) { state.hover = h; }
   // the camera auto-fits both ships; a manual zoom scales a bias on top of that fit
   function setZoom(z) { var Z = BS.Data.balance.zoom; state.zoomBias = U.clamp(state.zoomBias * (U.clamp(z, Z.min, Z.max) / Math.max(0.01, state.zoom)), Z.biasMin, Z.biasMax); }
@@ -148,10 +161,10 @@ BS.Game = (function () {
     lastFrame = now;
     var simulating = (state.phase === "battle" || state.phase === "ending") && !state.paused;
     if (simulating) {
-      accumulator += dt;
-      var steps = 0;
-      while (accumulator >= B.simStep && steps < 8) { step(B.simStep); accumulator -= B.simStep; steps++; }
-      if (steps === 8) accumulator = 0;
+      accumulator += dt * (state.speed || 1);
+      var steps = 0, maxSteps = B.maxStepsPerFrame || 8;
+      while (accumulator >= B.simStep && steps < maxSteps) { step(B.simStep); accumulator -= B.simStep; steps++; }
+      if (steps === maxSteps) accumulator = 0;
     } else {
       if (state.phase === "ended") BS.Effects.update(dt, state.ships, []);
       accumulator = 0;
@@ -168,6 +181,6 @@ BS.Game = (function () {
 
   function openHangar() { BS.UI.hideOverlays(); state.phase = state.player ? "ended" : "start"; BS.Hangar.show(); }
 
-  var api = { init: init, startBattle: startBattle, dryRun: dryRun, cancelDryRun: cancelDryRun, openHangar: openHangar, command: command, togglePause: togglePause, setHover: setHover, setZoom: setZoom, state: state, step: step };
+  var api = { init: init, startBattle: startBattle, dryRun: dryRun, cancelDryRun: cancelDryRun, openHangar: openHangar, command: command, bridgeCall: bridgeCall, setSpeed: setSpeed, togglePause: togglePause, setHover: setHover, setZoom: setZoom, state: state, step: step };
   return api;
 })();

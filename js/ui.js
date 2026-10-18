@@ -17,7 +17,7 @@ BS.UI = (function () {
     ["own-speed", "own-cmd", "own-subsystems", "enemy-subsystems", "gauge", "help-screen", "btn-help", "btn-help-close",
      "target-none", "target-info", "tg-name", "tg-hull", "tg-hull-val", "tg-shield", "tg-shield-val", "tg-range", "tg-angular", "tg-chance", "tg-aim",
      "clock", "alert-label", "btn-pause", "btn-redalert", "btn-zoom-in", "btn-zoom-out", "pause-overlay", "start-screen", "result-screen", "result-title", "result-sub", "result-head",
-     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "rs-credits", "rs-salvage", "heat-bar", "heat-num", "btn-governor", "own-heat", "own-crew", "own-boarding", "own-boarding-row", "btn-board", "scan-view", "scan-info", "btn-log", "side-buttons", "ship-name", "view", "module-bar", "overview", "sel-name", "play-buttons"]
+     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "rs-credits", "rs-salvage", "heat-bar", "heat-num", "btn-governor", "own-heat", "own-crew", "own-boarding", "own-boarding-row", "btn-board", "scan-view", "scan-info", "btn-log", "side-buttons", "ship-name", "view", "module-bar", "overview", "sel-name", "play-buttons", "trace", "speed-buttons", "call-tokens", "call-play", "call-side", "btn-focus", "bridge-calls"]
       .forEach(function (id) { el[id] = $(id); });
     logList = $("log");
     buildGauge();
@@ -46,7 +46,64 @@ BS.UI = (function () {
     $("btn-restart").addEventListener("click", function () { game.openHangar(); });
     bindCanvas();
     bindKeys();
+    bindBridge();
+    setManual(!!(BS.Campaign.get().settings || {}).manualBridge);
     if (!subscribed) { subscribe(); subscribed = true; }
+  }
+  // Manual bridge (debug): the hand-flown controls and their keys; off, the script fights and the captain has calls.
+  function setManual(on) { document.body.classList.toggle("manual-bridge", !!on); }
+  function manual() { return document.body.classList.contains("manual-bridge"); }
+
+  // ---- bridge calls and speed ---------------------------------------------------------------------------------
+  // A call button arms itself for script.bridgeCall.confirmSeconds and fires on the second press; a focus call
+  // needs a block tapped on the scan panel first (pendingFocus).
+  var armed = null, armTimer = null, pendingFocus = null, traceEntries = [];
+  function disarm() { if (armed) { armed.btn.classList.remove("armed"); armed.btn.textContent = armed.label; } armed = null; if (armTimer) { clearTimeout(armTimer); armTimer = null; } }
+  function armOrFire(btn, call) {
+    if (game.state.phase !== "battle") return;
+    if (game.state.calls <= 0) { BS.Events.emit("bridgeCallRefused", { call: call }); return; }
+    if (armed && armed.btn === btn) { var c = armed.call; disarm(); var r = game.bridgeCall(c); if (r === "ok" && c.kind === "focus") { pendingFocus = null; updateFocusButton(); } return; }
+    disarm();
+    armed = { btn: btn, call: call, label: btn.textContent };
+    btn.classList.add("armed"); btn.textContent = "Confirm · 1 call";
+    armTimer = setTimeout(disarm, BS.Data.script.bridgeCall.confirmSeconds * 1000);
+  }
+  function bindBridge() {
+    var P = BS.Data.helm.plays, sp = el["call-play"], ss = el["call-side"];
+    Object.keys(P).forEach(function (id) { var o = document.createElement("option"); o.value = id; o.textContent = P[id].label; sp.appendChild(o); });
+    Object.keys(BS.Data.helm.sides).forEach(function (id) { var o = document.createElement("option"); o.value = id; o.textContent = BS.Data.helm.sides[id].label; ss.appendChild(o); });
+    ss.value = "blind";
+    document.querySelectorAll("#bridge-calls [data-call]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var kind = b.getAttribute("data-call"), call = { kind: kind };
+        if (kind === "play") call = { kind: "play", value: sp.value };
+        if (kind === "side") call = { kind: "side", value: ss.value };
+        if (kind === "focus") { if (!pendingFocus) return; call = { kind: "focus", value: { x: pendingFocus.x, y: pendingFocus.y } }; }
+        armOrFire(b, call); b.blur();
+      });
+    });
+    var speeds = BS.Data.balance.speeds;
+    speeds.forEach(function (x) { var b = document.createElement("button"); b.className = "lcars-btn c-peach" + (x === 1 ? " active" : ""); b.textContent = x + "×"; b.title = "Battle speed " + x + "×"; b.addEventListener("click", function () { game.setSpeed(x); b.blur(); }); el["speed-buttons"].appendChild(b); });
+    BS.Events.on("speedChanged", function (e) { el["speed-buttons"].querySelectorAll("button").forEach(function (b) { b.classList.toggle("active", parseFloat(b.textContent) === e.speed); }); });
+    BS.Events.on("scriptRule", function (e) { if (e.ship === game.state.player) { traceEntries.push(e.entry); if (traceEntries.length > 3) traceEntries.shift(); renderTrace(); } });
+    BS.Events.on("battleStarted", function () { traceEntries = []; renderTrace(); pendingFocus = null; disarm(); updateFocusButton(); });
+  }
+  function renderTrace() {
+    el["trace"].innerHTML = traceEntries.map(function (en) {
+      return "<div class='tr " + (en.kind || "") + "'><span class='t'>" + U.formatTime(en.t) + "</span><span class='r'>" + (en.kind === "call" ? "CALL" : en.kind === "manual" ? "MAN" : en.rule !== null && en.rule !== undefined ? "r" + (en.rule + 1) : "—") + "</span><span class='m'>" + escapeHtml(en.text) + "</span></div>";
+    }).join("");
+  }
+  function escapeHtml(t) { return String(t).replace(/[&<>]/g, function (ch) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]; }); }
+  function updateFocusButton() {
+    var b = el["btn-focus"]; if (!b) return;
+    if (armed && armed.btn === b) return;
+    if (pendingFocus) { b.classList.remove("off"); b.textContent = "Focus: " + pendingFocus.label; }
+    else { b.classList.add("off"); b.textContent = "Focus block · tap on SCAN"; }
+  }
+  function pickFocus(block) {
+    if (!block || !block.alive) return;
+    pendingFocus = { x: block.x, y: block.y, label: (block.structural ? "structure" : block.def.name) + " " + block.x + "," + block.y };
+    disarm(); updateFocusButton();
   }
 
   function subscribe() {
@@ -57,15 +114,17 @@ BS.UI = (function () {
       var row = ev.target.closest ? ev.target.closest("[data-wp]") : null;
       if (!row || !scanWeak) return;
       var wp = scanWeak[parseInt(row.getAttribute("data-wp"), 10)];
-      if (wp) game.command("aimBlock", { block: wp.block, label: wp.label });
+      if (!wp) return;
+      if (manual()) game.command("aimBlock", { block: wp.block, label: wp.label }); else pickFocus(wp.block);
     });
     el["scan-view"].addEventListener("click", function (ev) {
       var e = game.state.enemy, p = game.state.player, cv = el["scan-view"];
       if (!e || !p || p.lock.target !== e || !p.lock.locked) return;
       var r = cv.getBoundingClientRect(), g = e.grid, cp = g.cellPx, k = Math.min(cv.width / (g.h * cp), cv.height / (g.w * cp)) * 0.88;
       var cx = (ev.clientX - r.left) * cv.width / r.width, cy = (ev.clientY - r.top) * cv.height / r.height;
-      var lx = (cv.height / 2 - cy) / k, ly = (cx - cv.width / 2) / k, cell = BS.Grid.cellOfLocal(g, lx, ly), b = g.at[cell.x + "," + cell.y];
-      if (b && b.alive) game.command("aimBlock", { block: b });
+      var lx = (cv.height / 2 - cy) / k, ly = (cx - cv.width / 2) / k, b = BS.Grid.blockAtWorld(e, lx, ly, 1);
+      if (!b || !b.alive) return;
+      if (manual()) game.command("aimBlock", { block: b }); else pickFocus(b);
     });
     Object.keys(BS.Data.helm.sides).forEach(function (id) {
       var sd = BS.Data.helm.sides[id], b = document.createElement("button");
@@ -169,7 +228,7 @@ BS.UI = (function () {
       var capText = m.def.capText || (m.def.cap ? m.def.cap + " cap" : (BS.Data.blocks[m.def.block].weapon.cap + " cap/shot"));
       b.innerHTML = '<span class="key">F' + (i + 1) + '</span><div class="ring"></div><span class="short">' + m.def.short + '</span><span class="capcost">' + capText + '</span><span class="state"></span>';
       b.title = m.def.name + " — " + m.def.desc + (m.def.cycle ? " Cycle " + m.def.cycle + " s, " + m.def.cap + " capacitor per cycle." : "");
-      b.addEventListener("click", function () { game.command("module", { module: m }); });
+      b.addEventListener("click", function () { if (manual()) game.command("module", { module: m }); });
       el["module-bar"].appendChild(b);
       moduleEls.push({ el: b, m: m, ring: b.querySelector(".ring"), state: b.querySelector(".state") });
     });
@@ -230,17 +289,18 @@ BS.UI = (function () {
       if (!h) return;
       var p = s.player, e = s.enemy;
       if (p.lock.target !== e) { game.command("select", { target: e }); game.command("lock", { target: e }); return; }
+      if (!manual()) { if (h.block) pickFocus(h.block); return; }
       if (h.block && !h.block.structural) game.command("aim", { type: h.block.type });
     });
     view.addEventListener("dblclick", function (ev) {
       var h = hoverAt(ev);
-      if (h) return;
+      if (h || !manual()) return;
       game.command("flyTo", { point: worldAt(ev) });
     });
     view.addEventListener("contextmenu", function (ev) {
       ev.preventDefault();
       var s = game.state, h = hoverAt(ev);
-      if (s.phase !== "battle") return;
+      if (s.phase !== "battle" || !manual()) return;
       if (h) { game.command("select", { target: s.enemy }); game.command("stance", { target: s.enemy, stance: "engage" }); }
       else game.command("flyTo", { point: worldAt(ev) });
     });
@@ -265,12 +325,14 @@ BS.UI = (function () {
       lastTouchAt = performance.now();
       var h = hoverAt(ev, true), p = s.player, e = s.enemy;
       if (press) {
+        if (!manual()) return;   // the script flies; long presses steer only on the manual bridge
         if (h || onEnemyAtStart) { game.command("select", { target: e }); game.command("stance", { target: e, stance: "engage" }); }
         else game.command("flyTo", { point: worldAt(ev) });
         return;
       }
       if (h) {
         if (p.lock.target !== e) { game.command("select", { target: e }); game.command("lock", { target: e }); }
+        else if (!manual()) { if (h.block) pickFocus(h.block); }
         else if (h.block && !h.block.structural) game.command("aim", { type: h.block.type });
         lastTap = null;
         return;
@@ -324,6 +386,8 @@ BS.UI = (function () {
       if (ev.key === "Escape") { el["help-screen"].classList.add("hidden"); return; }
       if (ev.code === "Space" && s.phase === "battle") { ev.preventDefault(); game.togglePause(); return; }
       if (s.phase !== "battle") return;
+      if (ev.key.toLowerCase() === "g") { document.getElementById("comms").classList.toggle("expanded"); return; }
+      if (!manual()) return;   // the script has the conn; the keys below are the manual bridge
       var fk = /^F(\d)$/.exec(ev.key);
       if (fk) { var i = parseInt(fk[1], 10) - 1; if (moduleEls[i]) { ev.preventDefault(); game.command("module", { module: moduleEls[i].m }); } return; }
       var stances = BS.Data.helm.stances, stanceKey = Object.keys(stances).filter(function (id) { return stances[id].key === ev.key; })[0];
@@ -450,6 +514,9 @@ BS.UI = (function () {
 
     updateGauge(p);
     updateHeatBar(p);
+    var tok = el["call-tokens"]; if (tok) { var left = state.calls || 0, used = state.callsUsed || 0, dots = ""; for (var di = 0; di < left; di++) dots += "● "; for (var dj = 0; dj < used; dj++) dots += "○ "; tok.textContent = dots.trim() || "none"; tok.classList.toggle("none", left === 0); }
+    document.querySelectorAll("#bridge-calls [data-call]").forEach(function (b) { if (b.id === "btn-focus") return; b.classList.toggle("off", (state.calls || 0) <= 0); });
+    if (pendingFocus && e && e.grid.at[pendingFocus.x + "," + pendingFocus.y] && !e.grid.at[pendingFocus.x + "," + pendingFocus.y].alive) { pendingFocus = null; updateFocusButton(); }
     el["own-speed"].textContent = S.speedKmS(p).toFixed(1) + " km/s" + (p.activeEffects.speedMult > 1 ? " · AB" : "");
     el["own-cmd"].textContent = cmdText(p);
     var st = p.stats, est = e ? e.stats : null;
@@ -590,13 +657,15 @@ BS.UI = (function () {
     if (theirTurret) threat.push(theirTurret.def.short + " " + pct(BS.Weapons.turretHitChance(e, p, theirTurret.def.weapon)) + " to hit us");
     if (theirTube) threat.push("torpedoes " + pct(BS.Weapons.torpedoDamageMult(theirTube.def.weapon, p)) + " damage on us");
     html += "<div class='sl'><label>Threat</label><span class='v'>" + (threat.length ? threat.join(" · ") : "unarmed") + "</span></div>";
+    if (p.script) { var psc = p.script, stRule = psc.override ? "BRIDGE CALL · " + BS.Script.describeDo(psc.override.rule.do) : psc.suspended ? "manual helm, script paused" : psc.active >= 0 && psc.def.rules[psc.active] ? "rule " + (psc.active + 1) + " · " + BS.Script.describe(psc.def.rules[psc.active], psc.def) : "waiting for a rule"; html += "<div class='sl'><label>Standing</label><span class='v' title='" + escapeHtml(stRule) + "'>" + escapeHtml(stRule.length > 70 ? stRule.slice(0, 68) + "…" : stRule) + "</span></div>"; }
+    html += "<div class='sl'><label>Aiming</label><span class='v'>" + (p.aimType === "block" && p.aimBlock ? (p.aimBlock.block.structural ? "structure" : p.aimBlock.block.def.name.toLowerCase()) + " at " + p.aimBlock.block.x + "," + p.aimBlock.block.y : p.aimType === "exposed" ? "bare hull" : p.aimType === "structure" ? "necks and pylons" : p.aimType ? D.blocks[p.aimType].name.toLowerCase() + "s" : "anything") + (pendingFocus ? " · <span class='warn'>focus ready: " + escapeHtml(pendingFocus.label) + " (confirm in Bridge)</span>" : "") + "</span></div>";
     html += "<div class='sl'><label>Scan</label><span class='v'>" + (p.scanned ? "<span class='good'>scanned: weak points readable</span>" : p.scanning > 0 ? "scanning " + p.scanning.toFixed(1) + " s" : "not scanned (scan is a script action)") + (e.scanned ? " · they have scanned us" : "") + "</span></div>";
     html += "<div class='sl'><label>Cloak</label><span class='v'>" + (e.cloak.state !== "off" ? e.cloak.state : e.cloak.surge > 0 ? "surge: shields down" : e.cloak.strike > 0 ? "<span class='bad'>decloak strike " + e.cloak.strike.toFixed(0) + " s</span>" : "off") + (vis < 1 ? " · ghost contact" : "") + "</span></div>";
     html += "</div><div><h4>Weak points · click to focus fire</h4>";
     if (!scanWeak.length) html += "<div class='dim'>Nothing stands out.</div>";
     scanWeak.forEach(function (wp, i) {
       var on = p.aimType === "block" && p.aimBlock && p.aimBlock.block === wp.block;
-      html += "<div class='wp" + (on ? " on" : "") + "' data-wp='" + i + "' title='Click: focus every weapon on this block (−15% accuracy). Click again to stop.'>" + (on ? "▶ " : "") + wp.label + "</div>";
+      html += "<div class='wp" + (on ? " on" : "") + "' data-wp='" + i + "' title='" + (manual() ? "Click: focus every weapon on this block (−15% accuracy). Click again to stop." : "Tap: make this block the Focus bridge call, then confirm in the Bridge panel.") + "'>" + (on ? "▶ " : "") + wp.label + "</div>";
     });
     html += "</div>";
     if (html !== scanHtmlLast) { el["scan-info"].innerHTML = html; scanHtmlLast = html; }
@@ -636,5 +705,5 @@ BS.UI = (function () {
 
   function setShipName(name) { el["ship-name"].textContent = name; }
 
-  return { init: init, update: update, addLog: addLog, clearLog: clearLog, setAlert: setAlert, showStart: showStart, hideOverlays: hideOverlays, showResult: showResult, setShipName: setShipName, buildModuleBar: buildModuleBar };
+  return { init: init, update: update, addLog: addLog, clearLog: clearLog, setAlert: setAlert, showStart: showStart, hideOverlays: hideOverlays, showResult: showResult, setShipName: setShipName, buildModuleBar: buildModuleBar, setManual: setManual };
 })();
