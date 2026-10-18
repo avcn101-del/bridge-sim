@@ -41,19 +41,21 @@ BS.Crew = (function () {
     switch (id) {
       case "stance": {
         if (!target) return report("helm", "stanceNoTarget");
+        BS.Script.suspend(ship, "stance");
         BS.Plays.stop(ship);
         if (BS.EnemyAI.setStance(ship, target, args.stance)) report("helm", "stance_" + args.stance);
         break;
       }
       case "play": {
         if (!target) return report("helm", "stanceNoTarget");
+        BS.Script.suspend(ship, "play");
         var P = BS.Data.helm.plays[args.play], pr = P ? BS.Plays.start(ship, target, args.play) : false;
         if (pr === "requires") report("helm", "playRequires", { module: BS.Data.blocks[P.requires] ? BS.Data.blocks[P.requires].name.toLowerCase() : P.requires }, "warn");
         else if (pr === true && P.say) say("helm", P.say);
         break;
       }
-      case "flyTo": BS.Plays.stop(ship); BS.EnemyAI.suspend(ship); S.setCommand(ship, "flyTo", { point: args.point }); report("helm", "flyTo"); break;
-      case "stop": BS.Plays.stop(ship); BS.EnemyAI.suspend(ship); S.setCommand(ship, "idle"); report("helm", "stop"); break;
+      case "flyTo": BS.Script.suspend(ship, "fly-to"); BS.Plays.stop(ship); BS.EnemyAI.suspend(ship); S.setCommand(ship, "flyTo", { point: args.point }); report("helm", "flyTo"); break;
+      case "stop": BS.Script.suspend(ship, "all stop"); BS.Plays.stop(ship); BS.EnemyAI.suspend(ship); S.setCommand(ship, "idle"); report("helm", "stop"); break;
       case "select": ship.selected = args.target || null; break;
       case "lock": {
         if (!target) return report("tactical", "lockNoTarget");
@@ -67,6 +69,7 @@ BS.Crew = (function () {
       case "unlock": S.clearLock(ship, "unlock"); if (ship.ai) ship.ai.relock = false; report("tactical", "unlock"); break;
       case "side": {
         if (!target) return report("helm", "sideNoTarget");
+        BS.Script.suspend(ship, "attack side");
         if (BS.EnemyAI.setAttackSide(ship, target, args.side)) report("helm", "side_" + args.side);
         break;
       }
@@ -188,6 +191,11 @@ BS.Crew = (function () {
       }
     });
     BS.Events.on("governorHold", function (e) { if (e.ship === ship && e.holding) report("engineering", "governorHold"); });
+    // the bridge script: every rule that takes over or calls out is read into the log by the computer
+    BS.Events.on("scriptRule", function (e) { if (e.ship === ship) say("computer", "Script " + (e.entry.rule !== null && e.entry.rule !== undefined ? (e.entry.rule + 1) + ": " : "") + e.entry.text, "system"); });
+    BS.Events.on("scanStarted", function (e) { if (e.ship === ship) report("tactical", "scanStart", { t: Math.round(e.time) }); else if (e.ship === enemy) report("tactical", "enemyScanning"); });
+    BS.Events.on("scanned", function (e) { if (e.ship === ship) report("tactical", "scanDone"); });
+    BS.Events.on("scriptAim", function (e) { if (e.ship === ship) report("tactical", "aimWeak", { label: e.label }); });
     // second-generation EW and boarding
     BS.Events.on("decoyLaunched", function (e) { if (e.ship === ship) report("tactical", e.incoming > 0 ? "decoyLaunched" : "decoyNoTorpedoes"); else if (e.ship === enemy) report("tactical", "enemyDecoy"); });
     BS.Events.on("torpedoLured", function (e) { if (e.ship === ship && now() - (ship._luredReported || -99) > 6) { ship._luredReported = now(); report("tactical", "decoyLured"); } });

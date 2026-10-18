@@ -432,9 +432,11 @@ BS.UI = (function () {
     if (p.cmd.type === "shadow") st = "shadowing " + (p.attackSide === "blind" ? "blind sector" : p.attackSide);
     if (p.tumble > 0) st = "TUMBLING";
     if (p.breach > 0) st = "CORE BREACH " + p.breach.toFixed(0) + " s";
-    if (p.play && p.ai && !p.ai.suspended) { var ph = p.play.def.phases[p.play.phase]; return p.play.def.label + " · " + ph.label + " · " + st; }
-    if (p.ai && !p.ai.suspended && p.stance) return BS.Data.helm.stances[p.stance].label + " · " + st;
-    if (p.ai && !p.ai.suspended) return (p.doctrineId || "helm") + " · " + st;
+    if (p.scanning > 0) st = "SCANNING " + p.scanning.toFixed(1) + " s · " + st;
+    var sc = p.script && !p.script.suspended && p.script.active >= 0 ? "Script " + (p.script.active + 1) + " · " : (p.script && p.script.suspended ? "Manual · " : "");
+    if (p.play && p.ai && !p.ai.suspended) { var ph = p.play.def.phases[p.play.phase]; return sc + p.play.def.label + " · " + ph.label + " · " + st; }
+    if (p.ai && !p.ai.suspended && p.stance) return sc + BS.Data.helm.stances[p.stance].label + " · " + st;
+    if (p.ai && !p.ai.suspended) return sc + (p.doctrineId || "helm") + " · " + st;
     return p.cmd.type === "flyTo" ? "Manual · flying to point" : "Manual · all stop";
   }
 
@@ -512,10 +514,10 @@ BS.UI = (function () {
       me.el.classList.toggle("active", m.active);
       me.el.classList.toggle("running", m.running);
       var weapon = BS.Modules.isWeapon(m);
-      ["nocap", "nolock", "range", "notarmed", "arc", "none", "heat", "overload", "cloaked", "surge", "field"].forEach(function (st) { me.el.classList.toggle(st, (m.active || m.def.kind === "cloak") && m.state === st); });
+      ["nocap", "nolock", "range", "notarmed", "arc", "none", "heat", "overload", "cloaked", "surge", "field", "scan"].forEach(function (st) { me.el.classList.toggle(st, (m.active || m.def.kind === "cloak") && m.state === st); });
       me.ring.style.setProperty("--p", weapon ? (100 * (1 - m.readiness)).toFixed(1) : (m.running ? (100 * (1 - m.cycleLeft / m.cycleTime)).toFixed(1) : 0));
       me.el.classList.toggle("running", weapon ? m.active && m.readiness < 1 : m.running);
-      me.state.textContent = m.active && m.state !== "running" && m.state !== "off" && m.state !== "ok" ? ({ nocap: "no cap", nolock: "no lock", range: "range", notarmed: "safe", arc: "no arc", none: "lost", heat: "hot", overload: "OVERLOAD", cloaked: "cloaked", cloaking: "cloaking", decloaking: "decloak", surge: "surge", field: "no field" })[m.state] || "" : "";
+      me.state.textContent = m.active && m.state !== "running" && m.state !== "off" && m.state !== "ok" ? ({ nocap: "no cap", nolock: "no lock", range: "range", notarmed: "safe", arc: "no arc", none: "lost", heat: "hot", overload: "OVERLOAD", cloaked: "cloaked", cloaking: "cloaking", decloaking: "decloak", surge: "surge", field: "no field", scan: "scanning" })[m.state] || "" : "";
     }
   }
 
@@ -588,6 +590,7 @@ BS.UI = (function () {
     if (theirTurret) threat.push(theirTurret.def.short + " " + pct(BS.Weapons.turretHitChance(e, p, theirTurret.def.weapon)) + " to hit us");
     if (theirTube) threat.push("torpedoes " + pct(BS.Weapons.torpedoDamageMult(theirTube.def.weapon, p)) + " damage on us");
     html += "<div class='sl'><label>Threat</label><span class='v'>" + (threat.length ? threat.join(" · ") : "unarmed") + "</span></div>";
+    html += "<div class='sl'><label>Scan</label><span class='v'>" + (p.scanned ? "<span class='good'>scanned: weak points readable</span>" : p.scanning > 0 ? "scanning " + p.scanning.toFixed(1) + " s" : "not scanned (scan is a script action)") + (e.scanned ? " · they have scanned us" : "") + "</span></div>";
     html += "<div class='sl'><label>Cloak</label><span class='v'>" + (e.cloak.state !== "off" ? e.cloak.state : e.cloak.surge > 0 ? "surge: shields down" : e.cloak.strike > 0 ? "<span class='bad'>decloak strike " + e.cloak.strike.toFixed(0) + " s</span>" : "off") + (vis < 1 ? " · ghost contact" : "") + "</span></div>";
     html += "</div><div><h4>Weak points · click to focus fire</h4>";
     if (!scanWeak.length) html += "<div class='dim'>Nothing stands out.</div>";

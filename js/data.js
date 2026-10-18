@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.20.0",
+  version: "0.21.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -749,7 +749,7 @@ BS.Data = {
           "EEED....................",
           "EEE....................."
         ] },
-        torpedo: { name: "Torpedo boat", desc: "Three forward tubes, six reactors, four disruptors.", rows: [
+        torpedo: { name: "Torpedo boat", desc: "Two forward tubes, six reactors, four disruptors.", rows: [
           "EEE.....................",
           "EEED....................",
           "..SQA...................",
@@ -759,7 +759,7 @@ BS.Data = {
           "......SAA...............",
           ".......ASA..............",
           ".....AAARAR.......AAA...",
-          "....ARAAQAAD....AAQAAAT.",
+          "....ARAAQAAD....AAQAAAA.",
           "...AAAAAAAAAAAAAAASNAAAT",
           "...AAAAABAAAAAAAAASAAAAT",
           "....ARAAQAAD....AAQAAAA.",
@@ -812,10 +812,10 @@ BS.Data = {
         ".....AAAASD................AAAA.",
         "......AAAAAAAA..........AAARAA..",
         ".......AAAAQAAAA.......AAAAAAAA.",
-        "........AARAAARA......AAAASNAAAD",
+        "........DARAAARA......AAAASNAAAD",
         "........EEAAAAAASAAAAAAAAAQBAAAT",
         "........EEAAAAAASAAAAAAAAAAQAAAT",
-        "........AARAAARA......AAAASNAAAD",
+        "........DARAAARA......AAAASNAAAD",
         ".......AAAAQAAAA.......AAAAAAAA.",
         "......AAAAAAAA..........AAARAA..",
         ".....AAAASD................AAAA.",
@@ -827,7 +827,7 @@ BS.Data = {
       ],
       visual: { kind: "grid", sprite: null, nacelleColor: "255,120,90", hullTint: "#7a6660" },
       variants: {
-        siege: { name: "Siege", desc: "Four forward tubes, eight reactors, four disruptors, two decoy launchers: it holds station at torpedo range and decoys your volleys.", rows: [
+        siege: { name: "Siege", desc: "Four forward tubes, eight reactors, four disruptors plus two covering the stern, two decoy launchers: it holds station at torpedo range and decoys your volleys.", rows: [
           "EEEE............................",
           "EEEED...........................",
           "..SQAA..........................",
@@ -836,10 +836,10 @@ BS.Data = {
           ".....AAAASD................AAAA.",
           "......AAAAAAAA..........AAARAA..",
           ".......AAYAAQRAA.......AAAAAAAA.",
-          "........ARAAAAAR......AAAASNAAAT",
+          "........DRAAAAAR......AAAASNAAAT",
           "........EEAAAAAASAAAAAAAAAQBAAAT",
           "........EEAAAAAASAAAAAAAAAAQAAAT",
-          "........ARAAAAAR......AAAASNAAAT",
+          "........DRAAAAAR......AAAASNAAAT",
           ".......AAYAAQRAA.......AAAAAAAA.",
           "......AAAAAAAA..........AAARAA..",
           ".....AAAASD................AAAA.",
@@ -924,6 +924,9 @@ BS.Data = {
       strikeWindow: "Decloaked on their flank, Captain. Their shields haven't re-tuned, pour it on!",
       targetHull: "Targeting whatever we can hit, Captain. Full accuracy.",
       aimBlock: "Focusing fire on their {name} at {x},{y}, Captain.",
+      scanStart: "Science scan running, Captain: {t} seconds, phasers on hold.",
+      scanDone: "Scan complete. We have their layout and their weak points.",
+      enemyScanning: "They're scanning us, Captain. They're reading our layout.",
       aimWeak: "Aye. {label}.",
       reinforceShields: "Reinforcing the {weak} shield from the {strong} grid.",
       reinforceShields_none: "Shields are already balanced, Captain.",
@@ -1129,7 +1132,7 @@ BS.Data = {
       doctrine: "broadside",
       accuracyMult: 0.7, reactionDelay: 1.6, statMult: 0.9, damageMult: 1.33,
       retreatHull: 0.2, retreatMinTime: 8, retreatMaxTime: 16,
-      repositionShield: 0.2, repositionDuration: 6, blindTolerance: 4,
+      repositionShield: 0.2, repositionDuration: 6, blindTolerance: 2.5,   // shadowed: the cruiser comes about sooner than a raider does (its stern carries two cannons since 0.21)
       orbitRangeKm: 7, retreatRangeKm: 18,
       boosterBelow: 0.5, boosterMinCap: 0.3, afterburnerMinCap: 0.35, weakPointChance: 0.6,
       drainedBelow: 0.06, drainedUntil: 0.3, drainedTime: 25,
@@ -1177,17 +1180,21 @@ BS.Data = {
     // `play` names a play (helm.plays) the enemy bridge runs instead of flying its doctrine alone; the doctrine stays
     // as the fallback when the play's required module is missing. `damageMult` overrides the profile's for that encounter.
     encounters: [
-      { id: "raider",   enemyClass: "bird_of_prey", layout: "default", doctrine: "strafe",    minWins: 0, weight: 3, rewardMult: 1.0, counter: true },
-      { id: "gunboat",  enemyClass: "bird_of_prey", layout: "gunboat", doctrine: "brawl",     minWins: 1, weight: 2, rewardMult: 1.1 },
-      { id: "torpedo",  enemyClass: "bird_of_prey", layout: "torpedo", doctrine: "standoff",  play: "siege",   minWins: 1, weight: 2, rewardMult: 1.1, damageMult: 1.0 },   // holds station and fires every tube; with the recharge delay its stream keeps a facing down
-      { id: "variant",  enemyClass: "bird_of_prey", layout: "random",  doctrine: ["strafe", "brawl"], minWins: 2, weight: 3, rewardMult: 1.1, counter: true },
-      { id: "jammer",   enemyClass: "bird_of_prey", layout: "jammer",  doctrine: "brawl",     minWins: 3, weight: 2, rewardMult: 1.2 },
-      { id: "shadow",   enemyClass: "bird_of_prey", layout: "shadow",  doctrine: "ambush",    minWins: 3, weight: 2, rewardMult: 1.3, damageMult: 1.2 },   // its decloak strikes already double
-      { id: "leech",    enemyClass: "bird_of_prey", layout: "leech",   doctrine: "brawl",     minWins: 3, weight: 2, rewardMult: 1.2 },   // two neutralisers: a close brawl becomes a capacitor war
-      { id: "cruiser",  enemyClass: "ktinga",       layout: "default", doctrine: "broadside", minWins: 4, weight: 2, rewardMult: 1.8 },
-      { id: "siege",    enemyClass: "ktinga",       layout: "siege",   doctrine: "siege",     minWins: 6, weight: 2, rewardMult: 1.9 },
-      { id: "warlord",  enemyClass: "ktinga",       layout: "random",  doctrine: ["broadside", "brawl"], minWins: 8, weight: 2, rewardMult: 1.9, counter: true },
+    // `script` names the bridge script (script.enemyScripts) the enemy runs on top of its doctrine: the same rule engine,
+    // conditions and actions as the player's (BS.Script). The doctrine stays the movement layer the script's rules pick.
+      { id: "raider",   enemyClass: "bird_of_prey", layout: "default", doctrine: "strafe",    script: "raider",  minWins: 0, weight: 3, rewardMult: 1.0, counter: true },
+      { id: "gunboat",  enemyClass: "bird_of_prey", layout: "gunboat", doctrine: "brawl",     script: "doctrine", minWins: 1, weight: 2, rewardMult: 1.1 },
+      { id: "torpedo",  enemyClass: "bird_of_prey", layout: "torpedo", doctrine: "standoff",  script: "torpedoBoat", minWins: 1, weight: 2, rewardMult: 1.1, damageMult: 1.0 },   // holds station and fires every tube; with the recharge delay its stream keeps a facing down
+      { id: "variant",  enemyClass: "bird_of_prey", layout: "random",  doctrine: ["strafe", "brawl"], script: "doctrine", minWins: 2, weight: 3, rewardMult: 1.1, counter: true },
+      { id: "jammer",   enemyClass: "bird_of_prey", layout: "jammer",  doctrine: "brawl",     script: "doctrine", minWins: 3, weight: 2, rewardMult: 1.2 },
+      { id: "shadow",   enemyClass: "bird_of_prey", layout: "shadow",  doctrine: "ambush",    script: "doctrine", minWins: 3, weight: 2, rewardMult: 1.3, damageMult: 1.2 },   // its decloak strikes already double
+      { id: "leech",    enemyClass: "bird_of_prey", layout: "leech",   doctrine: "brawl",     script: "doctrine", minWins: 3, weight: 2, rewardMult: 1.2 },   // two neutralisers: a close brawl becomes a capacitor war
+      { id: "cruiser",  enemyClass: "ktinga",       layout: "default", doctrine: "broadside", script: "cruiser", minWins: 4, weight: 2, rewardMult: 1.8 },
+      { id: "siege",    enemyClass: "ktinga",       layout: "siege",   doctrine: "siege",     script: "siegeCruiser", minWins: 6, weight: 2, rewardMult: 1.9 },
+      { id: "warlord",  enemyClass: "ktinga",       layout: "random",  doctrine: ["broadside", "brawl"], script: "cruiser", minWins: 8, weight: 2, rewardMult: 1.9, counter: true },
     ],
+    // the very first fight: the raider does not hunt weak points yet (enemyAI profile override while battlesWon is 0)
+    firstFight: { weakPointChance: 0 },
     klingonNames: ["IKS Rotarran", "IKS Hegh'ta", "IKS Pagh", "IKS Koraga", "IKS Vorn", "IKS Amar", "IKS Gr'oth", "IKS Bortas", "IKS Ch'Tang", "IKS Maht-H'a"],
   },
 
@@ -1211,6 +1218,135 @@ BS.Data = {
         // enemyAI.*.drainedBelow / drainedUntil / drainedTime) while its capacitor is that low and the neutraliser is on it
         neut: { rangeKm: 4, perBlock: 30, aiMinCap: 0.35, warnCapBelow: 240, drainMemory: 8, fleeKm: 8 } },
 
+  // ------------------------------------------------------------- bridge scripts
+  // The bridge fights by a script: ordered "when → do" rules (js/script.js). Every condition and action has a sentence
+  // here ({v} is the value) so the editor, the trace and the battle report read as orders, never as data.
+  script: {
+    tickSeconds: 0.5,              // how often the rules are read
+    chargingKmS: 1.0,              // "they are charging": closing faster than this while running in
+    traceMax: 60,                  // trace entries kept per ship
+    planTargets: 3,                // targets a plan may name, in order
+    defaultTemplate: "brawler",    // what a ship undocks with when no script is assigned
+    conditions: {
+      dKmBelow:         { label: "they are closer than {v}", kind: "km", def: 5 },
+      dKmAbove:         { label: "they are farther than {v}", kind: "km", def: 10 },
+      facingBelow:      { label: "our shield facing them is under {v}", kind: "pct", def: 0.3 },
+      facingAbove:      { label: "our shield facing them is over {v}", kind: "pct", def: 0.6 },
+      weakestBelow:     { label: "our weakest shield is under {v}", kind: "pct", def: 0.25 },
+      weakestAbove:     { label: "our weakest shield is over {v}", kind: "pct", def: 0.6 },
+      heatAbove:        { label: "our heat is over {v}", kind: "pct", def: 0.9 },
+      heatBelow:        { label: "our heat is under {v}", kind: "pct", def: 0.3 },
+      capBelow:         { label: "our capacitor is under {v}", kind: "pct", def: 0.2 },
+      capAbove:         { label: "our capacitor is over {v}", kind: "pct", def: 0.6 },
+      hullBelow:        { label: "our hull is under {v}", kind: "pct", def: 0.4 },
+      time:             { label: "more than {v} have passed", kind: "sec", def: 60 },
+      scanned:          { label: "we have scanned them", kind: "bool", def: true, negLabel: "we have not scanned them yet" },
+      incomingTorpedoes:{ label: "{v} or more torpedoes are coming at us", kind: "count", def: 1 },
+      boardable:        { label: "the transporter has a window", kind: "flag" },
+      overloaded:       { label: "we are overloaded", kind: "flag" },
+      cloaked:          { label: "we are cloaked", kind: "flag" },
+      cloakOff:         { label: "our cloak is off", kind: "flag" },
+      noCloak:          { label: "our cloak field is broken", kind: "flag" },
+      noTubes:          { label: "we have no torpedo tubes left", kind: "flag" },
+      noPhasers:        { label: "we have no beam weapons left", kind: "flag" },
+      enemyReactorsGone:{ label: "their reactors are all gone", kind: "flag" },
+      enemyShieldsDown: { label: "their shield facing us is down", kind: "flag" },
+      enemyFacingBelow: { label: "their shield facing us is under {v}", kind: "pct", def: 0.3 },
+      enemyCapBelow:    { label: "their capacitor is under {v}", kind: "pct", def: 0.1 },
+      enemyHullBelow:   { label: "their hull is under {v}", kind: "pct", def: 0.5 },
+      enemyCharging:    { label: "they are charging us", kind: "flag" },
+      enemyCloaking:    { label: "they are cloaking", kind: "flag" },
+      enemyCloaked:     { label: "they are cloaked", kind: "flag" },
+      enemyRolling:     { label: "they are turning a fresh shield to us", kind: "flag" },
+      enemyBreaching:   { label: "their core is breaching", kind: "flag" },
+      enemyKiting:      { label: "they are running from us", kind: "flag" },
+      enemyFocusing:    { label: "they are shooting at our {v}", kind: "type", def: "reactor" },
+      enemyState:       { label: "they are {v}", kind: "state", def: "pass" },
+    },
+    actions: {
+      stance:    { label: "fly {v}", kind: "stance" },
+      doctrine:  { label: "fly the {v} doctrine", kind: "doctrine" },   // enemy scripts: fixed-range doctrines
+      play:      { label: "run the {v} play", kind: "play" },
+      side:      { label: "keep to their {v}", kind: "side" },
+      aim:       { label: "aim at {v}", kind: "aim" },
+      weapons:   { label: "weapons {v}", kind: "bool" },
+      modules:   { label: "{v}", kind: "modules" },
+      governor:  { label: "heat governor {v}", kind: "bool" },
+      repair:    { label: "damage control to the {v}", kind: "type" },
+      reinforce: { label: "reinforce the weakest shield", kind: "flag" },
+      scan:      { label: "scan them (4 s, beams hold fire)", kind: "flag" },
+      board:     { label: "send the boarding party", kind: "flag" },
+    },
+    policies: {
+      lock:      { label: "keep a lock on the target" },
+      booster:   { label: "pulse the booster when a shield is low" },
+      reinforce: { label: "reinforce when a shield is very low" },
+      hardener:  { label: "keep the hardener up" },
+      decoy:     { label: "drop a decoy when torpedoes close" },
+      neut:      { label: "run the neutraliser in range" },
+    },
+    weakKinds: { emitter: "the emitter covering the most hull", chain: "reactors that touch", blackout: "the reactor that alone powers a part of them", neck: "the block that severs the most hull", crew: "their crew decks", wounded: "a wounded system", any: "whatever stands out most" },
+    // Templates: the six plays and the default fight written as rules. `until` holds a rule until its condition
+    // (or holdMax s); a rule without conditions is the default. once / every make call-outs.
+    templates: {
+      brawler: { name: "Brawler", desc: "Engage and keep guns on them; the helm flips sides for guns and shields.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto", neut: "auto" },
+        rules: [
+          { when: {}, do: { stance: "engage", weapons: true, modules: { shield_hardener: true }, governor: true } },
+        ] },
+      alpha: { name: "Alpha strike", desc: "Close with weapons cold, dump everything with the governor off, vent, strike again.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto" },
+        rules: [
+          { when: { dKmAbove: 4.5, time: 0 }, do: { doctrine: "closein", weapons: false, modules: { shield_hardener: true }, governor: true }, until: { dKmBelow: 4.5 } },
+          { when: { heatAbove: 0.9 }, do: { stance: "engage", weapons: false, governor: true }, until: { heatBelow: 0.3 } },
+          { when: { overloaded: true }, do: { stance: "engage", weapons: false, governor: true }, until: { heatBelow: 0.3 } },
+          { when: {}, do: { stance: "engage", weapons: true, modules: { shield_hardener: true }, governor: false } },
+        ] },
+      siege: { name: "Siege", desc: "Hold at torpedo range with everything that reaches; fight close only when they come inside 5 km.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto" },
+        rules: [
+          { when: { noTubes: true }, do: { stance: "engage", weapons: true, modules: { shield_hardener: true } } },
+          { when: { dKmBelow: 5 }, do: { stance: "engage", weapons: true, modules: { shield_hardener: true } }, until: { dKmAbove: 9 }, holdMax: 30 },
+          { when: {}, do: { stance: "standoff", weapons: true, modules: { shield_hardener: true }, governor: true } },
+        ] },
+      turtle: { name: "Turtle", desc: "A slow broadside with the hardener up, reinforcing and rolling fresh shields.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto" },
+        rules: [
+          { when: {}, do: { doctrine: "broadside", weapons: true, modules: { shield_hardener: true }, governor: true, repair: "shield" } },
+        ] },
+      hunter: { name: "Hunter", desc: "Engage aiming at their reactors; when they are gone, or after a minute, pick at bare hull.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto" },
+        rules: [
+          { when: { enemyReactorsGone: true }, do: { stance: "engage", aim: "exposed", weapons: true } },
+          { when: { time: 60 }, do: { stance: "engage", aim: "exposed", weapons: true } },
+          { when: {}, do: { stance: "engage", aim: "reactor", weapons: true, modules: { shield_hardener: true }, governor: true } },
+        ] },
+      ambush: { name: "Ambush", desc: "Cloak in, decloak at knife range for the strike on their reactors, slip away cloaked and come again. Needs a cloak.", requires: "cloak", policies: { lock: true, booster: "auto", reinforce: "auto" },
+        rules: [
+          { when: { noCloak: true }, do: { stance: "engage", weapons: true, modules: { shield_hardener: true }, governor: true } },
+          { when: { weakestBelow: 0.25 }, do: { stance: "disengage", weapons: false, modules: { shield_hardener: false, cloak: true }, governor: true }, until: { weakestAbove: 0.6, cloaked: true }, holdMax: 40 },
+          { when: { dKmBelow: 3.5 }, do: { stance: "engage", modules: { cloak: false, shield_hardener: true }, weapons: true, governor: false, aim: "reactor" }, until: { heatAbove: 0.85 }, holdMax: 14 },
+          { when: { capBelow: 0.15 }, do: { stance: "engage", modules: { cloak: false, shield_hardener: true }, weapons: true, governor: false, aim: "reactor" }, until: { heatAbove: 0.85 }, holdMax: 14 },
+          { when: {}, do: { doctrine: "closein", weapons: false, modules: { cloak: true, shield_hardener: false }, governor: true } },
+        ] },
+      hitfade: { name: "Hit & fade", desc: "Engage until a shield runs low, then a tight afterburner orbit until it recovers.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto" },
+        rules: [
+          { when: { weakestBelow: 0.25 }, do: { stance: "skirmish", weapons: true, modules: { shield_hardener: false } }, until: { weakestAbove: 0.6 }, holdMax: 45 },
+          { when: {}, do: { stance: "engage", weapons: true, modules: { shield_hardener: true }, governor: true } },
+        ] },
+    },
+    // Enemy scripts: the encounter's doctrine (and play) as rules, so both bridges run the same engine. The enemy AI keeps
+    // its own module policies (booster, hardener, afterburner) in enemyai.js. `doctrine` means the encounter's doctrine.
+    enemyScripts: {
+      doctrine:      { name: "Doctrine", rules: [ { when: {}, do: { doctrine: "encounter" } } ] },
+      raider:        { name: "Raider", rules: [
+                        { when: { scanned: false, dKmBelow: 12 }, do: { scan: true }, once: true },
+                        { when: {}, do: { doctrine: "encounter" } } ] },
+      torpedoBoat:   { name: "Torpedo boat", rules: [ { when: {}, do: { play: "siege" } } ] },
+      cruiser:       { name: "Cruiser", rules: [
+                        { when: { scanned: false, dKmBelow: 14 }, do: { scan: true }, once: true },
+                        { when: {}, do: { doctrine: "encounter" } } ] },
+      siegeCruiser:  { name: "Siege cruiser", rules: [
+                        { when: { scanned: false, dKmBelow: 20 }, do: { scan: true }, once: true },
+                        { when: {}, do: { doctrine: "encounter" } } ] },
+    },
+  },
+
   saveDefaults: {
     version: 2, credits: 600, shipClass: "constitution", ownedShips: ["constitution"],
     layouts: {},                       // classId → array of layout rows; missing = class default layout
@@ -1219,7 +1355,10 @@ BS.Data = {
     training: null,                    // { skill, level, startedAt, finishesAt } (ms timestamps)
     campaign: { missionIndex: 0, battlesWon: 0, battlesLost: 0, streak: 0 },
     intel: {},                         // encounterId → { rows, classId, layoutName, seed } layouts scanned in battle or bought
-    settings: { sound: true, screenShake: true },
+    scripts: [],                       // [{ id, name, policies, rules }] the player's bridge scripts (BS.Script); templates live in script.templates
+    scriptByBuild: {},                 // classId → script id or template id the ship undocks with (missing: script.defaultTemplate)
+    plans: {},                         // encounterId → { targets: [{ x, y } | { type }], rows } up to script.planTargets targets in order
+    settings: { sound: true, screenShake: true, manualBridge: false },   // manualBridge: show the hand-flown helm controls (debug)
   },
 
   // -------------------------------------------------------------- visuals
