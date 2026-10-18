@@ -197,7 +197,24 @@ BS.Campaign = (function () {
     else rows = cls.layout;
     var names = D().campaign.klingonNames, name = names.length ? names[Math.floor(rng() * names.length)] : cls.name;
     var doc = pick.doctrine; if (Array.isArray(doc)) doc = doc[Math.floor(rng() * doc.length)];
-    return { id: pick.id, classId: pick.enemyClass, cls: cls, rows: rows, name: name, variantName: variantName, rewardMult: pick.rewardMult, play: pick.play || null, damageMult: pick.damageMult || null, aiProfile: cls.aiProfile || "default",
+    // counter-doctrine: a flagged encounter reads the player's battle layout and answers it (enemyAI.counters)
+    var counterReason = null;
+    if (pick.counter) {
+      var pcls = D().shipClasses[save.shipClass], pst = BS.Grid.derive(BS.Grid.build(pcls, battleLayout(save.shipClass)));
+      var tubes = pst.alive.torpedo || 0, pulse = pst.alive.pulse || 0, beams = (pst.alive.phaser || 0) + (pst.alive.disruptor || 0), hasCloak = (pst.alive.cloak || 0) > 0;
+      var fac = ["fore", "aft", "port", "starboard"].map(function (f) { return pst.shieldMax[f]; }), weakRatio = Math.min.apply(null, fac) / Math.max(1, Math.max.apply(null, fac));
+      var hullKey = pick.enemyClass === "ktinga" ? "ktinga" : "bop";
+      for (var ci = 0; ci < D().enemyAI.counters.length; ci++) {
+        var ru = D().enemyAI.counters[ci], w = ru.when, ok = true;
+        if (w.tubesMin !== undefined && tubes < w.tubesMin) ok = false;
+        if (w.pulseMin !== undefined && pulse < w.pulseMin) ok = false;
+        if (w.beamsMax !== undefined && beams > w.beamsMax) ok = false;
+        if (w.cloak !== undefined && hasCloak !== w.cloak) ok = false;
+        if (w.weakFacingBelow !== undefined && weakRatio >= w.weakFacingBelow) ok = false;
+        if (ok && ru[hullKey] && D().enemyAI.doctrines[ru[hullKey]]) { doc = ru[hullKey]; counterReason = ru.reason; break; }
+      }
+    }
+    return { id: pick.id, classId: pick.enemyClass, cls: cls, rows: rows, name: name, variantName: variantName, rewardMult: pick.rewardMult, play: pick.play || null, damageMult: pick.damageMult || null, counterReason: counterReason, aiProfile: cls.aiProfile || "default",
       doctrine: doc || D().enemyAI[cls.aiProfile || "default"].doctrine, label: cls.className + (variantName ? " · " + variantName : "") };
   }
   function settleBattle(state) {

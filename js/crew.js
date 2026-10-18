@@ -62,6 +62,14 @@ BS.Crew = (function () {
         if (BS.EnemyAI.setAttackSide(ship, target, args.side)) report("helm", "side_" + args.side);
         break;
       }
+      case "aimBlock": {   // focus fire on one block of the locked ship (scan panel click or a weak-point line)
+        if (!target) return report("tactical", "lockNoTarget");
+        var same = ship.aimType === "block" && ship.aimBlock && ship.aimBlock.block === args.block;
+        if (!args.block || same) { S.setAimBlock(ship, null, null); report("tactical", "targetHull"); }
+        else { S.setAimBlock(ship, target, args.block); if (args.label) report("tactical", "aimWeak", { label: args.label }); else report("tactical", "aimBlock", { name: args.block.structural ? "structure" : args.block.def.name.toLowerCase(), x: args.block.x, y: args.block.y }); }
+        shieldedState = null;
+        break;
+      }
       case "aim": {
         var bt = args.type;
         if (!bt || ship.aimType === bt || !(BS.Data.blocks[bt] || bt === "exposed")) { ship.aimType = null; report("tactical", "targetHull"); }
@@ -123,6 +131,7 @@ BS.Crew = (function () {
       var r = BS.Data.blockReports[e.block.type];
       if (r && r.destroyed && (e.block.type !== "armor" || now() - lastBlockReport > 10)) { say("engineering", r.destroyed, "warn"); lastBlockReport = now(); }
     });
+    BS.Events.on("enemyFocus", function (e) { if (e.target === ship) say("tactical", U.template(D().events.enemyFocus, { label: e.point.kind === "emitter" ? "our " + BS.Grid.facingOf(e.point.block) + " shield emitter" : e.point.kind === "chain" ? "our reactors" : e.point.kind === "blackout" ? "the reactor that powers our " + e.point.n + " systems" : e.point.kind === "neck" ? "the " + (e.point.block.structural ? "structure" : e.point.block.def.name.toLowerCase()) + " that holds " + e.point.n + " blocks on" : e.point.kind === "crew" ? "our crew decks" : "our wounded systems" }), "warn"); });
     BS.Events.on("coreBreach", function (e) {
       if (e.ship === ship) report("engineering", "breachOwn", { t: Math.round(e.time) }, "warn");
       else if (e.ship === enemy) say("tactical", U.template(D().events.enemyBreach, { t: Math.round(e.time) }), "warn");

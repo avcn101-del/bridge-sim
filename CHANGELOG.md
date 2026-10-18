@@ -2,6 +2,26 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.17.0] — 2026-10-18 (weak points, focus fire, counter-doctrines)
+
+### Added
+- **Weak points** (`BS.Grid.weakPoints`): the scan panel lists the enemy's
+  emitter covering the most hull, touching reactors, the reactor that alone
+  powers a part of the ship, the cheapest block that severs the most hull,
+  crew decks one loss from undermanning and wounded systems open to a
+  critical. Click a line, or any block on the drawing, to **focus fire** on
+  that block (aim type `block`, −15%); click again to stop.
+- **Enemies aim at your weak points** (`enemyAI.*.weakPointChance`: 30%
+  Bird-of-Prey, 60% K't'inga per re-roll); Tactical calls what they go for.
+- **Counter-doctrines** (`enemyAI.counters`): flagged encounters read your
+  build (tubes, pulse phasers, cloak, weak facing) and pick their doctrine;
+  the hangar's "Next:" line tells you which and why.
+
+### Changed
+- Hunter gives up on reactors after 60 s and moves to exposed hull (its aim
+  could not reach reactors moved inside the hull in 0.16.0: 0 of 3; now
+  3 of 3).
+
 ## [0.16.0] — 2026-10-18 (reactor power range, section physics, core breach)
 
 ### Added

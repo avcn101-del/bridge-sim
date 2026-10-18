@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.16.0",
+  version: "0.17.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -91,6 +91,8 @@ BS.Data = {
     // warp core breach: when the last reactor dies the core goes critical; after `time` seconds the ship blows up and
     // deals `damage` (linear falloff to zero at radiusKm) to anything inside the radius. Get clear.
     breach: { time: 8, radiusKm: 2.0, damage: 900 },
+    // weak-point analysis (BS.Grid.weakPoints): what the scan panel offers to click and what a cunning enemy aims at
+    weakPoints: { neckMinBlocks: 8, maxPoints: 5, cutHpWeight: 60 },
     // heat: every shot adds its weapon's heat; capacity grows with hull size, dissipation with hull surface (rim cells)
     heat: { base: 80, perBlock: 2, dissipationBase: 6, dissipationPerRimCell: 0.25, overloadTime: 6, aiFireBelow: 0.85,
             governorHigh: 0.85, governorLow: 0.6 },   // heat governor (H): holds fire above governorHigh until heat falls below governorLow
@@ -877,6 +879,8 @@ BS.Data = {
       cloakNoCap: "Capacitor too low to hold the cloak. We're decloaking!",
       strikeWindow: "Decloaked on their flank, Captain. Their shields haven't re-tuned, pour it on!",
       targetHull: "Targeting whatever we can hit, Captain. Full accuracy.",
+      aimBlock: "Focusing fire on their {name} at {x},{y}, Captain.",
+      aimWeak: "Aye. {label}.",
       reinforceShields: "Reinforcing the {weak} shield from the {strong} grid.",
       reinforceShields_none: "Shields are already balanced, Captain.",
       reinforceShields_cooldown: "Shield grid is still rebalancing. Give it a moment.",
@@ -926,6 +930,7 @@ BS.Data = {
       enemyCloaked: "They've cloaked, Captain. Sensors show nothing inside ten kilometres... stay sharp.",
       enemyDecloak: "Decloaking off the {facing} bow! Here they come!",
       enemyStrike: "They've caught our shields cold, Captain, that's going straight through!",
+      enemyFocus: "They're going for {label}, Captain!",
       enemyDestroyed: "Enemy vessel destroyed, Captain.",
       enemyBreach: "Their warp core is going critical, Captain! Get us clear, {t} seconds!",
       enemyBreachBlast: "Their core just went up!",
@@ -1007,10 +1012,10 @@ BS.Data = {
                  phases: [
                    { label: "holding", doctrine: "broadside", modules: { weapons: true, shield_hardener: true }, governor: true, booster: "auto", reinforce: true, repair: "shield" },
                  ] },
-      hunter:  { label: "Hunter", key: "8", desc: "Engage and aim for the reactors; when they are gone, pick at hull outside their shield cover.",
+      hunter:  { label: "Hunter", key: "8", desc: "Engage and aim for the reactors; when they are gone, or after a minute of trying, pick at hull outside their shield cover.",
                  say: "Hunter pattern. Going for their reactors.",
                  phases: [
-                   { label: "reactors", stance: "engage", modules: { weapons: true, shield_hardener: true }, governor: true, aim: "reactor", booster: "auto", until: { enemyReactorsGone: true } },
+                   { label: "reactors", stance: "engage", modules: { weapons: true, shield_hardener: true }, governor: true, aim: "reactor", booster: "auto", until: { enemyReactorsGone: true, time: 60 } },
                    { label: "exposed hull", stance: "engage", aim: "exposed", say: "Their reactors are gone. Targeting bare hull.", booster: "auto" },
                  ] },
       ambush:  { label: "Ambush", key: "9", requires: "cloak", desc: "Cloak, close to knife range, decloak and hit their reactors with the governor off while the decloak strike lasts (10 s: double damage, most of it through their shields), then cloak and slip away to do it again. Needs a cloaking device.",
@@ -1052,7 +1057,7 @@ BS.Data = {
       retreatHull: 0.28, retreatMinTime: 9, retreatMaxTime: 22,
       repositionShield: 0.22, repositionDuration: 5, blindTolerance: 3,   // seconds with no weapon bearing on the target before it comes about to bring guns round
       orbitRangeKm: 6, retreatRangeKm: 22,
-      boosterBelow: 0.45, boosterMinCap: 0.35, afterburnerMinCap: 0.25,
+      boosterBelow: 0.45, boosterMinCap: 0.35, afterburnerMinCap: 0.25, weakPointChance: 0.3,   // chance each re-roll to aim at your top weak point instead
       targetWeights: { none: 0.3, exposed: 0.1, phaser: 0.15, reactor: 0.15, engine: 0.12, shield: 0.13, bridge: 0.05 },   // none = spray the hull, no −15% aim penalty; exposed = hull outside shield cover
     },
     // K't'inga: slower to react, holds a longer orbit, fights to the end rather than running
@@ -1062,9 +1067,18 @@ BS.Data = {
       retreatHull: 0.2, retreatMinTime: 8, retreatMaxTime: 16,
       repositionShield: 0.2, repositionDuration: 6, blindTolerance: 4,
       orbitRangeKm: 7, retreatRangeKm: 18,
-      boosterBelow: 0.5, boosterMinCap: 0.3, afterburnerMinCap: 0.35,
+      boosterBelow: 0.5, boosterMinCap: 0.3, afterburnerMinCap: 0.35, weakPointChance: 0.6,
       targetWeights: { none: 0.2, exposed: 0.1, phaser: 0.18, reactor: 0.17, engine: 0.12, shield: 0.13, bridge: 0.1 },
     },
+    // Counter-doctrine: an encounter flagged `counter` reads your build before the fight (BS.Campaign.encounter) and takes
+    // the first rule whose condition your battle layout meets: tubes, pulse / beam counts, a cloak, or a shield facing
+    // much weaker than the strongest. `bop` / `ktinga` name the doctrine per hull; `reason` is what the hangar tells you.
+    counters: [
+      { when: { tubesMin: 4 },                bop: "strafe",   ktinga: "broadside", reason: "they expect torpedoes and will keep moving" },
+      { when: { pulseMin: 4, beamsMax: 2 },   bop: "standoff", ktinga: "siege",     reason: "they will stay out of your pulse range" },
+      { when: { cloak: true },                bop: "brawl",    ktinga: "brawl",     reason: "they will stick close so you cannot slip away" },
+      { when: { weakFacingBelow: 0.6 },       bop: "brawl",    ktinga: "broadside", reason: "they have seen your weak shield facing" },
+    ],
   },
 
   // ------------------------------------------------------------- PR B/C data
@@ -1092,15 +1106,15 @@ BS.Data = {
     // `play` names a play (helm.plays) the enemy bridge runs instead of flying its doctrine alone; the doctrine stays
     // as the fallback when the play's required module is missing. `damageMult` overrides the profile's for that encounter.
     encounters: [
-      { id: "raider",   enemyClass: "bird_of_prey", layout: "default", doctrine: "strafe",    minWins: 0, weight: 3, rewardMult: 1.0 },
+      { id: "raider",   enemyClass: "bird_of_prey", layout: "default", doctrine: "strafe",    minWins: 0, weight: 3, rewardMult: 1.0, counter: true },
       { id: "gunboat",  enemyClass: "bird_of_prey", layout: "gunboat", doctrine: "brawl",     minWins: 1, weight: 2, rewardMult: 1.1 },
       { id: "torpedo",  enemyClass: "bird_of_prey", layout: "torpedo", doctrine: "standoff",  play: "siege",   minWins: 1, weight: 2, rewardMult: 1.1, damageMult: 1.0 },   // holds station and fires every tube; with the recharge delay its stream keeps a facing down
-      { id: "variant",  enemyClass: "bird_of_prey", layout: "random",  doctrine: ["strafe", "brawl"], minWins: 2, weight: 3, rewardMult: 1.1 },
+      { id: "variant",  enemyClass: "bird_of_prey", layout: "random",  doctrine: ["strafe", "brawl"], minWins: 2, weight: 3, rewardMult: 1.1, counter: true },
       { id: "jammer",   enemyClass: "bird_of_prey", layout: "jammer",  doctrine: "brawl",     minWins: 3, weight: 2, rewardMult: 1.2 },
       { id: "shadow",   enemyClass: "bird_of_prey", layout: "shadow",  doctrine: "ambush",    minWins: 3, weight: 2, rewardMult: 1.3, damageMult: 1.2 },   // its decloak strikes already double
       { id: "cruiser",  enemyClass: "ktinga",       layout: "default", doctrine: "broadside", minWins: 4, weight: 2, rewardMult: 1.8 },
       { id: "siege",    enemyClass: "ktinga",       layout: "siege",   doctrine: "siege",     minWins: 6, weight: 2, rewardMult: 1.9 },
-      { id: "warlord",  enemyClass: "ktinga",       layout: "random",  doctrine: ["broadside", "brawl"], minWins: 8, weight: 2, rewardMult: 1.9 },
+      { id: "warlord",  enemyClass: "ktinga",       layout: "random",  doctrine: ["broadside", "brawl"], minWins: 8, weight: 2, rewardMult: 1.9, counter: true },
     ],
     klingonNames: ["IKS Rotarran", "IKS Hegh'ta", "IKS Pagh", "IKS Koraga", "IKS Vorn", "IKS Amar", "IKS Gr'oth", "IKS Bortas", "IKS Ch'Tang", "IKS Maht-H'a"],
   },

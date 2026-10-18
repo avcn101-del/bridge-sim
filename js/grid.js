@@ -114,6 +114,73 @@ BS.Grid = (function () {
     return s;
   }
 
+  // ---- weak-point analysis -------------------------------------------------------------------------------------
+  // What to shoot at on this ship, best first: the emitter covering the most hull, a reactor touching another (chain),
+  // a reactor that alone powers the most systems (blackout), a block whose loss severs the most hull from the bridge
+  // (neck: lost blocks per hp), a crew quarters whose loss undermans the ship, and wounded systems open to a critical.
+  // Each: { kind, block, label, score, n }. Used by the scan panel (click to focus fire) and by cunning enemies.
+  function weakPoints(ship) {
+    var grid = ship.grid, g = G(), W = g.weakPoints, out = [], blocks = grid.blocks.filter(function (b) { return b.alive; }), st = grid.stats || derive(grid);
+    var systems = blocks.filter(function (b) { return !b.structural && (b.def.crew || 0) > 0; });
+    // 1. the emitter that covers the most blocks
+    var coverCount = {};
+    blocks.forEach(function (b) { if (b.coverBy) coverCount[b.coverBy.id] = (coverCount[b.coverBy.id] || 0) + 1; });
+    var bestE = null;
+    blocks.forEach(function (b) { if (b.type === "shield" && coverCount[b.id] && (!bestE || coverCount[b.id] > coverCount[bestE.id])) bestE = b; });
+    if (bestE) out.push({ kind: "emitter", block: bestE, n: coverCount[bestE.id], score: coverCount[bestE.id] * 2, label: "Bare " + coverCount[bestE.id] + " blocks: kill the " + facingOf(bestE) + " emitter at " + bestE.x + "," + bestE.y });
+    // 2. reactors touching each other (a breach chains)
+    var chain = null, chainN = 0;
+    blocks.forEach(function (b) {
+      if (b.type !== "reactor") return;
+      var n = 0;
+      NEIGHBOURS8.forEach(function (d) { var q = grid.at[(b.x + d[0]) + "," + (b.y + d[1])]; if (q && q.alive && q.type === "reactor") n++; });
+      if (n > chainN) { chainN = n; chain = b; }
+    });
+    if (chain) out.push({ kind: "chain", block: chain, n: chainN + 1, score: 30 + chainN * 20, label: "Chain breach: " + (chainN + 1) + " reactors touching at " + chain.x + "," + chain.y });
+    // 3. a reactor that alone keeps systems powered
+    var R2 = g.powerRadius * g.powerRadius, reactors = blocks.filter(function (b) { return b.type === "reactor"; }), bestR = null, bestRn = 0;
+    reactors.forEach(function (r) {
+      var n = 0;
+      systems.forEach(function (s) {
+        var dx = r.x - s.x, dy = r.y - s.y; if (dx * dx + dy * dy > R2) return;
+        var other = reactors.some(function (o) { if (o === r) return false; var ex = o.x - s.x, ey = o.y - s.y; return ex * ex + ey * ey <= R2; });
+        if (!other) n++;
+      });
+      if (n > bestRn) { bestRn = n; bestR = r; }
+    });
+    if (bestR && bestRn >= 3) out.push({ kind: "blackout", block: bestR, n: bestRn, score: bestRn * 1.5, label: "Blackout: the reactor at " + bestR.x + "," + bestR.y + " alone powers " + bestRn + " systems" });
+    // 4. the neck: the block whose loss cuts the most hull off the bridge, weighed against its hp
+    var bridge = grid.bridge, bestCut = null, bestCutScore = 0;
+    if (bridge && bridge.alive) {
+      var alive = {}; blocks.forEach(function (b) { alive[b.id] = true; });
+      function reach(skip) {
+        var seen = {}, stack = [bridge], n = 0; seen[bridge.id] = true;
+        while (stack.length) { var b = stack.pop(); n++; NEIGHBOURS8.forEach(function (d) { var q = grid.at[(b.x + d[0]) + "," + (b.y + d[1])]; if (q && q.alive && q !== skip && !seen[q.id]) { seen[q.id] = true; stack.push(q); } }); }
+        return n;
+      }
+      var total = reach(null);
+      blocks.forEach(function (b) {
+        if (b === bridge) return;
+        var lost = total - 1 - reach(b);
+        if (lost < W.neckMinBlocks) return;
+        var sc = lost * W.cutHpWeight / Math.max(1, b.hp);
+        if (sc > bestCutScore) { bestCutScore = sc; bestCut = { block: b, lost: lost }; }
+      });
+      if (bestCut) out.push({ kind: "neck", block: bestCut.block, n: bestCut.lost, score: bestCutScore * 2, label: "Cut: the " + (bestCut.block.structural ? "structure" : bestCut.block.def.name.toLowerCase()) + " at " + bestCut.block.x + "," + bestCut.block.y + " (" + Math.round(bestCut.block.hp) + " hp) severs " + bestCut.lost + " blocks" });
+    }
+    // 5. crew: one quarters short of the posts
+    var cw = st.crew;
+    if (cw && cw.need > 0 && cw.supply - g.crew.perQuarters < cw.need) {
+      var q0 = blocks.filter(function (b) { return b.type === "quarters"; }).sort(function (a, b) { return a.hp - b.hp; })[0];
+      if (q0) out.push({ kind: "crew", block: q0, n: 1, score: 12, label: "Crew decks: one quarters lost undermans them (" + cw.supply + " / " + cw.need + ")" });
+    }
+    // 6. wounded systems open to a critical hit
+    var wounded = systems.filter(function (b) { return b.hp < b.maxHp * g.crits.below; }).sort(function (a, b) { return a.hp / a.maxHp - b.hp / b.maxHp; });
+    if (wounded.length) out.push({ kind: "wounded", block: wounded[0], n: wounded.length, score: 8 + wounded.length * 3, label: "Finish: " + wounded.length + " wounded system" + (wounded.length > 1 ? "s" : "") + " open to a critical (" + wounded[0].def.name.toLowerCase() + " at " + wounded[0].x + "," + wounded[0].y + ")" });
+    out.sort(function (a, b) { return b.score - a.score; });
+    return out.slice(0, W.maxPoints);
+  }
+
   // Blocks within `radius` cells of an alive block of `type` are inside its field: sets b[flag] (and b[byKey] = the nearest
   // such block when asked) and counts the non-structural blocks in and out. frac is 1 only when every block is covered.
   function fieldCover(grid, type, radius, flag, byKey) {
@@ -292,7 +359,7 @@ BS.Grid = (function () {
   function resolveEntry(ship, fromX, fromY, aimType) {
     var grid = ship.grid, entry = entryBlock(ship, fromX, fromY);
     if (!entry || !aimType) return entry;
-    var aimed = aimType === "exposed" ? nearestExposed(grid, entry) : aimType === "unjammed" ? nearestExposed(grid, entry, "jamCovered") : nearestOfType(grid, entry, aimType, G().aimRadius);
+    var aimed = typeof aimType === "object" ? (aimType.alive ? aimType : null) : aimType === "exposed" ? nearestExposed(grid, entry) : aimType === "unjammed" ? nearestExposed(grid, entry, "jamCovered") : nearestOfType(grid, entry, aimType, G().aimRadius);
     return aimed ? entryBlockThrough(ship, fromX, fromY, aimed) : entry;
   }
 
@@ -458,6 +525,6 @@ BS.Grid = (function () {
   }
 
   return { build: build, derive: derive, facingOf: facingOf, worldToLocal: worldToLocal, localToWorld: localToWorld, cellOfLocal: cellOfLocal,
-    blockAtWorld: blockAtWorld, blockWorld: blockWorld, entryBlock: entryBlock, entryBlockThrough: entryBlockThrough, resolveEntry: resolveEntry, hit: hit, blockFacing: facingOf, lineOfFireClear: lineOfFireClear, arcCoverage: arcCoverage, weaponFacing: weaponFacingOf, bearingProfile: bearingProfile, fieldCover: fieldCover, repair: repair, pruneDisconnected: pruneDisconnected,
+    blockAtWorld: blockAtWorld, blockWorld: blockWorld, entryBlock: entryBlock, entryBlockThrough: entryBlockThrough, resolveEntry: resolveEntry, hit: hit, blockFacing: facingOf, lineOfFireClear: lineOfFireClear, arcCoverage: arcCoverage, weaponFacing: weaponFacingOf, bearingProfile: bearingProfile, fieldCover: fieldCover, weakPoints: weakPoints, repair: repair, pruneDisconnected: pruneDisconnected,
     layoutFromGrid: layoutFromGrid, validateLayout: validateLayout, randomVariant: randomVariant, layoutCost: layoutCost, typeForLetter: typeForLetter };
 })();

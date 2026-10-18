@@ -1,6 +1,6 @@
 # DESIGN.md — Bridge Sim
 
-Version: 0.16.0 (reactor power range, section physics, core breach). Keep this file in sync with the game.
+Version: 0.17.0 (weak points, focus fire, counter-doctrines). Keep this file in sync with the game.
 
 ## 1. Concept
 
@@ -172,7 +172,7 @@ on), **?** help overlay, zoom, pause.
   | **Alpha strike** | close in (`closein` doctrine, weapons cold, hardener) until 4.5 km → strike (Engage, governor off, everything on, booster auto, Reinforce) until heat > 90% or an overload → venting (Engage, weapons off, governor on) until heat < 30% → strike again. Only differs from Engage on builds whose salvo beats the heat cap |
   | **Siege** | Standoff holding station with every weapon that reaches, hardener, booster auto → when the tubes are gone or they come inside 5 km, Engage with everything → back to bombarding after 30 s or once they are beyond 9 km. For torpedo builds against slow or standoff ships |
   | **Turtle** | `broadside` doctrine (4.5–7 km band, come about, roll a fresh shield every 30 s or below 30%), hardener, booster auto, Reinforce, shield repair priority |
-  | **Hunter** | Engage aiming at reactors → when none are left, aim at exposed hull |
+  | **Hunter** | Engage aiming at reactors → when none are left, or after 60 s, aim at exposed hull |
   | **Ambush** (needs a cloak) | cloak and close (`closein`) until 3.5 km or cap < 15% → decloak → strike (Engage, governor off, aim reactors, booster auto, Reinforce) for the decloak strike window: 8–12 s, or heat > 85% or the weakest facing < 25% → slip away cloaked (Disengage, booster auto) until cloaked with the weakest facing back above 60%, 40 s or cap < 20% → repeat |
   | **Hit & fade** | Engage (hardener, booster auto) until the weakest facing < 25% → Skirmish (tight afterburner orbit, booster auto, Reinforce) until the weakest facing > 60%, at most 45 s → repeat |
 
@@ -522,6 +522,42 @@ fitting answer differs per doctrine and is picked as a stance (Engage
 closes on a standoff ship, Skirmish out-tracks a brawler) while the helm
 handles the flips.
 
+### Weak points and focus fire (`BS.Grid.weakPoints`, `grid.weakPoints`, aim type `block`)
+`weakPoints(ship)` reads a layout for what to shoot, best first, each with
+the block to aim at: the **emitter** covering the most blocks (kill it,
+bare them), **chain** (a reactor touching another: one breach chains),
+**blackout** (a reactor that alone keeps n systems in power range),
+**neck** (the block whose loss severs the most hull from the bridge, scored
+per hp so a 60-hp plate beats a 700-hp pylon), **crew** (one quarters short
+of the posts) and **wounded** (systems under half hp, open to a critical).
+The scan panel lists up to five as clickable lines; clicking one, or any
+block on the drawing, sets `ship.aimType = "block"` with
+`ship.aimBlock = { ship, block }` (`BS.Ships.setAimBlock`, command
+`aimBlock`): every weapon's shot line is steered through that block
+(`entryBlockThrough`), with the same −15% as aiming at a type, and the
+armor in front of it still takes the hit first. The aimed block is framed
+in yellow on the scan drawing; the Target panel reads "Shield emitter at
+6,15 (−15%)". Clicking the same point again returns to spraying the hull.
+
+**Enemies do it too**: each 20 s aim re-roll, an enemy takes its target's
+top weak point with `enemyAI.*.weakPointChance` (Bird-of-Prey 30%,
+K't'inga 60%) instead of a random type; Tactical calls it ("They're going
+for our aft shield emitter, Captain!", event `enemyFocus`). Fixing an
+obvious weak point in the hangar is now worth doing.
+
+### Counter-doctrines (`enemyAI.counters`, `campaign.encounters[].counter`)
+A flagged encounter (Raider, random Bird-of-Prey variant, K't'inga
+warlord) reads your battle layout in `BS.Campaign.encounter()` and takes
+the first rule it meets: 4+ tubes → it strafes (torpedoes lose damage to
+fast passes; the K't'inga keeps its broadside), 4+ pulse phasers with at
+most 2 other beams → it stands off outside pulse range (K't'inga: siege),
+a cloak → it brawls and sticks close, a shield facing under 60% of the
+strongest → it brawls (K't'inga: broadside) and picks on it. The hangar's
+"Next:" line says the doctrine and why ("brawl (they have seen your weak
+shield facing)"), so the build → fight → build loop is visible before
+undocking. Encounters with their own plays or fixed doctrines (Torpedo
+boat, Shadow, Jammer boat, Gunboat, K't'inga Siege) do not counter.
+
 ### Enemy scan panel (`#scan`, `BS.UI.updateScan`)
 The bottom row shows the locked enemy (no lock: a prompt; cloaked: "sensors
 show nothing"). Left, a top-down drawing of its block grid through
@@ -671,6 +707,24 @@ every fight once that side's phasers are gone.
 | Excelsior vs K't'inga broadside | straightforward | 3 of 4 wins in 6:21–8:21 keeping 61–99% |
 | Galaxy vs K't'inga **siege** (6 wins) | straightforward | 4 of 4 wins in 4:17–4:58 keeping 97–99% |
 | Miranda / Defiant vs Raider strafe | speed tank (orbit 3 km + afterburner, no reverse) | mostly stalemates: the script never reverses, so the stripped side stays toward the enemy |
+
+v0.17.0 (enemies aim at weak points 30% / 60%, counter-doctrines, Hunter
+fallback; 1–3 runs):
+
+| Matchup | Captain | Outcome |
+|---|---|---|
+| Constitution vs Raider | Engage auto / Engage blind / no orders | 2 of 3 in 3:05–3:22 keeping 75–93% / 3:04 keeping 89% / lost in 1:45 |
+| Constitution Brawler (weak facing → raider brawls) / Sniper (4 tubes → strafes) / Shadow hunter (cloak → brawls) vs Raider | Engage | 2 of 2 in 3:34–4:11 keeping 85% / 5:12 keeping 79% / 4:16 keeping 81% |
+| Constitution vs K't'inga broadside (aims at your weak points 60%) | Engage | 2 of 2 in 4:30–5:04 keeping 91–92% |
+| Defiant vs K't'inga broadside | Engage blind | 6:33 keeping 100% |
+| Constitution vs Raider | Hunter | 0 of 1 before the fallback, **3 of 3 in 1:59–2:52 keeping 85–99%** after it |
+| Constitution vs Gunboat / vs Torpedo boat (aft) | Engage | 2:31 keeping 73% / one stalemate (earlier win in 6:30) |
+
+Honest reading: enemies aiming at real weak points did not move the Engage
+numbers (the raider mostly cannot reach the Constitution's interior reactors
+either); the counter-doctrines produce the intended matchups (a pulse
+Brawler gets a brawler, a Sniper a strafer) without breaking them. The
+Torpedo boat stays a coin flip even from aft.
 
 v0.16.0 (reactor power range 15 with reactors re-placed, core breach, section
 physics; Torpedo boat back to ×1.0; 1–3 runs):
@@ -902,6 +956,7 @@ than slower (it is nearly untouched, as intended).
 | v0.11.0 (done) | Cloak and ECM fields: a ship cloaks only with every block inside a cloak field (several devices per hull), a partial ECM field steers the jammed enemy's fire onto the uncovered blocks |
 | v0.12.0 (done) | Disruptor cannons (punch, penetration, poor tracking) and pulse phasers (tracking, knife range) as blocks and weapon groups; Klingons mount cannons |
 | v0.13.0 (done) | Crew: systems need hands, the bridge and crew quarters supply them, manning slows weapons and shields, blocks far from quarters repair slowly; every layout re-fitted |
+| v0.17.0 (done) | Weak-point analysis with click-to-focus-fire on any block, enemies that aim at your weak points, counter-doctrines announced in the hangar |
 | v0.16.0 (done) | Reactor power range (systems outside 15 cells of a reactor run at half; every layout re-placed its reactors), warp core breach with a blast and the AIs clearing it, severed sections that keep momentum, burn engines, cook off reactors and hit what they drift into |
 | v0.15.0 (done) | Shield recharge delay (hit facings pause 4 s), attack side / blind-sector shadowing with an enemy counter-roll, critical hits by system |
 | v0.14.0 (done) | Enemy scan panel in place of the full-width log (block grid with damage, shield bubbles and bare hull, cloak / ECM field gaps, systems, crew, power, heat, weapons bearing on us, threat); the bridge log is a two-line ticker over the display, LOG / G expands it |

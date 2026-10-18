@@ -229,7 +229,11 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
 /* -------------------------------------------------------------- scan */
 #scan .panel-body { display: flex; gap: 12px; padding: 4px 12px; align-items: stretch; }
 #scan-view { width: 250px; height: 160px; flex-shrink: 0; background: radial-gradient(ellipse at center, #0a0c1c 0%, #03040a 100%); border-radius: 8px; box-shadow: 0 0 0 1px #222 inset; }
-.scan-info { flex: 1; display: grid; grid-template-columns: 1.1fr 1fr 1.2fr; gap: 0 14px; font-size: 12.5px; align-content: start; }
+.scan-info { flex: 1; display: grid; grid-template-columns: 1fr 0.8fr 1.2fr 1.5fr; gap: 0 12px; font-size: 12.5px; align-content: start; }
+.scan-info .wp { padding: 2px 6px; margin: 1px 0; border-radius: 6px; border: 1px solid #2a2a40; background: #0b0c1c; cursor: pointer; font-size: 12px; line-height: 1.2; }
+.scan-info .wp:hover { border-color: var(--c-peach); }
+.scan-info .wp.on { border-color: var(--c-yellow); color: var(--c-yellow); }
+#scan-view { cursor: crosshair; }
 .scan-info h4 { margin: 2px 0 2px; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--c-peach); }
 .scan-info .sl { display: flex; align-items: center; gap: 6px; padding: 1px 0; white-space: nowrap; }
 .scan-info .sl label { color: var(--c-dim); width: 64px; flex-shrink: 0; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
