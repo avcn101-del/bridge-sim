@@ -14,8 +14,9 @@ BS.EnemyAI = (function () {
   }
 
   // ---- enemy ------------------------------------------------------------------
-  function attach(ship, player, profileId, doctrineId) {
+  function attach(ship, player, profileId, doctrineId, overrides) {
     var p = BS.Data.enemyAI[profileId || "default"];
+    if (overrides) p = Object.assign({}, p, overrides);   // per-encounter tweaks (a counter-doctrine's weakPointChance)
     var d = BS.Data.enemyAI.doctrines[doctrineId || p.doctrine || "brawl"];
     ship.aiProfile = p; ship.doctrine = d; ship.doctrineId = doctrineId || p.doctrine || "brawl";
     ship.ai = newAI(player);
@@ -32,7 +33,7 @@ BS.EnemyAI = (function () {
   // type or the bare hull by targetWeights.
   function pickTarget(p, ship, target) {
     if (ship && target && p.weakPointChance && Math.random() < p.weakPointChance) {
-      var wps = BS.Grid.weakPoints(target);
+      var wps = BS.Grid.weakPoints(target).filter(function (w) { return !p.weakPointKinds || p.weakPointKinds.indexOf(w.kind) >= 0; });
       if (wps.length) { S.setAimBlock(ship, target, wps[0].block); BS.Events.emit("enemyFocus", { ship: ship, target: target, point: wps[0] }); return "block"; }
     }
     if (ship) S.setAimBlock(ship, null, null);

@@ -39,7 +39,7 @@ BS.Game = (function () {
     BS.Renderer.resetCamera();
     BS.UI.clearLog();
     BS.UI.hideOverlays();
-    state.time = 0; state.paused = false; state.result = null; state.resultHow = null; state.endTimer = 0; state.hover = null; state.reward = null;
+    state.time = 0; state.paused = false; state.result = null; state.resultHow = null; state.endTimer = 0; state.hover = null; state.reward = null; state.lockTime = 0;
     state.zoom = BS.Data.balance.zoom.start; state.zoomBias = 1;
     var save = BS.Campaign.get();
     var player = BS.Ships.create(save.shipClass, { isPlayer: true, pos: { x: 0, y: 0 }, heading: -Math.PI / 2, layout: BS.Campaign.battleLayout(save.shipClass), mods: BS.Campaign.skillMods() });
@@ -47,7 +47,7 @@ BS.Game = (function () {
     var dist = BS.Ships.px(B.arenaStartDistanceKm);
     var enc = BS.Campaign.encounter();
     var enemy = BS.Ships.create(enc.classId, { name: enc.name, layout: enc.rows, pos: { x: Math.cos(ang) * dist, y: Math.sin(ang) * dist }, heading: ang + Math.PI, statMult: BS.Campaign.enemyStatMult(enc.aiProfile), mods: { damageMult: enc.damageMult || BS.Data.enemyAI[enc.aiProfile].damageMult } });
-    BS.EnemyAI.attach(enemy, player, enc.aiProfile, enc.doctrine);
+    BS.EnemyAI.attach(enemy, player, enc.aiProfile, enc.doctrine, enc.weakPointChance ? { weakPointChance: enc.weakPointChance } : null);
     if (enc.play && BS.Plays.available(enemy, enc.play)) BS.Plays.start(enemy, player, enc.play);   // an enemy bridge may run a play over its doctrine
     state.encounter = enc;
     player.selected = enemy;
@@ -88,7 +88,7 @@ BS.Game = (function () {
     BS.Ships.update(e, dt);
     BS.Weapons.update(dt);
     BS.Effects.update(dt, state.ships, BS.Weapons.torpedoes);
-    if (state.phase === "battle") state.time += dt;
+    if (state.phase === "battle") { state.time += dt; if (p.lock.target === e && p.lock.locked) state.lockTime += dt; }   // lock time feeds intel
     if (state.phase === "ending") {
       state.endTimer -= dt;
       if (state.endTimer <= 0) { state.phase = "ended"; state.reward = BS.Campaign.settleBattle(state); BS.UI.showResult(state); }

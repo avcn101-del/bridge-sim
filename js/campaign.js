@@ -40,6 +40,8 @@ BS.Campaign = (function () {
     Object.keys(s.builds || {}).forEach(function (id) { if (D().shipClasses[id] && Array.isArray(s.builds[id])) out.builds[id] = s.builds[id].filter(function (b) { return b && b.name && Array.isArray(b.rows); }); });
     out.ownedShips = s.ownedShips.filter(function (id) { return D().shipClasses[id]; });
     if (out.ownedShips.indexOf(out.shipClass) < 0) out.ownedShips.push(out.shipClass);
+    out.intel = {};
+    Object.keys(s.intel || {}).forEach(function (id) { var it = s.intel[id]; if (it && Array.isArray(it.rows) && D().shipClasses[it.classId]) out.intel[id] = it; });
     out.version = 2;
     return out;
   }
@@ -198,7 +200,7 @@ BS.Campaign = (function () {
     var names = D().campaign.klingonNames, name = names.length ? names[Math.floor(rng() * names.length)] : cls.name;
     var doc = pick.doctrine; if (Array.isArray(doc)) doc = doc[Math.floor(rng() * doc.length)];
     // counter-doctrine: a flagged encounter reads the player's battle layout and answers it (enemyAI.counters)
-    var counterReason = null;
+    var counterReason = null, counterWeak = null;
     if (pick.counter) {
       var pcls = D().shipClasses[save.shipClass], pst = BS.Grid.derive(BS.Grid.build(pcls, battleLayout(save.shipClass)));
       var tubes = pst.alive.torpedo || 0, pulse = pst.alive.pulse || 0, beams = (pst.alive.phaser || 0) + (pst.alive.disruptor || 0), hasCloak = (pst.alive.cloak || 0) > 0;
@@ -211,14 +213,32 @@ BS.Campaign = (function () {
         if (w.beamsMax !== undefined && beams > w.beamsMax) ok = false;
         if (w.cloak !== undefined && hasCloak !== w.cloak) ok = false;
         if (w.weakFacingBelow !== undefined && weakRatio >= w.weakFacingBelow) ok = false;
-        if (ok && ru[hullKey] && D().enemyAI.doctrines[ru[hullKey]]) { doc = ru[hullKey]; counterReason = ru.reason; break; }
+        if (ok) { if (ru[hullKey] && D().enemyAI.doctrines[ru[hullKey]]) doc = ru[hullKey]; counterReason = ru.reason; counterWeak = ru.weakPointChance || null; break; }
       }
     }
-    return { id: pick.id, classId: pick.enemyClass, cls: cls, rows: rows, name: name, variantName: variantName, rewardMult: pick.rewardMult, play: pick.play || null, damageMult: pick.damageMult || null, counterReason: counterReason, aiProfile: cls.aiProfile || "default",
+    return { id: pick.id, classId: pick.enemyClass, cls: cls, rows: rows, name: name, variantName: variantName, seed: c.battlesWon * 7919 + c.battlesLost * 104729, rewardMult: pick.rewardMult, play: pick.play || null, damageMult: pick.damageMult || null, counterReason: counterReason, weakPointChance: counterWeak, aiProfile: cls.aiProfile || "default",
       doctrine: doc || D().enemyAI[cls.aiProfile || "default"].doctrine, label: cls.className + (variantName ? " · " + variantName : "") };
+  }
+  // Intel: a layout held under lock long enough is remembered for that encounter id (random variants by seed).
+  function recordIntel(enc, how) {
+    if (!enc) return;
+    save.intel[enc.id] = { rows: enc.rows.slice(), classId: enc.classId, layoutName: enc.variantName || "default", seed: enc.seed || null, how: how, at: Date.now() };
+  }
+  function intelFor(enc) {
+    var it = save.intel[enc.id];
+    if (!it) return null;
+    if (enc.rows.join("|") !== it.rows.join("|")) return null;   // a different roll of this encounter: stale
+    return it;
+  }
+  function buyIntel(enc) {
+    var cost = D().campaign.intelCost;
+    if (save.credits < cost) return "Not enough credits (" + cost + " cr).";
+    save.credits -= cost; recordIntel(enc, "bought"); persist();
+    return null;
   }
   function settleBattle(state) {
     var cr = D().campaign.credits, p = state.player, won = state.result === "victory";
+    if (state.encounter && (state.lockTime || 0) >= D().campaign.intelMinLockSeconds) recordIntel(state.encounter, "scanned");
     var hullLostPct = Math.round(100 * (1 - p.hull / p.hullMax));
     var earned, salvage = 0;
     if (won) {
@@ -242,7 +262,7 @@ BS.Campaign = (function () {
 
   return { load: load, persist: persist, reset: reset, exportJSON: exportJSON, importJSON: importJSON, hasSave: hasSave, get: get,
     currentClass: currentClass, layoutFor: layoutFor, setLayout: setLayout, battleLayout: battleLayout, buyShip: buyShip, selectShip: selectShip,
-    layoutDelta: layoutDelta, countBlocks: countBlocks, applyLayout: applyLayout, builds: builds, saveBuild: saveBuild, deleteBuild: deleteBuild,
+    layoutDelta: layoutDelta, countBlocks: countBlocks, applyLayout: applyLayout, builds: builds, saveBuild: saveBuild, deleteBuild: deleteBuild, intelFor: intelFor, buyIntel: buyIntel,
     updateTraining: updateTraining, startTraining: startTraining, cancelTraining: cancelTraining, skillMods: skillMods, skillHours: skillHours,
     layoutStats: layoutStats, enemyStatMult: enemyStatMult, encounter: encounter, settleBattle: settleBattle };
 })();

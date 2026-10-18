@@ -480,6 +480,18 @@ BS.Renderer = (function () {
     });
   }
   // Thin union outline of the bubbles in the ship's local frame (hangar editor).
+  // Top-down scan drawing of a ship into a w×h box centred on the context origin, bow up: plates with damage tint, the
+  // shield bubbles and bare hull in red. Returns the scale used so callers can add overlays in local block coordinates.
+  function drawTopDown(c, ship, w, h) {
+    var g = ship.grid, cp = g.cellPx, k = Math.min(w / (g.h * cp), h / (g.w * cp)) * 0.88, half = cp / 2;
+    c.save(); c.scale(k, k); c.rotate(-Math.PI / 2);
+    drawGridShip(c, ship, 0.5, { still: true });
+    drawShieldCover(c, ship, "rgba(110,180,255,0.7)");
+    c.fillStyle = "rgba(255,70,60,0.45)";
+    g.blocks.forEach(function (b) { if (b.alive && !b.structural && !b.covered) c.fillRect(b.lx - half, b.ly - half, cp, cp); });
+    c.restore();
+    return k;
+  }
   function drawShieldCover(c, ship, color) {
     var list = shieldArcs(ship), R = BS.Data.grid.shieldRadius * ship.grid.cellPx;
     c.strokeStyle = color || "rgba(110,180,255,0.6)"; c.lineWidth = 0.8;
@@ -690,7 +702,7 @@ BS.Renderer = (function () {
     ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
   }
 
-  return { init: init, draw: draw, resize: resize, resetCamera: resetCamera, drawers: drawers, camera: camera, shieldColor: shieldColor, drawPreview: drawPreview, drawGridShip: drawGridShip, drawShieldCover: drawShieldCover, drawBlockGlyph: drawBlockGlyph, blockIcon: blockIcon,
+  return { init: init, draw: draw, resize: resize, resetCamera: resetCamera, drawers: drawers, camera: camera, shieldColor: shieldColor, drawPreview: drawPreview, drawGridShip: drawGridShip, drawShieldCover: drawShieldCover, drawTopDown: drawTopDown, drawBlockGlyph: drawBlockGlyph, blockIcon: blockIcon,
     screenToWorld: function (x, y) { return { x: (x - W / 2) / zoom + camera.x, y: (y - H / 2) / zoom + camera.y }; },
     worldToScreen: function (x, y) { return { x: (x - camera.x) * zoom + W / 2, y: (y - camera.y) * zoom + H / 2 }; } };
 })();

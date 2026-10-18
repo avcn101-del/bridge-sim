@@ -10,7 +10,7 @@ BS.Hangar = (function () {
 
   function init(gameRef) {
     game = gameRef;
-    ["hangar-screen", "hg-credits", "hg-ship", "hg-ships", "hg-editor", "hg-palette", "hg-stats", "hg-skills", "hg-training", "hg-msg", "hg-record", "hg-threat",
+    ["hangar-screen", "hg-credits", "hg-ship", "hg-ships", "hg-editor", "hg-palette", "hg-stats", "hg-skills", "hg-training", "hg-msg", "hg-record", "hg-threat", "hg-intel-view", "hg-intel-info",
      "hg-presets", "hg-builds", "btn-mirror", "btn-fill", "btn-clear", "btn-revert", "btn-apply", "btn-savebuild", "hg-buildname", "hg-delta",
      "btn-undock", "btn-export", "btn-import", "hg-import-file", "btn-reset"].forEach(function (id) { el[id] = $(id); });
     el["btn-undock"].addEventListener("click", function () {
@@ -50,6 +50,30 @@ BS.Hangar = (function () {
   function say(msg, bad) { el["hg-msg"].textContent = msg; el["hg-msg"].classList.toggle("bad", !!bad); }
 
   // ---- render ---------------------------------------------------------------
+  // Intel: the next enemy's layout if it was scanned (held under lock) in an earlier battle of that kind or bought,
+  // drawn top-down with its weak points, weapons and shields; otherwise an offer to buy it.
+  function renderIntel(enc) {
+    var cv = el["hg-intel-view"], c = cv.getContext("2d"), it = C.intelFor(enc), info = el["hg-intel-info"];
+    c.clearRect(0, 0, cv.width, cv.height);
+    if (!it) {
+      c.fillStyle = "rgba(255,255,255,0.08)"; c.font = "13px Antonio, 'Arial Narrow', sans-serif"; c.textAlign = "center"; c.fillText("NO LAYOUT ON FILE", cv.width / 2, cv.height / 2);
+      info.innerHTML = "<div class='dim'>" + enc.cls.className + (enc.variantName ? " · " + enc.variantName : "") + " · " + enc.doctrine + (enc.counterReason ? " (" + enc.counterReason + ")" : "") + ".<br>Hold a lock for " + BS.Data.campaign.intelMinLockSeconds + " s in battle to record its layout, or buy it now.</div>" +
+        "<button id='btn-intel' class='lcars-btn c-purple'>Buy intel · " + BS.Data.campaign.intelCost + " cr</button>";
+      var btn = document.getElementById("btn-intel");
+      btn.addEventListener("click", function () { var err = C.buyIntel(enc); if (err) el["hg-msg"].textContent = err; render(); });
+      return;
+    }
+    var ship = BS.Ships.create(it.classId, { layout: it.rows, pos: { x: 0, y: 0 }, heading: 0, statMult: C.enemyStatMult(enc.aiProfile) });
+    c.save(); c.translate(cv.width / 2, cv.height / 2); BS.Renderer.drawTopDown(c, ship, cv.width, cv.height); c.restore();
+    var st = ship.stats, wps = BS.Grid.weakPoints(ship);
+    var weapons = {};
+    st.weapons.forEach(function (b) { weapons[b.def.short] = (weapons[b.def.short] || 0) + 1; });
+    var facings = BS.Ships.FACINGS.map(function (f) { return f.charAt(0).toUpperCase() + " " + ship.shieldMax[f]; }).join(" · ");
+    info.innerHTML = "<div><b>" + enc.cls.className + (enc.variantName ? " · " + enc.variantName : "") + "</b> <span class='dim'>(" + it.how + ")</span> · " + enc.doctrine + (enc.counterReason ? " <span class='dim'>(" + enc.counterReason + ")</span>" : "") + "</div>" +
+      "<div>Weapons " + (Object.keys(weapons).map(function (k) { return k + " " + weapons[k]; }).join(" · ") || "none") + " · shields " + facings + " · hull " + st.hullTotal + "</div>" +
+      "<div>Reactors " + (st.counts.reactor || 0) + " · quarters " + (st.counts.quarters || 0) + " · cover " + Math.round(100 * st.coverFrac) + "%" + (st.cloakCover.sources ? " · cloak" : "") + (st.jamCover.sources ? " · ECM" : "") + "</div>" +
+      (wps.length ? "<div class='hg-wps'>" + wps.slice(0, 3).map(function (w) { return "<div class='wp'>" + w.label + "</div>"; }).join("") + "</div>" : "");
+  }
   function render() {
     var s = C.get(), cls = C.currentClass();
     if (ed.classId !== s.shipClass || !ed.rows) { ed.classId = s.shipClass; ed.rows = C.layoutFor(s.shipClass).slice(); ed.dirty = false; }
@@ -59,6 +83,7 @@ BS.Hangar = (function () {
     var docLabel = BS.Data.enemyAI.stateLabels[enc.doctrine] || enc.doctrine;
     el["hg-threat"].textContent = "Next: " + enc.label + " · strength " + Math.round(C.enemyStatMult(enc.aiProfile) * 100) + "% · " + enc.doctrine + (enc.counterReason ? " (" + enc.counterReason + ")" : "");
     el["hg-threat"].title = "Sensors report a " + enc.cls.className + (enc.variantName ? " (" + enc.variantName + " layout)" : "") + ". Reward ×" + enc.rewardMult + ". Doctrine: " + enc.doctrine + (enc.counterReason ? ": " + enc.counterReason + ". Change your build and they change their plan." : ".");
+    renderIntel(enc);
     el["hg-ship"].innerHTML = "<b>" + cls.name + "</b> · " + cls.className + " · " + cls.role +
       "<br><span class='dim'>" + cls.mask[0].length + "×" + cls.mask.length + " cell hull · base speed " + (cls.speed / BS.Data.units.pxPerKm).toFixed(1) + " km/s · signature " + cls.signature + " m</span>";
     renderShips(s); renderPalette(); renderPresets(cls); renderBuilds(); renderEditor(); renderSkills(s); renderTraining();

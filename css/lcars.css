@@ -226,6 +226,13 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
 #log .msg { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #comms.expanded #log .msg { white-space: normal; }
 
+/* ------------------------------------------------------------- intel */
+.hg-intel { display: flex; gap: 10px; align-items: flex-start; margin: 4px 0 8px; }
+#hg-intel-view { width: 250px; height: 140px; flex-shrink: 0; background: radial-gradient(ellipse at center, #0a0c1c 0%, #03040a 100%); border-radius: 8px; box-shadow: 0 0 0 1px #222 inset; }
+.hg-intel-info { flex: 1; font-size: 12.5px; line-height: 1.35; min-width: 0; }
+.hg-intel-info .wp { padding: 2px 6px; margin: 2px 0; border-radius: 6px; border: 1px solid #2a2a40; background: #0b0c1c; font-size: 12px; }
+.hg-intel-info .lcars-btn { margin-top: 6px; }
+
 /* -------------------------------------------------------------- scan */
 #scan .panel-body { display: flex; gap: 12px; padding: 4px 12px; align-items: stretch; }
 #scan-view { width: 250px; height: 160px; flex-shrink: 0; background: radial-gradient(ellipse at center, #0a0c1c 0%, #03040a 100%); border-radius: 8px; box-shadow: 0 0 0 1px #222 inset; }

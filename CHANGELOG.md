@@ -2,6 +2,27 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.18.0] — 2026-10-18 (cut the neck, hangar intel)
+
+### Added
+- **Cut the neck**: structural members stay at 700 hp but take triple
+  torpedo damage (`grid.torpedoStructureMult`; at 400 hp stray cannon fire
+  severed nacelles in ordinary fights); the **STRUCT** chip aims at them;
+  the weak-point analysis also finds two-block necks such as a
+  Bird-of-Prey's wing roots.
+- **Intel** (`save.intel`): a layout held under lock for 10 s is on file
+  for that encounter; the hangar's new Intel section draws it with weapons,
+  shields, cover and its top weak points, or sells it for 150 cr.
+- `BS.Renderer.drawTopDown` shared drawing; `BS.Game.state.lockTime`.
+
+### Changed
+- Enemy weak-point hunting per profile (`weakPointKinds`): a raider no
+  longer cuts necks or finishes wounded systems, and rolls it 25% (was
+  30%); the K't'inga does everything at 60%. The weak-facing counter no
+  longer makes a Bird-of-Prey brawl; it doubles its weak-point hunting
+  instead. Both measured: the stock Engage fight had become a coin flip.
+- Crew callouts no longer crash on the structure / block aim types.
+
 ## [0.17.0] — 2026-10-18 (weak points, focus fire, counter-doctrines)
 
 ### Added
