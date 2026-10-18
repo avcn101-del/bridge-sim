@@ -17,7 +17,7 @@ BS.UI = (function () {
     ["own-speed", "own-cmd", "own-subsystems", "enemy-subsystems", "gauge", "help-screen", "btn-help", "btn-help-close",
      "target-none", "target-info", "tg-name", "tg-hull", "tg-hull-val", "tg-shield", "tg-shield-val", "tg-range", "tg-angular", "tg-chance", "tg-aim",
      "clock", "alert-label", "btn-pause", "btn-redalert", "btn-zoom-in", "btn-zoom-out", "pause-overlay", "start-screen", "result-screen", "result-title", "result-sub", "result-head",
-     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "rs-credits", "rs-salvage", "heat-bar", "heat-num", "btn-governor", "own-heat", "own-crew", "scan-view", "scan-info", "btn-log", "side-buttons", "ship-name", "view", "module-bar", "overview", "sel-name", "play-buttons"]
+     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "rs-credits", "rs-salvage", "heat-bar", "heat-num", "btn-governor", "own-heat", "own-crew", "own-boarding", "own-boarding-row", "btn-board", "scan-view", "scan-info", "btn-log", "side-buttons", "ship-name", "view", "module-bar", "overview", "sel-name", "play-buttons"]
       .forEach(function (id) { el[id] = $(id); });
     logList = $("log");
     buildGauge();
@@ -238,6 +238,7 @@ BS.UI = (function () {
         case "b": { var ids = Object.keys(BS.Data.helm.sides), cur = ids.indexOf(game.state.player.attackSide); game.command("side", { side: ids[(cur + 1) % ids.length] }); break; }
         case "g": document.getElementById("comms").classList.toggle("expanded"); break;
         case "s": game.command("stop"); break;
+        case "t": game.command("board"); break;
         case "r": game.command("redAlert"); break;
       }
     });
@@ -274,10 +275,10 @@ BS.UI = (function () {
     el["result-screen"].classList.remove("hidden");
     el["result-screen"].classList.toggle("victory", won); el["result-screen"].classList.toggle("defeat", !won);
     el["result-title"].textContent = won ? "Victory" : "Defeat";
-    var disabled = state.resultHow === "disabled";
-    el["result-head"].textContent = won ? (disabled ? "BATTLE REPORT · ENEMY DISABLED" : "BATTLE REPORT · ENEMY DESTROYED") : (disabled ? "BATTLE REPORT · SHIP DISABLED" : "BATTLE REPORT · SHIP LOST");
+    var disabled = state.resultHow === "disabled", captured = state.resultHow === "captured";
+    el["result-head"].textContent = won ? (captured ? "BATTLE REPORT · ENEMY CAPTURED" : disabled ? "BATTLE REPORT · ENEMY DISABLED" : "BATTLE REPORT · ENEMY DESTROYED") : (disabled ? "BATTLE REPORT · SHIP DISABLED" : "BATTLE REPORT · SHIP LOST");
     el["result-sub"].textContent = won
-      ? (disabled ? "The Klingon vessel is dead in space, without weapons or engines. Salvage teams recover what they can." : "The Klingon vessel has been destroyed. Starfleet Command sends its compliments, Captain.")
+      ? (captured ? "Your boarding party holds their bridge. The Klingon vessel is taken intact: a prize crew brings it home." : disabled ? "The Klingon vessel is dead in space, without weapons or engines. Salvage teams recover what they can." : "The Klingon vessel has been destroyed. Starfleet Command sends its compliments, Captain.")
       : (disabled ? "Without weapons or engines the ship drifted until the Klingons boarded. Starfleet will review the sensor logs." : "The ship was lost with all hands. Starfleet will review the sensor logs.");
     el["rs-time"].textContent = U.formatTime(state.time);
     el["rs-dealt"].textContent = Math.round(p.stats.damageDealt);
@@ -287,7 +288,7 @@ BS.UI = (function () {
     el["rs-torps"].textContent = p.stats.torpedoHits + " / " + p.stats.torpedoesFired;
     var rw = state.reward;
     el["rs-credits"].textContent = rw ? "+" + rw.earned + " cr" + (rw.streak > 1 ? " (streak " + rw.streak + ")" : "") + " · " + BS.Campaign.get().credits.toLocaleString() + " cr total" : "—";
-    el["rs-salvage"].textContent = rw && rw.salvage ? "+" + rw.salvage + " cr from the wreck" + (rw.how === "disabled" ? " (captured intact)" : "") : "—";
+    el["rs-salvage"].textContent = rw && rw.salvage ? "+" + rw.salvage + " cr from the " + (rw.how === "captured" ? "prize (taken by boarding)" : rw.how === "disabled" ? "wreck (captured intact)" : "wreck") : "—";
   }
 
   // Heat bar: fill, warning zones, where the next full salvo would land, governor state, overload countdown.
@@ -302,9 +303,25 @@ BS.UI = (function () {
     el["heat-num"].textContent = p.overload > 0 ? "OVERLOAD " + p.overload.toFixed(1) + " s" : p.governorHold ? "HOLD " + Math.round(hf * 100) + "%" : Math.round(p.heat) + " / " + Math.round(cap);
     el["btn-governor"].classList.toggle("active", p.heatGovernor);
     var cw = p.stats.crew || { supply: 0, need: 0, manning: 1 };
-    el["own-crew"].textContent = cw.supply + " / " + cw.need + " · " + Math.round(cw.manning * 100) + "%" + (cw.manning < 1 ? " undermanned" : "");
+    el["own-crew"].textContent = cw.supply + " / " + cw.need + " · " + Math.round(cw.manning * 100) + "%" + (cw.manning < 1 ? " undermanned" : "") + (cw.away ? " · " + cw.away + " away" : " · spare " + Math.max(0, cw.supply - cw.need));
+    updateBoarding(p);
     el["own-crew"].style.color = cw.manning < 0.7 ? "#e0463c" : cw.manning < 1 ? "#f2c14e" : "";
     el["own-heat"].textContent = Math.round(p.heat) + " / " + Math.round(cap) + " · −" + p.stats.heatDissipation.toFixed(0) + "/s" + (p.overload > 0 ? " · OVERLOAD" : p.governorHold ? " · holding" : "");
+  }
+
+  // Boarding row and the transporter button: progress while a party is away, otherwise why the button is off.
+  var boardReasons = { nolock: "needs a lock", range: "closer than " + BS.Data.grid.boarding.rangeKm + " km", shields: "their facing shield must be 0", crew: "needs " + BS.Data.grid.boarding.minParty + " spare crew", busy: "party away" };
+  function updateBoarding(p) {
+    var bd = p.boarding, row = el["own-boarding-row"], btn = el["btn-board"], e = game.state.enemy;
+    row.style.display = bd ? "" : "none";
+    if (bd) {
+      el["own-boarding"].textContent = bd.phase === "transport" ? "beaming " + Math.round(bd.party) + " · " + Math.max(0, BS.Data.grid.boarding.transportTime - bd.t).toFixed(1) + " s" : Math.ceil(bd.party) + " vs " + Math.ceil(bd.defenders) + " aboard";
+      el["own-boarding"].style.color = bd.phase === "fight" && bd.party < bd.defenders ? "#e0463c" : "#f2c14e";
+    }
+    var why = e ? BS.Boarding.canBoard(p, e) : "nolock", ok = why === "ok";
+    btn.classList.toggle("off", !ok && why !== "busy");
+    btn.classList.toggle("active", why === "busy");
+    btn.textContent = ok ? "Board · transporter" : why === "busy" ? "Boarding party away" : "Board · " + boardReasons[why];
   }
 
   // ---- per-frame update ---------------------------------------------------
@@ -448,12 +465,16 @@ BS.UI = (function () {
     if (st2.cloakCover && st2.cloakCover.sources) html += "<div class='sl'><label>Cloak</label><span class='v'>" + st2.cloakCover.sources + " device" + (st2.cloakCover.sources > 1 ? "s" : "") + " · field " + pct(st2.cloakCover.frac) + (st2.cloakCover.exposed ? " <span class='good'>(" + st2.cloakCover.exposed + " out: cannot cloak)</span>" : "") + "</span></div>";
     if (st2.jamCover && st2.jamCover.sources) html += "<div class='sl'><label>ECM</label><span class='v'>" + st2.jamCover.sources + " jammer" + (st2.jamCover.sources > 1 ? "s" : "") + " · field " + pct(st2.jamCover.frac) + (st2.jamCover.exposed ? " · " + st2.jamCover.exposed + " out" : " (breaks locks)") + "</span></div>";
     html += "</div><div><h4>Systems</h4>";
-    var order = ["phaser", "disruptor", "pulse", "torpedo", "reactor", "shield", "engine", "sensor", "jammer", "cloak", "quarters"];
+    var order = ["phaser", "disruptor", "pulse", "torpedo", "reactor", "shield", "engine", "sensor", "jammer", "cloak", "decoy", "neut", "quarters"];
     order.forEach(function (t) { var n = st2.counts[t]; if (!n) return; var a = st2.alive[t] || 0; html += "<div class='sl'><label>" + D.blocks[t].short + "</label><span class='v " + (a === 0 ? "bad" : a < n ? "warn" : "") + "'>" + a + " / " + n + "</span></div>"; });
     var cw = st2.crew || { manning: 1, supply: 0, need: 0 };
     html += "<div class='sl'><label>Crew</label><span class='v " + cls(cw.manning, 0.7, 1) + "'>" + cw.supply + " / " + cw.need + " · " + pct(cw.manning) + "</span></div>";
     html += "<div class='sl'><label>Power</label><span class='v " + cls(st2.powerFactor, 0.7, 1) + "'>" + st2.powerUsed + " / " + st2.powerMax + " · " + pct(st2.powerFactor) + (st2.unpowered ? " · " + st2.unpowered + " dark" : "") + (e.breach > 0 ? " <span class='good'>BREACH " + e.breach.toFixed(0) + " s</span>" : "") + "</span></div>";
     html += "<div class='sl'><label>Heat</label><span class='v'>" + Math.round(e.heat) + " / " + Math.round(st2.heatCap) + (e.overload > 0 ? " <span class='good'>OVERLOADED</span>" : "") + "</span></div>";
+    var ecap = e.capMax ? e.capacitor / e.capMax : 0;
+    html += "<div class='sl'><label>Cap</label><span class='v " + (ecap < 0.15 ? "good" : ecap < 0.4 ? "warn" : "") + "' title='Their capacitor: a neutraliser drains it; dry, their modules shut down'>" + Math.round(e.capacitor) + " / " + e.capMax + " · " + pct(ecap) + (ecap <= 0.02 ? " <span class='good'>DRY</span>" : "") + "</span></div>";
+    var ebd = BS.Boarding.canBoard(p, e);
+    html += "<div class='sl'><label>Boarding</label><span class='v " + (ebd === "ok" ? "good" : "") + "'>" + (ebd === "ok" ? "window open: press T" : ebd === "busy" ? "party aboard" : boardReasons[ebd]) + " · " + Math.round(BS.Boarding.defenders(e)) + " defenders</span></div>";
     html += "</div><div><h4>Tactical</h4>";
     var total = st2.weapons.filter(function (b) { return b.alive; }).length, bearing = BS.EnemyAI.bearingCount(e, p, false);
     html += "<div class='sl'><label>Bearing</label><span class='v " + (bearing === 0 ? "good" : bearing >= total * 0.6 ? "bad" : "warn") + "'>" + bearing + " of " + total + " weapons on us</span></div>";

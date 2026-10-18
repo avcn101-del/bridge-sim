@@ -330,6 +330,12 @@ BS.Renderer = (function () {
         c.fillStyle = col; [[-0.45, -0.45], [0.1, -0.45], [-0.45, 0.1], [0.1, 0.1]].forEach(function (p) { c.fillRect(p[0] * r, p[1] * r, r * 0.35, r * 0.35); }); break;
       case "wave":      // jammer: zigzag
         c.beginPath(); c.moveTo(-r * 0.8, 0); c.lineTo(-r * 0.4, -r * 0.5); c.lineTo(0, r * 0.5); c.lineTo(r * 0.4, -r * 0.5); c.lineTo(r * 0.8, 0); outline(); c.strokeStyle = col; c.lineWidth = size * 0.16; c.stroke(); break;
+      case "flare":     // decoy launcher: a comet (dot with a short tail)
+        c.beginPath(); c.moveTo(-r * 0.85, r * 0.55); c.lineTo(r * 0.15, -r * 0.15); outline(); c.strokeStyle = col; c.lineWidth = size * 0.16; c.stroke();
+        c.beginPath(); c.arc(r * 0.3, -r * 0.3, r * 0.34, 0, U.TAU); outline(); c.fillStyle = "#fff6d6"; c.fill(); c.strokeStyle = col; c.lineWidth = size * 0.1; c.stroke(); break;
+      case "drain":     // energy neutraliser: ring with an arrow pulling in
+        c.beginPath(); c.arc(0, 0, r * 0.66, Math.PI * 0.15, Math.PI * 1.85); outline(); c.strokeStyle = col; c.lineWidth = size * 0.14; c.stroke();
+        c.beginPath(); c.moveTo(r * 0.95, -r * 0.45); c.lineTo(r * 0.1, 0); c.lineTo(r * 0.95, r * 0.45); outline(); c.strokeStyle = col; c.lineWidth = size * 0.14; c.stroke(); break;
       case "eye":       // cloak: eye
         c.beginPath(); c.moveTo(-r * 0.85, 0); c.quadraticCurveTo(0, -r * 0.9, r * 0.85, 0); c.quadraticCurveTo(0, r * 0.9, -r * 0.85, 0); c.closePath(); outline(); c.strokeStyle = col; c.lineWidth = size * 0.13; c.stroke();
         c.fillStyle = col; c.beginPath(); c.arc(0, 0, r * 0.28, 0, U.TAU); c.fill(); break;
@@ -584,6 +590,40 @@ BS.Renderer = (function () {
     ctx.restore();
   }
 
+  // Decoys: a flare that flickers and leaves a short glowing trail, fading as it burns out.
+  function drawDecoys(alpha, t) {
+    var ds = BS.Weapons.decoys;
+    if (!ds.length) return;
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    for (var i = 0; i < ds.length; i++) {
+      var d = ds[i], x = U.lerp(d.prevX, d.x, alpha), y = U.lerp(d.prevY, d.y, alpha);
+      var k = Math.max(0, d.life / d.maxLife), flick = 0.75 + 0.25 * Math.sin(t * 40 + i * 2.1), R = (10 + 10 * k) * flick;
+      var g = ctx.createRadialGradient(x, y, 0, x, y, R * 1.8);
+      g.addColorStop(0, "rgba(255,255,255," + (0.95 * k).toFixed(3) + ")"); g.addColorStop(0.3, "rgba(255,215,130," + (0.7 * k).toFixed(3) + ")"); g.addColorStop(1, "rgba(255,160,60,0)");
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, R * 1.8, 0, U.TAU); ctx.fill();
+      ctx.strokeStyle = "rgba(255,200,120," + (0.5 * k).toFixed(3) + ")"; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - Math.cos(d.heading) * 22, y - Math.sin(d.heading) * 22); ctx.stroke();
+      ctx.fillStyle = "#fff8e0"; ctx.beginPath(); ctx.arc(x, y, 2.6, 0, U.TAU); ctx.fill();
+    }
+    ctx.restore();
+  }
+  // Energy links (neutraliser): a crackling bolt between two ships that fades out.
+  function drawBolts(t) {
+    var bs = BS.Effects.bolts;
+    if (!bs.length) return;
+    ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.lineCap = "round";
+    for (var i = 0; i < bs.length; i++) {
+      var b = bs[i], k = Math.max(0, b.life / b.maxLife), c = b.color;
+      var dx = b.x2 - b.x1, dy = b.y2 - b.y1, len = Math.sqrt(dx * dx + dy * dy) || 1, nx = -dy / len, ny = dx / len, segs = 9;
+      ctx.beginPath(); ctx.moveTo(b.x1, b.y1);
+      for (var s2 = 1; s2 < segs; s2++) { var f = s2 / segs, off = Math.sin(t * 60 + s2 * 1.7 + i) * 9 * k; ctx.lineTo(b.x1 + dx * f + nx * off, b.y1 + dy * f + ny * off); }
+      ctx.lineTo(b.x2, b.y2);
+      ctx.strokeStyle = "rgba(" + c.join(",") + "," + (0.35 * k).toFixed(3) + ")"; ctx.lineWidth = 7; ctx.stroke();
+      ctx.strokeStyle = "rgba(255,230,250," + (0.9 * k).toFixed(3) + ")"; ctx.lineWidth = 1.8; ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   // ------------------------------------------------------------ particles
   function drawParticles() {
     var ps = BS.Effects.particles;
@@ -692,7 +732,9 @@ BS.Renderer = (function () {
     for (var i = 0; i < ships.length; i++) drawShip(ships[i], alpha, time);
     for (var j = 0; j < ships.length; j++) drawShields(ships[j], alpha, time);
     drawBeams(alpha, time);
+    drawBolts(time);
     drawTorpedoes(alpha, time);
+    drawDecoys(alpha, time);
     if (player) drawNavigation(state, alpha, time);
     if (state.enemy) drawTargeting(state, alpha, time);
     ctx.restore();

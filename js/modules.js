@@ -65,9 +65,23 @@ BS.Modules = (function () {
   }
 
   function tryStartActive(ship, m) {
-    var def = m.def;
+    var def = m.def, target;
+    // the neutraliser needs a lock inside ew.neut.rangeKm before it spends anything (it waits, like a weapon out of arc)
+    if (def.effect && def.effect.neut) {
+      target = ship.lock.locked && ship.lock.target && !ship.lock.target.flags.destroyed ? ship.lock.target : null;
+      if (!target) { m.state = "nolock"; return false; }
+      if (BS.Ships.distanceKm(ship, target) > BS.Data.ew.neut.rangeKm) { m.state = "range"; return false; }
+      if (ship.overload > 0) { m.state = "overload"; return false; }
+    }
     if (ship.capacitor < def.cap) { m.state = "nocap"; return false; }
     ship.capacitor -= def.cap;
+    if (def.effect && def.effect.neut) {
+      var amount = weaponBlocks(ship, m).length * BS.Data.ew.neut.perBlock, before = target.capacitor;
+      target.capacitor = Math.max(0, target.capacitor - amount);
+      target.neuted = BS.Data.ew.neut.drainMemory;   // the drained ship knows it (enemy AI opens the range)
+      BS.Events.emit("neutralised", { ship: ship, target: target, amount: amount, drained: before - target.capacitor, dry: target.capacitor <= 0 });
+    }
+    if (def.effect && def.effect.decoy) BS.Weapons.launchDecoy(ship, weaponBlocks(ship, m).length);
     if (def.effect && def.effect.jam) {
       var target = ship.lock.target || ship.selected, strength = weaponBlocks(ship, m).length * BS.Data.ew.jamPerBlock;
       if (target && !target.flags.destroyed && strength > 0) {

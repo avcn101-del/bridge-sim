@@ -222,7 +222,7 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
 #log .t { color: var(--c-dim); width: 44px; flex-shrink: 0; font-size: 12px; }
 #log .who { font-weight: 700; width: 112px; flex-shrink: 0; text-transform: uppercase; letter-spacing: 0.08em; }
 #log .who.helm { color: var(--c-blue); } #log .who.tactical { color: var(--c-orange); } #log .who.engineering { color: var(--c-purple); }
-#log .who.comms { color: var(--c-peach); } #log .who.enemy { color: #7cff8a; } #log .who.computer { color: #ddd; }
+#log .who.comms { color: var(--c-peach); } #log .who.security { color: var(--c-red); } #log .who.enemy { color: #7cff8a; } #log .who.computer { color: #ddd; }
 #log .msg { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #comms.expanded #log .msg { white-space: normal; }
 

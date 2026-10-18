@@ -30,6 +30,7 @@ BS.Game = (function () {
     }
     BS.Events.on("shipDestroyed", function (e) { endBattle(e.ship, "destroyed"); });
     BS.Events.on("shipDisabled", function (e) { endBattle(e.ship, "disabled"); });
+    BS.Events.on("shipCaptured", function (e) { endBattle(e.ship, "captured"); });
   }
 
   function startBattle() {
@@ -39,7 +40,7 @@ BS.Game = (function () {
     BS.Renderer.resetCamera();
     BS.UI.clearLog();
     BS.UI.hideOverlays();
-    state.time = 0; state.paused = false; state.result = null; state.resultHow = null; state.endTimer = 0; state.hover = null; state.reward = null; state.lockTime = 0;
+    state.time = 0; state.paused = false; state.result = null; state.resultHow = null; state.endTimer = 0; state.hover = null; state.reward = null; state.lockTime = 0; state.boardingLog = null;
     state.zoom = BS.Data.balance.zoom.start; state.zoomBias = 1;
     var save = BS.Campaign.get();
     var player = BS.Ships.create(save.shipClass, { isPlayer: true, pos: { x: 0, y: 0 }, heading: -Math.PI / 2, layout: BS.Campaign.battleLayout(save.shipClass), mods: BS.Campaign.skillMods() });
@@ -86,6 +87,8 @@ BS.Game = (function () {
     BS.EnemyAI.update(p, e, dt);
     BS.Ships.update(p, dt);
     BS.Ships.update(e, dt);
+    BS.Boarding.update(p, dt);
+    BS.Boarding.update(e, dt);
     BS.Weapons.update(dt);
     BS.Effects.update(dt, state.ships, BS.Weapons.torpedoes);
     if (state.phase === "battle") { state.time += dt; if (p.lock.target === e && p.lock.locked) state.lockTime += dt; }   // lock time feeds intel

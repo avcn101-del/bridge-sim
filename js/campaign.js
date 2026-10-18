@@ -154,6 +154,7 @@ BS.Campaign = (function () {
       else { launcherDps += w.damage * mods.launcherDamageMult * 0.85 / w.cycle; drain += w.cap / w.cycle; }
     });
     D().builtInModules.forEach(function (id) { var m = D().modules[id]; drain += m.cap / m.cycle; });
+    Object.keys(D().modules).forEach(function (id) { var m = D().modules[id]; if (m.block && m.cycle && m.cap && st.alive[m.block]) drain += m.cap / m.cycle; });   // jammer, decoy, neutraliser
     var salvoHeat = 0, heatPerSec = 0;
     st.weapons.forEach(function (b) { var w = b.def.weapon; if (BS.Grid.arcCoverage(v.grid, b) <= 0) return; salvoHeat += w.heat || 0; heatPerSec += (w.heat || 0) / w.cycle; });
     var capMax = st.cap, tau = g.capRechargeTime, rechargeMult = mods.capRechargeMult;
@@ -203,7 +204,7 @@ BS.Campaign = (function () {
     var counterReason = null, counterWeak = null;
     if (pick.counter) {
       var pcls = D().shipClasses[save.shipClass], pst = BS.Grid.derive(BS.Grid.build(pcls, battleLayout(save.shipClass)));
-      var tubes = pst.alive.torpedo || 0, pulse = pst.alive.pulse || 0, beams = (pst.alive.phaser || 0) + (pst.alive.disruptor || 0), hasCloak = (pst.alive.cloak || 0) > 0;
+      var tubes = pst.alive.torpedo || 0, pulse = pst.alive.pulse || 0, beams = (pst.alive.phaser || 0) + (pst.alive.disruptor || 0), hasCloak = (pst.alive.cloak || 0) > 0, neuts = pst.alive.neut || 0;
       var fac = ["fore", "aft", "port", "starboard"].map(function (f) { return pst.shieldMax[f]; }), weakRatio = Math.min.apply(null, fac) / Math.max(1, Math.max.apply(null, fac));
       var hullKey = pick.enemyClass === "ktinga" ? "ktinga" : "bop";
       for (var ci = 0; ci < D().enemyAI.counters.length; ci++) {
@@ -212,6 +213,7 @@ BS.Campaign = (function () {
         if (w.pulseMin !== undefined && pulse < w.pulseMin) ok = false;
         if (w.beamsMax !== undefined && beams > w.beamsMax) ok = false;
         if (w.cloak !== undefined && hasCloak !== w.cloak) ok = false;
+        if (w.neutMin !== undefined && neuts < w.neutMin) ok = false;
         if (w.weakFacingBelow !== undefined && weakRatio >= w.weakFacingBelow) ok = false;
         if (ok) { if (ru[hullKey] && D().enemyAI.doctrines[ru[hullKey]]) doc = ru[hullKey]; counterReason = ru.reason; counterWeak = ru.weakPointChance || null; break; }
       }
@@ -246,7 +248,7 @@ BS.Campaign = (function () {
       var mult = state.encounter ? state.encounter.rewardMult : 1;
       earned = cr.win * mult - hullLostPct * cr.hullLostPenaltyPerPct + Math.min(5, save.campaign.streak - 1) * cr.winStreakBonus;
       // salvage: whatever of the enemy is still in one piece has value; a disabled ship is captured nearly intact
-      var e = state.enemy, frac = D().campaign.salvage[state.resultHow === "disabled" ? "disabled" : "destroyed"];
+      var e = state.enemy, frac = D().campaign.salvage[state.resultHow === "disabled" ? "disabled" : state.resultHow === "captured" ? "captured" : "destroyed"];
       if (e) salvage = Math.round(e.grid.blocks.reduce(function (a, b) { return a + (b.alive && !b.structural ? b.def.cost : 0); }, 0) * frac);
     } else {
       save.campaign.battlesLost++; save.campaign.streak = 0;

@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.18.0",
+  version: "0.19.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -53,6 +53,8 @@ BS.Data = {
     quarters: { destroyed: "Crew quarters hit. Casualties reported.", aim: "Targeting their crew decks." },
     armor:    { destroyed: "Armor plating blown off!", aim: "Targeting their armor." },
     structure: { destroyed: "Structural member lost!", aim: "" },
+    decoy:    { destroyed: "Decoy launcher destroyed, Captain.", aim: "Targeting their decoy launchers." },
+    neut:     { destroyed: "Energy neutraliser gone!", aim: "Targeting their energy neutralisers." },
     cutOff:   "Section torn away, Captain! {n} blocks lost.",
   },
 
@@ -94,6 +96,15 @@ BS.Data = {
     breach: { time: 8, radiusKm: 2.0, damage: 900 },
     // weak-point analysis (BS.Grid.weakPoints): what the scan panel offers to click and what a cunning enemy aims at
     weakPoints: { neckMinBlocks: 8, maxPoints: 5, cutHpWeight: 60, neckPairs: true },   // neckPairs: also look for two-block necks
+    // boarding (BS.Boarding, command `board`, key T): with a lock, inside rangeKm, and the target's shield facing toward us
+    // down (under gapStart of its maximum, or not projected: cloak surge), the transporter sends min(partyMax, spare crew) of our crew (supply − need,
+    // at least minParty) across in transportTime s. Those hands are gone for the rest of the battle (manning drops).
+    // Aboard, the party fights the defenders (bridgeGuard + defenderPerQuarters per alive crew quarters: shoot their crew
+    // decks first and there are fewer of them) by Lanchester's square
+    // law at `rate` per second each; under `floor` on either side ends it: captured (victory, salvage `captured`) or
+    // repelled (the party is lost). The transport aborts, party home, if that facing comes back above gapAbort of its
+    // maximum (a booster pulse does it: their counter) or they open the range past rangeKm × abortRangeMult meanwhile.
+    boarding: { rangeKm: 3, minParty: 4, partyMax: 12, transportTime: 3, bridgeGuard: 2, defenderPerQuarters: 3, gapStart: 0.02, gapAbort: 0.15, abortRangeMult: 2, rate: 0.08, floor: 0.5 },
     // heat: every shot adds its weapon's heat; capacity grows with hull size, dissipation with hull surface (rim cells)
     heat: { base: 80, perBlock: 2, dissipationBase: 6, dissipationPerRimCell: 0.25, overloadTime: 6, aiFireBelow: 0.85,
             governorHigh: 0.85, governorLow: 0.6 },   // heat governor (H): holds fire above governorHigh until heat falls below governorLow
@@ -108,9 +119,9 @@ BS.Data = {
     aimScatter: 2.0,              // aimed shots wander ±this many cells around the aimed block's line, so a focused volley still has to clear a strip of armor
     deadFraction: 0.3,            // ship is lost when alive block hp falls below this fraction of total
     // random enemy variants: a fraction of the base layout's cells is re-rolled (armor → system, system → armor) and the result re-validated
-    variant: { fraction: 0.12, attempts: 12, systemWeights: { phaser: 2, disruptor: 3, pulse: 2, shield: 3, reactor: 2, engine: 2, armor: 6, quarters: 1, sensor: 1, torpedo: 1, jammer: 1 } },
+    variant: { fraction: 0.12, attempts: 12, systemWeights: { phaser: 2, disruptor: 3, pulse: 2, shield: 3, reactor: 2, engine: 2, armor: 6, quarters: 1, sensor: 1, torpedo: 1, jammer: 1, decoy: 1, neut: 1 } },
     maskLegend: { ".": "empty", "#": "fillable", "n": "nacelle (engine ×2)", "p": "structure (fixed)" },
-    layoutLegend: { A: "armor", P: "phaser", D: "disruptor", U: "pulse", T: "torpedo", S: "shield", R: "reactor", E: "engine", N: "sensor", B: "bridge", Q: "quarters", J: "jammer", C: "cloak" },
+    layoutLegend: { A: "armor", P: "phaser", D: "disruptor", U: "pulse", T: "torpedo", S: "shield", R: "reactor", E: "engine", N: "sensor", B: "bridge", Q: "quarters", J: "jammer", C: "cloak", Y: "decoy", X: "neut" },
   },
 
   editor: {
@@ -139,7 +150,11 @@ BS.Data = {
     bridge:   { letter: "B", name: "Bridge",          short: "BR", hp: 200, mass: 2, cost: 0,   color: "#ffffff", glyph: "star", unique: true, desc: "Exactly one. If it dies, the ship is lost. Blocks cut off from it break away." },
     jammer:   { letter: "J", name: "ECM jammer",      short: "JM", hp: 35, mass: 2, cost: 110, power: 6, crew: 1, color: "#35e08f", glyph: "wave", desc: "Electronic warfare with a 7-cell field. Each 5 s cycle (10 cap) rolls jam strength 3 against the enemy's sensors. On a hit, if every block sits inside a jammer's field their lock drops for 4 s and their torpedoes go blind; otherwise they keep the lock but can only hit the blocks outside the field." },
     cloak:    { letter: "C", name: "Cloaking device", short: "CL", hp: 40, mass: 3, cost: 250, power: 5, crew: 2, color: "#9b8cff", glyph: "eye", desc: "Projects a cloak field 10 cells around it; the ship can cloak only while every block sits inside a field, and losing one collapses the cloak. Cloaked you cannot be locked or seen beyond sensor range, but shields are down (the pools keep, recharging slowly), weapons are cold and the capacitor drains 8/s. Decloaking takes 2 s and shields stay down 5 s more; for 10 s after decloaking your hits deal double and most of it goes straight through their shields." },
-    quarters: { letter: "Q", name: "Crew quarters",   short: "CQ", hp: 35, mass: 1, cost: 40,  power: 0,  color: "#c9a97a", glyph: "windows", desc: "Houses 8 crew for the systems (phaser 2, cannon 2, pulse 1, tube 3, reactor 2, shield 1, engine 1, sensor 1, jammer 1, cloak 2; the bridge adds 10). Short of crew, weapons and shields slow down. +0.5 hp/s damage-control repair; blocks more than 6 cells from quarters or the bridge repair at half speed." },
+    quarters: { letter: "Q", name: "Crew quarters",   short: "CQ", hp: 35, mass: 1, cost: 40,  power: 0,  color: "#c9a97a", glyph: "windows", desc: "Houses 8 crew for the systems (phaser 2, cannon 2, pulse 1, tube 3, reactor 2, shield 1, engine 1, sensor 1, jammer 1, cloak 2, decoy 1, neutraliser 1; the bridge adds 10). Short of crew, weapons and shields slow down. Spare crew (beyond the posts) is who you can send as a boarding party. +0.5 hp/s damage-control repair; blocks more than 6 cells from quarters or the bridge repair at half speed." },
+    // electronic warfare, second generation: a decoy lures torpedoes away for a few seconds; an energy neutraliser drains
+    // the locked target's capacitor at short range, so its booster, hardener, afterburner and cloak starve
+    decoy:    { letter: "Y", name: "Decoy launcher",  short: "DY", hp: 40, mass: 1, cost: 90,  power: 2, crew: 1, color: "#ffc96b", glyph: "flare", desc: "Module (F-key, 20 s cycle, 15 cap): drops a decoy astern that burns for 8 s. Every torpedo within 3 km of it that was hunting you turns on the decoy instead and blows up on it. Fire it when the volley is 2–4 km out: too early and the decoy burns out before they arrive, too late and they are already on you. One decoy per launcher block per cycle." },
+    neut:     { letter: "X", name: "Energy neutraliser", short: "NT", hp: 40, mass: 2, cost: 110, power: 4, crew: 1, color: "#ff6ad5", glyph: "drain", desc: "Module (F-key, 6 s cycle, 20 cap, needs a lock inside 4 km): drains 30 capacitor per neutraliser block from the target each cycle. A ship with no capacitor loses its booster, hardener, afterburner and cloak and fires nothing. It drains your own capacitor too: fit reactors." },
   },
 
   // ---------------------------------------------------------------- modules
@@ -154,6 +169,8 @@ BS.Data = {
     afterburner: { kind: "active", name: "Afterburner", short: "AB", cycle: 8, cap: 16, effect: { speedMult: 1.5 }, desc: "+50% speed while running. Higher angular velocity makes enemy beams miss." },
     jammer: { kind: "active", block: "jammer", name: "ECM jammer", short: "JAM", cycle: 5, cap: 10, effect: { jam: true }, desc: "Every 5 s: jam strength (3 per jammer block) against the enemy's sensor strength. A hit breaks their lock for 4 s and blinds their torpedoes." },
     cloak: { kind: "cloak", block: "cloak", name: "Cloaking device", short: "CLK", cycle: 0, cap: 0, capText: "8 cap/s", desc: "Cloak in 3 s: unlockable and unseen beyond their sensors. Shields down, weapons cold, capacitor drains. Decloak takes 2 s; shields recover 5 s later; 10 s decloak strike: double damage, 60% of it straight through their shields." },
+    decoy: { kind: "active", block: "decoy", name: "Decoy", short: "DCY", cycle: 20, cap: 15, effect: { decoy: true }, desc: "Drops one decoy per launcher block astern for 8 s; torpedoes hunting you within 3 km of it turn on the decoy and blow up on it. Time it for when the volley is 2–4 km out." },
+    neut: { kind: "active", block: "neut", name: "Energy neutraliser", short: "NEUT", cycle: 6, cap: 20, effect: { neut: true }, desc: "Every 6 s, with a lock inside 4 km: drains 30 capacitor per neutraliser block from the target. Starves their booster, hardener, afterburner and cloak." },
   },
   builtInModules: ["shield_booster", "shield_hardener", "afterburner"],
 
@@ -684,6 +701,30 @@ BS.Data = {
           "EEED....................",
           "EEE....................."
         ] },
+        leech: { name: "Leech", desc: "Two energy neutralisers in the hull, six disruptors. It brawls inside 4 km and drains your capacitor every six seconds until your booster, hardener and afterburner starve.", rows: [
+          "EEE.....................",
+          "EEED....................",
+          "..SQD...................",
+          "...AAA..................",
+          "....AAA.................",
+          ".....AAA................",
+          "......SAA...............",
+          ".......AAA..............",
+          ".....AAAARA.......AAA...",
+          "....ARAAQAAD....AAQAAAA.",
+          "...AAAAXXAAAAAAAAASAANAA",
+          "...AAAAABAAAAAAAAASAAAAT",
+          "....ARAAQAAD....AAQAAAA.",
+          ".....AAAARA.......AAA...",
+          ".......AAA..............",
+          "......SAA...............",
+          ".....AAA................",
+          "....AAA.................",
+          "...AAA..................",
+          "..SQD...................",
+          "EEED....................",
+          "EEE....................."
+        ] },
         gunboat: { name: "Gunboat", desc: "Eleven disruptor cannons along the wings, no torpedo, thinner armor.", rows: [
           "EEE.....................",
           "EEED....................",
@@ -786,7 +827,7 @@ BS.Data = {
       ],
       visual: { kind: "grid", sprite: null, nacelleColor: "255,120,90", hullTint: "#7a6660" },
       variants: {
-        siege: { name: "Siege", desc: "Four forward tubes, eight reactors, four disruptors.", rows: [
+        siege: { name: "Siege", desc: "Four forward tubes, eight reactors, four disruptors, two decoy launchers: it holds station at torpedo range and decoys your volleys.", rows: [
           "EEEE............................",
           "EEEED...........................",
           "..SQAA..........................",
@@ -794,12 +835,12 @@ BS.Data = {
           "....AQAAA.......................",
           ".....AAAASD................AAAA.",
           "......AAAAAAAA..........AAARAA..",
-          ".......AAAAAQRAA.......AAAAAAAA.",
+          ".......AAYAAQRAA.......AAAAAAAA.",
           "........ARAAAAAR......AAAASNAAAT",
           "........EEAAAAAASAAAAAAAAAQBAAAT",
           "........EEAAAAAASAAAAAAAAAAQAAAT",
           "........ARAAAAAR......AAAASNAAAT",
-          ".......AAAAAQRAA.......AAAAAAAA.",
+          ".......AAYAAQRAA.......AAAAAAAA.",
           "......AAAAAAAA..........AAARAA..",
           ".....AAAASD................AAAA.",
           "....AQAAA.......................",
@@ -820,6 +861,7 @@ BS.Data = {
       tactical:    { name: "Lt. Worf",   title: "Tactical",    color: "var(--c-orange)" },
       engineering: { name: "Cdr. Scott", title: "Engineering", color: "var(--c-purple)" },
       comms:       { name: "Lt. Uhura",  title: "Comms",       color: "var(--c-peach)" },
+      security:    { name: "Lt. Cdr. Giotto", title: "Security", color: "var(--c-red)" },
     },
     reports: {
       stance_engage: "Engaging, Captain. Closing to phaser range; I'll keep our guns on them.",
@@ -907,6 +949,24 @@ BS.Data = {
       shipDead: "Hull integrity failing. We're breaking up!",
       shipDisabled: "We've lost every weapon and engine, Captain. We're dead in space.",
       enemyDisabled: "They're dead in space, Captain: no weapons, no engines. Salvage teams standing by.",
+      decoyLaunched: "Decoy away, Captain.",
+      decoyLured: "Their torpedoes are turning onto the decoy!",
+      decoyNoTorpedoes: "Decoy away, Captain, but nothing is hunting us right now.",
+      enemyDecoy: "They've dropped a decoy, our torpedoes are going for it!",
+      neutHit: "Neutraliser hit, Captain: {amount} drained from their capacitor. They're at {pct} percent.",
+      neutDry: "Their capacitor is dry, Captain! Their systems are starving.",
+      neutOnUs: "They're draining our capacitor, Captain! Energy neutraliser, {amount} gone!",
+      neutRange: "Neutraliser can't reach, Captain. We need to be inside {range} kilometres.",
+      board_nolock: "No lock, Captain. The transporter needs a target fix.",
+      board_range: "Too far for the transporter, Captain. Inside {range} kilometres.",
+      board_shields: "Their shields are up on that side, Captain. We can't beam through them.",
+      board_crew: "We can't spare a boarding party, Captain: {spare} hands free, we need {min}.",
+      board_busy: "The party is already across, Captain.",
+      board_transport: "Energising. Security party of {party} beaming across!",
+      board_aborted: "Transport aborted, Captain, the window closed. Party is back aboard.",
+      board_fight: "We're aboard! {party} of ours against about {defenders} of theirs.",
+      board_captured: "Their bridge is ours, Captain! The ship is taken!",
+      board_repelled: "We've lost the boarding party, Captain. They held the corridors.",
     },
     events: {
       battleStart: [
@@ -1052,7 +1112,7 @@ BS.Data = {
       siege:     { kind: "standoff", engageKm: 18, holdKm: 17, kiteBelowKm: 11, kiteToKm: 20, kiteMaxTime: 15, tailChaseAngular: 0.15, tailChaseTime: 99 },
     },
     // Overview status text per AI state
-    stateLabels: { approach: "closing", shadow: "shadowing", clear: "clearing the blast", retreat: "retreating", run_in: "strafing run", pass: "firing pass", break_off: "breaking off", turn_in: "coming around", brawl: "attacking", reposition: "turning", standoff: "standing off", kite: "kiting", broadside: "broadside", stalk: "cloaked", uncloak: "decloaking", evade: "disengaging" },
+    stateLabels: { approach: "closing", shadow: "shadowing", clear: "clearing the blast", drained: "drained, opening the range", retreat: "retreating", run_in: "strafing run", pass: "firing pass", break_off: "breaking off", turn_in: "coming around", brawl: "attacking", reposition: "turning", standoff: "standing off", kite: "kiting", broadside: "broadside", stalk: "cloaked", uncloak: "decloaking", evade: "disengaging" },
     default: {
       doctrine: "brawl",
       accuracyMult: 0.85, reactionDelay: 1.2, statMult: 1.4, damageMult: 1.5,
@@ -1060,6 +1120,7 @@ BS.Data = {
       repositionShield: 0.22, repositionDuration: 5, blindTolerance: 3,   // seconds with no weapon bearing on the target before it comes about to bring guns round
       orbitRangeKm: 6, retreatRangeKm: 22,
       boosterBelow: 0.45, boosterMinCap: 0.35, afterburnerMinCap: 0.25, weakPointChance: 0.25,   // chance each re-roll to aim at your top weak point instead
+      drainedBelow: 0.08, drainedUntil: 0.35, drainedTime: 20,   // neutralised under drainedBelow cap: open the range past the neutraliser until drainedUntil cap or drainedTime s
       weakPointKinds: ["emitter", "chain", "blackout", "crew"],   // a raider neither cuts necks nor finishes wounded systems: measured, both turned Engage into a coin flip
       targetWeights: { none: 0.3, exposed: 0.1, phaser: 0.15, reactor: 0.15, engine: 0.12, shield: 0.13, bridge: 0.05 },   // none = spray the hull, no −15% aim penalty; exposed = hull outside shield cover
     },
@@ -1071,6 +1132,7 @@ BS.Data = {
       repositionShield: 0.2, repositionDuration: 6, blindTolerance: 4,
       orbitRangeKm: 7, retreatRangeKm: 18,
       boosterBelow: 0.5, boosterMinCap: 0.3, afterburnerMinCap: 0.35, weakPointChance: 0.6,
+      drainedBelow: 0.06, drainedUntil: 0.3, drainedTime: 25,
       weakPointKinds: ["emitter", "chain", "blackout", "neck", "crew", "wounded"],   // the cruiser cuts necks
       targetWeights: { none: 0.2, exposed: 0.1, phaser: 0.18, reactor: 0.17, engine: 0.12, shield: 0.13, bridge: 0.1 },
     },
@@ -1081,6 +1143,7 @@ BS.Data = {
     counters: [
       { when: { tubesMin: 4 },                bop: "strafe",   ktinga: "broadside", reason: "they expect torpedoes and will keep moving" },
       { when: { pulseMin: 4, beamsMax: 2 },   bop: "standoff", ktinga: "siege",     reason: "they will stay out of your pulse range" },
+      { when: { neutMin: 2 },                 bop: "standoff", ktinga: "siege",     reason: "they will stay out of your neutraliser range" },
       { when: { cloak: true },                bop: "brawl",    ktinga: "brawl",     reason: "they will stick close so you cannot slip away" },
       { when: { weakFacingBelow: 0.6 },       bop: null,       ktinga: "broadside", weakPointChance: 0.6, reason: "they have seen your weak shield facing and will pick on it" },   // doctrine unchanged for a Bird-of-Prey (a brawling raider made the stock fight a coin flip), but it hunts weak points twice as often
     ],
@@ -1102,7 +1165,7 @@ BS.Data = {
     startingCredits: 600,
     credits: { win: 500, loss: 120, hullLostPenaltyPerPct: 3, winStreakBonus: 50 },   // per battle
     // salvage: credits for the enemy's surviving block value after a win; a ship disabled (no weapons, no engines) is captured intact
-    salvage: { destroyed: 0.1, disabled: 0.25 },
+    salvage: { destroyed: 0.1, disabled: 0.25, captured: 0.3 },   // captured: taken by a boarding party, nearly intact
     // intel: a layout you held a lock on for intelMinLockSeconds is remembered (save.intel[encounterId]) and drawn in the
     // hangar before the next fight of that kind; intelCost buys it for the next encounter sight unseen
     intelMinLockSeconds: 10, intelCost: 150,
@@ -1120,6 +1183,7 @@ BS.Data = {
       { id: "variant",  enemyClass: "bird_of_prey", layout: "random",  doctrine: ["strafe", "brawl"], minWins: 2, weight: 3, rewardMult: 1.1, counter: true },
       { id: "jammer",   enemyClass: "bird_of_prey", layout: "jammer",  doctrine: "brawl",     minWins: 3, weight: 2, rewardMult: 1.2 },
       { id: "shadow",   enemyClass: "bird_of_prey", layout: "shadow",  doctrine: "ambush",    minWins: 3, weight: 2, rewardMult: 1.3, damageMult: 1.2 },   // its decloak strikes already double
+      { id: "leech",    enemyClass: "bird_of_prey", layout: "leech",   doctrine: "brawl",     minWins: 3, weight: 2, rewardMult: 1.2 },   // two neutralisers: a close brawl becomes a capacitor war
       { id: "cruiser",  enemyClass: "ktinga",       layout: "default", doctrine: "broadside", minWins: 4, weight: 2, rewardMult: 1.8 },
       { id: "siege",    enemyClass: "ktinga",       layout: "siege",   doctrine: "siege",     minWins: 6, weight: 2, rewardMult: 1.9 },
       { id: "warlord",  enemyClass: "ktinga",       layout: "random",  doctrine: ["broadside", "brawl"], minWins: 8, weight: 2, rewardMult: 1.9, counter: true },
@@ -1136,7 +1200,16 @@ BS.Data = {
         // decloak strike: for `window` seconds after decloaking, hits deal ×damageMult and shieldBypass of each hit skips the
         // target's shield straight into the hull (their emitters have not re-tuned to the sudden contact): the strike is
         // the whole point of a cloak, so it is short and decisive
-        strike: { window: 10, shieldBypass: 0.6, damageMult: 2.0 } },
+        strike: { window: 10, shieldBypass: 0.6, damageMult: 2.0 },
+        // decoy (module `decoy`): a flare dropped astern at speedKmS, burning for `life` s; a torpedo hunting the launcher
+        // within lureKm of a decoy turns on it (nearest), and dies on it inside hitKm; when the decoy burns out the
+        // torpedo goes back to its target. The enemy AI drops one when `aiIncomingKm` has torpedoes inside it.
+        decoy: { life: 8, lureKm: 3, speedKmS: 1.0, hitKm: 0.25, spreadDeg: 35, aiIncomingKm: 4.5 },
+        // energy neutraliser (module `neut`): with a lock inside rangeKm, each cycle drains perBlock × alive neutraliser
+        // blocks from the target's capacitor; the enemy AI runs it above aiMinCap
+        // drainMemory: seconds a drained ship (ship.neuted) remembers it; the enemy AI opens the range (state `drained`,
+        // enemyAI.*.drainedBelow / drainedUntil / drainedTime) while its capacitor is that low and the neutraliser is on it
+        neut: { rangeKm: 4, perBlock: 30, aiMinCap: 0.35, warnCapBelow: 240, drainMemory: 8, fleeKm: 8 } },
 
   saveDefaults: {
     version: 2, credits: 600, shipClass: "constitution", ownedShips: ["constitution"],

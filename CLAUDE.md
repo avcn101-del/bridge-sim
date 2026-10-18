@@ -31,7 +31,8 @@ These rules apply to every session working in this repository.
   - `js/grid.js` — hull grids: masks, block layouts, derived stats, entry/penetration/splash hit lookup, per-block damage, connectivity, layout validation
   - `js/modules.js` — weapon groups built from blocks plus the built-in active systems (booster, hardener, afterburner); capacitor use
   - `js/ships.js` — ship model: block grid, hull from blocks, shield facings from emitters, capacitor, lock, movement commands
-  - `js/weapons.js` — turret blocks (tracking/falloff) and launcher blocks (signature/velocity), hit resolution
+  - `js/weapons.js` — turret blocks (tracking/falloff) and launcher blocks (signature/velocity), hit resolution, decoys
+  - `js/boarding.js` — boarding parties: transporter window, party vs defenders, capture
   - `js/crew.js` — crew voices: instant commands with reports, warnings
   - `js/enemyai.js` — doctrine machine for both ships (enemy doctrines, player stances, auto-flip)
   - `js/plays.js` — plays: scripted phase sequences (stance/doctrine, module policy, governor, aim, exit conditions) from `helm.plays`
