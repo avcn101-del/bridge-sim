@@ -42,7 +42,8 @@
         <div class="row"><label>Speed</label><span class="num wide" id="own-speed">0.0 km/s</span></div>
         <div class="row"><label>Helm</label><span class="num wide" id="own-cmd">All stop</span></div>
         <div class="row"><label>Heat</label><span class="num wide" id="own-heat">0 / 0</span></div>
-        <div class="row"><label>Crew</label><span class="num wide" id="own-crew" title="Crew on hand / posts to man. Short of crew, weapons and shields slow down.">0 / 0</span></div>
+        <div class="row"><label>Crew</label><span class="num wide" id="own-crew" title="Crew on hand / posts to man. Short of crew, weapons and shields slow down. Spare crew is your boarding party.">0 / 0</span></div>
+        <div class="row" id="own-boarding-row"><label>Boarding</label><span class="num wide" id="own-boarding">—</span></div>
 
         <h3>Blocks <small>alive / total · click: repair priority</small></h3>
         <div class="sub-grid" id="own-subsystems"></div>
@@ -113,6 +114,10 @@
         <div class="btn-grid">
           <button class="lcars-btn c-blue wide" data-cmd="stop" title="S: all stop, helm on manual; double-click empty space to fly there">Stop ship · manual</button>
         </div>
+        <div class="sub-label">Transporter · spare crew boards them (T)</div>
+        <div class="btn-grid">
+          <button id="btn-board" class="lcars-btn c-red wide" data-cmd="board" title="T: beam a boarding party across. Needs a lock, under 3 km, and their shield facing you at zero. The party is gone for the rest of the battle; take their bridge and the ship is yours.">Board · transporter</button>
+        </div>
 
       </div>
       <div class="panel-side c-blue">
@@ -177,7 +182,9 @@
         <li><b>Attack side</b> (B cycles): in Engage or Skirmish the helm can shadow one side of the enemy instead of circling: <b>Blind</b> finds the sector where the fewest of their weapons bear (the scan panel shows their fire per sector), <b>Aft</b> sits on their tail where the engines are, Port / Stbd pick a flank. A big ship turns too slowly to shake a small one off its blind side.</li>
         <li><b>Reactors power a range</b> of 15 cells: systems outside it run at half, so killing the reactors in one part of a ship browns out everything around them, and when the last reactor dies the <b>warp core breaches</b>: 8 seconds, then a 2 km blast. Get clear (Disengage, 4). Severed sections keep flying, burn their engines, blow their reactors and hit whatever they drift into.</li>
         <li><b>Critical hits</b>: a hit that leaves a system under half its hp may cripple it: a reactor breaches, an engine sends the ship tumbling with no helm for 3 s, a sensor drops the lock, a shield emitter bleeds its facing, a weapon mount jams, crew decks are lost, a cloak generator drops the cloak. Aimed fire at wounded systems is how a small ship guts a big one.</li>
-        <li>Keys: L lock · 1 engage · 2 skirmish · 3 standoff · 4 disengage · 5–0 plays · B attack side · S stop (manual) · R red alert · H heat governor · G log · Space pause.</li>
+        <li><b>Decoys and neutralisers</b> (blocks, then modules in the bar): a <b>decoy launcher</b> drops a flare astern for 8 s and every torpedo hunting you within 3 km of it turns on the flare and blows up on it: fire it when Tactical calls the volley 2–4 km out. An <b>energy neutraliser</b>, with a lock inside 4 km, drains 30 capacitor per block from the enemy every 6 s: their booster, hardener, afterburner and cloak starve, then their guns. The Leech raider does it to you; reactors and range are the answer.</li>
+        <li><b>Boarding</b> (T): with a lock, inside 3 km, and their shield facing you at zero, the transporter beams your spare crew across (crew on hand minus posts, at least 4; the Ship panel's Crew row). They are gone for the rest of the battle, so your guns slow down. Aboard they fight the enemy's spare crew plus a bridge guard; win and the ship is <b>captured</b> (victory, the best salvage), lose and the party is lost. Killing their crew decks first thins the defenders.</li>
+        <li>Keys: L lock · 1 engage · 2 skirmish · 3 standoff · 4 disengage · 5–0 plays · B attack side · T board · S stop (manual) · R red alert · H heat governor · G log · Space pause.</li>
       </ul>
       <button id="btn-help-close" class="lcars-btn c-blue big">Back to the bridge</button>
     </div>
@@ -262,6 +269,7 @@
   <script src="js/modules.js"></script>
   <script src="js/ships.js"></script>
   <script src="js/weapons.js"></script>
+  <script src="js/boarding.js"></script>
   <script src="js/crew.js"></script>
   <script src="js/enemyai.js"></script>
   <script src="js/plays.js"></script>

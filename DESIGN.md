@@ -605,8 +605,77 @@ two-line ticker at the top-left of the tactical view; LOG (key G) expands
 it to the full scrollable log. `science.scanDuration` stays reserved for a
 later science scan that gates this detail.
 
+### Decoys (block `Y`, module `decoy`, `ew.decoy`)
+A decoy launcher is a one-cell block (90 cr, power 2, crew 1); its module
+(20 s cycle, 15 cap) drops one flare per alive launcher block astern of the
+ship (`speedKmS` 1 at ±35°) that burns for `life` 8 s. Every torpedo
+hunting the launching ship that comes within `lureKm` 3 of a flare turns on
+the nearest flare (`torpedo.lured`, event `torpedoLured`) and dies on it
+inside `hitKm` (`torpedoDecoyed`, no damage); a flare that burns out hands
+its torpedoes back to the ship. So the decoy is a timing call: fired when
+the volley is 2–4 km out it eats the volley, fired early it burns out before
+they arrive, fired late they are already inside the lure radius of the ship
+itself. `BS.Weapons.decoys` holds the flares; `BS.Weapons.incoming(ship,
+km)` counts the torpedoes still hunting a ship. The enemy drops one whenever
+torpedoes hunting it are inside `aiIncomingKm` 4.5 (the Siege K't'inga
+carries two launchers). Tactical calls the launch and the turn; the renderer
+draws a flickering flare with a trail.
+
+### Energy neutraliser (block `X`, module `neut`, `ew.neut`)
+A neutraliser is a one-cell block (110 cr, power 4, crew 1); its module
+(6 s cycle, 20 cap) needs a lock inside `rangeKm` 4 (it waits in state
+`nolock` / `range` without spending) and then drains `perBlock` 30
+capacitor per alive neutraliser block from the target (`neutralised` event
+with the amount actually drained). Nothing else is modelled: a ship with no
+capacitor simply cannot start its booster, hardener, afterburner or cloak
+and its weapons wait for cap, which the existing module code already does.
+It drains the user too (the hangar warns under `warnCapBelow` 240
+capacitor). The drained ship remembers it for `drainMemory` 8 s
+(`ship.neuted`); an **enemy** under `enemyAI.*.drainedBelow` (8%, K't'inga
+6%) capacitor while drained goes to state `drained` and opens the range to
+`ew.neut.fleeKm` 8 until its capacitor is back above `drainedUntil` (35%) or
+`drainedTime` (20 s) has passed, then re-enters its doctrine: the neut is a
+geometry fight, not a lock (before this rule a drained Gunboat sat at 3 km
+for ten minutes firing nothing, and the Miranda could not kill it either).
+The enemy runs its own neutralisers whenever the target is inside reach and
+its capacitor is above `aiMinCap` 35%. The scan panel shows the enemy's
+capacitor.
+
+### Boarding (`BS.Boarding`, `grid.boarding`, command `board`, key T)
+Transporter window: a lock on the target, inside `rangeKm` 3, and the
+target's shield facing toward us under `gapStart` 2% of its maximum (or
+not projected: cloak surge), and at least `minParty` 4 spare crew (supply −
+need, shown in the Ship panel and the hangar's Crew line). The party is
+min(`partyMax` 12, spare crew); it leaves at once (`grid.crewAway`, read by
+`BS.Grid.derive`, so manning and with it weapon and shield rates drop for
+the rest of the battle) and beams for `transportTime` 3 s. The transport
+aborts, party home, if that facing comes back above `gapAbort` 15% (a
+booster pulse does it: the defender's counter) or the range opens past
+`rangeKm × abortRangeMult` (6 km). Aboard, the party fights `bridgeGuard` 2
++ `defenderPerQuarters` 3 per alive crew quarters of the target by
+Lanchester's square law (`rate` 0.08 per second each way); under `floor`
+0.5 on a side ends it, the party checked first so even numbers go to the
+defenders. Captured → `shipCaptured` → victory with salvage `captured` 30%
+of the enemy's remaining block value (a prize, nearly intact); repelled →
+the party is lost. A full-crew raider holds 20 defenders against a party
+of 12, so the plan is: shoot its crew decks (the CQ chip, or the "crew"
+weak point) until the scan panel's Boarding line says the window would be
+won, close to Skirmish range, and press T when the facing drops. Security
+(Lt. Cdr. Giotto) calls the transport, the fight and the outcome; the Ship
+panel shows "beaming 12 · 2.0 s" then "11 vs 7 aboard"; the transporter
+button reads why it is off. Only the player boards in this version.
+
+### Leech encounter and the neutraliser counter
+The **Leech** (Bird-of-Prey, two neutralisers in the hull where the Jammer
+boat carries its ECM, six disruptors, brawl, from win 3, ×1.2) drains you
+every six seconds inside 4 km: reactors and range are the answer, as for
+the ECM boat sensors were. Counter-doctrine rule: a battle layout with two
+or more neutralisers makes a flagged Bird-of-Prey stand off and a K't'inga
+siege ("they will stay out of your neutraliser range").
+
 ### Win / lose
-Enemy hull 0 → Victory; player hull 0 → Defeat. Result overlay with stats.
+Enemy hull 0 → Victory; player hull 0 → Defeat; enemy bridge taken by a
+boarding party → Victory ("captured"). Result overlay with stats.
 
 ### Campaign (`BS.Campaign`)
 - **Credits**: win 500 × encounter `rewardMult` − 3 per % hull lost + 50 per
@@ -684,8 +753,12 @@ grid: { cellPx, structureHp, structurePierceCost, shield*/regen*/cap*/thrust*/se
         hitScatter, penetration, lineOfFire, lineOfFireStep, lineOfFireMuzzle, lineOfFireRangeCells, torpedoSplash, aimRadius, aimScatter, deadFraction,
         variant: { fraction, attempts, systemWeights }, maskLegend, layoutLegend }
 blocks: { type: { letter, name, short, hp, mass, cost, power, color, desc, unique?, pierceCost?, explosion?: { damage, radius }, weapon?: { ..., heat } } }
-modules: { phaser_group, torpedo_group, shield_booster, shield_hardener, afterburner, jammer (block-bound active, effect.jam), cloak (kind "cloak", block-bound) }
-ew: { jamPerBlock, jamDuration, cloakTime, decloakTime, surgeTime, cloakDrain, cloakMinCap, detectPerSensor, ghostAlpha, ownCloakAlpha }
+modules: { phaser_group, torpedo_group, shield_booster, shield_hardener, afterburner, jammer (block-bound active, effect.jam), cloak (kind "cloak", block-bound),
+           decoy (block-bound active, effect.decoy), neut (block-bound active, effect.neut) }
+ew: { jamPerBlock, jamDuration, cloakTime, decloakTime, surgeTime, cloakDrain, cloakMinCap, detectPerSensor, ghostAlpha, ownCloakAlpha, cloakRadius, jamRadius, strike,
+      decoy: { life, lureKm, speedKmS, hitKm, spreadDeg, aiIncomingKm }, neut: { rangeKm, perBlock, aiMinCap, warnCapBelow, drainMemory, fleeKm } }
+grid.boarding: { rangeKm, minParty, partyMax, transportTime, bridgeGuard, defenderPerQuarters, gapStart, gapAbort, abortRangeMult, rate, floor }
+campaign.salvage: { destroyed, disabled, captured }; enemyAI.*: drainedBelow, drainedUntil, drainedTime; enemyAI.counters[].when.neutMin
 shipClasses: { id: { name, className, role, faction, cost, purchasable, speed, turnRate, signature, lockRangeKm, powerBase,
                      mask: [rows], layout: [rows], presets: { id: { name, desc, rows } }, variants: { id: { name, desc, rows } } (enemies),
                      aiProfile?, visual: { kind, sprite, nacelleColor, hullTint } } }
@@ -701,7 +774,8 @@ Runtime ship: `pos, vel, heading, speed, hull, shields{4}, capacitor, capMax,
 subsystems{6}, lock{target, progress, locked, time}, selected, targetSubsystem,
 cmd{type, target, range, point, orbitDir, facing}, modules[{id, def, slot,
 active, running, cycleLeft, cycleTime, state}], fitEffects, activeEffects,
-repairPriority, reinforce, stats, mods, aiProfile, ai{state, timer, suspended, relock, ...}, stance, doctrine, play{id, def, phase, t, target}`;
+repairPriority, reinforce, stats, mods, aiProfile, ai{state, timer, suspended, relock, ...}, stance, doctrine, play{id, def, phase, t, target},
+neuted, boarding{target, phase, t, party, partyMax, defenders, defendersMax}`; `grid.crewAway`; torpedo: `lured`; `BS.Weapons.decoys[]`;
 block: `covered, coverBy` from derive.
 
 ## 7. Events
@@ -710,6 +784,8 @@ moduleOffline, shieldBoosted, phaserFired, torpedoLaunched, torpedoHit,
 torpedoExpired, shieldHit, hullHit, blockDestroyed, sectionLost,
 blockExploded, shipDisabled, shipDestroyed, overload, jammed, cloakChanged,
 alertChanged, stateChanged, orbitFlipped, stanceChanged, playChanged, playPhase, enemyRolled, commandGiven,
+decoyLaunched, decoyExpired, torpedoLured, torpedoDecoyed, neutralised, boardingStarted, boardingAborted,
+boardingFight, boardingEnded, shipCaptured,
 log, battleStarted, battleEnded, skillTrained`.
 
 ## 8. Measured balance (accelerated simulation, scripted captains, default builds, no skills)
@@ -718,6 +794,36 @@ Harness: `BS.Game.state.paused = true`, `BS.Game.step(1/60)` in a loop, the
 captain script runs once per simulated second. Enemy strength as at the
 given number of wins. Hit rolls and the enemy's aim choice are random, so
 single runs vary a lot; ranges below are over 4–6 runs.
+
+v0.19.0 (decoys, neutralisers, boarding, Leech, drained enemies; harness
+re-written: captain script once per simulated second with lock / stance /
+play / side / aim / module policies, encounter forced by replacing
+`campaign.encounters`; 2–4 runs each):
+
+| Matchup | Captain | Outcome |
+|---|---|---|
+| Constitution vs Raider (0 wins) | Engage auto (baseline this build) | 2 of 3 in 3:08–3:54 keeping 84–90%, one disabled loss |
+| Constitution + 2 decoy launchers vs Torpedo boat (1 win) | Engage, decoy when torpedoes inside 4 km | **3 of 3 in 3:59–4:59 keeping 84–97%**; 10–19 of 34–46 torpedoes died on flares |
+| same build, decoys never fired | Engage | 2 of 3 in 5:54–7:37 keeping 70–90%, one 10-min stalemate |
+| Constitution + 2 neutralisers vs K't'inga broadside (4 wins) | Engage, neut inside 4.5 km above 35% cap | **3 of 3 in 4:05–4:56 keeping 89–99%** (22–25 cycles; cruiser capacitor down to 4–19%, dry up to 12 s, opening the range when drained); stock Constitution in 0.18: 5:14–7:26 keeping 94–100% |
+| Constitution + 2 neutralisers vs Raider (counter: standoff) | Engage, neut | 3 of 3 in 1:20–3:20 keeping 61–95% |
+| **Miranda + 2 neutralisers vs Gunboat** (1 win) | Engage, neut | **3 of 3 in 4:55–7:58 keeping 91–95%**: the gunboat is dry 67–84 s in all and keeps running to 8 km to recharge; same build never firing them 0 of 2 (lost 3:04–4:52 keeping 30%); stock Miranda 0 of 2 (lost 4:27–6:30 keeping 45%). Before the `drained` rule: three 10-min stalemates keeping 100%, the dry gunboat sat at 3 km firing nothing and the Miranda could not finish it |
+| Constitution vs **Leech** (3 wins) | Engage auto | 2 of 3 in 3:35–4:48 keeping 77–85%, one loss |
+| Galaxy vs Siege K't'inga **with decoys** (6 wins) | Engage | 2 of 2 in 3:53–7:03 keeping 92–95%; torpedo hits 8 of 18 and 25 of 42 (0.18: 4:11 keeping 95%) |
+| Defiant vs Raider | Engage; aim crew decks; Skirmish to close when their facing is open; board only when the party outnumbers the defenders | 4 of 4 in 3:53–5:06 keeping 48–99%, **1 capture** (12 v 11 at 3:35, +860 with 516 salvage) |
+| Constitution vs Raider | same boarding plan | 3 of 4 in 3:01–4:19 keeping 80–95%, 1 capture (+1,328 with 867 salvage), one disabled loss |
+| Defiant vs Raider | board whenever the window opens, no aim | 0 captures: 12 against 14–20 defenders is always repelled; a captain who kept sending parties lost three (26 crew), fell undermanned and the ship |
+
+Iterations behind the numbers: with 2 defenders per deck and a 2-man guard
+the plan captured 7 of 8 raiders (too strong); with a fixed 0.5 shield
+threshold the transport aborted 3–10 times a fight as the facing
+flickered; with the abort range at 1.25× a strafer's break-off aborted
+every transport. Honest reading: decoys and neutralisers are build levers
+that turn specific losses into wins (Miranda vs Gunboat) without changing
+the stock fights; boarding is a one-in-four finisher that needs set-up and
+reading the panel, and costs a party when misjudged. Not met: the Leech is
+a Gunboat-grade fight for a stock Constitution, not the Jammer-boat lockout
+intended.
 
 v0.6.0 results. "Straightforward" here is: lock, phasers + torpedoes +
 hardener, booster pulsed below 50% facing, Reinforce below 20%, **orbit at
@@ -1005,6 +1111,7 @@ than slower (it is nearly untouched, as intended).
 | v0.11.0 (done) | Cloak and ECM fields: a ship cloaks only with every block inside a cloak field (several devices per hull), a partial ECM field steers the jammed enemy's fire onto the uncovered blocks |
 | v0.12.0 (done) | Disruptor cannons (punch, penetration, poor tracking) and pulse phasers (tracking, knife range) as blocks and weapon groups; Klingons mount cannons |
 | v0.13.0 (done) | Crew: systems need hands, the bridge and crew quarters supply them, manning slows weapons and shields, blocks far from quarters repair slowly; every layout re-fitted |
+| v0.19.0 (done) | Decoy launchers (torpedo lures, enemy Siege K't'inga carries them), energy neutralisers (capacitor drain, `drained` enemy state, Leech encounter, counter rule), boarding parties (transporter window, defenders per crew deck, capture as a victory) |
 | v0.18.0 (done) | Cut the neck (structure 400 hp, torpedoes ×2 on it, STRUCT aim, two-block necks in the analysis), hangar intel (scanned or bought enemy layouts drawn with weak points before the fight) |
 | v0.17.0 (done) | Weak-point analysis with click-to-focus-fire on any block, enemies that aim at your weak points, counter-doctrines announced in the hangar |
 | v0.16.0 (done) | Reactor power range (systems outside 15 cells of a reactor run at half; every layout re-placed its reactors), warp core breach with a blast and the AIs clearing it, severed sections that keep momentum, burn engines, cook off reactors and hit what they drift into |

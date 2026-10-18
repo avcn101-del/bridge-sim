@@ -29,7 +29,7 @@ BS.Ships = (function () {
       grid: grid, stats: st, statMult: statMult, mods: mods,
       hullMax: st.hullTotal, hull: st.hullAlive,
       shieldMax: {}, shields: {}, shieldRegen: {},
-      capMax: 0, capacitor: 0, heat: 0, overload: 0, heatGovernor: true, governorHold: false, jammed: 0, partialJam: 0, partialJamBy: null, shieldDelay: { fore: 0, aft: 0, port: 0, starboard: 0 }, attackSide: "auto", tumble: 0, tumbleDir: 1, breach: 0, hadReactors: false, aimBlock: null, cloak: { state: "off", t: 0, surge: 0, strike: 0 },
+      capMax: 0, capacitor: 0, heat: 0, overload: 0, heatGovernor: true, governorHold: false, jammed: 0, partialJam: 0, partialJamBy: null, neuted: 0, boarding: null, shieldDelay: { fore: 0, aft: 0, port: 0, starboard: 0 }, attackSide: "auto", tumble: 0, tumbleDir: 1, breach: 0, hadReactors: false, aimBlock: null, cloak: { state: "off", t: 0, surge: 0, strike: 0 },
       signature: cls.signature,
       flags: { alert: "none", destroyed: false, disabled: false, armed: false },
       selected: null, lock: { target: null, progress: 0, locked: false, time: 0 }, aimType: null, stance: null, play: null,
@@ -404,6 +404,7 @@ BS.Ships = (function () {
       if (ship.shields[fc] < ship.shieldMax[fc]) ship.shields[fc] = Math.min(ship.shieldMax[fc], ship.shields[fc] + regen);
     });
     if (ship.jammed > 0) ship.jammed -= dt;
+    if (ship.neuted > 0) ship.neuted -= dt;
     if (ship.breach > 0) { ship.breach -= dt; if (ship.breach <= 0) coreBlast(ship); }
     if (ship.partialJam > 0) { ship.partialJam -= dt; if (ship.partialJam <= 0) ship.partialJamBy = null; }
     updateCloak(ship, dt);

@@ -7,13 +7,14 @@ BS.Effects = (function () {
   var particles = [];   // { x, y, vx, vy, life, maxLife, size, color:[r,g,b], type, drag, grow }
   var ripples = [];     // { ship, angle, life, maxLife, strength, facing }
   var flashes = [];     // { x, y, life, maxLife, radius, color }
+  var bolts = [];       // { x1, y1, x2, y2, color, life, maxLife } energy links (neutraliser) drawn by the renderer
   var rings = [];       // { x, y, life, maxLife, radius }  expanding shockwaves
   var fragments = [];   // { ship, x, y, vx, vy, heading, rot, spin, life, maxLife, cells: [{dx, dy, color, type}], cellPx, tint, death }
   var shake = { intensity: 0 };
   var subscribed = false;
   var MAX_PARTICLES = 1400;
 
-  function reset() { particles.length = 0; ripples.length = 0; flashes.length = 0; rings.length = 0; fragments.length = 0; shake.intensity = 0; if (!subscribed) { subscribe(); subscribed = true; } }
+  function reset() { particles.length = 0; ripples.length = 0; flashes.length = 0; bolts.length = 0; rings.length = 0; fragments.length = 0; shake.intensity = 0; if (!subscribed) { subscribe(); subscribed = true; } }
 
   function spawn(p) {
     if (particles.length >= MAX_PARTICLES) particles.shift();
@@ -146,6 +147,14 @@ BS.Effects = (function () {
       fire(t.x, t.y, 14);
     });
     BS.Events.on("torpedoExpired", function (e) { var t = e.torpedo; flash(t.x, t.y, 12, hexToRgb(t.def.color), 0.3); });
+    BS.Events.on("torpedoDecoyed", function (e) { var t = e.torpedo; flash(t.x, t.y, 30, hexToRgb(t.def.color), 0.35); fire(t.x, t.y, 10); sparks(t.x, t.y, 14, 90, [255, 220, 150]); });
+    BS.Events.on("decoyLaunched", function (e) { e.decoys.forEach(function (d) { flash(d.x, d.y, 18, [255, 215, 130], 0.3); sparks(d.x, d.y, 10, 60, [255, 200, 120]); }); });
+    BS.Events.on("decoyExpired", function (e) { flash(e.decoy.x, e.decoy.y, 14, [255, 200, 120], 0.25); });
+    BS.Events.on("neutralised", function (e) {
+      var s = e.ship, t = e.target;
+      bolts.push({ x1: s.pos.x, y1: s.pos.y, x2: t.pos.x, y2: t.pos.y, color: [255, 106, 213], life: 0.5, maxLife: 0.5 });
+      flash(t.pos.x, t.pos.y, 22 + e.drained * 0.3, [255, 120, 220], 0.4); sparks(t.pos.x, t.pos.y, 12, 70, [255, 140, 230]);
+    });
     BS.Events.on("phaserFired", function (e) { flash(e.pos.x, e.pos.y, 6, hexToRgb(e.color), 0.15); });
     BS.Events.on("blockDestroyed", function (e) {
       var col = blockColor(e.block), s = e.ship;
@@ -229,6 +238,7 @@ BS.Effects = (function () {
     }
     for (i = ripples.length - 1; i >= 0; i--) { ripples[i].life -= dt; if (ripples[i].life <= 0) ripples.splice(i, 1); }
     for (i = flashes.length - 1; i >= 0; i--) { flashes[i].life -= dt; if (flashes[i].life <= 0) flashes.splice(i, 1); }
+    for (i = bolts.length - 1; i >= 0; i--) { bolts[i].life -= dt; if (bolts[i].life <= 0) bolts.splice(i, 1); }
     for (i = rings.length - 1; i >= 0; i--) { rings[i].life -= dt; if (rings[i].life <= 0) rings.splice(i, 1); }
     for (i = fragments.length - 1; i >= 0; i--) {
       var f = fragments[i];
@@ -259,5 +269,5 @@ BS.Effects = (function () {
     for (i = 0; i < torpedoes.length; i++) torpedoTrail(torpedoes[i], dt);
   }
 
-  return { particles: particles, ripples: ripples, flashes: flashes, rings: rings, fragments: fragments, shake: shake, reset: reset, update: update, addShake: addShake, hexToRgb: hexToRgb, fragmentCellWorld: fragmentCellWorld };
+  return { particles: particles, ripples: ripples, flashes: flashes, bolts: bolts, rings: rings, fragments: fragments, shake: shake, reset: reset, update: update, addShake: addShake, hexToRgb: hexToRgb, fragmentCellWorld: fragmentCellWorld };
 })();

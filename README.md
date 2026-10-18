@@ -95,9 +95,23 @@ tell the helm how to fly relative to it, and you switch modules on and off.
   Klingon Shadows do the same to you: when Tactical says they cloaked,
   watch for the ghost inside ten kilometres and keep your strong shield
   toward it.
+- **Decoys and neutralisers**: a **decoy launcher** block drops a flare
+  astern for 8 s and every torpedo hunting you within 3 km of it turns on
+  the flare and dies on it: fire it when the volley is 2–4 km out. An
+  **energy neutraliser** block, with a lock inside 4 km, drains 30
+  capacitor per block from the enemy every 6 s until its booster,
+  hardener, afterburner, cloak and guns starve; a drained enemy runs out to
+  8 km to recharge, so stay on it. The Leech raider does it to you.
+- **Boarding** (T): with a lock, inside 3 km and their shield facing you
+  at zero, the transporter beams your spare crew across (crew on hand minus
+  posts, at least 4; they are gone for the rest of the battle). Aboard
+  they fight 2 guards plus 3 per enemy crew deck: shoot the crew decks
+  first, watch the scan panel's Boarding line, then press T. Win and the
+  ship is **captured** (victory, 30% salvage); lose and the party is lost.
 - A ship with no weapons and no engines left is **disabled** and the battle
   ends. Disabling the enemy instead of destroying it pays 25% of its
-  remaining block value as **salvage** (10% for a wreck).
+  remaining block value as **salvage** (10% for a wreck, 30% for a prize
+  taken by boarding).
 - Enemies: Bird-of-Prey raiders in several layouts (and random variants
   from the third battle), then the heavier K't'inga battlecruiser from the
   fifth battle onward. Every win makes them 4% stronger; bigger enemies pay
@@ -175,7 +189,9 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `blocks.*.power`, `shipClasses.*.powerBase`, `grid.powerPerReactor / brownoutMin` | Power grid: what each system draws, what a hull and its reactors supply, how a brownout bites |
 | `grid.heat`, `blocks.*.weapon.heat` | Heat capacity and dissipation, overload time, heat per shot |
 | `ew.*`, `science.cloakDetectRangeKm` | Jam strength and duration, cloak timings, surge and drain, decloak strike (`ew.strike`: window, shield bypass, damage), field radii (`cloakRadius`, `jamRadius`), detection range |
-| `campaign.salvage` | Share of the enemy's surviving block value paid after a win (destroyed / disabled) |
+| `ew.decoy`, `ew.neut`, `enemyAI.*.drainedBelow / drainedUntil / drainedTime` | Decoy life, lure radius, speed; neutraliser range, drain per block, the enemy's flee range and when a drained enemy opens the range |
+| `grid.boarding` | Transporter range, party size, transport time, shield window thresholds, defenders per crew deck and bridge guard, fight rate |
+| `campaign.salvage` | Share of the enemy's surviving block value paid after a win (destroyed / disabled / captured) |
 | `grid.variant` | How much a random enemy variant differs from its base layout |
 | `shipClasses.*.mask / layout / variants` | Hull shapes, default builds, enemy layouts |
 | `modules.*` (booster, hardener, afterburner) | Built-in active systems |
@@ -198,7 +214,7 @@ shapes defined in the same file where they exist. See `DESIGN.md`.
 ```
 index.html      entry point
 css/            LCARS interface styles
-js/             data, grid, game loop, ships, modules, weapons, crew, enemy AI, campaign, hangar, UI, renderer, effects
+js/             data, grid, game loop, ships, modules, weapons, boarding, crew, enemy AI, campaign, hangar, UI, renderer, effects
 assets/         optional sprites / sounds (empty in MVP)
 DESIGN.md       full game design and data structures
 CHANGELOG.md    version history

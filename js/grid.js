@@ -98,7 +98,7 @@ BS.Grid = (function () {
     s.powerFactor = s.powerUsed > s.powerMax ? Math.max(g.brownoutMin, s.powerMax / s.powerUsed) : 1;
     // crew: systems need hands (blocks.*.crew), the bridge and the quarters supply them; manning = supply / need, and a
     // system far from any quarters or the bridge (grid.crew.radius) is slow to repair (b.farCrew)
-    var cr = g.crew, need = 0, supply = s.bridgeAlive ? cr.bridge : 0, far = 0, hands = grid.blocks.filter(function (b) { return b.alive && (b.type === "quarters" || b.type === "bridge"); });
+    var cr = g.crew, need = 0, supply = (s.bridgeAlive ? cr.bridge : 0) - (grid.crewAway || 0), far = 0, hands = grid.blocks.filter(function (b) { return b.alive && (b.type === "quarters" || b.type === "bridge"); });   // crewAway: a boarding party sent across (BS.Boarding)
     grid.blocks.forEach(function (b) {
       if (!b.alive || b.structural) return;
       if (b.type === "quarters") supply += cr.perQuarters;
@@ -109,7 +109,8 @@ BS.Grid = (function () {
         if (!near) { b.farCrew = true; far++; }
       }
     });
-    s.crew = { need: need, supply: supply, far: far, manning: need > 0 ? U.clamp(supply / need, cr.minManning, 1) : 1 };
+    supply = Math.max(0, supply);
+    s.crew = { need: need, supply: supply, far: far, away: grid.crewAway || 0, manning: need > 0 ? U.clamp(supply / need, cr.minManning, 1) : 1 };
     grid.stats = s; grid.dirty = false;
     return s;
   }
@@ -509,6 +510,7 @@ BS.Grid = (function () {
     });
     if (hot) warnings.push("Reactors touch each other or the bridge: one breach will chain.");
     if (st.crew.far) warnings.push(st.crew.far + " system block(s) more than " + G().crew.radius + " cells from crew quarters or the bridge repair at half speed.");
+    if ((st.alive.neut || 0) > 0 && st.cap < BS.Data.ew.neut.warnCapBelow) warnings.push("An energy neutraliser drains your own capacitor too (" + BS.Data.modules.neut.cap + " per " + BS.Data.modules.neut.cycle + " s): with under " + BS.Data.ew.neut.warnCapBelow + " capacitor it will starve your other systems. Fit reactors.");
     var unp = grid.blocks.filter(function (b) { return b.alive && !b.structural && !b.powered && (b.def.crew || 0) > 0; }).length;
     if (unp) warnings.push(unp + " system block(s) more than " + G().powerRadius + " cells from a reactor run at " + Math.round(100 * G().unpoweredFactor) + "% power (dim cells).");
     return { ok: errors.length === 0, errors: errors, warnings: warnings, counts: counts, stats: st, masked: masked, grid: grid };

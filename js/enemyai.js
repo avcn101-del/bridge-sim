@@ -189,6 +189,11 @@ BS.EnemyAI = (function () {
         setModule(ship, "shield_hardener", capPct > 0.15 && engaged && ship.cloak.state === "off");
       }
       setModule(ship, "jammer", engaged && capPct > 0.3 && ship.cloak.state === "off");
+      // second-generation EW: the neutraliser runs whenever the target is inside its reach and there is capacitor to
+      // spare; a decoy goes out when torpedoes hunting this ship are close (BS.Weapons.incoming)
+      var EW = BS.Data.ew;
+      setModule(ship, "neut", engaged && capPct > EW.neut.aiMinCap && dKm <= EW.neut.rangeKm && ship.cloak.state === "off" && ship.lock.locked);
+      setModule(ship, "decoy", ship.cloak.state === "off" && BS.Weapons.incoming(ship, EW.decoy.aiIncomingKm) > 0);
       if (ai.timer > 20 && engaged) { ship.aimType = pickTarget(p, ship, target); ai.timer = 0; }
       // retreat is shared by all doctrines: once per battle, when the hull gets low
       if (engaged && hullPct < p.retreatHull && ai.canRetreat) {
@@ -196,6 +201,15 @@ BS.EnemyAI = (function () {
       }
     }
 
+    // drained: a neutraliser has emptied the capacitor, so open the range past it until the capacitor is back
+    if (enemy && engaged && ai.state !== "drained" && ship.neuted > 0 && capPct < p.drainedBelow) {
+      setState(ship, "drained"); keep(ship, target, BS.Data.ew.neut.fleeKm); return;
+    }
+    if (ai.state === "drained") {
+      keep(ship, target, BS.Data.ew.neut.fleeKm);
+      if (capPct > p.drainedUntil || ai.timer > p.drainedTime) enter(ship, target, d);
+      return;
+    }
     // shadowed: nothing bears on the target for too long (it sits in a blind sector), so come about with the side that
     // carries the most fire toward it; a slow hull takes a while, which is the small ship's window
     if (enemy && engaged && ai.state !== "reposition") {

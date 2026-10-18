@@ -2,6 +2,41 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.19.0] — 2026-10-18 (decoys, energy neutralisers, boarding)
+
+### Added
+- **Decoy launcher** (block `Y`, module 20 s / 15 cap, `ew.decoy`): drops
+  a flare astern per launcher block for 8 s; torpedoes hunting you within
+  3 km turn on it and blow up on it. Timing call: 2–4 km out. The Siege
+  K't'inga carries two and the enemy AI drops one when torpedoes close.
+- **Energy neutraliser** (block `X`, module 6 s / 20 cap, `ew.neut`): with
+  a lock inside 4 km drains 30 capacitor per block from the target; their
+  booster, hardener, afterburner, cloak and finally guns starve. An enemy
+  drained under 8% opens the range to 8 km (`drained` state) until its
+  capacitor is back. The scan panel shows their capacitor.
+- **Leech** encounter (Bird-of-Prey with two neutralisers, brawl, from
+  win 3) and a counter rule: two or more neutralisers in your build make a
+  flagged raider stand off and a K't'inga siege.
+- **Boarding** (`js/boarding.js`, key T, `grid.boarding`): with a lock,
+  inside 3 km and their facing shield down, the transporter beams your
+  spare crew across (manning drops for the rest of the battle); aboard they
+  fight 2 + 3 per alive crew deck by Lanchester's law. Captured ends the
+  battle as a victory with 30% salvage; repelled loses the party. Ship
+  panel row, transporter button with the reason it is off, scan panel
+  line with the defenders, Security officer callouts, result overlay.
+- Hangar: Crew line shows spare crew / boarding party; capacitor "runs
+  dry" now counts block-bound active modules (jammer, decoy, neutraliser);
+  warning for a neutraliser on a small capacitor.
+- Events `decoyLaunched, decoyExpired, torpedoLured, torpedoDecoyed,
+  neutralised, boardingStarted, boardingAborted, boardingFight,
+  boardingEnded, shipCaptured`; neutraliser bolt and decoy flare visuals.
+
+### Changed
+- `BS.Grid.derive` subtracts `grid.crewAway` from the crew supply.
+- Balance measured in DESIGN §8 (Miranda + 2 neutralisers beats the
+  Gunboat it loses to stock; decoys cut Torpedo-boat fights from 6–8 to
+  4–5 min; boarding captures about one raider in four with set-up).
+
 ## [0.18.0] — 2026-10-18 (cut the neck, hangar intel)
 
 ### Added

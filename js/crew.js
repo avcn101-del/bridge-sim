@@ -86,6 +86,15 @@ BS.Crew = (function () {
         break;
       }
       case "module": BS.Modules.toggle(ship, args.module); break;
+      case "board": {   // transporter: send the spare crew across (BS.Boarding)
+        var Bd = BS.Data.grid.boarding, bt = ship.lock.target || target;
+        var br = BS.Boarding.start(ship, bt);
+        if (br === "ok") report("security", "board_transport", { party: ship.boarding.party });
+        else if (br === "range") report("security", "board_range", { range: Bd.rangeKm }, "warn");
+        else if (br === "crew") report("security", "board_crew", { spare: BS.Boarding.spareCrew(ship), min: Bd.minParty }, "warn");
+        else report("security", "board_" + br, {}, "warn");
+        break;
+      }
       case "governor": ship.heatGovernor = args.on !== undefined ? !!args.on : !ship.heatGovernor; report("engineering", ship.heatGovernor ? "governorOn" : "governorOff"); break;
       case "repair": {
         var rs = args.type;
@@ -179,6 +188,17 @@ BS.Crew = (function () {
       }
     });
     BS.Events.on("governorHold", function (e) { if (e.ship === ship && e.holding) report("engineering", "governorHold"); });
+    // second-generation EW and boarding
+    BS.Events.on("decoyLaunched", function (e) { if (e.ship === ship) report("tactical", e.incoming > 0 ? "decoyLaunched" : "decoyNoTorpedoes"); else if (e.ship === enemy) report("tactical", "enemyDecoy"); });
+    BS.Events.on("torpedoLured", function (e) { if (e.ship === ship && now() - (ship._luredReported || -99) > 6) { ship._luredReported = now(); report("tactical", "decoyLured"); } });
+    BS.Events.on("neutralised", function (e) {
+      if (e.ship === ship) { if (e.dry && !ship._neutDryReported) { ship._neutDryReported = true; report("tactical", "neutDry"); } else if (now() - (ship._neutReported || -99) > 12) { ship._neutReported = now(); report("tactical", "neutHit", { amount: Math.round(e.drained), pct: Math.round(100 * e.target.capacitor / e.target.capMax) }); } }
+      else if (e.target === ship && now() - (ship._neutOnUsReported || -99) > 12) { ship._neutOnUsReported = now(); report("engineering", "neutOnUs", { amount: Math.round(e.drained) }, "warn"); }
+    });
+    BS.Events.on("moduleToggled", function (e) { if (e.ship === ship && e.on && e.module.id === "neut" && ship.lock.target && S.distanceKm(ship, ship.lock.target) > BS.Data.ew.neut.rangeKm) report("tactical", "neutRange", { range: BS.Data.ew.neut.rangeKm }); });
+    BS.Events.on("boardingAborted", function (e) { if (e.ship === ship) report("security", "board_aborted", {}, "warn"); });
+    BS.Events.on("boardingFight", function (e) { if (e.ship === ship) report("security", "board_fight", { party: Math.round(e.party), defenders: Math.round(e.defenders) }); });
+    BS.Events.on("boardingEnded", function (e) { if (e.ship === ship) report("security", e.result === "captured" ? "board_captured" : "board_repelled", {}, e.result === "captured" ? null : "warn"); });
     BS.Events.on("overload", function (e) { if (e.ship === ship) report("engineering", "overload", {}, "warn"); else if (e.ship === enemy) report("tactical", "enemyOverload"); });
     BS.Events.on("shipDisabled", function (e) { if (e.ship === enemy) report("tactical", "enemyDisabled"); else if (e.ship === ship) report("engineering", "shipDisabled", {}, "warn"); });
     BS.Events.on("lockAcquired", function (e) { if (e.ship === ship) { report("tactical", "lockDone"); if (ship.ai) ship.ai.relock = true; } else if (e.target === ship) say("tactical", D().events.enemyLocking, "warn"); });
