@@ -28,6 +28,8 @@ tell the helm how to fly relative to it, and you switch modules on and off.
 - **Click the Klingon ship** on the display (or double-click its row in the
   Overview). That selects it and starts a lock; "Target locked" appears in
   the log after about 3 s.
+- Read the **weak points** column of the scan panel and click one (or any
+  block on the drawing) to focus every weapon on it; the enemy reads yours.
 - Pick an **attack side** (B): shadow their blind sector, a flank or their
   tail instead of circling; the scan panel shows their fire per sector.
 - Pick a **stance** (Helm panel, keys 1–4) and the helm flies it:
@@ -182,7 +184,8 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `campaign.*`, `skills.*` | Economy, training |
 | `balance.capCurve / lockBase / zoom` | Capacitor curve, lock time, zoom |
 | `enemyAI.doctrines` | How each doctrine flies (enemy encounters and player stances): strafe pass range and timing, brawl orbit and flip timer, standoff hold and kite ranges, broadside band and roll timer, evade range |
-| `enemyAI.default / ktinga` | Enemy accuracy, damage and stat multipliers, retreat thresholds, aim weights (`none` = spray) |
+| `enemyAI.default / ktinga` | Enemy accuracy, damage and stat multipliers, retreat thresholds, aim weights (`none` = spray), `weakPointChance` |
+| `enemyAI.counters`, `campaign.encounters[].counter`, `grid.weakPoints` | Which builds trigger which enemy doctrine and what the hangar says; weak-point analysis thresholds |
 | `visuals.fragments` | Section break-off and ship shatter: piece count, speed, spin, lifetime, inertia, engine burn, reactor fuse and blast, debris damage per cell |
 | `crew.reports`, `crew.events`, `blockReports` | All officer dialogue |
 

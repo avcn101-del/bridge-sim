@@ -21,14 +21,21 @@ BS.EnemyAI = (function () {
     ship.ai = newAI(player);
     S.setAlert(ship, "red");
     ship.selected = player;
-    ship.aimType = pickTarget(p);
+    ship.aimType = pickTarget(p, ship, player);
     S.setCommand(ship, "approach", { target: player });
     S.startLock(ship, player);
     // weapons always on; they fire once the lock lands and range allows
     M.weapons(ship).forEach(function (m) { M.setActive(ship, m, true); });
   }
 
-  function pickTarget(p) {
+  // What the enemy aims at next: with weakPointChance, its target's top weak point (a specific block); otherwise a block
+  // type or the bare hull by targetWeights.
+  function pickTarget(p, ship, target) {
+    if (ship && target && p.weakPointChance && Math.random() < p.weakPointChance) {
+      var wps = BS.Grid.weakPoints(target);
+      if (wps.length) { S.setAimBlock(ship, target, wps[0].block); BS.Events.emit("enemyFocus", { ship: ship, target: target, point: wps[0] }); return "block"; }
+    }
+    if (ship) S.setAimBlock(ship, null, null);
     var r = Math.random(), acc = 0;
     var keys = Object.keys(p.targetWeights);
     for (var i = 0; i < keys.length; i++) { acc += p.targetWeights[keys[i]]; if (r < acc) return keys[i] === "none" ? null : keys[i]; }
@@ -181,7 +188,7 @@ BS.EnemyAI = (function () {
         setModule(ship, "shield_hardener", capPct > 0.15 && engaged && ship.cloak.state === "off");
       }
       setModule(ship, "jammer", engaged && capPct > 0.3 && ship.cloak.state === "off");
-      if (ai.timer > 20 && engaged) { ship.aimType = pickTarget(p); ai.timer = 0; }
+      if (ai.timer > 20 && engaged) { ship.aimType = pickTarget(p, ship, target); ai.timer = 0; }
       // retreat is shared by all doctrines: once per battle, when the hull gets low
       if (engaged && hullPct < p.retreatHull && ai.canRetreat) {
         setState(ship, "retreat"); keep(ship, target, p.retreatRangeKm); ship.repairPriority = "shield"; return;

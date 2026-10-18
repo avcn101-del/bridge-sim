@@ -29,7 +29,7 @@ BS.Ships = (function () {
       grid: grid, stats: st, statMult: statMult, mods: mods,
       hullMax: st.hullTotal, hull: st.hullAlive,
       shieldMax: {}, shields: {}, shieldRegen: {},
-      capMax: 0, capacitor: 0, heat: 0, overload: 0, heatGovernor: true, governorHold: false, jammed: 0, partialJam: 0, partialJamBy: null, shieldDelay: { fore: 0, aft: 0, port: 0, starboard: 0 }, attackSide: "auto", tumble: 0, tumbleDir: 1, breach: 0, hadReactors: false, cloak: { state: "off", t: 0, surge: 0, strike: 0 },
+      capMax: 0, capacitor: 0, heat: 0, overload: 0, heatGovernor: true, governorHold: false, jammed: 0, partialJam: 0, partialJamBy: null, shieldDelay: { fore: 0, aft: 0, port: 0, starboard: 0 }, attackSide: "auto", tumble: 0, tumbleDir: 1, breach: 0, hadReactors: false, aimBlock: null, cloak: { state: "off", t: 0, surge: 0, strike: 0 },
       signature: cls.signature,
       flags: { alert: "none", destroyed: false, disabled: false, armed: false },
       selected: null, lock: { target: null, progress: 0, locked: false, time: 0 }, aimType: null, stance: null, play: null,
@@ -173,7 +173,17 @@ BS.Ships = (function () {
   function shieldsUp(ship) { return ship.cloak.state === "off" && ship.cloak.surge <= 0; }
   // What a shot at `target` is steered at: a partial jam (their ECM field does not cover the whole ship) forces the
   // attacker's fire onto the blocks outside that field; otherwise the captain's aim.
-  function effectiveAim(ship, target) { return ship.partialJam > 0 && ship.partialJamBy === target ? "unjammed" : ship.aimType; }
+  function effectiveAim(ship, target) {
+    if (ship.partialJam > 0 && ship.partialJamBy === target) return "unjammed";
+    if (ship.aimType === "block") return ship.aimBlock && ship.aimBlock.ship === target && ship.aimBlock.block.alive ? ship.aimBlock.block : null;   // focus fire on one block
+    return ship.aimType;
+  }
+  // Focus fire on one block of `target` (aim type "block"); null clears it. Same −15% as aiming at a type.
+  function setAimBlock(ship, target, block) {
+    if (!block || !target) { if (ship.aimType === "block") ship.aimType = null; ship.aimBlock = null; return false; }
+    ship.aimType = "block"; ship.aimBlock = { ship: target, block: block };
+    return true;
+  }
 
   // ---- locking ----------------------------------------------------------
   function lockTime(ship, target) {
@@ -426,7 +436,7 @@ BS.Ships = (function () {
     facingToward: facingToward, facingOffset: facingOffset, strongestFacing: strongestFacing, weakestFacing: weakestFacing, shieldFrac: shieldFrac,
     distanceTo: distanceTo, distanceKm: distanceKm, bearingTo: bearingTo, angularVelocity: angularVelocity, speedKmS: speedKmS,
     setCommand: setCommand, setAlert: setAlert, startReinforce: startReinforce, startLock: startLock, clearLock: clearLock, lockTime: lockTime,
-    trackingMult: trackingMult, maxSpeed: maxSpeed, firingBearings: firingBearings, shieldsUp: shieldsUp, effectiveAim: effectiveAim, cloakFieldComplete: cloakFieldComplete, debrisHit: debrisHit, capRechargeMult: capRechargeMult, blockTypes: blockTypes,
+    trackingMult: trackingMult, maxSpeed: maxSpeed, firingBearings: firingBearings, shieldsUp: shieldsUp, effectiveAim: effectiveAim, setAimBlock: setAimBlock, cloakFieldComplete: cloakFieldComplete, debrisHit: debrisHit, capRechargeMult: capRechargeMult, blockTypes: blockTypes,
     isCloaked: isCloaked, visibility: visibility, detectRangeKm: detectRangeKm, setCloak: setCloak,
   };
 })();

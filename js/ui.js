@@ -51,6 +51,21 @@ BS.UI = (function () {
   function subscribe() {
     BS.Events.on("log", function (e) { addLog(e.speaker, e.text, e.cls); });
     el["btn-log"].addEventListener("click", function () { document.getElementById("comms").classList.toggle("expanded"); });
+    // scan panel: a weak-point line or a block on the drawing focuses fire on that block
+    el["scan-info"].addEventListener("click", function (ev) {
+      var row = ev.target.closest ? ev.target.closest("[data-wp]") : null;
+      if (!row || !scanWeak) return;
+      var wp = scanWeak[parseInt(row.getAttribute("data-wp"), 10)];
+      if (wp) game.command("aimBlock", { block: wp.block, label: wp.label });
+    });
+    el["scan-view"].addEventListener("click", function (ev) {
+      var e = game.state.enemy, p = game.state.player, cv = el["scan-view"];
+      if (!e || !p || p.lock.target !== e || !p.lock.locked) return;
+      var r = cv.getBoundingClientRect(), g = e.grid, cp = g.cellPx, k = Math.min(cv.width / (g.h * cp), cv.height / (g.w * cp)) * 0.88;
+      var cx = (ev.clientX - r.left) * cv.width / r.width, cy = (ev.clientY - r.top) * cv.height / r.height;
+      var lx = (cv.height / 2 - cy) / k, ly = (cx - cv.width / 2) / k, cell = BS.Grid.cellOfLocal(g, lx, ly), b = g.at[cell.x + "," + cell.y];
+      if (b && b.alive) game.command("aimBlock", { block: b });
+    });
     Object.keys(BS.Data.helm.sides).forEach(function (id) {
       var sd = BS.Data.helm.sides[id], b = document.createElement("button");
       b.className = "lcars-btn c-blue"; b.setAttribute("data-cmd", "side"); b.setAttribute("data-side", id); b.textContent = sd.label; b.title = sd.desc;
@@ -359,7 +374,7 @@ BS.UI = (function () {
         var tm = launcherBlock ? BS.Weapons.torpedoDamageMult(launcherBlock.def.weapon, t) : 1;
         el["tg-chance"].textContent = turretBlock.def.short + " " + Math.round(ch * 100) + "%" + (launcherBlock ? " · TOR " + Math.round(tm * 100) + "%" : "");
       } else el["tg-chance"].textContent = p.lock.locked ? "—" : "locking…";
-      el["tg-aim"].textContent = p.aimType === "exposed" ? "Exposed hull (−15%)" : p.aimType ? BS.Data.blocks[p.aimType].name + "s (−15%)" : "Any block";
+      el["tg-aim"].textContent = p.aimType === "block" && p.aimBlock ? (p.aimBlock.block.structural ? "Structure" : p.aimBlock.block.def.name) + " at " + p.aimBlock.block.x + "," + p.aimBlock.block.y + " (−15%)" : p.aimType === "exposed" ? "Exposed hull (−15%)" : p.aimType ? BS.Data.blocks[p.aimType].name + "s (−15%)" : "Any block";
     }
 
     // overview
@@ -386,7 +401,7 @@ BS.UI = (function () {
   }
 
   // ---- enemy scan panel: the locked ship's blocks, cover, fields, crew, power, heat and what bears on us ----
-  var scanFrame = 0, scanHtmlLast = "";
+  var scanFrame = 0, scanHtmlLast = "", scanWeak = null;
   function updateScan(state) {
     var p = state.player, e = state.enemy, cv = el["scan-view"], c = cv.getContext("2d");
     if (!p || !e) return;
@@ -412,12 +427,14 @@ BS.UI = (function () {
       if (st.jamCover && st.jamCover.sources) { c.strokeStyle = "rgba(53,224,143,0.95)"; g.blocks.forEach(function (b) { if (b.alive && !b.structural && !b.jamCovered) c.strokeRect(b.lx - half + 1.6, b.ly - half + 1.6, cp - 3.2, cp - 3.2); }); }
       c.fillStyle = "rgba(0,0,0,0.45)";   // out of reactor range: dimmed
       g.blocks.forEach(function (b) { if (b.alive && !b.structural && !b.powered && (b.def.crew || 0) > 0) c.fillRect(b.lx - half, b.ly - half, cp, cp); });
-      // the block type we aim at, if any
-      if (p.aimType && p.aimType !== "exposed" && p.aimType !== "unjammed") { c.strokeStyle = "rgba(255,230,120,0.9)"; g.blocks.forEach(function (b) { if (b.alive && b.type === p.aimType) c.strokeRect(b.lx - half - 0.5, b.ly - half - 0.5, cp + 1, cp + 1); }); }
+      // the block we focus on, or the block type we aim at
+      if (p.aimType === "block" && p.aimBlock && p.aimBlock.ship === e && p.aimBlock.block.alive) { var ab = p.aimBlock.block; c.strokeStyle = "rgba(255,230,120,1)"; c.lineWidth = 1.6; c.strokeRect(ab.lx - half - 1, ab.ly - half - 1, cp + 2, cp + 2); c.beginPath(); c.moveTo(ab.lx - cp, ab.ly); c.lineTo(ab.lx - half - 1, ab.ly); c.moveTo(ab.lx + cp, ab.ly); c.lineTo(ab.lx + half + 1, ab.ly); c.stroke(); }
+      else if (p.aimType && p.aimType !== "exposed" && p.aimType !== "unjammed" && p.aimType !== "block") { c.strokeStyle = "rgba(255,230,120,0.9)"; g.blocks.forEach(function (b) { if (b.alive && b.type === p.aimType) c.strokeRect(b.lx - half - 0.5, b.ly - half - 0.5, cp + 1, cp + 1); }); }
       c.restore();
     }
     if (scanFrame % 6 !== 1) return;
     var st2 = e.stats, D = BS.Data, hull = e.hull / e.hullMax;
+    if (scanFrame % 60 === 1 || !scanWeak) scanWeak = BS.Grid.weakPoints(e);   // the analysis once a second
     function pct(x) { return Math.round(x * 100) + "%"; }
     function cls(x, lo, hi) { return x < lo ? "bad" : x < hi ? "warn" : "good"; }
     var html = "<div><h4>Hull & shields</h4>";
@@ -449,6 +466,12 @@ BS.UI = (function () {
     if (theirTube) threat.push("torpedoes " + pct(BS.Weapons.torpedoDamageMult(theirTube.def.weapon, p)) + " damage on us");
     html += "<div class='sl'><label>Threat</label><span class='v'>" + (threat.length ? threat.join(" · ") : "unarmed") + "</span></div>";
     html += "<div class='sl'><label>Cloak</label><span class='v'>" + (e.cloak.state !== "off" ? e.cloak.state : e.cloak.surge > 0 ? "surge: shields down" : e.cloak.strike > 0 ? "<span class='bad'>decloak strike " + e.cloak.strike.toFixed(0) + " s</span>" : "off") + (vis < 1 ? " · ghost contact" : "") + "</span></div>";
+    html += "</div><div><h4>Weak points · click to focus fire</h4>";
+    if (!scanWeak.length) html += "<div class='dim'>Nothing stands out.</div>";
+    scanWeak.forEach(function (wp, i) {
+      var on = p.aimType === "block" && p.aimBlock && p.aimBlock.block === wp.block;
+      html += "<div class='wp" + (on ? " on" : "") + "' data-wp='" + i + "' title='Click: focus every weapon on this block (−15% accuracy). Click again to stop.'>" + (on ? "▶ " : "") + wp.label + "</div>";
+    });
     html += "</div>";
     if (html !== scanHtmlLast) { el["scan-info"].innerHTML = html; scanHtmlLast = html; }
   }

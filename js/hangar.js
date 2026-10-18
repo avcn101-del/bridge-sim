@@ -56,8 +56,9 @@ BS.Hangar = (function () {
     el["hg-credits"].textContent = s.credits.toLocaleString() + " cr";
     el["hg-record"].textContent = s.campaign.battlesWon + " won · " + s.campaign.battlesLost + " lost" + (s.campaign.streak > 1 ? " · streak " + s.campaign.streak : "");
     var enc = C.encounter();
-    el["hg-threat"].textContent = "Next: " + enc.label + " · strength " + Math.round(C.enemyStatMult(enc.aiProfile) * 100) + "%";
-    el["hg-threat"].title = "Sensors report a " + enc.cls.className + (enc.variantName ? " (" + enc.variantName + " layout)" : "") + ". Reward ×" + enc.rewardMult;
+    var docLabel = BS.Data.enemyAI.stateLabels[enc.doctrine] || enc.doctrine;
+    el["hg-threat"].textContent = "Next: " + enc.label + " · strength " + Math.round(C.enemyStatMult(enc.aiProfile) * 100) + "% · " + enc.doctrine + (enc.counterReason ? " (" + enc.counterReason + ")" : "");
+    el["hg-threat"].title = "Sensors report a " + enc.cls.className + (enc.variantName ? " (" + enc.variantName + " layout)" : "") + ". Reward ×" + enc.rewardMult + ". Doctrine: " + enc.doctrine + (enc.counterReason ? ": " + enc.counterReason + ". Change your build and they change their plan." : ".");
     el["hg-ship"].innerHTML = "<b>" + cls.name + "</b> · " + cls.className + " · " + cls.role +
       "<br><span class='dim'>" + cls.mask[0].length + "×" + cls.mask.length + " cell hull · base speed " + (cls.speed / BS.Data.units.pxPerKm).toFixed(1) + " km/s · signature " + cls.signature + " m</span>";
     renderShips(s); renderPalette(); renderPresets(cls); renderBuilds(); renderEditor(); renderSkills(s); renderTraining();
