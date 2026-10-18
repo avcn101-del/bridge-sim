@@ -483,7 +483,7 @@ BS.Renderer = (function () {
   }
 
   function drawShields(ship, alpha, t) {
-    if (ship.flags.destroyed || ship.cloak.state !== "off") return;
+    if (ship.flags.destroyed || !BS.Ships.shieldsUp(ship)) return;   // cloaked or surging: pools kept, nothing projected
     var list = shieldArcs(ship);
     if (!list.length) return;
     var x = U.lerp(ship.prevPos.x, ship.pos.x, alpha), y = U.lerp(ship.prevPos.y, ship.pos.y, alpha);

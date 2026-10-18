@@ -216,6 +216,24 @@ BS.Grid = (function () {
     return b.coverage;
   }
   function weaponFacingOf(b) { return b.facing === undefined || b.facing === null ? b.outward : b.facing; }
+  // Fire that bears at each relative bearing (−180 .. 180 in steps of stepDeg; positive = starboard): the sum of damage
+  // per second of the alive weapons whose arc contains that bearing with a clear line of fire, restricted to the block
+  // types in `types` when given.
+  // The helm uses it to hold a target where the guns are (ships.js firingBearings).
+  function bearingProfile(ship, types, stepDeg) {
+    var out = [];
+    for (var deg = -180; deg < 180; deg += stepDeg) {
+      var ang = deg * U.DEG, w = 0;
+      ship.stats.weapons.forEach(function (b) {
+        if (!b.alive || b.facing === null || (types && !types[b.type])) return;
+        if (Math.abs(U.normAngle(ang - weaponFacingOf(b))) > (b.def.weapon.arc / 2) * U.DEG) return;
+        if (G().lineOfFire && !lineOfFireClear(ship.grid, b, ang)) return;   // the own hull masks this bearing
+        w += b.def.weapon.damage / b.def.weapon.cycle;
+      });
+      out.push({ deg: deg, w: w });
+    }
+    return out;
+  }
   function nearestOfType(grid, b, type, radius) {
     var best = null, bestD = Infinity;
     for (var dy = -radius; dy <= radius; dy++) for (var dx = -radius; dx <= radius; dx++) {
@@ -396,6 +414,6 @@ BS.Grid = (function () {
   }
 
   return { build: build, derive: derive, facingOf: facingOf, worldToLocal: worldToLocal, localToWorld: localToWorld, cellOfLocal: cellOfLocal,
-    blockAtWorld: blockAtWorld, blockWorld: blockWorld, entryBlock: entryBlock, entryBlockThrough: entryBlockThrough, resolveEntry: resolveEntry, hit: hit, blockFacing: facingOf, lineOfFireClear: lineOfFireClear, arcCoverage: arcCoverage, weaponFacing: weaponFacingOf, repair: repair, pruneDisconnected: pruneDisconnected,
+    blockAtWorld: blockAtWorld, blockWorld: blockWorld, entryBlock: entryBlock, entryBlockThrough: entryBlockThrough, resolveEntry: resolveEntry, hit: hit, blockFacing: facingOf, lineOfFireClear: lineOfFireClear, arcCoverage: arcCoverage, weaponFacing: weaponFacingOf, bearingProfile: bearingProfile, repair: repair, pruneDisconnected: pruneDisconnected,
     layoutFromGrid: layoutFromGrid, validateLayout: validateLayout, randomVariant: randomVariant, layoutCost: layoutCost, typeForLetter: typeForLetter };
 })();

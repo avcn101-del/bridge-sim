@@ -29,7 +29,7 @@ BS.Ships = (function () {
       grid: grid, stats: st, statMult: statMult, mods: mods,
       hullMax: st.hullTotal, hull: st.hullAlive,
       shieldMax: {}, shields: {}, shieldRegen: {},
-      capMax: 0, capacitor: 0, heat: 0, overload: 0, heatGovernor: true, governorHold: false, jammed: 0, cloak: { state: "off", t: 0, surge: 0 },
+      capMax: 0, capacitor: 0, heat: 0, overload: 0, heatGovernor: true, governorHold: false, jammed: 0, cloak: { state: "off", t: 0, surge: 0, strike: 0 },
       signature: cls.signature,
       flags: { alert: "none", destroyed: false, disabled: false, armed: false },
       selected: null, lock: { target: null, progress: 0, locked: false, time: 0 }, aimType: null, stance: null, play: null,
@@ -149,6 +149,7 @@ BS.Ships = (function () {
   function updateCloak(ship, dt) {
     var c = ship.cloak, E = BS.Data.ew;
     if (c.surge > 0) c.surge -= dt;
+    if (c.strike > 0) c.strike -= dt;
     if (c.state === "off") return;
     c.t += dt;
     if (c.state === "cloaking" && c.t >= E.cloakTime) { c.state = "cloaked"; c.t = 0; BS.Events.emit("cloakChanged", { ship: ship, state: c.state }); }
@@ -156,9 +157,11 @@ BS.Ships = (function () {
       ship.capacitor = Math.max(0, ship.capacitor - E.cloakDrain * dt);
       if (ship.capacitor < E.cloakMinCap) { c.state = "decloaking"; c.t = 0; BS.Events.emit("cloakChanged", { ship: ship, state: "decloaking", reason: "nocap" }); }
     }
-    if (c.state === "decloaking" && c.t >= E.decloakTime) { c.state = "off"; c.t = 0; c.surge = E.surgeTime; BS.Events.emit("cloakChanged", { ship: ship, state: "off" }); }
-    if (isCloaked(ship)) FACINGS.forEach(function (f) { ship.shields[f] = 0; });
+    if (c.state === "decloaking" && c.t >= E.decloakTime) { c.state = "off"; c.t = 0; c.surge = E.surgeTime; c.strike = E.strike.window; BS.Events.emit("cloakChanged", { ship: ship, state: "off" }); }
   }
+  // Shields are projected only with the cloak off and the decloak surge over; cloaked or surging, the pools are kept but
+  // absorb nothing, so an ambusher comes out of cloak with the shields it went in with.
+  function shieldsUp(ship) { return ship.cloak.state === "off" && ship.cloak.surge <= 0; }
 
   // ---- locking ----------------------------------------------------------
   function lockTime(ship, target) {
@@ -199,13 +202,17 @@ BS.Ships = (function () {
     var first = Gr.resolveEntry(ship, fromX, fromY, aimType);
     var exposed = !!first && !first.covered;
     var facing = first && first.coverBy ? Gr.blockFacing(first.coverBy) : facingToward(ship, fromX, fromY);
-    var shield = exposed ? 0 : ship.shields[facing];
+    var shield = exposed || !shieldsUp(ship) ? 0 : ship.shields[facing];
     var resist = ship.activeEffects.shieldResist || 0;
-    var shieldAmount = amount * (1 - resist);
+    // decloak strike: an attacker fresh out of cloak hits harder and part of each hit skips the shield (ew.strike)
+    var strike = attacker && attacker.cloak && attacker.cloak.strike > 0 ? BS.Data.ew.strike : null;
+    if (strike) amount *= strike.damageMult;
+    var bypass = strike && !exposed ? amount * strike.shieldBypass : 0;
+    var shieldAmount = (amount - bypass) * (1 - resist);
     var absorbed = Math.min(shield, shieldAmount);
     ship.shields[facing] = shield - absorbed;
     var leftover = shieldAmount - absorbed;
-    var hullDamage = leftover / Math.max(0.01, 1 - resist) + absorbed * B.shieldBleedThrough;
+    var hullDamage = leftover / Math.max(0.01, 1 - resist) + absorbed * B.shieldBleedThrough + bypass;
     if (absorbed <= 0) hullDamage = amount;
     var shieldsDown = ship.shields[facing] <= 0 && shield > 0;
     var ang = U.angleTo(ship.pos.x, ship.pos.y, fromX, fromY);
@@ -215,7 +222,7 @@ BS.Ships = (function () {
       var ew = Gr.blockWorld(ship, emitter), ea = U.angleTo(ew.x, ew.y, fromX, fromY), R = BS.Data.grid.shieldRadius * ship.grid.cellPx;
       impact = { x: ew.x + Math.cos(ea) * R, y: ew.y + Math.sin(ea) * R };
     }
-    var result = { ship: ship, facing: facing, absorbed: absorbed, hullDamage: hullDamage, shieldsDown: shieldsDown, impact: impact, angle: ang, kind: kind, amount: amount, attacker: attacker, exposed: exposed, emitter: emitter, hits: [], destroyed: [], cutOff: [], explosions: [] };
+    var result = { ship: ship, facing: facing, absorbed: absorbed, hullDamage: hullDamage, shieldsDown: shieldsDown, impact: impact, angle: ang, kind: kind, amount: amount, attacker: attacker, exposed: exposed, emitter: emitter, strike: !!strike, hits: [], destroyed: [], cutOff: [], explosions: [] };
     if (absorbed > 0) BS.Events.emit("shieldHit", result);
     if (hullDamage > 0) {
       var hr = Gr.hit(ship, hullDamage, fromX, fromY, aimType, kind, first);
@@ -250,11 +257,36 @@ BS.Ships = (function () {
     var nudge = (d - range) / range;
     return { heading: toT + dir * (Math.PI / 2 - nudge * 1.0), speed: 1 };
   }
+  // Where the helm holds a target relative to the bow while keeping range (helm.bearingStep / keepFireFraction /
+  // kiteMinBearing). `hold` is the bearing on the orbit side where the most fire bears (ties go to the one nearest
+  // abeam, so a ship with guns all round still circles); `kite` the bearing at or beyond kiteMinBearing with the most
+  // fire (ties to the widest), tail-on when nothing bears aft. Only weapons in active groups count (a Siege bridge with
+  // phasers cold points its tubes), all weapons when none is active. Degrees, positive to starboard; a ship with nothing
+  // to bear holds abeam and kites tail-on as before.
+  function firingBearings(ship, dir) {
+    var H = BS.Data.helm, types = null, active = {}, any = false;
+    BS.Modules.weapons(ship).forEach(function (m) { if (m.active) { active[m.def.block] = true; any = true; } });
+    if (any) types = active;
+    var side = -dir, prof = Gr.bearingProfile(ship, types, H.bearingStep).filter(function (p) { return p.deg * side >= 0; });
+    var hold = null, kite = null;
+    prof.forEach(function (p) {
+      if (!hold || p.w > hold.w || (p.w === hold.w && Math.abs(Math.abs(p.deg) - 90) < Math.abs(Math.abs(hold.deg) - 90))) hold = p;
+      if (Math.abs(p.deg) >= H.kiteMinBearing && (!kite || p.w > kite.w || (p.w === kite.w && Math.abs(p.deg) > Math.abs(kite.deg)))) kite = p;
+    });
+    if (!hold || hold.w <= 0) return { hold: side * 90, kite: 180 };
+    return { hold: hold.deg, kite: kite && kite.w >= hold.w * H.keepFireFraction ? kite.deg : 180 };
+  }
+  // Keep at range: close when beyond the band; in the band hold the target on the firing bearing at a speed that falls
+  // from holdSpeed at the top of the band to a stop at the bottom; below the band hold station (stop, guns on them)
+  // until the target comes inside keepRunBelow × range, then open the range on the kite bearing at full speed. So a
+  // bow-tube ship sits and fires instead of charging and turning away, and only runs when really crowded.
   function keepHeading(ship, target, range, dir) {
-    var d = distanceTo(ship, target), toT = U.angleTo(ship.pos.x, ship.pos.y, target.pos.x, target.pos.y);
-    if (d > range * 1.08) return { heading: toT, speed: 1 };
-    if (d < range * 0.92) return { heading: toT + Math.PI, speed: 1 };
-    return { heading: toT + dir * Math.PI / 2, speed: 0.35 };
+    var H = BS.Data.helm, d = distanceTo(ship, target), toT = U.angleTo(ship.pos.x, ship.pos.y, target.pos.x, target.pos.y);
+    if (d > range * H.keepBand[1]) return { heading: toT, speed: 1 };
+    var fb = firingBearings(ship, dir);
+    if (d < range * H.keepRunBelow) return { heading: toT - fb.kite * U.DEG, speed: 1 };
+    var k = (d - range * H.keepBand[0]) / (range * (H.keepBand[1] - H.keepBand[0]));
+    return { heading: toT - fb.hold * U.DEG, speed: H.holdSpeed * U.clamp(k, 0, 1) };
   }
   function updateCommand(ship, dt) {
     var c = ship.cmd, out, t = c.target;
@@ -301,9 +333,8 @@ BS.Ships = (function () {
     var rate = (ship.capMax / g.capRechargeTime) * B.capCurve * Math.max(0, Math.sqrt(f) - f) * capRechargeMult(ship);
     if (f < 0.02) rate = (ship.capMax / g.capRechargeTime) * 0.4 * capRechargeMult(ship);
     ship.capacitor = Math.min(ship.capMax, ship.capacitor + rate * dt);
-    var shieldsUp = ship.cloak.state === "off" && ship.cloak.surge <= 0;
-    if (shieldsUp) FACINGS.forEach(function (fc) {
-      var regen = ship.shieldRegen[fc] * shieldsMult(ship) * (ship.stats.powerFactor || 1) * dt;
+    FACINGS.forEach(function (fc) {   // the pools recharge whether or not they are projected (cloaked: at the condition-green rate)
+      var regen = ship.shieldRegen[fc] * shieldsMult(ship) * (ship.stats.powerFactor || 1) * (shieldsUp(ship) ? 1 : BS.Data.balance.noAlertShieldRegenMult) * dt;
       if (ship.shields[fc] < ship.shieldMax[fc]) ship.shields[fc] = Math.min(ship.shieldMax[fc], ship.shields[fc] + regen);
     });
     if (ship.jammed > 0) ship.jammed -= dt;
@@ -337,7 +368,7 @@ BS.Ships = (function () {
     facingToward: facingToward, facingOffset: facingOffset, strongestFacing: strongestFacing, weakestFacing: weakestFacing, shieldFrac: shieldFrac,
     distanceTo: distanceTo, distanceKm: distanceKm, bearingTo: bearingTo, angularVelocity: angularVelocity, speedKmS: speedKmS,
     setCommand: setCommand, setAlert: setAlert, startReinforce: startReinforce, startLock: startLock, clearLock: clearLock, lockTime: lockTime,
-    trackingMult: trackingMult, maxSpeed: maxSpeed, capRechargeMult: capRechargeMult, blockTypes: blockTypes,
+    trackingMult: trackingMult, maxSpeed: maxSpeed, firingBearings: firingBearings, shieldsUp: shieldsUp, capRechargeMult: capRechargeMult, blockTypes: blockTypes,
     isCloaked: isCloaked, visibility: visibility, detectRangeKm: detectRangeKm, setCloak: setCloak,
   };
 })();

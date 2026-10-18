@@ -1,6 +1,6 @@
 # DESIGN.md — Bridge Sim
 
-Version: 0.9.0 (world scale, auto camera, plays). Keep this file in sync with the game.
+Version: 0.10.0 (firing bearings, decloak strike, enemy plays). Keep this file in sync with the game.
 
 ## 1. Concept
 
@@ -99,6 +99,18 @@ on), **?** help overlay, zoom, pause.
   `keep(target, range)`, `flyTo(point)`, `comeAbout(target)` (hold strongest
   facing toward target at 25% speed), `idle`. Ships turn at `turnRate` and
   accelerate toward max speed.
+- **Keep geometry** (`helm.bearingStep / keepBand / keepRunBelow / holdSpeed /
+  keepFireFraction / kiteMinBearing`, both sides): `BS.Grid.bearingProfile`
+  samples, every 10°, how much fire (damage per second of the alive weapons
+  in active groups, arc and line of fire included) bears at each relative
+  bearing; `BS.Ships.firingBearings` picks the **hold** bearing (most fire,
+  ties nearest abeam) and the **kite** bearing (most fire at or beyond 120°,
+  tail-on when less than half the best fire bears aft). Keeping range: beyond
+  1.08 × range close; inside the 0.92–1.08 band hold the target on the hold
+  bearing at a speed falling from 35% to a stop; down to 0.75 × range hold
+  station (stopped, guns on them); closer, open the range on the kite bearing
+  at full speed. Before 0.10.0 `keep` flew abeam at 35% and ran tail-on
+  below the band, so bow tubes fired at a third of their rate on both sides.
 - **Player helm** (`helm`, `BS.EnemyAI.setStance`): the captain picks a
   stance and the helm runs the matching doctrine (same machine as the
   enemy, below) with ranges derived from the fitted weapons
@@ -144,10 +156,10 @@ on), **?** help overlay, zoom, pause.
   | Play | Phases |
   |---|---|
   | **Alpha strike** | close in (`closein` doctrine, weapons cold, hardener) until 4.5 km → strike (Engage, governor off, everything on, booster auto, Reinforce) until heat > 90% or an overload → venting (Engage, weapons off, governor on) until heat < 30% → strike again. Only differs from Engage on builds whose salvo beats the heat cap |
-  | **Siege** | Standoff with tubes only, phasers cold, hardener, booster auto → when the tubes are gone or they come inside 5 km, Engage with everything → back to bombarding once they are beyond 12 km. For torpedo builds |
+  | **Siege** | Standoff holding station with every weapon that reaches, hardener, booster auto → when the tubes are gone or they come inside 5 km, Engage with everything → back to bombarding after 30 s or once they are beyond 9 km. For torpedo builds against slow or standoff ships |
   | **Turtle** | `broadside` doctrine (5.5–8.5 km band, come about, roll a fresh shield every 30 s or below 30%), hardener, booster auto, Reinforce, shield repair priority |
   | **Hunter** | Engage aiming at reactors → when none are left, aim at exposed hull |
-  | **Ambush** (needs a cloak) | cloak and close (`closein`) until 3.5 km or cap < 15% → decloak → strike (Engage, governor off) 12–35 s or heat > 85% → slip away cloaked (Disengage) until 12 km, 40 s or cap < 20% → repeat |
+  | **Ambush** (needs a cloak) | cloak and close (`closein`) until 3.5 km or cap < 15% → decloak → strike (Engage, governor off, aim reactors, booster auto, Reinforce) for the decloak strike window: 8–12 s, or heat > 85% or the weakest facing < 25% → slip away cloaked (Disengage, booster auto) until cloaked with the weakest facing back above 60%, 40 s or cap < 20% → repeat |
   | **Hit & fade** | Engage (hardener, booster auto) until the weakest facing < 25% → Skirmish (tight afterburner orbit, booster auto, Reinforce) until the weakest facing > 60%, at most 45 s → repeat |
 
 ### Lock
@@ -298,13 +310,26 @@ Destroyed blocks stay gone for the battle.
   flight go blind. Sensor arrays are the counter.
 - **Cloaking device** (block `C`, one per ship, module F7): 3 s to cloak.
   Cloaked, a ship cannot be locked (locks on it drop), its shields are
-  zero, its weapons are cold and its capacitor drains 8/s (it decloaks by
+  down, its weapons are cold and its capacitor drains 8/s (it decloaks by
   itself below 5). It is invisible beyond the viewer's detection range
   (`science.cloakDetectRangeKm` 10 km + 1 km per sensor array) and a faint
   ghost inside it, still unlockable. Decloaking takes 2 s and shields stay
-  down for 8 s more (surge). The helm loses an invisible target and holds
+  down for 5 s more (surge). The helm loses an invisible target and holds
   course. `BS.Ships.visibility(ship, viewer)` is the one rule the renderer,
   the overview, hover targeting and the helm all use.
+- **Shields through the cloak** (`BS.Ships.shieldsUp`): down means not
+  projected. The facing pools are kept while cloaked or surging (they used
+  to be zeroed, so an ambusher fought every strike from zero), absorb
+  nothing, are not drawn, and recharge at the condition-green rate; the
+  booster still fills them. A ship comes out of cloak with the shields it
+  went in with.
+- **Decloak strike** (`ew.strike`, both sides): for 10 s after decloaking
+  (`cloak.strike`), every hit the ship lands deals ×2 and 60% of it skips
+  the target's shield straight into the hull (`result.strike`); Tactical
+  calls the window open, Engineering warns when it is done to you. The
+  strike is what a cloak is for: with aim at reactors it breaches them
+  through a full shield. Shadow enemies carry it too, at ×1.2 base damage
+  instead of the Bird-of-Prey's ×1.6.
 
 ### Shields
 Four facing pools (80 base + 70 per emitter on that facing, `grid.shieldBase /
@@ -353,7 +378,21 @@ the hull (no aim penalty), otherwise phasers, reactors, engines, shields or
 a list means a seeded pick); the Overview status column shows the state
 through `enemyAI.stateLabels` and Tactical calls the changes.
 
-Enemy damage is ×1.35 (`damageMult`) and strength 108% + 4% per win.
+Enemy damage is ×1.5 for a Bird-of-Prey (`damageMult`; an encounter may
+override it: Torpedo boat ×1.25, Shadow ×1.2) and strength 140% + 4% per win.
+
+**Enemy plays** (`campaign.encounters[].play`): an encounter may name a play
+from `helm.plays`; the enemy bridge then runs the same phase machine as the
+player's (`BS.Plays.update` for both ships, `BS.Plays.available` falls back
+to the doctrine when the required module is missing). While an enemy runs a
+play its weapons, hardener and booster follow the phase policies; jammer,
+aim re-rolls and the once-per-battle retreat stay with the profile, and a
+new phase keeps the retreat flag and pass count (`carryAI`). The Overview
+status reads "Play · state". Gunboat runs **Hit & fade**, Torpedo boat
+**Siege** (it holds station and fires every tube, hence its ×1.25). The
+Shadow keeps its ambush doctrine and the K't'inga Siege its siege doctrine:
+both were measured on the Ambush / Siege plays and turned unkillable (12 s
+decloaked windows) or trivial (ran from a closing Galaxy without firing).
 
 | Doctrine | Used by | Behaviour |
 |---|---|---|
@@ -507,6 +546,41 @@ every fight once that side's phasers are gone.
 | Galaxy vs K't'inga **siege** (6 wins) | straightforward | 4 of 4 wins in 4:17–4:58 keeping 97–99% |
 | Miranda / Defiant vs Raider strafe | speed tank (orbit 3 km + afterburner, no reverse) | mostly stalemates: the script never reverses, so the stripped side stays toward the enemy |
 
+v0.10.0 (firing-bearing keep, shields kept through the cloak, decloak
+strike, enemy plays; Bird-of-Prey ×1.4 / ×1.5, Torpedo boat ×1.25, Shadow
+×1.2; 2–3 runs each, some matchups re-measured across several tuning rounds,
+so counts above 3 are totals). Play captains lock, start the play and do
+nothing else; stance captains run weapons, hardener, a pulsed booster and
+Reinforce.
+
+| Matchup | Captain | Outcome |
+|---|---|---|
+| Constitution vs Raider strafe (0 wins) | Engage | 3 of 3 in 1:41–5:02 keeping 70–94% |
+| Constitution vs Raider strafe | no orders | lost in 2:43–3:41 |
+| Constitution vs Raider strafe | Skirmish | 2 of 2 in 3:09–3:22 keeping 87–92% |
+| Constitution vs Raider strafe | **Siege** | **3 of 3 in 2:32–4:43 keeping 70–79%** (was 1 of 3): holding station the tubes fire on the run-in, and "repelling" now comes back to bombarding |
+| Constitution **Sniper** vs Raider / vs Torpedo boat | Siege | 0 of 1 / 0 of 4: four bow tubes and four phasers lose the duel to a ×1.25 Torpedo boat that now fires all three tubes, and cannot hold off a strafer. Engage wins both instead |
+| Excelsior **Lancer** vs K't'inga broadside (4 wins) | Siege | **3 wins, 2 ten-minute stalemates, 0 losses** (was 0 of 3): 3:16–8:37 keeping 89–97% when it wins; holding station keeps the six tubes on the cruiser while it closes |
+| Excelsior Lancer vs K't'inga Siege (6 wins) | Siege | 0 of 3 (one stalemate): the cruiser also holds station now and its four ×1.33 tubes plus disruptors out-duel six tubes. Galaxy Engage still wins it untouched in 3:54 |
+| Constitution **Shadow hunter** vs Raider | **Ambush** | **6 of 7 in 2:08–8:44 keeping 73–92%**, one stalemate (was 0 of 3): shields come out of cloak intact, the 10 s decloak strike at the reactors breaches them |
+| Constitution vs Raider strafe | Alpha strike / Turtle / Hunter / Hit & fade | 1 of 2 / 2 of 3 / 2 of 3 / 2 of 2; wins in 2:34–4:36 keeping 75–87%. Same spread as 0.9.0 |
+| Defiant vs Raider strafe | Hit & fade | 4:26 keeping 98% |
+| Constitution vs Gunboat on **Hit & fade** (1 win) | Engage / Hit & fade | 3 of 3 in 4:17–8:24 keeping 84–91% / 2 of 2 in 4:18–4:25 keeping 72–92%: its fade phase stretches the fight |
+| Constitution vs Torpedo boat on **Siege** (1 win, ×1.25) | Engage | 2 of 2 in 4:11–4:21 keeping 75–86%; it holds station and lands every torpedo, so Engage now costs hull |
+| Constitution vs Shadow ambush doctrine (3 wins, ×1.2) | Engage | 2 of 2 in 2:31–3:01 keeping 85–89%; on the Ambush play it was 0 of 6 (unkillable 12 s windows), so it keeps the doctrine |
+| Galaxy vs K't'inga Siege (6 wins) / Constitution vs K't'inga broadside (4 wins) | Engage | 3:54 keeping 99% / 4:09 keeping 91% |
+
+Honest reading: Siege and Ambush now win with the builds they were made
+for (default Constitution vs the raider, Lancer vs the cruiser, Shadow
+hunter vs the raider); pure torpedo duels against the enemy's multipliers
+(Sniper vs Torpedo boat, Lancer vs K't'inga Siege) are still lost and the
+answer there is to close in. Engage still loses 10–30% rather than 30–50%:
+Bird-of-Prey damage ×1.6, ×1.7 and ×1.8 were measured and turned Engage,
+Turtle and Hunter into coin flips (wins keeping ~80% or a disabled loss)
+because a stripped phaser rim snowballs, so ×1.5 stays. The biggest
+balance shift is the keep geometry itself: standoff enemies fire every
+tube now.
+
 v0.9.0 (150 px/km, plays; 3 runs each, same enemy multipliers as 0.8.0). The
 world rescale changed nothing in km, and Engage vs the raider re-measured at
 2:24–2:38 keeping 83%. Play captains lock, start the play and do nothing else.
@@ -619,5 +693,6 @@ than slower (it is nearly untouched, as intended).
 | v0.7.0 (done) | Power grid from reactors, heat and overload, ECM jammer, cloaking device, ambush doctrine, Jammer boat and Shadow encounters |
 | v0.8.0 (done) | Shield bubbles (cover radius, exposed hull), stance helm (Engage / Skirmish / Standoff / Disengage, auto-flip), shield-facing bug fix and re-tune |
 | v0.9.0 (done) | World scale 150 px/km with an auto-fitting camera; plays (Alpha strike, Siege, Turtle, Hunter, Ambush, Hit & fade) as scripted phase sequences |
+| v0.10.0 (done) | Firing-bearing keep geometry (hold station, kite with guns bearing), shields kept through the cloak, decloak strike, Siege and Ambush re-tuned, enemy plays (Gunboat Hit & fade, Torpedo boat Siege) |
 | later | Fire spreading put out by crew quarters; reactor power range; audio; sector map; sprites |
 | later | Audio via events, sector map and missions, science scans and cloaked ships, optional image sprites |

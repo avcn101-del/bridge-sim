@@ -35,6 +35,12 @@ BS.EnemyAI = (function () {
     return null;
   }
 
+  // A new stance or doctrine keeps what outlives it: the re-lock order, the once-per-battle retreat and the pass count.
+  function carryAI(ship, ai) {
+    if (ship.ai) { ai.relock = ship.ai.relock; ai.canRetreat = ship.ai.canRetreat; ai.passes = ship.ai.passes; }
+    return ai;
+  }
+
   // ---- player helm ---------------------------------------------------------------
   // Range reference from the build: the longest alive weapon of that kind (phaser optimal / torpedo range), or null.
   function weaponRef(ship, kind) {
@@ -60,9 +66,8 @@ BS.EnemyAI = (function () {
   function setStance(ship, target, stanceId) {
     var st = BS.Data.helm.stances[stanceId];
     if (!st || !target) return false;
-    var relock = ship.ai ? ship.ai.relock : false;
     ship.stance = stanceId; ship.doctrine = doctrineFor(ship, st); ship.doctrineId = st.doctrine;
-    ship.ai = newAI(target); ship.ai.relock = relock;
+    ship.ai = carryAI(ship, newAI(target));
     if (S.distanceKm(ship, target) < ship.doctrine.engageKm) enter(ship, target, ship.doctrine);
     else S.setCommand(ship, "approach", { target: target });
     BS.Events.emit("stanceChanged", { ship: ship, stance: stanceId });
@@ -72,9 +77,8 @@ BS.EnemyAI = (function () {
   function setDoctrine(ship, target, doctrineId) {
     var d = BS.Data.enemyAI.doctrines[doctrineId];
     if (!d || !target) return false;
-    var relock = ship.ai ? ship.ai.relock : false;
     ship.stance = null; ship.doctrine = d; ship.doctrineId = doctrineId;
-    ship.ai = newAI(target); ship.ai.relock = relock;
+    ship.ai = carryAI(ship, newAI(target));
     if (S.distanceKm(ship, target) < d.engageKm) enter(ship, target, d); else S.setCommand(ship, "approach", { target: target });
     BS.Events.emit("stanceChanged", { ship: ship, stance: null, doctrine: doctrineId });
     return true;
@@ -134,11 +138,14 @@ BS.EnemyAI = (function () {
     var engaged = ai.state !== "approach" && ai.state !== "retreat" && ai.state !== "stalk";
 
     if (enemy) {
-      // module management shared by all states: weapons stay on whenever there is capacitor for them
-      var weaponsOn = capPct > 0.12;
-      M.weapons(ship).forEach(function (m) { if (m.active !== weaponsOn) M.setActive(ship, m, weaponsOn); });
-      setModule(ship, "shield_booster", facingPct < p.boosterBelow && capPct > p.boosterMinCap);
-      setModule(ship, "shield_hardener", capPct > 0.15 && engaged && ship.cloak.state === "off");
+      // module management shared by all states: weapons stay on whenever there is capacitor for them. An enemy running a
+      // play (ship.play) leaves weapons, hardener and booster to the play's phase policies.
+      if (!ship.play) {
+        var weaponsOn = capPct > 0.12;
+        M.weapons(ship).forEach(function (m) { if (m.active !== weaponsOn) M.setActive(ship, m, weaponsOn); });
+        setModule(ship, "shield_booster", facingPct < p.boosterBelow && capPct > p.boosterMinCap);
+        setModule(ship, "shield_hardener", capPct > 0.15 && engaged && ship.cloak.state === "off");
+      }
       setModule(ship, "jammer", engaged && capPct > 0.3 && ship.cloak.state === "off");
       if (ai.timer > 20 && engaged) { ship.aimType = pickTarget(p); ai.timer = 0; }
       // retreat is shared by all doctrines: once per battle, when the hull gets low

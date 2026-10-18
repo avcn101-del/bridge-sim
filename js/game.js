@@ -46,8 +46,9 @@ BS.Game = (function () {
     var ang = U.rand(-0.6, 0.6) - Math.PI / 2;
     var dist = BS.Ships.px(B.arenaStartDistanceKm);
     var enc = BS.Campaign.encounter();
-    var enemy = BS.Ships.create(enc.classId, { name: enc.name, layout: enc.rows, pos: { x: Math.cos(ang) * dist, y: Math.sin(ang) * dist }, heading: ang + Math.PI, statMult: BS.Campaign.enemyStatMult(enc.aiProfile), mods: { damageMult: BS.Data.enemyAI[enc.aiProfile].damageMult } });
+    var enemy = BS.Ships.create(enc.classId, { name: enc.name, layout: enc.rows, pos: { x: Math.cos(ang) * dist, y: Math.sin(ang) * dist }, heading: ang + Math.PI, statMult: BS.Campaign.enemyStatMult(enc.aiProfile), mods: { damageMult: enc.damageMult || BS.Data.enemyAI[enc.aiProfile].damageMult } });
     BS.EnemyAI.attach(enemy, player, enc.aiProfile, enc.doctrine);
+    if (enc.play && BS.Plays.available(enemy, enc.play)) BS.Plays.start(enemy, player, enc.play);   // an enemy bridge may run a play over its doctrine
     state.encounter = enc;
     player.selected = enemy;
     BS.EnemyAI.setStance(player, enemy, BS.Data.helm.defaultStance);   // the helm flies the default stance from the start
@@ -79,6 +80,7 @@ BS.Game = (function () {
   function step(dt) {
     var p = state.player, e = state.enemy;
     BS.Crew.update(dt);
+    BS.Plays.update(e, dt);
     BS.EnemyAI.update(e, p, dt);
     BS.Plays.update(p, dt);
     BS.EnemyAI.update(p, e, dt);

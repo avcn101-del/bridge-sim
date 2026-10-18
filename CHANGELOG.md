@@ -2,6 +2,41 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.10.0] — 2026-10-18 (firing bearings, decloak strike, enemy plays)
+
+### Added
+- **Firing-bearing keep geometry** (`helm.bearingStep / keepBand /
+  keepRunBelow / holdSpeed / keepFireFraction / kiteMinBearing`,
+  `BS.Grid.bearingProfile`, `BS.Ships.firingBearings`): a ship keeping range
+  holds the target on the bearing where the most of its fire bears (arc and
+  line of fire included), slows to a stop at the bottom of the band, holds
+  station down to 75% of the range and only then opens it, on a bearing that
+  keeps the guns talking when one exists. Bow torpedo tubes used to fire at a
+  third of their rate on both sides because `keep` flew abeam and ran tail-on.
+- **Decloak strike** (`ew.strike`): for 10 s after decloaking every hit deals
+  ×2 and 60% of it skips the shield into the hull; Tactical calls it,
+  Engineering warns when it is done to you. Shadow enemies get it too.
+- **Shields kept through the cloak**: cloaked or surging, the facing pools are
+  down (absorb nothing, not drawn) but no longer zeroed; they recharge at the
+  condition-green rate and the booster still fills them.
+- **Enemy plays** (`campaign.encounters[].play`): an enemy bridge can run a
+  play from `helm.plays` over its doctrine; the Gunboat runs Hit & fade, the
+  Torpedo boat Siege. Encounters may also set their own `damageMult`.
+  The Overview status shows "Play · state" for such an enemy.
+
+### Changed
+- **Siege** fires everything that reaches instead of tubes only, and returns
+  to bombarding after 30 s or beyond 9 km (12 km never came against a
+  strafer). **Ambush** strikes for the decloak window aiming at reactors,
+  Reinforces, and slips away only until the shields are back.
+- Torpedo boat damage ×1.25 and Shadow ×1.2 as encounter overrides (the
+  Bird-of-Prey's ×1.5 stays: ×1.6–1.8 turned Engage, Turtle and Hunter into
+  coin flips rather than costing 30–50% hull, see `DESIGN.md` §8); decloak
+  surge 5 s (was 8).
+- A new stance or doctrine keeps the once-per-battle retreat flag and pass
+  count (`carryAI`), so an enemy on a play cannot retreat every phase.
+- Harness results in `DESIGN.md` §8.
+
 ## [0.9.0] — 2026-10-18 (world scale, auto camera, plays)
 
 ### Added

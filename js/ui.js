@@ -385,7 +385,9 @@ BS.UI = (function () {
       cells[1].textContent = s.flags.destroyed || vis <= 0 ? "—" : fmtKm(S.distanceKm(p, s)) + (vis < 1 ? " ghost" : "");
       cells[2].textContent = s.flags.destroyed ? "—" : S.speedKmS(s).toFixed(1);
       cells[3].textContent = s.flags.destroyed ? "—" : S.angularVelocity(p, s).toFixed(2);
-      cells[4].textContent = s.flags.destroyed ? "destroyed" : s.flags.disabled ? "disabled" : s.cloak.state !== "off" ? s.cloak.state : s.ai ? (BS.Data.enemyAI.stateLabels[s.ai.state] || s.ai.state) : "";
+      var stLabel = s.ai ? (BS.Data.enemyAI.stateLabels[s.ai.state] || s.ai.state) : "";
+      if (s.play && s.cloak.state === "off") stLabel = s.play.def.label + " · " + stLabel;
+      cells[4].textContent = s.flags.destroyed ? "destroyed" : s.flags.disabled ? "disabled" : s.cloak.state !== "off" ? s.cloak.state : stLabel;
       row.classList.toggle("selected", p.selected === s);
       row.classList.toggle("locked", p.lock.target === s && p.lock.locked);
     });

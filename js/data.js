@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.9.0",
+  version: "0.10.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -109,7 +109,7 @@ BS.Data = {
     sensor:   { letter: "N", name: "Sensor array",    short: "SE", hp: 35, mass: 1, cost: 110, power: 3, color: "#d26bff", glyph: "dish", desc: "Faster locks and better tracking." },
     bridge:   { letter: "B", name: "Bridge",          short: "BR", hp: 200, mass: 2, cost: 0,   color: "#ffffff", glyph: "star", unique: true, desc: "Exactly one. If it dies, the ship is lost. Blocks cut off from it break away." },
     jammer:   { letter: "J", name: "ECM jammer",      short: "JM", hp: 35, mass: 2, cost: 110, power: 6, color: "#35e08f", glyph: "wave", desc: "Electronic warfare. Each 5 s cycle (10 cap) rolls jam strength 3 against the enemy's sensors: on a hit their lock drops and they cannot lock for 4 s, and their torpedoes in flight go blind." },
-    cloak:    { letter: "C", name: "Cloaking device", short: "CL", hp: 40, mass: 3, cost: 400, power: 12, unique: true, color: "#9b8cff", glyph: "eye", desc: "One per ship. While cloaked you cannot be locked or seen beyond sensor range, but shields are down, weapons are cold and the capacitor drains 8/s. Decloaking takes 2 s and shields stay down 8 s more." },
+    cloak:    { letter: "C", name: "Cloaking device", short: "CL", hp: 40, mass: 3, cost: 400, power: 12, unique: true, color: "#9b8cff", glyph: "eye", desc: "One per ship. While cloaked you cannot be locked or seen beyond sensor range, but shields are down (the pools keep, recharging slowly), weapons are cold and the capacitor drains 8/s. Decloaking takes 2 s and shields stay down 5 s more; for 10 s after decloaking your hits deal double and most of it goes straight through their shields." },
     quarters: { letter: "Q", name: "Crew quarters",   short: "CQ", hp: 35, mass: 1, cost: 40,  power: 1,  color: "#c9a97a", glyph: "windows", desc: "+0.5 hp/s damage-control repair of damaged blocks." },
   },
 
@@ -122,7 +122,7 @@ BS.Data = {
     shield_hardener: { kind: "active", name: "Shield hardener", short: "SH", cycle: 8, cap: 7, effect: { shieldResist: 0.3 }, desc: "While running, shields take 30% less damage." },
     afterburner: { kind: "active", name: "Afterburner", short: "AB", cycle: 8, cap: 16, effect: { speedMult: 1.5 }, desc: "+50% speed while running. Higher angular velocity makes enemy beams miss." },
     jammer: { kind: "active", block: "jammer", name: "ECM jammer", short: "JAM", cycle: 5, cap: 10, effect: { jam: true }, desc: "Every 5 s: jam strength (3 per jammer block) against the enemy's sensor strength. A hit breaks their lock for 4 s and blinds their torpedoes." },
-    cloak: { kind: "cloak", block: "cloak", name: "Cloaking device", short: "CLK", cycle: 0, cap: 0, capText: "8 cap/s", desc: "Cloak in 3 s: unlockable and unseen beyond their sensors. Shields down, weapons cold, capacitor drains. Decloak takes 2 s; shields recover 8 s later." },
+    cloak: { kind: "cloak", block: "cloak", name: "Cloaking device", short: "CLK", cycle: 0, cap: 0, capText: "8 cap/s", desc: "Cloak in 3 s: unlockable and unseen beyond their sensors. Shields down, weapons cold, capacitor drains. Decloak takes 2 s; shields recover 5 s later; 10 s decloak strike: double damage, 60% of it straight through their shields." },
   },
   builtInModules: ["shield_booster", "shield_hardener", "afterburner"],
 
@@ -820,6 +820,7 @@ BS.Data = {
       cloakOn: "Cloak engaged. Shields down, weapons cold, Captain.",
       cloakOff: "Decloaking. Shields will take a moment to come back.",
       cloakNoCap: "Capacitor too low to hold the cloak. We're decloaking!",
+      strikeWindow: "Decloaked on their flank, Captain. Their shields haven't re-tuned, pour it on!",
       targetHull: "Targeting whatever we can hit, Captain. Full accuracy.",
       reinforceShields: "Reinforcing the {weak} shield from the {strong} grid.",
       reinforceShields_none: "Shields are already balanced, Captain.",
@@ -869,6 +870,7 @@ BS.Data = {
       enemyFlip: "They've reversed their orbit, Captain.",
       enemyCloaked: "They've cloaked, Captain. Sensors show nothing inside ten kilometres... stay sharp.",
       enemyDecloak: "Decloaking off the {facing} bow! Here they come!",
+      enemyStrike: "They've caught our shields cold, Captain, that's going straight through!",
       enemyDestroyed: "Enemy vessel destroyed, Captain.",
       enemyLocking: "They're locking us, Captain.",
       enemyFiringTorpedo: "Incoming torpedo!",
@@ -901,6 +903,13 @@ BS.Data = {
     // auto-flip (player and enemy): an orbiting ship reverses when the mirrored geometry would bring more weapons to
     // bear, or its engaged shield facing is below flipShieldLow while the opposite one is above flipShieldHigh
     flipMinInterval: 8, flipShieldLow: 0.3, flipShieldHigh: 0.6,
+    // keep-at-range geometry (player and enemy): fire that bears is sampled every bearingStep degrees (damage per second of
+    // the alive weapons in active groups, line of fire included). Inside the band (keepBand × range) the helm holds the
+    // target on the bearing with the most fire at a speed that falls from holdSpeed at the top of the band to a stop at
+    // the bottom, and holds station (stopped, guns on them) down to keepRunBelow × range; closer than that it opens the
+    // range on the bearing beyond kiteMinBearing with the most fire, tail-on when less than keepFireFraction of the best
+    // fire bears back there; beyond the band it closes
+    bearingStep: 10, keepBand: [0.92, 1.08], keepRunBelow: 0.75, holdSpeed: 0.35, keepFireFraction: 0.5, kiteMinBearing: 120,
     // Plays: scripted sequences of phases (js/plays.js). A phase sets a stance or a doctrine, a module policy
     // (module id or "weapons" → on/off), governor, aim and repair priority, and moves on when any condition in
     // `until` holds or every condition in `untilAll` holds (dKmBelow/Above, heatAbove/Below, facingBelow/Above,
@@ -917,11 +926,11 @@ BS.Data = {
                    { label: "strike", stance: "engage", modules: { weapons: true, shield_hardener: true }, governor: false, booster: "auto", reinforce: true, say: "In range. All weapons, fire at will!", minTime: 10, until: { heatAbove: 0.9, overloaded: true } },
                    { label: "venting", stance: "engage", modules: { weapons: false }, governor: true, booster: "auto", reinforce: true, say: "Venting heat. Weapons cold for a moment.", minTime: 4, until: { heatBelow: 0.3 }, next: 1 },
                  ] },
-      siege:   { label: "Siege", key: "6", desc: "Torpedoes only from standoff range, phasers cold; fights with everything if they get inside 5 km and goes back to range when they fall off. For torpedo builds.",
-                 say: "Siege pattern. Tubes only, holding at range.",
+      siege:   { label: "Siege", key: "6", desc: "Hold station at torpedo range with everything that reaches, hardener up; fights at close quarters if they get inside 5 km and goes back to range when they fall off. For torpedo builds against slow or standoff ships.",
+                 say: "Siege pattern. Holding at range, tubes have the lead.",
                  phases: [
-                   { label: "bombarding", stance: "standoff", modules: { phaser_group: false, torpedo_group: true, shield_hardener: true }, governor: true, booster: "auto", minTime: 8, until: { noTubes: true, dKmBelow: 5 } },
-                   { label: "repelling", stance: "engage", modules: { weapons: true, shield_hardener: true }, say: "They're on us. All weapons!", booster: "auto", minTime: 15, until: { dKmAbove: 12 }, next: 0 },
+                   { label: "bombarding", stance: "standoff", modules: { weapons: true, shield_hardener: true }, governor: true, booster: "auto", minTime: 8, until: { noTubes: true, dKmBelow: 5 } },
+                   { label: "repelling", stance: "engage", modules: { weapons: true, shield_hardener: true }, say: "They're on us. All weapons!", booster: "auto", minTime: 15, until: { dKmAbove: 9, time: 30 }, next: 0 },
                  ] },
       turtle:  { label: "Turtle", key: "7", desc: "Hold a slow broadside at mid range with the hardener on, reinforce and roll fresh shields; wins by attrition.",
                  say: "Shield wall, aye. Holding the broadside, hardener up.",
@@ -934,13 +943,13 @@ BS.Data = {
                    { label: "reactors", stance: "engage", modules: { weapons: true, shield_hardener: true }, governor: true, aim: "reactor", booster: "auto", until: { enemyReactorsGone: true } },
                    { label: "exposed hull", stance: "engage", aim: "exposed", say: "Their reactors are gone. Targeting bare hull.", booster: "auto" },
                  ] },
-      ambush:  { label: "Ambush", key: "9", requires: "cloak", desc: "Cloak, close to knife range, decloak and strike with the governor off, then cloak and slip away to do it again. Needs a cloaking device.",
+      ambush:  { label: "Ambush", key: "9", requires: "cloak", desc: "Cloak, close to knife range, decloak and hit their reactors with the governor off while the decloak strike lasts (10 s: double damage, most of it through their shields), then cloak and slip away to do it again. Needs a cloaking device.",
                  say: "Ambush, aye. Cloaking and closing.",
                  phases: [
                    { label: "stalking", doctrine: "closein", modules: { weapons: false, cloak: true, shield_hardener: false }, governor: true, until: { dKmBelow: 3.5, capBelow: 0.15 } },
                    { label: "decloaking", doctrine: "closein", modules: { cloak: false }, say: "Dropping the cloak!", minTime: 0, until: { cloakOff: true } },
-                   { label: "strike", stance: "engage", modules: { weapons: true, shield_hardener: true }, governor: false, booster: "auto", minTime: 12, until: { heatAbove: 0.85, time: 35 } },
-                   { label: "slipping away", stance: "disengage", modules: { weapons: false, shield_hardener: false, cloak: true }, governor: true, say: "Cloaking. Breaking off to come round again.", minTime: 8, until: { dKmAbove: 12, time: 40, capBelow: 0.2 }, next: 0 },
+                   { label: "strike", stance: "engage", modules: { weapons: true, shield_hardener: true }, governor: false, aim: "reactor", booster: "auto", reinforce: true, minTime: 8, until: { heatAbove: 0.85, weakestBelow: 0.25, time: 12 } },
+                   { label: "slipping away", stance: "disengage", modules: { weapons: false, shield_hardener: false, cloak: true }, governor: true, booster: "auto", say: "Cloaking. Breaking off to come round again.", minTime: 8, untilAll: { cloaked: true, weakestAbove: 0.6 }, until: { time: 40, capBelow: 0.2 }, next: 0 },
                  ] },
       hitfade: { label: "Hit & fade", key: "0", desc: "Engage until a shield facing runs low, then fade into a tight afterburner orbit they cannot track while the shields recover, and engage again.",
                  say: "Hit and fade, aye. Engaging until the shields say otherwise.",
@@ -1010,13 +1019,15 @@ BS.Data = {
     enemyScaling: { perWin: 0.04, maxBonus: 0.4 },
     // Which enemy shows up: weighted random among the encounters unlocked by battlesWon; "random" layouts are
     // generated from the class default (grid.variant). rewardMult scales the win payout. Seeded by the battle record.
+    // `play` names a play (helm.plays) the enemy bridge runs instead of flying its doctrine alone; the doctrine stays
+    // as the fallback when the play's required module is missing. `damageMult` overrides the profile's for that encounter.
     encounters: [
       { id: "raider",   enemyClass: "bird_of_prey", layout: "default", doctrine: "strafe",    minWins: 0, weight: 3, rewardMult: 1.0 },
-      { id: "gunboat",  enemyClass: "bird_of_prey", layout: "gunboat", doctrine: "brawl",     minWins: 1, weight: 2, rewardMult: 1.1 },
-      { id: "torpedo",  enemyClass: "bird_of_prey", layout: "torpedo", doctrine: "standoff",  minWins: 1, weight: 2, rewardMult: 1.1 },
+      { id: "gunboat",  enemyClass: "bird_of_prey", layout: "gunboat", doctrine: "brawl",     play: "hitfade", minWins: 1, weight: 2, rewardMult: 1.1 },
+      { id: "torpedo",  enemyClass: "bird_of_prey", layout: "torpedo", doctrine: "standoff",  play: "siege",   minWins: 1, weight: 2, rewardMult: 1.1, damageMult: 1.25 },   // holds station and fires every tube
       { id: "variant",  enemyClass: "bird_of_prey", layout: "random",  doctrine: ["strafe", "brawl"], minWins: 2, weight: 3, rewardMult: 1.1 },
       { id: "jammer",   enemyClass: "bird_of_prey", layout: "jammer",  doctrine: "brawl",     minWins: 3, weight: 2, rewardMult: 1.2 },
-      { id: "shadow",   enemyClass: "bird_of_prey", layout: "shadow",  doctrine: "ambush",    minWins: 3, weight: 2, rewardMult: 1.3 },
+      { id: "shadow",   enemyClass: "bird_of_prey", layout: "shadow",  doctrine: "ambush",    minWins: 3, weight: 2, rewardMult: 1.3, damageMult: 1.2 },   // its decloak strikes already double
       { id: "cruiser",  enemyClass: "ktinga",       layout: "default", doctrine: "broadside", minWins: 4, weight: 2, rewardMult: 1.8 },
       { id: "siege",    enemyClass: "ktinga",       layout: "siege",   doctrine: "siege",     minWins: 6, weight: 2, rewardMult: 1.9 },
       { id: "warlord",  enemyClass: "ktinga",       layout: "random",  doctrine: ["broadside", "brawl"], minWins: 8, weight: 2, rewardMult: 1.9 },
@@ -1026,7 +1037,11 @@ BS.Data = {
 
   science: { scanDuration: 4, weaknessBonus: 1.25, cloakDetectRangeKm: 10 },
   // electronic warfare: ECM rolls jam / (jam + target sensors); cloak timings in seconds; detection grows with sensor arrays
-  ew: { jamPerBlock: 3, jamDuration: 4, cloakTime: 3, decloakTime: 2, surgeTime: 8, cloakDrain: 8, cloakMinCap: 5, detectPerSensor: 1, ghostAlpha: 0.25, ownCloakAlpha: 0.35 },
+  ew: { jamPerBlock: 3, jamDuration: 4, cloakTime: 3, decloakTime: 2, surgeTime: 5, cloakDrain: 8, cloakMinCap: 5, detectPerSensor: 1, ghostAlpha: 0.25, ownCloakAlpha: 0.35,
+        // decloak strike: for `window` seconds after decloaking, hits deal ×damageMult and shieldBypass of each hit skips the
+        // target's shield straight into the hull (their emitters have not re-tuned to the sudden contact): the strike is
+        // the whole point of a cloak, so it is short and decisive
+        strike: { window: 10, shieldBypass: 0.6, damageMult: 2.0 } },
 
   saveDefaults: {
     version: 2, credits: 600, shipClass: "constitution", ownedShips: ["constitution"],
