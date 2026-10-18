@@ -17,22 +17,23 @@ BS.UI = (function () {
     ["own-speed", "own-cmd", "own-subsystems", "enemy-subsystems", "gauge", "help-screen", "btn-help", "btn-help-close",
      "target-none", "target-info", "tg-name", "tg-hull", "tg-hull-val", "tg-shield", "tg-shield-val", "tg-range", "tg-angular", "tg-chance", "tg-aim",
      "clock", "alert-label", "btn-pause", "btn-redalert", "btn-zoom-in", "btn-zoom-out", "pause-overlay", "start-screen", "result-screen", "result-title", "result-sub", "result-head",
-     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "rs-credits", "ship-name", "view", "module-bar", "overview", "sel-name", "orbit-buttons", "keep-buttons"]
+     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "rs-credits", "rs-salvage", "heat-bar", "heat-num", "btn-governor", "own-heat", "ship-name", "view", "module-bar", "overview", "sel-name"]
       .forEach(function (id) { el[id] = $(id); });
     logList = $("log");
     buildGauge();
     buildSubsystemWidgets();
-    buildRangeButtons();
 
     document.querySelectorAll("[data-cmd]").forEach(function (btn) {
       btn.addEventListener("click", function () {
         var args = {};
         if (btn.hasAttribute("data-range")) args.rangeKm = parseFloat(btn.getAttribute("data-range"));
+        if (btn.hasAttribute("data-stance")) args.stance = btn.getAttribute("data-stance");
         game.command(btn.getAttribute("data-cmd"), args); btn.blur();
       });
     });
     el["btn-pause"].addEventListener("click", function () { game.togglePause(); el["btn-pause"].blur(); });
     el["btn-redalert"].addEventListener("click", function () { game.command("redAlert"); el["btn-redalert"].blur(); });
+    el["btn-governor"].addEventListener("click", function () { game.command("governor"); el["btn-governor"].blur(); });
     el["btn-zoom-in"].addEventListener("click", function () { game.setZoom(game.state.zoom + BS.Data.balance.zoom.step); });
     el["btn-zoom-out"].addEventListener("click", function () { game.setZoom(game.state.zoom - BS.Data.balance.zoom.step); });
     $("btn-start").addEventListener("click", function () { game.openHangar(); });
@@ -57,25 +58,20 @@ BS.UI = (function () {
       var d = blocks[type];
       var row = document.createElement("div"); row.className = "row"; row.title = d.name + ": " + d.desc + " Click to make it the repair priority.";
       row.innerHTML = '<label>' + d.name.split(" ")[0] + '</label><div class="bar sub"><div class="fill"></div></div><span class="num">0</span>';
+      row.querySelector("label").insertBefore(BS.Renderer.blockIcon(type, 12), row.querySelector("label").firstChild);
       row.addEventListener("click", function () { game.command("repair", { type: type }); });
       el["own-subsystems"].appendChild(row);
       el["sub-" + type] = row.querySelector(".fill"); el["sub-" + type + "-val"] = row.querySelector(".num"); el["subrow-" + type] = row;
-      var chip = document.createElement("span"); chip.className = "chip"; chip.textContent = d.short; chip.title = "Aim at their " + d.name.toLowerCase() + "s";
+      var chip = document.createElement("span"); chip.className = "chip"; chip.title = "Aim at their " + d.name.toLowerCase() + "s";
+      chip.appendChild(BS.Renderer.blockIcon(type, 12)); var chipText = document.createElement("span"); chipText.textContent = d.short; chip.appendChild(chipText);
       chip.addEventListener("click", function () { game.command("aim", { type: type }); });
       el["enemy-subsystems"].appendChild(chip); el["en-" + type] = chip;
     });
+    // hull outside every shield bubble: hits there skip the shield entirely
+    var ex = document.createElement("span"); ex.className = "chip exposed"; ex.title = "Aim at hull outside their shield cover: nothing absorbs those hits (−15% accuracy)";
+    ex.textContent = "EXP 0"; ex.addEventListener("click", function () { game.command("aim", { type: "exposed" }); });
+    el["enemy-subsystems"].appendChild(ex); el["en-exposed"] = ex;
   }
-  function buildRangeButtons() {
-    var B = BS.Data.balance;
-    el["orbit-buttons"].innerHTML = ""; el["keep-buttons"].innerHTML = "";
-    B.orbitRangesKm.forEach(function (r) {
-      var b = document.createElement("button"); b.className = "lcars-btn c-blue"; b.setAttribute("data-cmd", "orbit"); b.setAttribute("data-range", r); b.textContent = r + " km"; el["orbit-buttons"].appendChild(b);
-    });
-    B.keepRangesKm.forEach(function (r) {
-      var b = document.createElement("button"); b.className = "lcars-btn c-lilac"; b.setAttribute("data-cmd", "keep"); b.setAttribute("data-range", r); b.textContent = r + " km"; el["keep-buttons"].appendChild(b);
-    });
-  }
-
   // Circular ship gauge: hull (centre), four shield facings (middle), capacitor (outer).
   var gauge = {};
   function arcPath(cx, cy, r, a0, a1) {
@@ -90,6 +86,7 @@ BS.UI = (function () {
     mk("circle", { class: "bg", cx: C, cy: C, r: 50, "stroke-width": 7 });
     gauge.capbg = mk("path", { class: "capbg", d: arcPath(C, C, 50, -Math.PI / 2, Math.PI * 1.5 - 0.001), "stroke-width": 7 });
     gauge.cap = mk("path", { class: "cap", d: "", "stroke-width": 7 });
+    gauge.heat = mk("path", { class: "heat", d: "", "stroke-width": 3 });
     mk("circle", { class: "bg", cx: C, cy: C, r: 38, "stroke-width": 8 });
     // facings: fore top, starboard right, aft bottom, port left; each spans 80° around its centre
     gauge.sh = {};
@@ -115,6 +112,11 @@ BS.UI = (function () {
     gauge.cap.setAttribute("d", cf > 0.002 ? arcPath(C, C, 50, -Math.PI / 2, -Math.PI / 2 + U.TAU * Math.min(0.999, cf)) : "");
     gauge.cap.style.opacity = cf < 0.2 ? 0.5 + 0.5 * Math.sin(performance.now() / 100) : 1;
     gauge.capnum.textContent = "CAP " + Math.round(p.capacitor) + " / " + p.capMax;
+    var hf2 = p.stats.heatCap > 0 ? p.heat / p.stats.heatCap : 0;
+    gauge.heat.setAttribute("d", hf2 > 0.01 ? arcPath(C, C, 56, -Math.PI / 2, -Math.PI / 2 + U.TAU * Math.min(0.999, hf2)) : "");
+    gauge.heat.style.stroke = p.overload > 0 ? "#ff4040" : hf2 > 0.75 ? "#ff8a3d" : "#f2c14e";
+    gauge.heat.style.opacity = p.overload > 0 ? 0.5 + 0.5 * Math.sin(performance.now() / 80) : 1;
+    gauge.lbl.textContent = p.overload > 0 ? "OVERLOAD" : "HULL";
   }
 
   // Module bar: one round button per fitted module, F-key labelled.
@@ -123,7 +125,7 @@ BS.UI = (function () {
     var active = ship.modules.filter(function (m) { return m.def.kind !== "passive"; });
     active.forEach(function (m, i) {
       var b = document.createElement("div"); b.className = "module";
-      var capText = m.def.cap ? m.def.cap + " cap" : (BS.Data.blocks[m.def.block].weapon.cap + " cap/shot");
+      var capText = m.def.capText || (m.def.cap ? m.def.cap + " cap" : (BS.Data.blocks[m.def.block].weapon.cap + " cap/shot"));
       b.innerHTML = '<span class="key">F' + (i + 1) + '</span><div class="ring"></div><span class="short">' + m.def.short + '</span><span class="capcost">' + capText + '</span><span class="state"></span>';
       b.title = m.def.name + " — " + m.def.desc + (m.def.cycle ? " Cycle " + m.def.cycle + " s, " + m.def.cap + " capacitor per cycle." : "");
       b.addEventListener("click", function () { game.command("module", { module: m }); });
@@ -138,7 +140,7 @@ BS.UI = (function () {
     function worldAt(ev) { var r = view.getBoundingClientRect(); return BS.Renderer.screenToWorld(ev.clientX - r.left, ev.clientY - r.top); }
     function hoverAt(ev) {
       var s = game.state;
-      if (s.phase !== "battle" || !s.enemy || s.enemy.flags.destroyed) { game.setHover(null); return null; }
+      if (s.phase !== "battle" || !s.enemy || s.enemy.flags.destroyed || BS.Ships.visibility(s.enemy, s.player) < 1) { game.setHover(null); return null; }
       var w = worldAt(ev);
       var b = BS.Grid.blockAtWorld(s.enemy, w.x, w.y, s.zoom < 0.8 ? 2 : 1);
       var h = b ? { ship: s.enemy, block: b } : null;
@@ -167,7 +169,7 @@ BS.UI = (function () {
       ev.preventDefault();
       var s = game.state, h = hoverAt(ev);
       if (s.phase !== "battle") return;
-      if (h) { game.command("select", { target: s.enemy }); game.command("orbit", { target: s.enemy, rangeKm: s.enemy.cls.preferredRangeKm || 6 }); }
+      if (h) { game.command("select", { target: s.enemy }); game.command("stance", { target: s.enemy, stance: "engage" }); }
       else game.command("flyTo", { point: worldAt(ev) });
     });
     view.addEventListener("wheel", function (ev) {
@@ -186,12 +188,11 @@ BS.UI = (function () {
       if (s.phase !== "battle") return;
       var fk = /^F(\d)$/.exec(ev.key);
       if (fk) { var i = parseInt(fk[1], 10) - 1; if (moduleEls[i]) { ev.preventDefault(); game.command("module", { module: moduleEls[i].m }); } return; }
+      var stances = BS.Data.helm.stances, stanceKey = Object.keys(stances).filter(function (id) { return stances[id].key === ev.key; })[0];
+      if (stanceKey) { game.command("stance", { stance: stanceKey }); return; }
       switch (ev.key.toLowerCase()) {
         case "l": game.command("lock"); break;
-        case "a": game.command("approach"); break;
-        case "o": game.command("orbit", { rangeKm: BS.Data.balance.orbitRangesKm[1] }); break;
-        case "k": game.command("keep", { rangeKm: BS.Data.balance.keepRangesKm[1] }); break;
-        case "c": game.command("comeAbout"); break;
+        case "h": game.command("governor"); break;
         case "s": game.command("stop"); break;
         case "r": game.command("redAlert"); break;
       }
@@ -229,8 +230,11 @@ BS.UI = (function () {
     el["result-screen"].classList.remove("hidden");
     el["result-screen"].classList.toggle("victory", won); el["result-screen"].classList.toggle("defeat", !won);
     el["result-title"].textContent = won ? "Victory" : "Defeat";
-    el["result-head"].textContent = won ? "BATTLE REPORT · ENEMY DESTROYED" : "BATTLE REPORT · SHIP LOST";
-    el["result-sub"].textContent = won ? "The Klingon vessel has been destroyed. Starfleet Command sends its compliments, Captain." : "The ship was lost with all hands. Starfleet will review the sensor logs.";
+    var disabled = state.resultHow === "disabled";
+    el["result-head"].textContent = won ? (disabled ? "BATTLE REPORT · ENEMY DISABLED" : "BATTLE REPORT · ENEMY DESTROYED") : (disabled ? "BATTLE REPORT · SHIP DISABLED" : "BATTLE REPORT · SHIP LOST");
+    el["result-sub"].textContent = won
+      ? (disabled ? "The Klingon vessel is dead in space, without weapons or engines. Salvage teams recover what they can." : "The Klingon vessel has been destroyed. Starfleet Command sends its compliments, Captain.")
+      : (disabled ? "Without weapons or engines the ship drifted until the Klingons boarded. Starfleet will review the sensor logs." : "The ship was lost with all hands. Starfleet will review the sensor logs.");
     el["rs-time"].textContent = U.formatTime(state.time);
     el["rs-dealt"].textContent = Math.round(p.stats.damageDealt);
     el["rs-taken"].textContent = Math.round(p.stats.damageTaken);
@@ -239,6 +243,21 @@ BS.UI = (function () {
     el["rs-torps"].textContent = p.stats.torpedoHits + " / " + p.stats.torpedoesFired;
     var rw = state.reward;
     el["rs-credits"].textContent = rw ? "+" + rw.earned + " cr" + (rw.streak > 1 ? " (streak " + rw.streak + ")" : "") + " · " + BS.Campaign.get().credits.toLocaleString() + " cr total" : "—";
+    el["rs-salvage"].textContent = rw && rw.salvage ? "+" + rw.salvage + " cr from the wreck" + (rw.how === "disabled" ? " (captured intact)" : "") : "—";
+  }
+
+  // Heat bar: fill, warning zones, where the next full salvo would land, governor state, overload countdown.
+  function updateHeatBar(p) {
+    var cap = p.stats.heatCap || 1, hf = U.clamp(p.heat / cap, 0, 1), bar = el["heat-bar"], track = bar.querySelector(".hb-track");
+    track.querySelector(".hb-fill").style.width = (hf * 100).toFixed(1) + "%";
+    var salvo = BS.Modules.pendingSalvoHeat(p), sm = track.querySelector(".hb-salvo");
+    if (salvo > 0 && p.overload <= 0) { sm.style.display = "block"; sm.style.left = (Math.min(1, (p.heat + salvo) / cap) * 100).toFixed(1) + "%"; sm.style.background = p.heat + salvo > cap ? "#ff4040" : "rgba(255,255,255,0.7)"; } else sm.style.display = "none";
+    bar.classList.toggle("hot", hf > 0.6 && p.overload <= 0);
+    bar.classList.toggle("overload", p.overload > 0);
+    bar.classList.toggle("holding", p.governorHold && p.overload <= 0);
+    el["heat-num"].textContent = p.overload > 0 ? "OVERLOAD " + p.overload.toFixed(1) + " s" : p.governorHold ? "HOLD " + Math.round(hf * 100) + "%" : Math.round(p.heat) + " / " + Math.round(cap);
+    el["btn-governor"].classList.toggle("active", p.heatGovernor);
+    el["own-heat"].textContent = Math.round(p.heat) + " / " + Math.round(cap) + " · −" + p.stats.heatDissipation.toFixed(0) + "/s" + (p.overload > 0 ? " · OVERLOAD" : p.governorHold ? " · holding" : "");
   }
 
   // ---- per-frame update ---------------------------------------------------
@@ -247,15 +266,8 @@ BS.UI = (function () {
   function setBar(fill, frac, color) { fill.style.width = (U.clamp(frac, 0, 1) * 100).toFixed(1) + "%"; if (color) fill.style.backgroundColor = color; }
   function fmtKm(k) { return (k < 10 ? k.toFixed(1) : Math.round(k)) + " km"; }
   function cmdText(p) {
-    var c = p.cmd, k = BS.Ships.km(c.range);
-    switch (c.type) {
-      case "approach": return "Approaching";
-      case "orbit": return "Orbit " + fmtKm(k);
-      case "keep": return "Keep " + fmtKm(k);
-      case "flyTo": return "Flying to point";
-      case "comeAbout": return "Presenting " + c.facing + " shield";
-      default: return "All stop";
-    }
+    if (p.ai && !p.ai.suspended && p.stance) return BS.Data.helm.stances[p.stance].label + " · " + (BS.Data.enemyAI.stateLabels[p.ai.state] || p.ai.state);
+    return p.cmd.type === "flyTo" ? "Manual · flying to point" : "Manual · all stop";
   }
 
   function update(state) {
@@ -267,6 +279,7 @@ BS.UI = (function () {
     el["pause-overlay"].classList.toggle("hidden", !state.paused);
 
     updateGauge(p);
+    updateHeatBar(p);
     el["own-speed"].textContent = S.speedKmS(p).toFixed(1) + " km/s" + (p.activeEffects.speedMult > 1 ? " · AB" : "");
     el["own-cmd"].textContent = cmdText(p);
     var st = p.stats, est = e ? e.stats : null;
@@ -282,10 +295,11 @@ BS.UI = (function () {
         var et = est.counts[type] || 0, ea = est.alive[type] || 0;
         el["en-" + type].style.display = et ? "" : "none";
         el["en-" + type].style.backgroundColor = e.flags.destroyed ? "#15162a" : hullColor(et ? ea / et : 0);
-        el["en-" + type].textContent = BS.Data.blocks[type].short + " " + ea + "/" + et;
+        el["en-" + type].lastChild.textContent = BS.Data.blocks[type].short + " " + ea + "/" + et;
         el["en-" + type].classList.toggle("targeted", p.aimType === type);
       }
     });
+    if (e) { el["en-exposed"].textContent = "EXP " + e.stats.exposed; el["en-exposed"].classList.toggle("targeted", p.aimType === "exposed"); el["en-exposed"].style.display = e.flags.destroyed ? "none" : ""; }
 
     // target panel
     var locked = p.lock.target && !p.lock.target.flags.destroyed ? p.lock.target : null;
@@ -310,17 +324,15 @@ BS.UI = (function () {
         var tm = launcherBlock ? BS.Weapons.torpedoDamageMult(launcherBlock.def.weapon, t) : 1;
         el["tg-chance"].textContent = "PHA " + Math.round(ch * 100) + "% · TOR " + Math.round(tm * 100) + "%";
       } else el["tg-chance"].textContent = p.lock.locked ? "—" : "locking…";
-      el["tg-aim"].textContent = p.aimType ? BS.Data.blocks[p.aimType].name + "s (−15%)" : "Any block";
+      el["tg-aim"].textContent = p.aimType === "exposed" ? "Exposed hull (−15%)" : p.aimType ? BS.Data.blocks[p.aimType].name + "s (−15%)" : "Any block";
     }
 
     // overview
     updateOverview(state);
     el["sel-name"].textContent = p.selected ? p.selected.name : "nothing";
-    document.querySelectorAll("[data-cmd='orbit'],[data-cmd='keep']").forEach(function (b) {
-      var r = parseFloat(b.getAttribute("data-range"));
-      b.classList.toggle("active", p.cmd.type === b.getAttribute("data-cmd") && Math.abs(S.km(p.cmd.range) - r) < 0.01);
-    });
-    document.querySelectorAll("[data-cmd='approach'],[data-cmd='comeAbout']").forEach(function (b) { b.classList.toggle("active", p.cmd.type === b.getAttribute("data-cmd")); });
+    var auto = p.ai && !p.ai.suspended;
+    document.querySelectorAll("[data-cmd='stance']").forEach(function (b) { b.classList.toggle("active", !!auto && p.stance === b.getAttribute("data-stance")); });
+    document.querySelectorAll("[data-cmd='stop']").forEach(function (b) { b.classList.toggle("active", !auto); });
 
     // module bar
     for (var i = 0; i < moduleEls.length; i++) {
@@ -328,10 +340,10 @@ BS.UI = (function () {
       me.el.classList.toggle("active", m.active);
       me.el.classList.toggle("running", m.running);
       var weapon = BS.Modules.isWeapon(m);
-      ["nocap", "nolock", "range", "notarmed", "arc", "none"].forEach(function (st) { me.el.classList.toggle(st, m.active && m.state === st); });
+      ["nocap", "nolock", "range", "notarmed", "arc", "none", "heat", "overload", "cloaked", "surge"].forEach(function (st) { me.el.classList.toggle(st, (m.active || m.def.kind === "cloak") && m.state === st); });
       me.ring.style.setProperty("--p", weapon ? (100 * (1 - m.readiness)).toFixed(1) : (m.running ? (100 * (1 - m.cycleLeft / m.cycleTime)).toFixed(1) : 0));
       me.el.classList.toggle("running", weapon ? m.active && m.readiness < 1 : m.running);
-      me.state.textContent = m.active && m.state !== "running" && m.state !== "off" && m.state !== "ok" ? ({ nocap: "no cap", nolock: "no lock", range: "range", notarmed: "safe", arc: "no arc", none: "lost" })[m.state] || "" : "";
+      me.state.textContent = m.active && m.state !== "running" && m.state !== "off" && m.state !== "ok" ? ({ nocap: "no cap", nolock: "no lock", range: "range", notarmed: "safe", arc: "no arc", none: "lost", heat: "hot", overload: "OVERLOAD", cloaked: "cloaked", cloaking: "cloaking", decloaking: "decloak", surge: "surge" })[m.state] || "" : "";
     }
   }
 
@@ -349,10 +361,11 @@ BS.UI = (function () {
       }
       var cells = row.children;
       cells[0].textContent = s.name; cells[0].title = s.cls.className;
-      cells[1].textContent = s.flags.destroyed ? "—" : fmtKm(S.distanceKm(p, s));
+      var vis = S.visibility(s, p);
+      cells[1].textContent = s.flags.destroyed || vis <= 0 ? "—" : fmtKm(S.distanceKm(p, s)) + (vis < 1 ? " ghost" : "");
       cells[2].textContent = s.flags.destroyed ? "—" : S.speedKmS(s).toFixed(1);
       cells[3].textContent = s.flags.destroyed ? "—" : S.angularVelocity(p, s).toFixed(2);
-      cells[4].textContent = s.flags.destroyed ? "destroyed" : s.ai ? ({ approach: "closing", attack: "attacking", reposition: "turning", retreat: "retreating" })[s.ai.state] : "";
+      cells[4].textContent = s.flags.destroyed ? "destroyed" : s.flags.disabled ? "disabled" : s.cloak.state !== "off" ? s.cloak.state : s.ai ? (BS.Data.enemyAI.stateLabels[s.ai.state] || s.ai.state) : "";
       row.classList.toggle("selected", p.selected === s);
       row.classList.toggle("locked", p.lock.target === s && p.lock.locked);
     });

@@ -147,10 +147,13 @@ BS.Campaign = (function () {
     var turretDps = 0, launcherDps = 0, drain = 0;
     st.weapons.forEach(function (b) {
       var w = b.def.weapon;
+      if (BS.Grid.arcCoverage(v.grid, b) <= 0) return;
       if (w.kind === "turret") { turretDps += w.damage * mods.turretDamageMult * 0.8 / w.cycle; drain += w.cap / w.cycle; }
       else { launcherDps += w.damage * mods.launcherDamageMult * 0.85 / w.cycle; drain += w.cap / w.cycle; }
     });
     D().builtInModules.forEach(function (id) { var m = D().modules[id]; drain += m.cap / m.cycle; });
+    var salvoHeat = 0, heatPerSec = 0;
+    st.weapons.forEach(function (b) { var w = b.def.weapon; if (BS.Grid.arcCoverage(v.grid, b) <= 0) return; salvoHeat += w.heat || 0; heatPerSec += (w.heat || 0) / w.cycle; });
     var capMax = st.cap, tau = g.capRechargeTime, rechargeMult = mods.capRechargeMult;
     var peak = capMax / tau * B.capCurve * 0.25 * rechargeMult;
     var c = capMax, lasts = null, stableAt = null;
@@ -163,9 +166,12 @@ BS.Campaign = (function () {
     if (lasts === null) { var best = 1; for (var ff = 1; ff > 0.02; ff -= 0.01) { if (capMax / tau * B.capCurve * (Math.sqrt(ff) - ff) * rechargeMult >= drain) { best = ff; break; } } stableAt = Math.round(best * 100); }
     var shieldTotal = 0; BS.Ships.FACINGS.forEach(function (fc) { shieldTotal += st.shieldMax[fc]; });
     return {
-      ok: v.ok, errors: v.errors, counts: v.counts,
+      ok: v.ok, errors: v.errors, warnings: v.warnings || [], masked: v.masked || 0, counts: v.counts,
       dps: Math.round(turretDps + launcherDps), turretDps: Math.round(turretDps), launcherDps: Math.round(launcherDps),
       cap: capMax, drain: drain.toFixed(1), peakRecharge: peak.toFixed(1), stableAt: stableAt, lasts: lasts,
+      powerUsed: st.powerUsed, powerMax: st.powerMax, coverFrac: st.coverFrac, exposed: st.exposed,
+      heatCap: Math.round(st.heatCap), heatDissipation: st.heatDissipation.toFixed(1), salvoHeat: salvoHeat, heatPerSec: heatPerSec.toFixed(1),
+      heatNeutral: Math.min(1, heatPerSec > 0 ? st.heatDissipation / heatPerSec : 1),
       speed: (cls.speed * st.speedMult * mods.speedMult / D().units.pxPerKm).toFixed(1), speedMult: st.speedMult.toFixed(2), mass: st.mass, thrust: st.thrust,
       hull: st.hullTotal, shields: st.shieldMax, shieldTotal: shieldTotal, repair: st.repair.toFixed(1), sensors: st.sensors,
       lockTime: (B.lockBase * (B.lockRefSignature / 250) * (B.lockRefSensor / Math.max(1, st.sensors)) * mods.lockMult).toFixed(1),
@@ -190,25 +196,29 @@ BS.Campaign = (function () {
     else if (pick.layout !== "default" && cls.variants && cls.variants[pick.layout]) { rows = cls.variants[pick.layout].rows; variantName = cls.variants[pick.layout].name; }
     else rows = cls.layout;
     var names = D().campaign.klingonNames, name = names.length ? names[Math.floor(rng() * names.length)] : cls.name;
+    var doc = pick.doctrine; if (Array.isArray(doc)) doc = doc[Math.floor(rng() * doc.length)];
     return { id: pick.id, classId: pick.enemyClass, cls: cls, rows: rows, name: name, variantName: variantName, rewardMult: pick.rewardMult, aiProfile: cls.aiProfile || "default",
-      label: cls.className + (variantName ? " · " + variantName : "") };
+      doctrine: doc || D().enemyAI[cls.aiProfile || "default"].doctrine, label: cls.className + (variantName ? " · " + variantName : "") };
   }
   function settleBattle(state) {
     var cr = D().campaign.credits, p = state.player, won = state.result === "victory";
     var hullLostPct = Math.round(100 * (1 - p.hull / p.hullMax));
-    var earned;
+    var earned, salvage = 0;
     if (won) {
       save.campaign.battlesWon++; save.campaign.streak++;
       var mult = state.encounter ? state.encounter.rewardMult : 1;
       earned = cr.win * mult - hullLostPct * cr.hullLostPenaltyPerPct + Math.min(5, save.campaign.streak - 1) * cr.winStreakBonus;
+      // salvage: whatever of the enemy is still in one piece has value; a disabled ship is captured nearly intact
+      var e = state.enemy, frac = D().campaign.salvage[state.resultHow === "disabled" ? "disabled" : "destroyed"];
+      if (e) salvage = Math.round(e.grid.blocks.reduce(function (a, b) { return a + (b.alive && !b.structural ? b.def.cost : 0); }, 0) * frac);
     } else {
       save.campaign.battlesLost++; save.campaign.streak = 0;
       earned = cr.loss;
     }
-    earned = Math.max(50, Math.round(earned));
+    earned = Math.max(50, Math.round(earned)) + salvage;
     save.credits += earned;
     persist();
-    return { earned: earned, hullLostPct: hullLostPct, streak: save.campaign.streak };
+    return { earned: earned, salvage: salvage, hullLostPct: hullLostPct, streak: save.campaign.streak, how: state.resultHow };
   }
 
   function get() { return save; }

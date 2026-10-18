@@ -33,7 +33,7 @@ These rules apply to every session working in this repository.
   - `js/ships.js` — ship model: block grid, hull from blocks, shield facings from emitters, capacitor, lock, movement commands
   - `js/weapons.js` — turret blocks (tracking/falloff) and launcher blocks (signature/velocity), hit resolution
   - `js/crew.js` — crew voices: instant commands with reports, warnings
-  - `js/enemyai.js` — enemy behaviour
+  - `js/enemyai.js` — doctrine machine for both ships (enemy doctrines, player stances, auto-flip)
   - `js/campaign.js` — progress between battles: save/load/export/import, credits, ownership, fitting rules, fit stats, real-time skills, enemy scaling
   - `js/hangar.js` — hangar screen DOM: ship, fitting, market, skills, save buttons
   - `js/ui.js` — DOM panels, order buttons, comms log, alert states
@@ -47,9 +47,11 @@ These rules apply to every session working in this repository.
   outside `renderer.js` and `data.js`.
 - **Controls are EVE-style commands.** The player never steers directly:
   `BS.Game.command(id, args)` → `BS.Crew.command` executes instantly on the
-  player ship (select, lock, approach, orbit, keep, flyTo, comeAbout, module,
-  targetSubsystem, repair, reinforce, redAlert, hail) and the officer reports.
-  The enemy AI uses the same `BS.Ships.setCommand` / `BS.Modules.setActive`.
+  player ship (select, lock, stance, flyTo, stop, module, aim, repair,
+  reinforce, governor, redAlert, hail) and the officer reports. Movement is
+  the helm's: the player picks a stance and `BS.EnemyAI` flies it with the
+  same doctrine machine and the same `BS.Ships.setCommand` /
+  `BS.Modules.setActive` the enemy uses.
 - **Ships are block grids.** A class gives a hull `mask` (`.` empty, `#`
   fillable, `n` nacelle, `p` fixed structure) and a default `layout`
   (letters from `grid.layoutLegend`). `BS.Grid.build` turns them into

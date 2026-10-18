@@ -1,6 +1,6 @@
 # DESIGN.md — Bridge Sim
 
-Version: 0.5.2 (block construction, PR 3 of 3). Keep this file in sync with the game.
+Version: 0.8.0 (shield bubbles, stance helm). Keep this file in sync with the game.
 
 ## 1. Concept
 
@@ -35,17 +35,18 @@ Decided parameters:
    mobility), train one skill at a time in real time, export/import the save,
    then **Undock**.
 3. **Battle**: the Klingon closes from 38 km. Click it to select and
-   lock (3 s lock). Give an orbit or keep-at-range. Switch on phasers,
-   torpedoes, hardener; pulse the shield booster and afterburner as the
-   capacitor allows. Aim at a part once its facing shield is down.
+   lock (3 s lock). Pick a stance (Engage by default); the helm flies it.
+   Switch on phasers, torpedoes, hardener; pulse the shield booster as the
+   capacitor allows. Aim at a part once its shield is down, or at hull
+   outside their shield cover.
 4. **Result screen**: Victory/Defeat, time, damage, hit counts, credits
    earned, Return to hangar. Enemies get 4% stronger per victory (up to
    +40%) and tougher encounters unlock with wins, so credits must go into
    better builds, bigger hulls and skills.
 
-Decision pressure: capacitor budget (what runs now), range band (optimal vs
-falloff, torpedo reach), angular velocity (orbit close and fast to dodge
-beams, but your own beams miss too), shield facing management, part targeting.
+Decision pressure: the build (what the ship can do at all), the stance
+(which fight the helm flies), capacitor budget (what runs now), heat,
+shield facing management, part targeting. Movement is the helm's job.
 
 ## 3. Screens and layout
 
@@ -74,21 +75,51 @@ on), **?** help overlay, zoom, pause.
 
 - Click enemy: select and start lock. Click a part of a locked enemy: aim
   at that part (again: hull). Hover shows part health and "SHIELDED n%".
-- Right-click enemy: orbit at its preferred range. Right-click / double-click
-  empty space: fly there. Wheel: zoom.
-- Keys: F1–F8 toggle modules, L lock, A approach, O orbit 6 km, K keep
-  10 km, C come about, S stop, R red alert, Space pause.
+- Right-click enemy: Engage stance. Right-click / double-click empty
+  space: fly there (helm on manual until a stance is picked). Wheel: zoom.
+- Keys: F1–F8 toggle modules (F6 jammer, F7 cloak when fitted), L lock,
+  1–4 stances (Engage, Skirmish, Standoff, Disengage), S stop (manual),
+  R red alert, H heat governor, Space pause.
+- **Stances** (Helm panel, `helm.stances`): the captain picks how to
+  fight; the helm flies it and reverses the orbit on its own when the
+  other side has more guns to bear or a fresher shield. No orbit, keep,
+  approach, come-about or reverse buttons any more.
 - Overview rows: click selects, double-click locks.
 - Left panel: click a subsystem row to make it repair priority (again: auto).
   Enemy part chips in the Target block set the aim.
 
 ## 4. Mechanics
 
-### Movement commands (`ship.cmd`)
-- `approach(target)`, `orbit(target, range)`, `keep(target, range)`,
-  `flyTo(point)`, `comeAbout(target)` (hold strongest facing toward target
-  at 25% speed), `idle`. Ships turn at `turnRate` and accelerate toward max
-  speed; the same code drives the enemy.
+### Movement commands (`ship.cmd`) and the helm
+- Low level, used by the doctrine machine on both sides: `approach(target)`,
+  `orbit(target, range)` (with `flipOrbit` to reverse direction),
+  `keep(target, range)`, `flyTo(point)`, `comeAbout(target)` (hold strongest
+  facing toward target at 25% speed), `idle`. Ships turn at `turnRate` and
+  accelerate toward max speed.
+- **Player helm** (`helm`, `BS.EnemyAI.setStance`): the captain picks a
+  stance and the helm runs the matching doctrine (same machine as the
+  enemy, below) with ranges derived from the fitted weapons
+  (`stances[].ranges`: `[ref, fraction, ..., fallbackKm]`, ref `phaser` =
+  phaser optimal range, `torpedo` = torpedo range):
+  - **Engage** (1, default at battle start): brawl doctrine, orbit at
+    phaser optimal × 0.5 (4 km), afterburner only above 70% cap.
+  - **Skirmish** (2): brawl at phaser optimal × 0.35 (2.8 km) with the
+    afterburner on above 30% cap: too fast to track, costs capacitor.
+  - **Standoff** (3): standoff doctrine, hold at torpedo range × 0.5
+    (15 km; phaser optimal × 1.0 without tubes), kite below × 0.32 to × 0.6.
+  - **Disengage** (4): evade doctrine, keep at torpedo range × 0.8 (24 km)
+    on the afterburner until another stance is picked.
+  The helm owns the afterburner; everything else stays the captain's.
+  Stop (S) or fly-to puts the helm on manual (`ai.suspended`) until a
+  stance is picked again; the Helm row reads "Manual · …" meanwhile. The
+  tactical officer re-locks a target the captain locked before whenever
+  the lock drops and the target is in range (`ai.relock`).
+- **Auto-flip** (`helm.flipMinInterval/flipShieldLow/flipShieldHigh`, both
+  sides): an orbiting ship reverses its orbit when mirroring the geometry
+  would bring more weapons to bear (`bearingCount`), or when the engaged
+  facing is below 30% while the opposite one is above 60%; at most once
+  per 8 s. Helm calls it ("Coming about, bringing the other battery to
+  bear" / "showing them a fresh shield").
 
 ### Lock
 - `lockTime = lockBase × (lockRefSignature / targetSignature) ×
@@ -100,7 +131,9 @@ on), **?** help overlay, zoom, pause.
 - Recharge per second = `capMax / rechargeTime × capCurve × (√f − f)` where
   f is the fraction full (EVE curve, fastest around 25%). Every active module
   spends `cap` at the start of each cycle; if there is not enough, the module
-  shuts off and Engineering says so. Bridge damage lowers recharge.
+  shuts off and Engineering says so. Torpedo tubes get first call on the
+  capacitor each step (a volley is cheap per second), then phasers, then the
+  active systems.
 
 ### Hull grid and blocks (`BS.Data.grid`, `BS.Data.blocks`, `shipClasses.*.mask / layout`)
 - A hull mask is rows of `.` (space), `#` (fillable), `n` (nacelle cell:
@@ -113,31 +146,73 @@ on), **?** help overlay, zoom, pause.
   |---|---|---|---|---|---|
   | Constitution | 26×16 | 200 | free | 95 / 90 / 400 | 8 phasers, 2 tubes, 6 reactors, 20 engines |
   | Miranda | 22×14 | 184 | 800 | 100 / 100 / 340 | 8 phasers, 2 tubes, 6 reactors, 24 engines (fast) |
-  | Defiant | 18×12 | 126 | 2 400 | 130 / 140 / 220 | 8 phasers, 4 tubes, 6 reactors, 12 engines (speed tank) |
+  | Defiant | 18×12 | 126 | 2 400 | 130 / 140 / 220 | 8 phasers, 2 tubes, 6 reactors, 12 engines (speed tank) |
   | Excelsior | 30×18 | 262 | 3 200 | 95 / 80 / 450 | 8 phasers, 4 tubes, 6 reactors, 24 engines |
-  | Galaxy | 36×20 | 406 | 5 600 | 85 / 60 / 600 | 10 phasers, 4 tubes, 8 reactors, 32 engines |
-  | Sovereign | 38×18 | 310 | 8 000 | 100 / 75 / 520 | 14 phasers, 4 tubes, 8 reactors, 32 engines |
+  | Galaxy | 36×20 | 406 | 5 600 | 85 / 60 / 600 | 10 phasers, 2 tubes, 8 reactors, 32 engines |
+  | Sovereign | 38×18 | 310 | 8 000 | 100 / 75 / 520 | 14 phasers, 4 tubes, 7 reactors, 32 engines |
   | B'rel Bird-of-Prey (enemy) | 24×22 | 140 | — | 105 / 110 / 250 | Raider 8P 1T; Gunboat 11P; Torpedo boat 4P 3T |
   | K't'inga (enemy) | 32×20 | 210 | — | 85 / 70 / 480 | Battlecruiser 8P 2T; Siege 4P 4T 8R |
 
   Each Starfleet class has one preset besides the class default (Constitution
-  has two). A ship's price includes its default build.
-- Block types (hp / mass / cost): armor 60/2/20, phaser emitter 50/2/120,
-  torpedo tube 50/3/180, shield emitter 40/2/90, reactor 40/3/100, impulse
-  engine 45/2/80, sensor array 35/1/110, bridge 200/2 (exactly one), crew
-  quarters 35/1/40. System blocks survive one enemy beam hit, so damage
-  control can save them.
+  has two). A ship's price includes its default build. Every default keeps
+  its weapons on the rim with a clear line of fire and its reactors at least
+  one cell apart from each other and from the bridge (see below).
+- Block types (hp / mass / cost / power draw): armor 60/2/20/0, phaser
+  emitter 50/2/120/5, torpedo tube 50/3/180/8, shield emitter 40/2/90/4,
+  reactor 40/3/100/0 (+15 power), impulse engine 45/2/80/1, sensor array
+  35/1/110/3, bridge 200/2/0 (exactly one), crew quarters 35/1/40/1, ECM
+  jammer 35/2/110/6, cloaking device 40/3/400/12 (one per ship). Jammed
+  ships cannot lock for 4 s. System
+  blocks survive one enemy beam hit, so damage control can save them.
+- **Power grid** (`shipClasses.*.powerBase`, `grid.powerPerReactor`): a
+  hull supplies its base (Constitution 50, Miranda 30, Defiant 30,
+  Excelsior 55, Galaxy 80, Sovereign 90, B'rel 35, K't'inga 50) plus 15 per
+  reactor; every system draws its `power`. A build that draws more than it
+  has cannot undock. In battle, losing reactors browns the ship out:
+  weapons cycle and shields regenerate at supply / draw (never below 40%).
+  This is the only cap on weapons: more guns need more reactors, and
+  reactors explode.
+- **Heat** (`grid.heat`, `weapon.heat`): every shot adds its weapon's heat
+  (phaser 6, torpedo 30). Capacity = 80 + 2 per block, dissipation = 6/s
+  + 0.25 per rim cell (hull surface). A weapon cannot fire at capacity; the
+  shot that crosses it **overloads** the ship for 6 s: nothing fires or
+  cycles. A Constitution (cap 480) can alpha-strike 16 tubes, not 100. The
+  gauge shows heat as the thin outer ring, and the **heat bar** under the
+  module bar shows heat / capacity with a marker for what the next full
+  salvo would add (green, amber above 60%, red above 85%). The **heat
+  governor** (GOV button, key H, on by default; `heat.governorHigh/Low`)
+  holds fire above 85% heat and releases it below 60%, so the player ship
+  never overloads unless the governor is switched off. The editor shows
+  the full-salvo heat and whether sustained fire is heat-neutral. The AI
+  stops firing at 85% heat.
+- **Reactor breach** (`blocks.reactor.explosion`, after Cosmoteer): a
+  destroyed reactor deals 80 damage to each of its eight neighbours; a
+  reactor among them explodes in turn, so touching reactors chain. Armor
+  (60) and most systems die, the bridge (200) survives one. The editor
+  warns when reactors touch each other or the bridge.
+- **Line of fire** (`grid.lineOfFire`): a weapon cannot fire through the
+  ship's own alive blocks near it. The muzzle protrudes
+  `lineOfFireMuzzle` (1) cell and only hull within `lineOfFireRangeCells`
+  (3) cells can mask a direction, so a bow phaser still fires past the
+  saucer rim. The clear directions around a weapon are sampled every 10°;
+  the weapon's arc is centred on their mean (`b.facing`) and `b.coverage`
+  is the clear fraction of that arc. A weapon with nothing clear is masked:
+  red cross in the editor, counted in the warnings, left out of dps;
+  hovering a weapon shows its clear arc as a wedge. Buried weapons are
+  useless, the rim is where weapons compete with armor and shield emitters,
+  and a ship fights with the guns on the side facing the enemy.
 - Derived stats: hull hp = Σ block hp; shield per facing = 80 + 70 per
   emitter whose outward angle falls in that facing, regen 0.6 + 0.4 each;
   capacitor = 80 + 80 per reactor, recharge time 40 s; speed multiplier =
   clamp(thrust × 12 / mass, 0.35, 1.25) where thrust = engines (×2 in
   nacelles); sensors = 8 + 2 each (lock time, tracking); repair = 0.6 + 0.5
   per crew quarters hp/s to damaged blocks.
-- Weapons: phaser emitter 24 dmg / 2.6 s, 2.5 cap, optimal 8 km, falloff
-  7 km, tracking 0.9 rad/s, fires into the 180° arc facing away from the
-  ship centre. Torpedo tube 150 dmg / 11 s, 14 cap, 30 km, explosion radius
-  280 m, velocity 1.5 km/s, 220° outward arc. F1 fires all emitters that
-  bear, F2 all tubes.
+- Weapons: phaser emitter 28 dmg / 2.6 s, 2.5 cap, optimal 8 km, falloff
+  7 km, tracking 0.9 rad/s, 180° arc. Torpedo tube 170 dmg / 11 s, 14 cap,
+  30 km, explosion radius 280 m, velocity 1.5 km/s, 220° arc. A weapon's
+  arc is centred on the open side of the hull around it (line of fire,
+  below), so a rim weapon faces outward and a buried one faces nothing. F1
+  fires all emitters that bear, F2 all tubes.
 - Built-in active systems on every ship: shield booster (+70 to the weakest
   facing per 4 s, 32 cap), shield hardener (−30% shield damage), afterburner
   (+50% speed). F3–F5.
@@ -162,8 +237,12 @@ on), **?** help overlay, zoom, pause.
   the outermost alive block along a line parallel to attacker→centre,
   offset sideways by up to `grid.hitScatter` (1.0) × the hull half-extent,
   so a volley strafes the whole facing instead of drilling one column.
-  Beams penetrate up to 2 blocks (overflow carries on), torpedoes put 50%
-  on the entry block and 20% on each of its four neighbours.
+  Beams carry `grid.penetration` (2) penetration points and enter each
+  block on their line while points remain; a block costs its `pierceCost`:
+  armor 2, structure 3, everything else 1. So a beam stops in the first
+  armor plate it meets, but chews two blocks deep through exposed systems
+  (overflow damage carries on within the chain). Torpedoes put 50% on the
+  entry block and 20% on each of its four neighbours.
 - **Aiming** (−15% accuracy): the shot line is steered through the nearest
   block of the aimed type within `grid.aimRadius` (2) cells of the natural
   entry block, wandering ±`grid.aimScatter` (2) cells. The outermost block
@@ -173,30 +252,97 @@ on), **?** help overlay, zoom, pause.
 - Destroyed blocks leave the grid (debris); blocks no longer connected to
   the bridge through any of their eight neighbours break off as a section
   (fragment). A ship is lost when its bridge dies or alive block hp drops
-  below 30% of the total.
+  below 30% of the total. A ship with **no weapons and no engines left is
+  disabled** (`shipDisabled`): it stops, its modules shut down and the
+  battle ends; for the enemy that is a victory by capture.
 
 ### Repair
 Damage control restores hp to damaged (not destroyed) blocks at the ship's
 repair rate, the repair-priority type first, then the most damaged.
 Destroyed blocks stay gone for the battle.
 
-### Shields
-Passive regen is low (0.6/s per facing plus 0.4 per emitter); the booster
-(+50 to the weakest facing per 4 s) is the real tank, but no longer out-heals
-a focused attack.
-Reinforce moves 45% of the strongest facing to the weakest over 3 s with a
-20 s cooldown. Weapons must be armed (red alert) for full regen.
+### Electronic warfare (`BS.Data.ew`, blocks jammer and cloak)
+- **ECM jammer** (block `J`, module F6, 5 s cycle, 10 cap): each cycle
+  rolls jam strength (3 per alive jammer block) against the target's
+  sensor strength: `chance = jam / (jam + sensors)`. On a hit the target
+  loses its lock, cannot lock for 4 s (`jammed`), and torpedoes it has in
+  flight go blind. Sensor arrays are the counter.
+- **Cloaking device** (block `C`, one per ship, module F7): 3 s to cloak.
+  Cloaked, a ship cannot be locked (locks on it drop), its shields are
+  zero, its weapons are cold and its capacitor drains 8/s (it decloaks by
+  itself below 5). It is invisible beyond the viewer's detection range
+  (`science.cloakDetectRangeKm` 10 km + 1 km per sensor array) and a faint
+  ghost inside it, still unlockable. Decloaking takes 2 s and shields stay
+  down for 8 s more (surge). The helm loses an invisible target and holds
+  course. `BS.Ships.visibility(ship, viewer)` is the one rule the renderer,
+  the overview, hover targeting and the helm all use.
 
-### Enemy AI (`enemyAI.default`, `enemyAI.ktinga`)
-approach (afterburner on) → attack (orbit 6 km, hardener on, booster when
-the facing toward you < 45% and cap > 35%, afterburner when cap > 45%) →
-reposition (come about when the facing < 22%) → retreat once at hull < 28%
-(keep at 22 km, shields power) → return and fight to the end. Weapons stay on
-whenever cap > 12%. Every 20 s the AI re-rolls what it aims at from
-`targetWeights`: 35% of the time it sprays the hull (no aim penalty),
-otherwise phasers, reactors, engines, shields or (5%) the bridge. The
-K't'inga profile reacts slower, orbits at 7 km, retreats later and keeps
-its own `statMult` (0.9 before scaling).
+### Shields
+Four facing pools (80 base + 70 per emitter on that facing, `grid.shieldBase /
+shieldAdd`). Passive regen is low (0.6/s per facing plus 0.4 per emitter);
+the booster (+50 to the weakest facing per 4 s) is the real tank, but no
+longer out-heals a focused attack. Reinforce moves 45% of the strongest
+facing to the weakest over 3 s with a 20 s cooldown. Weapons must be armed
+(red alert) for full regen.
+
+**Shield cover** (`grid.shieldRadius`, 5 cells): each alive emitter projects
+a bubble; a block is covered while it lies within the radius of at least
+one emitter (`b.covered`, `b.coverBy` = nearest emitter, recomputed in
+`derive`). A shot that lands on a covered block draws from the pool of the
+**covering emitter's facing**; a shot that lands on an exposed block skips
+the shield entirely (`result.exposed`), and the ripple sits on the
+covering bubble, not the hull. Losing an emitter bares real hull. The
+renderer draws the union outline of the bubbles per ship, each arc in the
+colour of the facing it feeds; the hangar paints exposed cells red and
+shows "cover n% (m exposed)"; the layout validator warns below 90% cover.
+Aim type **exposed** (EXP chip, hover highlight) steers shots at the
+nearest uncovered block; enemy profiles aim at it 10% of the time
+(`targetWeights.exposed`). Default layouts were re-placed for 93–100%
+cover (nacelle tips stay bare on some hulls).
+
+Fixed in 0.8.0: since 0.6.0 the emitter bonus was added under an angle key
+instead of a facing, so every facing had been 80 whatever the build. Enemy
+multipliers were re-tuned for the real pools (see §8).
+
+### Doctrine machine (`BS.EnemyAI`, `enemyAI.doctrines`, `enemyAI.default`, `enemyAI.ktinga`)
+One state machine drives both ships: the enemy with the doctrine its
+encounter names, the player with the doctrine of the chosen stance (above).
+`BS.EnemyAI.update(ship, target, dt)` runs for each; module management,
+target re-rolls and the retreat below apply to enemies only. State changes
+emit `stateChanged` (the enemy's are called by Tactical, the player's by
+Helm: "coming around for another pass", "kiting"), orbit reversals
+`orbitFlipped`.
+
+Every enemy approaches (afterburner on) until its doctrine's `engageKm`,
+fights by that doctrine, retreats once at hull < 28% (keep at 22 km,
+shields repair priority) and then returns to fight to the end. Shared
+module rules: weapons on whenever cap > 12%, hardener while engaged,
+booster when the facing toward you < 45% and cap > 35%. Every 20 s the AI
+re-rolls what it aims at from `targetWeights`: 40% of the time it sprays
+the hull (no aim penalty), otherwise phasers, reactors, engines, shields or
+(5%) the bridge. The encounter names the doctrine (`campaign.encounters[].doctrine`,
+a list means a seeded pick); the Overview status column shows the state
+through `enemyAI.stateLabels` and Tactical calls the changes.
+
+Enemy damage is ×1.35 (`damageMult`) and strength 108% + 4% per win.
+
+| Doctrine | Used by | Behaviour |
+|---|---|---|
+| **strafe** | Raider, some variants | `run_in` at the player with the afterburner (cap > 50%) → `pass`: a 12 s orbit at 3 km with everything firing, afterburner off so it can hit → `break_off` to 8 km → `turn_in` 2 s on a new bearing → run in again. Each pass arrives on a different facing. |
+| **brawl** | Gunboat, some variants; player Engage / Skirmish | Orbit at 3.5 km, afterburner only above 70% cap, flips orbit direction every 20 s (enemy), after 4 s of tail chase (angular velocity < 0.15 rad/s) or by auto-flip; the enemy comes about when the facing < 22% and a stronger one exists. |
+| **evade** | player Disengage | Keep at 24 km with the afterburner; never re-engages by itself. |
+| **standoff** / **siege** | Torpedo boat / K't'inga Siege | Keeps at 14 km (17 km for siege) firing torpedoes; when the player closes inside 9 km (11) it kites with the afterburner to 17 km (20) for up to 15 s. |
+| **broadside** | K't'inga, some warlords | Holds a 5.5–8.5 km band on a slow course with Come about, presenting the strongest shield; rolls to a fresh shield every 30 s or when the facing drops below 22%. |
+| **ambush** | Shadow (Bird-of-Prey with a cloak) | `stalk` cloaked toward the player, `uncloak` at 4.5 km, a 12 s firing pass at 3 km, break off to 10 km and cloak again. |
+
+Enemies with jammer blocks run them whenever engaged and above 30% cap.
+
+The K't'inga profile reacts slower, retreats later and keeps its own
+`statMult` (0.9 before scaling). Nothing orbits the player at 6 km any
+more, so a player orbit no longer turns into a two-ship tail chase; the
+fitting answer differs per doctrine and is picked as a stance (Engage
+closes on a standoff ship, Skirmish out-tracks a brawler) while the helm
+handles the flips.
 
 ### Win / lose
 Enemy hull 0 → Victory; player hull 0 → Defeat. Result overlay with stats.
@@ -204,14 +350,20 @@ Enemy hull 0 → Victory; player hull 0 → Defeat. Result overlay with stats.
 ### Campaign (`BS.Campaign`)
 - **Credits**: win 500 × encounter `rewardMult` − 3 per % hull lost + 50 per
   consecutive win (max 5), loss 120, never below 50. Start with 600.
+- **Salvage** (`campaign.salvage`): a win also pays a share of the block
+  value still alive on the enemy: 10% of a destroyed ship's remains, 25% of
+  a disabled ship (captured intact). Aiming at weapons and engines to
+  disable a ship pays better than blowing it up.
 - **Encounters** (`campaign.encounters`): each entry names an enemy class, a
   layout (`default`, a named variant, or `random`), the wins needed to
   unlock it, a weight and a reward multiplier. `BS.Campaign.encounter()`
   draws one with a PRNG seeded by battles won and lost, so the hangar's
   "Next:" line and the battle agree and a reload does not re-roll. Bird-of-Prey
   raider from the start; Gunboat and Torpedo boat from win 1; random
-  variants from win 2; K't'inga from win 4 (×1.8), Siege from 6, random
-  K't'inga from 8 (×1.9). Klingon ship names come from `campaign.klingonNames`.
+  variants from win 2; the Jammer boat (two ECM blocks, ×1.2) from win 3;
+  the Shadow (cloak, ambush doctrine, ×1.3) from win 3; K't'inga from win 4
+  (×1.8), Siege from 6, random K't'inga from 8 (×1.9). Klingon ship names
+  come from `campaign.klingonNames`.
 - **Enemy scaling**: `statMult = profile.statMult + 0.04 × wins` (max +0.4)
   multiplies every enemy block's hp and the shields; `damageMult` 1.6
   multiplies enemy weapon damage.
@@ -239,6 +391,12 @@ flicker, torpedo orbs with trails, shield facing arcs with ripples, sparks,
 smoke, shockwave, screen shake. Module bar with conic cooldown rings.
 Renderer dispatches on `ship.visual.kind` (grid / sprite).
 
+**Block glyphs** (`blocks.*.glyph`, `BS.Renderer.drawBlockGlyph`): every
+system block carries one shape in its own colour (lens, warhead, shield,
+core, thrust, dish, star, windows, wave, eye) on a darker plate; armor is
+the bare plate. The same drawing makes the palette icons and the chips
+(`BS.Renderer.blockIcon`), so a block looks the same everywhere.
+
 **Destruction** (`visuals.fragments`, `effects.js`): a destroyed block
 throws sparks, smoke and debris in its own colour plus a tumbling plate. A
 section cut off from the bridge leaves as one **fragment**: the blocks keep
@@ -254,19 +412,24 @@ Game logic is untouched: everything is driven by `blockDestroyed`,
 
 ```js
 units: { pxPerKm }
-balance: { ..., capCurve, lockBase, lockRefSignature, lockRefSensor, orbitRangesKm, keepRangesKm, zoom }
+balance: { ..., capCurve, lockBase, lockRefSignature, lockRefSensor, zoom }
+helm: { defaultStance, reactionDelay, stances: { id: { label, key, doctrine, desc, ranges: { field: [ref, fraction, ..., fallbackKm] } } }, flipMinInterval, flipShieldLow, flipShieldHigh }
 subsystems: { weapons, torpedoes, engines, shields, sensors, bridge: { label, short, effect, targetReport, damaged, repaired } }
 subsystemEffects: { sensorsAccuracyFloor, sensorsLockMaxMult, bridgeCapMinMult, targetAccuracyMult }
 modules: { id: { slot, kind: turret|launcher|active|passive, name, short, cycle, cap, pg, cpu, cost, desc, ...stats, effect } }
-grid: { cellPx, structureHp, shield*/regen*/cap*/thrust*/sensor*/repair*, hitScatter, penetration, torpedoSplash, aimRadius, aimScatter, deadFraction,
+grid: { cellPx, structureHp, structurePierceCost, shield*/regen*/cap*/thrust*/sensor*/repair*, shieldRadius, powerPerReactor, brownoutMin, heat: { base, perBlock, dissipationBase, dissipationPerRimCell, overloadTime, aiFireBelow, governorHigh, governorLow },
+        hitScatter, penetration, lineOfFire, lineOfFireStep, lineOfFireMuzzle, lineOfFireRangeCells, torpedoSplash, aimRadius, aimScatter, deadFraction,
         variant: { fraction, attempts, systemWeights }, maskLegend, layoutLegend }
-blocks: { type: { letter, name, short, hp, mass, cost, color, desc, weapon? } }
-shipClasses: { id: { name, className, role, faction, cost, purchasable, speed, turnRate, signature, lockRangeKm, preferredRangeKm,
+blocks: { type: { letter, name, short, hp, mass, cost, power, color, desc, unique?, pierceCost?, explosion?: { damage, radius }, weapon?: { ..., heat } } }
+modules: { phaser_group, torpedo_group, shield_booster, shield_hardener, afterburner, jammer (block-bound active, effect.jam), cloak (kind "cloak", block-bound) }
+ew: { jamPerBlock, jamDuration, cloakTime, decloakTime, surgeTime, cloakDrain, cloakMinCap, detectPerSensor, ghostAlpha, ownCloakAlpha }
+shipClasses: { id: { name, className, role, faction, cost, purchasable, speed, turnRate, signature, lockRangeKm, powerBase,
                      mask: [rows], layout: [rows], presets: { id: { name, desc, rows } }, variants: { id: { name, desc, rows } } (enemies),
                      aiProfile?, visual: { kind, sprite, nacelleColor, hullTint } } }
 crew: { officers, reports, events (battleStart is templated with {className}, {name}, {range}), hailReplies }
-enemyAI: { default | ktinga: { accuracyMult, reactionDelay, statMult, damageMult, retreat*, reposition*, orbitRangeKm, retreatRangeKm, booster*, afterburnerMinCap, targetWeights (none = spray) } }
-campaign: { startingCredits, credits, enemyScaling, encounters: [{ id, enemyClass, layout, minWins, weight, rewardMult }], klingonNames }
+enemyAI: { doctrines: { id: { kind: strafe|brawl|standoff|broadside|ambush|evade, engageKm, ...per-kind ranges and timers, tailChaseAngular, tailChaseTime } }, stateLabels,
+           default | ktinga: { doctrine, accuracyMult, reactionDelay, statMult, damageMult, retreat*, reposition*, retreatRangeKm, booster*, afterburnerMinCap, targetWeights (none = spray) } }
+campaign: { startingCredits, credits, salvage: { destroyed, disabled }, enemyScaling, encounters: [{ id, enemyClass, layout, doctrine, minWins, weight, rewardMult }], klingonNames }
 visuals: { starLayers, nebulae, shieldColors, shake*, fragments: { sectionLife, deathLife, deathPieces, driftSpeed, deathSpeed, spin, fadeFrom } }
 skills (real-time training), science, saveDefaults (version 2: layouts, builds, skills)
 ```
@@ -275,21 +438,100 @@ Runtime ship: `pos, vel, heading, speed, hull, shields{4}, capacitor, capMax,
 subsystems{6}, lock{target, progress, locked, time}, selected, targetSubsystem,
 cmd{type, target, range, point, orbitDir, facing}, modules[{id, def, slot,
 active, running, cycleLeft, cycleTime, state}], fitEffects, activeEffects,
-repairPriority, reinforce, stats, mods, aiProfile, ai`.
+repairPriority, reinforce, stats, mods, aiProfile, ai{state, timer, suspended, relock, ...}, stance, doctrine`;
+block: `covered, coverBy` from derive.
 
 ## 7. Events
 `lockStarted, lockAcquired, lockLost, moduleToggled, moduleCycle,
 moduleOffline, shieldBoosted, phaserFired, torpedoLaunched, torpedoHit,
 torpedoExpired, shieldHit, hullHit, blockDestroyed, sectionLost,
-shipDestroyed, alertChanged, enemyStateChanged, commandGiven, log,
-battleStarted, battleEnded, skillTrained`.
+blockExploded, shipDisabled, shipDestroyed, overload, jammed, cloakChanged,
+alertChanged, stateChanged, orbitFlipped, stanceChanged, enemyRolled, commandGiven,
+log, battleStarted, battleEnded, skillTrained`.
 
-## 8. Measured balance (v0.5.2, accelerated simulation, scripted captains, default builds, no skills)
+## 8. Measured balance (accelerated simulation, scripted captains, default builds, no skills)
 
 Harness: `BS.Game.state.paused = true`, `BS.Game.step(1/60)` in a loop, the
 captain script runs once per simulated second. Enemy strength as at the
 given number of wins. Hit rolls and the enemy's aim choice are random, so
-single runs vary a lot; ranges below are over 6–14 runs.
+single runs vary a lot; ranges below are over 4–6 runs.
+
+v0.6.0 results. "Straightforward" here is: lock, phasers + torpedoes +
+hardener, booster pulsed below 50% facing, Reinforce below 20%, **orbit at
+the enemy's range** (3 km when it comes inside 4.5 km, 6 km when it is
+beyond 7 km) and **Reverse orbit** whenever no weapon on the engaged side
+can bear. With line of fire, a ship fights with the guns on the side
+facing the enemy; a captain who orbits at 6 km and never reverses loses
+every fight once that side's phasers are gone.
+
+| Matchup | Captain | Outcome |
+|---|---|---|
+| Constitution vs Raider **strafe** (0 wins) | straightforward | 5 of 5 wins, 1:59–9:32 (typically 3:30–4:00) keeping 59–86% block hp |
+| Constitution vs Raider strafe | orbit 6 km, never reverse | 0 of 5 |
+| Constitution vs Raider strafe | no orders | lost in 2:52–3:42, usually disabled (weapons and engines shot off) |
+| Constitution vs Gunboat **brawl** (1 win) | straightforward | 4 of 5 wins in 2:55–3:42 keeping 84–94%, one stalemate |
+| Constitution vs Torpedo boat **standoff** (1 win) | straightforward | 4 of 4 wins in 1:33–2:38 keeping 92–96% |
+| Constitution vs K't'inga **broadside** (4 wins) | straightforward | 1 of 4 (one by disabling it); the cruiser holds its broadside and out-guns a stock Constitution |
+| Excelsior vs K't'inga broadside | straightforward | 3 of 4 wins in 6:21–8:21 keeping 61–99% |
+| Galaxy vs K't'inga **siege** (6 wins) | straightforward | 4 of 4 wins in 4:17–4:58 keeping 97–99% |
+| Miranda / Defiant vs Raider strafe | speed tank (orbit 3 km + afterburner, no reverse) | mostly stalemates: the script never reverses, so the stripped side stays toward the enemy |
+
+v0.8.0 (shield bubbles, stance helm, shield-facing fix, Bird-of-Prey ×1.4 strength /
+×1.5 damage; 3 runs each). The captain picks a stance at t = 0, locks, keeps
+weapons on, pulses the booster below 50% facing, hardener above 20% cap and
+Reinforce below 20%; the helm does the rest. "No orders" is the default
+Engage stance with nothing locked or armed.
+
+| Matchup | Stance | Outcome |
+|---|---|---|
+| Constitution vs Raider **strafe** (0 wins) | Engage | 3 of 3 wins in 2:05–3:14 keeping 85–91% block hp |
+| Constitution vs Raider strafe | Skirmish | 3 of 3 wins in 3:18–5:04 keeping 72–90% (slower, as intended) |
+| Constitution vs Raider strafe | Standoff | 0 of 3: two tubes cannot kill a strafer from 15 km; a stance for torpedo builds |
+| Constitution vs Raider strafe | no orders | lost in 2:52–3:39 (disabled or hull fraction) |
+| Constitution vs Gunboat **brawl** (1 win) | Engage / Skirmish | 3 of 3 in 2:52–4:47 keeping 81–89% / 3 of 3 in 3:47–4:37 keeping 97–98% |
+| Constitution vs Torpedo boat **standoff** (1 win) | Engage | 3 of 3 in 3:37–3:56 untouched (Engage chases it down) |
+| Constitution vs K't'inga **broadside** (4 wins) | Engage | 3 of 3 in 4:43–5:35 keeping 88–100% |
+| Excelsior vs K't'inga broadside | Engage | 3 of 3 in 4:44–5:16 keeping 94–99% |
+| Galaxy vs K't'inga **siege** (6 wins) | Engage | 3 of 3 in 2:50–4:20 keeping 98–99% |
+| Constitution vs Shadow **ambush** (3 wins) | Engage | 3 of 3 in 2:29–3:28 keeping 90–99% |
+| Constitution vs Jammer boat (2 wins, seeded) | Engage | 3 of 3 in 2:53–4:41 keeping 81–87%: the tactical officer now re-locks on its own |
+| Miranda vs Raider strafe | Skirmish | 1 of 3 (8:53), two 10-minute stalemates: the fast orbit out-tracks the raider both ways |
+| Defiant vs Raider strafe | Skirmish | 3 of 3 in 3:31–7:21 keeping 89–94% |
+
+Against the stated targets: the straightforward (Engage) fight lands at
+2–5 min but loses 10–20% rather than 30–50%; the speed tank (Skirmish)
+wins slower and nearly untouched as intended on the Constitution and
+Defiant, and stalls on the Miranda; no orders loses in about 3 min. The
+bigger hulls are comfortably ahead of the cruiser at their unlock wins.
+Headless only; no hand play this session.
+
+v0.7.0 (power grid, heat, electronic warfare; straightforward captain with
+orbit and reverse commands, 4 runs each; measured while the shield-facing
+bug kept every facing at 80):
+
+| Matchup | Outcome |
+|---|---|
+| Constitution vs Raider strafe (0 wins) | 4 of 4 wins in 2:09–6:30 keeping 59–95% |
+| Constitution vs Raider strafe, no orders | disabled in 3:08–4:28 |
+| Constitution vs Gunboat brawl (1 win) | 3 of 4 wins in 5:08–5:27, one stalemate |
+| Constitution vs Shadow **ambush** (3 wins) | 3 of 4 wins in 3:00–4:19 keeping 80–99%, one stalemate while it stayed cloaked |
+| Constitution vs Jammer boat (3 wins) | 1 of 4: with its lock broken every few seconds a stock Constitution loses its weapons; sensor arrays or a jammer of your own are the answer |
+
+Earlier (v0.5.3, before line of fire and armor):
+
+| Matchup | Captain (approach inside 4.5 km) | Outcome |
+|---|---|---|
+| Constitution vs Raider **strafe** (0 wins) | straightforward | 6 of 6 wins in 1:52–4:34 keeping 59–84% block hp |
+| Constitution vs Raider strafe | speed tank (orbit 3 km + afterburner) | 2 of 6: co-orbiting a strafer at speed is a tail chase where both miss; not the answer to this doctrine |
+| Constitution vs Raider strafe | no orders | lost in 3:32–4:18 |
+| Constitution vs Gunboat **brawl** (1 win) | straightforward | 4 of 4 wins in 1:54–3:40 keeping 81–89% |
+| Constitution vs Torpedo boat **standoff** (1 win) | straightforward | 4 of 4 wins in 1:44–3:12 keeping 87–90% (the easy encounter) |
+| Constitution vs K't'inga **broadside** (4 wins) | straightforward | 3 of 4 wins in 2:36–3:09, one 10-minute stalemate |
+| Excelsior vs K't'inga broadside | straightforward | 3 of 4 wins in 2:05–3:33 |
+| Galaxy vs K't'inga **siege** (6 wins) | straightforward | 4 of 4 wins in 1:46–2:11 keeping 95–97% |
+| Miranda / Defiant vs Raider strafe | speed tank | 1 of 6 / 2 of 6: small hulls lose their rim phasers to the passes; fly them with Approach instead |
+
+Earlier (v0.5.2, enemy orbiting at 6 km), kept for comparison:
 
 | Matchup | Captain behaviour | Outcome |
 |---|---|---|
@@ -316,4 +558,9 @@ than slower (it is nearly untouched, as intended).
 | v0.5 PR 1 (done) | Block grid hulls, nine block types, per-block damage with penetration, splash and section loss, grid renderer, build preview and statistics |
 | v0.5 PR 2 (done) | Hangar block editor (paint, erase, mirror, presets), block costs and refunds, saved builds |
 | v0.5 PR 3 (done) | Masks for Miranda, Defiant, Excelsior, Galaxy, Sovereign; K't'inga; enemy layouts, random variants and encounters; fragments and shatter; balance pass |
+| v0.5.3 (done) | Enemy doctrines: strafe, brawl, standoff, broadside; tail-chase detection; status labels and callouts |
+| v0.6.0 (done) | Cosmoteer ideas: reactor breaches that chain, line of fire blocked by the own hull, armor pierce cost, disabled ships and salvage |
+| v0.7.0 (done) | Power grid from reactors, heat and overload, ECM jammer, cloaking device, ambush doctrine, Jammer boat and Shadow encounters |
+| v0.8.0 (done) | Shield bubbles (cover radius, exposed hull), stance helm (Engage / Skirmish / Standoff / Disengage, auto-flip), shield-facing bug fix and re-tune |
+| later | Fire spreading put out by crew quarters; reactor power range; audio; sector map; sprites |
 | later | Audio via events, sector map and missions, science scans and cloaked ships, optional image sprites |

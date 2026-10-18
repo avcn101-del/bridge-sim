@@ -89,13 +89,15 @@ BS.Hangar = (function () {
     Object.keys(BS.Data.blocks).forEach(function (type) {
       var d = BS.Data.blocks[type];
       var b = document.createElement("button"); b.className = "pal" + (ed.brush === type ? " active" : "");
-      b.innerHTML = "<i style='background:" + d.color + "'></i><b>" + d.name + "</b><small>" + (d.cost ? d.cost + " cr" : "free") + " · " + d.hp + " hp</small>";
+      b.innerHTML = "<b>" + d.name + "</b><small>" + (d.cost ? d.cost + " cr" : "free") + " · " + d.hp + " hp</small>";
+      b.insertBefore(BS.Renderer.blockIcon(type, 22), b.firstChild);
       b.title = d.desc;
       b.addEventListener("click", function () { ed.brush = type; renderPalette(); });
       box.appendChild(b);
     });
     var e = document.createElement("button"); e.className = "pal erase" + (ed.brush === "erase" ? " active" : "");
     e.innerHTML = "<i></i><b>Erase</b><small>right-click also erases</small>";
+    e.querySelector("i").className = "erase-icon";
     e.addEventListener("click", function () { ed.brush = "erase"; renderPalette(); });
     box.appendChild(e);
   }
@@ -143,6 +145,11 @@ BS.Hangar = (function () {
       c.strokeStyle = "rgba(255,255,255,0.08)"; c.lineWidth = 0.3 / ed.scale * 2; c.strokeRect(lx - half, ly - half, cp, cp);
     }
     BS.Renderer.drawGridShip(c, ed.ship, 0.5, { still: true });
+    drawFireArcs(c, g);
+    // shield cover: bubble outlines, and the cells no bubble reaches (hit unshielded)
+    BS.Renderer.drawShieldCover(c, ed.ship);
+    c.fillStyle = "rgba(255,70,60,0.4)";
+    g.blocks.forEach(function (b) { if (b.alive && !b.structural && !b.covered) c.fillRect(b.lx - half, b.ly - half, cp, cp); });
     // mirror line
     if (ed.mirror) { c.strokeStyle = "rgba(255,200,120,0.35)"; c.setLineDash([3, 3]); c.lineWidth = 0.6; c.beginPath(); c.moveTo(-g.w * cp / 2, 0); c.lineTo(g.w * cp / 2, 0); c.stroke(); c.setLineDash([]); }
     // hover
@@ -156,6 +163,22 @@ BS.Hangar = (function () {
     renderStats();
   }
 
+  // Weapons that cannot fire past the hull get a red mark; the hovered weapon shows its clear arc as a wedge.
+  function drawFireArcs(c, g) {
+    var cp = g.cellPx, hov = ed.hover ? g.at[ed.hover.x + "," + ed.hover.y] : null;
+    g.stats.weapons.forEach(function (b) {
+      var w = b.def.weapon, cov = Gr.arcCoverage(g, b), facing = Gr.weaponFacing(b);
+      if (cov <= 0) { c.strokeStyle = "rgba(255,70,60,0.95)"; c.lineWidth = 0.9; c.beginPath(); c.moveTo(b.lx - cp * 0.3, b.ly - cp * 0.3); c.lineTo(b.lx + cp * 0.3, b.ly + cp * 0.3); c.moveTo(b.lx + cp * 0.3, b.ly - cp * 0.3); c.lineTo(b.lx - cp * 0.3, b.ly + cp * 0.3); c.stroke(); }
+      if (b !== hov) return;
+      var half = w.arc / 2, R = cp * 9;
+      for (var a = -half; a < half; a += 5) {
+        var a0 = facing + a * U.DEG, a1 = facing + (a + 5) * U.DEG, clear = Gr.lineOfFireClear(g, b, a0 + 2.5 * U.DEG);
+        c.fillStyle = clear ? "rgba(255,170,90,0.22)" : "rgba(255,70,60,0.12)";
+        c.beginPath(); c.moveTo(b.lx, b.ly); c.arc(b.lx, b.ly, R, a0, a1); c.closePath(); c.fill();
+      }
+    });
+  }
+
   function renderStats() {
     var st = C.layoutStats(ed.classId, ed.rows), delta = C.layoutDelta(ed.classId, ed.rows), s = C.get();
     var capLine = st.lasts !== null ? "<span class='bad'>runs dry in " + Math.round(st.lasts) + " s with everything on</span>" : "stable at " + st.stableAt + "% with everything on";
@@ -163,10 +186,13 @@ BS.Hangar = (function () {
     var counts = Object.keys(st.counts).map(function (t) { return BS.Data.blocks[t].short + " " + st.counts[t]; }).join(" · ");
     el["hg-stats"].innerHTML =
       (st.ok ? "" : "<div class='bad'>" + st.errors.join(" ") + "</div>") +
+      (st.warnings.length ? "<div class='warn'>" + st.warnings.join(" ") + "</div>" : "") +
       "<div><label>Build</label><span>" + st.blocks + " blocks · mass " + st.mass + " · value " + st.cost.toLocaleString() + " cr <span class='dim'>(" + counts + ")</span></span></div>" +
       "<div><label>Damage</label><span>" + st.dps + " dps <span class='dim'>(beams " + st.turretDps + " · torpedoes " + st.launcherDps + ")</span></span></div>" +
       "<div><label>Capacitor</label><span>" + st.cap + " · " + capLine + " <span class='dim'>(drain " + st.drain + "/s · peak " + st.peakRecharge + "/s)</span></span></div>" +
-      "<div><label>Defence</label><span>hull " + st.hull + " · shields " + shields + " · repair " + st.repair + "/s</span></div>" +
+      "<div><label>Heat</label><span>cap " + st.heatCap + " · full salvo " + st.salvoHeat + (st.salvoHeat > st.heatCap ? " <span class='bad'>(overloads)</span>" : "") + " · bleeds " + st.heatDissipation + "/s vs " + st.heatPerSec + "/s firing" + (st.heatNeutral < 1 ? " <span class='warn'>(sustained fire " + Math.round(100 * st.heatNeutral) + "%)</span>" : " (sustainable)") + "</span></div>" +
+      "<div><label>Power</label><span class='" + (st.powerUsed > st.powerMax ? "bad" : "") + "'>" + st.powerUsed + " / " + st.powerMax + " <span class='dim'>(" + (st.counts.reactor || 0) + " reactors · phaser 5, tube 8, shield 4, sensor 3, engine 1, quarters 1)</span></span></div>" +
+      "<div><label>Defence</label><span>hull " + st.hull + " · shields " + shields + " · cover " + Math.round(100 * st.coverFrac) + "%" + (st.exposed ? " <span class='" + (st.coverFrac < 0.9 ? "bad" : "warn") + "'>(" + st.exposed + " exposed, red cells)</span>" : "") + " · repair " + st.repair + "/s</span></div>" +
       "<div><label>Mobility</label><span>" + st.speed + " km/s <span class='dim'>(thrust " + st.thrust + " / mass " + st.mass + " = ×" + st.speedMult + ")</span> · lock " + st.lockTime + " s</span></div>";
     var net = delta.net;
     el["hg-delta"].textContent = ed.dirty ? (net > 0 ? "Costs " + net.toLocaleString() + " cr" : net < 0 ? "Refunds " + (-net).toLocaleString() + " cr" : "No cost change") + (delta.cost ? " (buy " + delta.cost.toLocaleString() + ", refund " + delta.refund.toLocaleString() + ")" : "") : "Build matches the current layout";
@@ -189,7 +215,8 @@ BS.Hangar = (function () {
     var cls = BS.Data.shipClasses[ed.classId], m = cls.mask[y][x];
     if (m === "." || m === "p") return false;
     var row = ed.rows[y];
-    if (letter === "B") { ed.rows = ed.rows.map(function (r) { return r.replace(/B/g, "A"); }); row = ed.rows[y]; }   // only one bridge
+    var type = Gr.typeForLetter(letter);
+    if (type && BS.Data.blocks[type].unique) { ed.rows = ed.rows.map(function (r) { return r.split(letter).join(type === "bridge" ? "A" : "."); }); row = ed.rows[y]; }   // unique blocks move
     if (row[x] === letter) return false;
     ed.rows[y] = row.slice(0, x) + letter + row.slice(x + 1);
     return true;

@@ -2,6 +2,156 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.8.0] — 2026-10-18 (shield bubbles, stance helm)
+
+### Added
+- **Shield bubbles**: every emitter covers the blocks within 5 cells
+  (`grid.shieldRadius`); a hit on a covered block draws from the covering
+  emitter's facing, a hit on bare hull skips the shield entirely. Bubbles
+  are drawn as the union outline of the emitters' circles, coloured by the
+  facing they feed, with ripples on the bubble that was hit. The hangar
+  paints exposed cells red and shows "cover n% (m exposed)"; the validator
+  warns below 90% cover. Aim type **Exposed** (EXP chip, hover highlight)
+  steers shots at bare hull; enemies aim at it 10% of the time. All default
+  layouts, presets and enemy variants had their emitters re-placed for
+  93–100% cover.
+- **Stance helm**: the Helm panel is four stances (keys 1–4) instead of
+  orbit / keep / approach / come about / reverse. **Engage** (default at
+  battle start) orbits inside phaser range, **Skirmish** orbits tight on
+  the afterburner, **Standoff** holds torpedo range and kites,
+  **Disengage** runs. Ranges derive from the fitted weapons (`helm.stances`);
+  the helm reverses the orbit on its own when the other side has more
+  guns to bear or a fresher shield (`orbitFlipped`), narrates its moves,
+  owns the afterburner and re-locks a target you locked before. Stop (S)
+  and fly-to put the helm on manual.
+- The doctrine machine in `enemyai.js` now drives both ships; new **evade**
+  doctrine; `stateChanged` / `stanceChanged` events.
+
+### Changed
+- Enemy multipliers re-tuned for working shields: Bird-of-Prey strength
+  ×1.4 (was 1.08) and damage ×1.5 (was 1.35), K't'inga damage ×1.33.
+- Removed `balance.orbitRangesKm / keepRangesKm` and class
+  `preferredRangeKm`; right-click on the enemy now means Engage.
+
+### Fixed
+- Since 0.6.0 shield emitters added nothing: the facing lookup used by
+  `derive` had been shadowed by the line-of-fire facing function, so every
+  facing stayed at the 80 base. Facings are now 80 + 70 per emitter as
+  documented (a stock Constitution: fore 360, others 220).
+
+## [0.7.0] — 2026-10-18 (power grid, heat, electronic warfare)
+
+### Added
+- **Power grid**: every system draws power (phaser 5, tube 8, shield 4,
+  sensor 3, engine 1, quarters 1, jammer 6, cloak 12); a hull supplies a
+  class base plus 15 per reactor. The editor shows the figure and refuses
+  an overdrawn build; losing reactors in battle browns the ship out
+  (weapons and shields at supply / draw). This replaces any fixed weapon
+  hardpoint count.
+- **Heat and overload**: shots add heat (phaser 6, torpedo 30); capacity
+  grows with the hull, dissipation with its rim. At capacity weapons stop;
+  the shot that crosses it overloads the ship for 6 s. Heat ring on the
+  gauge, "hot"/"OVERLOAD" states in the module bar, salvo and sustained
+  figures in the editor, Engineering warnings; the AI stops at 85%.
+- **Heat bar and governor**: a HEAT bar under the module bar shows heat /
+  capacity with a marker for the next full salvo and colour zones (amber
+  60%, red 85%). The **GOV** button (key H, on by default) holds fire above
+  85% and releases below 60%, so the ship never overloads by accident;
+  switch it off for an alpha strike. Engineering reports hold/release.
+- **ECM jammer** block and module (F6): rolls jam strength against the
+  enemy's sensors every 5 s; a hit breaks their lock for 4 s and blinds
+  their torpedoes in flight.
+- **Cloaking device** block and module (F7, one per ship): unlockable and,
+  beyond 10 km (+1 km per enemy sensor array), unseen; shields down, weapons
+  cold, capacitor drains 8/s; 2 s to decloak and 8 s of shield surge after.
+  Ghost rendering inside detection range, overview shows "ghost" / "—".
+- Enemies: **Jammer boat** (two ECM blocks, from win 3) and **Shadow**
+  (cloak, new **ambush** doctrine: stalk cloaked, decloak at 4.5 km, pass,
+  break off and cloak again; from win 3). Constitution preset **Shadow
+  hunter** (cloak, two jammers, six phasers).
+
+### Changed
+- **Block icons**: every system block has its own glyph (phaser lens,
+  torpedo diamond, shield half-ring, reactor burst, engine chevron, sensor
+  dish, bridge star, crew windows, jammer zigzag, cloak eye) and a more
+  distinct colour, drawn on the hull in battle and in the editor, in the
+  palette and on the Blocks and Target chips. System plates are darker so
+  the glyph reads.
+- Brawler preset is ten phasers (power); Bird-of-Prey power base 35.
+
+### Measured (DESIGN.md §8)
+- Straightforward Constitution: 4 of 4 vs the raider (2:09–6:30), 3 of 4
+  vs the Gunboat and vs the Shadow, 1 of 4 vs the Jammer boat.
+
+## [0.6.0] — 2026-10-17 (Cosmoteer ideas: breaches, line of fire, armor, salvage)
+
+### Added
+- **Reactor breaches**: a destroyed reactor deals 80 damage to its eight
+  neighbours; reactors among them go up too (chain reaction). Big flash,
+  shockwave and debris; Engineering and Tactical report breaches. The
+  editor warns when reactors touch each other or the bridge.
+- **Line of fire**: a weapon cannot fire through the ship's own blocks
+  near it (muzzle 1 cell out, hull within 3 cells masks). Its arc is
+  centred on the open side of the hull, so rim weapons face outward and a
+  ship fights with the guns on the engaged side. The editor marks fully
+  masked weapons with a red cross, lists them in the warnings, leaves them
+  out of the dps figure, and shows the hovered weapon's clear arc.
+- **Reverse orbit** (button in the Orbit row, key V): flips the orbit
+  direction to bring the other side's weapons to bear. Helm reports it.
+- **Disabled ships and salvage**: a ship with no weapons and no engines
+  left is dead in space and the battle ends. A win pays salvage on top of
+  the reward: 10% of the enemy's surviving block value for a wreck, 25% for
+  a ship disabled intact. The result screen has a Salvage row.
+
+### Changed
+- **Armor stops beams**: beams carry 2 penetration points; armor costs 2,
+  structure 3, systems 1. A beam ends in the first plate it meets but still
+  chews two deep through exposed systems.
+- Phaser damage 24 → 28, torpedo 150 → 170 (half the guns bear at any
+  moment now); enemy damage ×1.6 → ×1.35 (their guns got the same rule and
+  their wing mounts fire properly). Constitution default: phasers moved to
+  the port and starboard rim (four a side), tubes at the bow.
+- Every default layout, preset and enemy variant was rebuilt for the new
+  rules: weapons moved to the rim with a clear line of fire, reactors spread
+  at least one cell apart and away from the bridge. Counts changed where
+  the rim ran out of room: Defiant 8 phasers 2 tubes, Galaxy 10 phasers
+  2 tubes, Sovereign 7 reactors, Interceptor preset no tube, Dreadnought
+  8 reactors, Fortress 10 reactors.
+
+### Measured (DESIGN.md §8)
+- Straightforward Constitution that matches the raider's range and reverses
+  its orbit when its engaged side is stripped: 5 of 5 wins, typically
+  3:30–4:00, keeping 59–86% block hp. Orbit 6 km without ever reversing:
+  0 of 5. No orders: disabled in about 3 minutes. K't'inga broadside beats
+  a stock Constitution and is a 3-of-4 win for the Excelsior.
+
+## [0.5.3] — 2026-10-17 (enemy doctrines)
+
+### Changed
+- **Enemies no longer orbit you at 6 km**, which turned every fight into a
+  two-ship tail chase. Each encounter now fights by a doctrine
+  (`enemyAI.doctrines`): the raider makes **strafing runs** (run in with
+  the afterburner, a 12 s firing pass at 3 km, break off to 8 km, come
+  around on a new bearing); the Gunboat **brawls** at 3.5 km and reverses
+  its orbit every 20 s or whenever the fight settles into a tail chase; the
+  Torpedo boat **stands off** at 14 km and kites when you close; the
+  K't'inga holds a **broadside** band at 5.5–8.5 km, turning slowly to keep
+  a fresh shield toward you; the Siege variant stands off at 17 km. Random
+  variants draw a doctrine from a seeded list.
+- The Overview status column names the enemy's manoeuvre (strafing run,
+  firing pass, breaking off, coming around, kiting, broadside…) and
+  Tactical calls the changes ("Here they come! Firing pass, close range!",
+  "They're rolling a fresh shield toward us.").
+- Torpedo tubes now get first call on the capacitor each step, so phasers
+  no longer starve them.
+- Enemy aim: sprays the hull 40% of the time (was 35%), picks phasers 15%
+  (was 20%).
+
+### Measured (DESIGN.md §8)
+- Straightforward Constitution vs the strafing raider, turning into each
+  pass with Approach: see the table; a captain who only orbits at 6 km now
+  loses to a strafer, which is the point.
+
 ## [0.5.2] — 2026-10-17 (hulls, enemies, destruction, balance, v0.5 PR 3)
 
 ### Added

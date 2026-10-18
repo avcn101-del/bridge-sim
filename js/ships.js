@@ -29,10 +29,10 @@ BS.Ships = (function () {
       grid: grid, stats: st, statMult: statMult, mods: mods,
       hullMax: st.hullTotal, hull: st.hullAlive,
       shieldMax: {}, shields: {}, shieldRegen: {},
-      capMax: 0, capacitor: 0,
+      capMax: 0, capacitor: 0, heat: 0, overload: 0, heatGovernor: true, governorHold: false, jammed: 0, cloak: { state: "off", t: 0, surge: 0 },
       signature: cls.signature,
-      flags: { alert: "none", destroyed: false, armed: false },
-      selected: null, lock: { target: null, progress: 0, locked: false, time: 0 }, aimType: null,
+      flags: { alert: "none", destroyed: false, disabled: false, armed: false },
+      selected: null, lock: { target: null, progress: 0, locked: false, time: 0 }, aimType: null, stance: null,
       cmd: { type: "idle", target: null, range: 0, point: null, orbitDir: Math.random() < 0.5 ? 1 : -1, facing: null },
       desiredHeading: options.heading || 0, desiredSpeed: 0,
       repairPriority: null, reinforce: null, reinforceCooldown: 0,
@@ -48,6 +48,16 @@ BS.Ships = (function () {
     return ship;
   }
 
+  // No weapons and no engines left: dead in space. The battle ends; the enemy is captured for salvage.
+  function checkDisabled(ship, by) {
+    var st = ship.stats;
+    if (ship.flags.disabled || ship.flags.destroyed || st.weapons.length || st.thrust > 0) return false;
+    ship.flags.disabled = true;
+    BS.Modules.weapons(ship).forEach(function (m) { BS.Modules.setActive(ship, m, false); });
+    setCommand(ship, "idle");
+    BS.Events.emit("shipDisabled", { ship: ship, by: by || null });
+    return true;
+  }
   // Recompute block-derived numbers; `initial` fills shields and capacitor.
   function refreshDerived(ship, initial) {
     var st = Gr.derive(ship.grid);
@@ -61,6 +71,7 @@ BS.Ships = (function () {
     ship.capMax = Math.round(st.cap * ship.mods.capMult);
     if (initial) ship.capacitor = ship.capMax; else ship.capacitor = Math.min(ship.capacitor, ship.capMax);
     ship.sensorStrength = st.sensors;
+    if (!initial) checkDisabled(ship, null);
     return st;
   }
 
@@ -117,6 +128,38 @@ BS.Ships = (function () {
     return ship.reinforce;
   }
 
+  // ---- electronic warfare -------------------------------------------------
+  function isCloaked(ship) { return ship.cloak.state === "cloaked" || ship.cloak.state === "cloaking"; }
+  // How visible `ship` is to `viewer`: 1 normal, 0 invisible, in between a ghost or a transition.
+  function visibility(ship, viewer) {
+    var c = ship.cloak, E = BS.Data.ew;
+    if (c.state === "off") return 1;
+    var hidden = viewer === ship ? E.ownCloakAlpha : (viewer && distanceKm(ship, viewer) <= detectRangeKm(viewer) ? E.ghostAlpha : 0);
+    if (c.state === "cloaked") return hidden;
+    var k = U.clamp(c.t / (c.state === "cloaking" ? E.cloakTime : E.decloakTime), 0, 1);
+    return c.state === "cloaking" ? U.lerp(1, hidden, k) : U.lerp(hidden, 1, k);
+  }
+  function detectRangeKm(viewer) { return BS.Data.science.cloakDetectRangeKm + BS.Data.ew.detectPerSensor * ((viewer.stats.alive && viewer.stats.alive.sensor) || 0); }
+  function setCloak(ship, on) {
+    var c = ship.cloak;
+    if (on && c.state === "off") { c.state = "cloaking"; c.t = 0; BS.Events.emit("cloakChanged", { ship: ship, state: c.state }); return true; }
+    if (!on && isCloaked(ship)) { c.state = "decloaking"; c.t = 0; BS.Events.emit("cloakChanged", { ship: ship, state: c.state }); return true; }
+    return false;
+  }
+  function updateCloak(ship, dt) {
+    var c = ship.cloak, E = BS.Data.ew;
+    if (c.surge > 0) c.surge -= dt;
+    if (c.state === "off") return;
+    c.t += dt;
+    if (c.state === "cloaking" && c.t >= E.cloakTime) { c.state = "cloaked"; c.t = 0; BS.Events.emit("cloakChanged", { ship: ship, state: c.state }); }
+    if (c.state === "cloaked") {
+      ship.capacitor = Math.max(0, ship.capacitor - E.cloakDrain * dt);
+      if (ship.capacitor < E.cloakMinCap) { c.state = "decloaking"; c.t = 0; BS.Events.emit("cloakChanged", { ship: ship, state: "decloaking", reason: "nocap" }); }
+    }
+    if (c.state === "decloaking" && c.t >= E.decloakTime) { c.state = "off"; c.t = 0; c.surge = E.surgeTime; BS.Events.emit("cloakChanged", { ship: ship, state: "off" }); }
+    if (isCloaked(ship)) FACINGS.forEach(function (f) { ship.shields[f] = 0; });
+  }
+
   // ---- locking ----------------------------------------------------------
   function lockTime(ship, target) {
     var B = BS.Data.balance;
@@ -124,6 +167,8 @@ BS.Ships = (function () {
   }
   function startLock(ship, target) {
     if (!target || target.flags.destroyed) return "noTarget";
+    if (ship.jammed > 0) return "jammed";
+    if (isCloaked(target)) return "cloaked";
     if (distanceKm(ship, target) > ship.cls.lockRangeKm) return "outOfRange";
     if (ship.lock.target === target && (ship.lock.locked || ship.lock.progress > 0)) return "already";
     ship.lock = { target: target, progress: 0, locked: false, time: lockTime(ship, target) };
@@ -139,6 +184,7 @@ BS.Ships = (function () {
     var L = ship.lock;
     if (!L.target) return;
     if (L.target.flags.destroyed || distanceKm(ship, L.target) > ship.cls.lockRangeKm * 1.1) { clearLock(ship, "range"); return; }
+    if (isCloaked(L.target)) { clearLock(ship, "cloaked"); return; }
     if (L.locked) return;
     L.time = lockTime(ship, L.target);
     L.progress += dt / L.time;
@@ -149,8 +195,11 @@ BS.Ships = (function () {
   function applyDamage(ship, amount, fromX, fromY, aimType, attacker, kind) {
     if (ship.flags.destroyed) return null;
     var B = BS.Data.balance;
-    var facing = facingToward(ship, fromX, fromY);
-    var shield = ship.shields[facing];
+    // the shot lands on `first`; it is shielded only while an emitter covers that block, and then draws from that emitter's facing
+    var first = Gr.resolveEntry(ship, fromX, fromY, aimType);
+    var exposed = !!first && !first.covered;
+    var facing = first && first.coverBy ? Gr.blockFacing(first.coverBy) : facingToward(ship, fromX, fromY);
+    var shield = exposed ? 0 : ship.shields[facing];
     var resist = ship.activeEffects.shieldResist || 0;
     var shieldAmount = amount * (1 - resist);
     var absorbed = Math.min(shield, shieldAmount);
@@ -161,11 +210,16 @@ BS.Ships = (function () {
     var shieldsDown = ship.shields[facing] <= 0 && shield > 0;
     var ang = U.angleTo(ship.pos.x, ship.pos.y, fromX, fromY);
     var impact = { x: ship.pos.x + Math.cos(ang) * ship.visual.length * 0.5, y: ship.pos.y + Math.sin(ang) * ship.visual.length * 0.5 };
-    var result = { ship: ship, facing: facing, absorbed: absorbed, hullDamage: hullDamage, shieldsDown: shieldsDown, impact: impact, angle: ang, kind: kind, amount: amount, attacker: attacker, hits: [], destroyed: [], cutOff: [] };
+    var emitter = first && first.coverBy ? first.coverBy : null;
+    if (emitter) {   // the shield ripple sits on the covering emitter's bubble, on the attacker's side
+      var ew = Gr.blockWorld(ship, emitter), ea = U.angleTo(ew.x, ew.y, fromX, fromY), R = BS.Data.grid.shieldRadius * ship.grid.cellPx;
+      impact = { x: ew.x + Math.cos(ea) * R, y: ew.y + Math.sin(ea) * R };
+    }
+    var result = { ship: ship, facing: facing, absorbed: absorbed, hullDamage: hullDamage, shieldsDown: shieldsDown, impact: impact, angle: ang, kind: kind, amount: amount, attacker: attacker, exposed: exposed, emitter: emitter, hits: [], destroyed: [], cutOff: [], explosions: [] };
     if (absorbed > 0) BS.Events.emit("shieldHit", result);
     if (hullDamage > 0) {
-      var hr = Gr.hit(ship, hullDamage, fromX, fromY, aimType, kind);
-      result.hits = hr.hits; result.destroyed = hr.destroyed; result.cutOff = hr.cutOff;
+      var hr = Gr.hit(ship, hullDamage, fromX, fromY, aimType, kind, first);
+      result.hits = hr.hits; result.destroyed = hr.destroyed; result.cutOff = hr.cutOff; result.explosions = hr.explosions;
       var dealt = hr.hits.reduce(function (a, h) { return a + h.dmg; }, 0);
       ship.battle.damageTaken += dealt;
       if (attacker) attacker.battle.damageDealt += dealt;
@@ -176,12 +230,13 @@ BS.Ships = (function () {
         if (attacker) attacker.battle.blocksKilled += hr.destroyed.length + hr.cutOff.length;
         refreshDerived(ship, false);
         hr.destroyed.forEach(function (b) { BS.Events.emit("blockDestroyed", { ship: ship, block: b, pos: Gr.blockWorld(ship, b), attacker: attacker }); });
+        hr.explosions.forEach(function (b) { BS.Events.emit("blockExploded", { ship: ship, block: b, pos: Gr.blockWorld(ship, b), radius: b.def.explosion.radius, attacker: attacker }); });
         if (hr.cutOff.length) BS.Events.emit("sectionLost", { ship: ship, blocks: hr.cutOff, positions: hr.cutOff.map(function (b) { return Gr.blockWorld(ship, b); }) });
         var st = ship.stats;
         if (!st.bridgeAlive || st.hullAlive / st.hullTotal < BS.Data.grid.deadFraction) {
           ship.flags.destroyed = true; ship.destroyedTimer = 0;
           BS.Events.emit("shipDestroyed", { ship: ship, killer: attacker });
-        }
+        } else checkDisabled(ship, attacker);
       } else ship.hull = ship.stats.hullAlive = ship.grid.blocks.reduce(function (a, b) { return a + (b.alive && !b.structural ? b.hp : 0); }, 0);
     }
     return result;
@@ -204,6 +259,7 @@ BS.Ships = (function () {
   function updateCommand(ship, dt) {
     var c = ship.cmd, out, t = c.target;
     if (t && t.flags.destroyed) { c.type = "idle"; t = null; }
+    if (t && c.type !== "flyTo" && visibility(t, ship) <= 0) { ship.desiredHeading = ship.heading; ship.desiredSpeed = maxSpeed(ship) * 0.5; return; }   // lost them: hold course
     switch (c.type) {
       case "approach": out = { heading: U.angleTo(ship.pos.x, ship.pos.y, t.pos.x, t.pos.y), speed: distanceTo(ship, t) < ship.visual.length ? 0.2 : 1 }; break;
       case "orbit": out = orbitHeading(ship, t, c.range, c.orbitDir); break;
@@ -245,11 +301,16 @@ BS.Ships = (function () {
     var rate = (ship.capMax / g.capRechargeTime) * B.capCurve * Math.max(0, Math.sqrt(f) - f) * capRechargeMult(ship);
     if (f < 0.02) rate = (ship.capMax / g.capRechargeTime) * 0.4 * capRechargeMult(ship);
     ship.capacitor = Math.min(ship.capMax, ship.capacitor + rate * dt);
-    FACINGS.forEach(function (fc) {
-      var regen = ship.shieldRegen[fc] * shieldsMult(ship) * dt;
+    var shieldsUp = ship.cloak.state === "off" && ship.cloak.surge <= 0;
+    if (shieldsUp) FACINGS.forEach(function (fc) {
+      var regen = ship.shieldRegen[fc] * shieldsMult(ship) * (ship.stats.powerFactor || 1) * dt;
       if (ship.shields[fc] < ship.shieldMax[fc]) ship.shields[fc] = Math.min(ship.shieldMax[fc], ship.shields[fc] + regen);
     });
+    if (ship.jammed > 0) ship.jammed -= dt;
+    updateCloak(ship, dt);
     if (ship.reinforceCooldown > 0) ship.reinforceCooldown -= dt;
+    ship.heat = Math.max(0, ship.heat - ship.stats.heatDissipation * dt);
+    if (ship.overload > 0) ship.overload -= dt;
     var r = ship.reinforce;
     if (r) {
       var step = Math.min(r.perSecond * dt, r.remaining, ship.shields[r.from]);
@@ -277,5 +338,6 @@ BS.Ships = (function () {
     distanceTo: distanceTo, distanceKm: distanceKm, bearingTo: bearingTo, angularVelocity: angularVelocity, speedKmS: speedKmS,
     setCommand: setCommand, setAlert: setAlert, startReinforce: startReinforce, startLock: startLock, clearLock: clearLock, lockTime: lockTime,
     trackingMult: trackingMult, maxSpeed: maxSpeed, capRechargeMult: capRechargeMult, blockTypes: blockTypes,
+    isCloaked: isCloaked, visibility: visibility, detectRangeKm: detectRangeKm, setCloak: setCloak,
   };
 })();

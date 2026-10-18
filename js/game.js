@@ -20,13 +20,16 @@ BS.Game = (function () {
   }
 
   function subscribe() {
-    BS.Events.on("shipDestroyed", function (e) {
+    function endBattle(ship, how) {
       if (state.phase !== "battle") return;
-      state.result = e.ship.isPlayer ? "defeat" : "victory";
+      state.result = ship.isPlayer ? "defeat" : "victory";
+      state.resultHow = how;
       state.phase = "ending";
       state.endTimer = BS.Data.balance.destroyedEndDelay;
-      BS.Events.emit("battleEnded", { result: state.result, state: state });
-    });
+      BS.Events.emit("battleEnded", { result: state.result, how: how, state: state });
+    }
+    BS.Events.on("shipDestroyed", function (e) { endBattle(e.ship, "destroyed"); });
+    BS.Events.on("shipDisabled", function (e) { endBattle(e.ship, "disabled"); });
   }
 
   function startBattle() {
@@ -36,7 +39,7 @@ BS.Game = (function () {
     BS.Renderer.resetCamera();
     BS.UI.clearLog();
     BS.UI.hideOverlays();
-    state.time = 0; state.paused = false; state.result = null; state.endTimer = 0; state.hover = null; state.reward = null;
+    state.time = 0; state.paused = false; state.result = null; state.resultHow = null; state.endTimer = 0; state.hover = null; state.reward = null;
     state.zoom = BS.Data.balance.zoom.start;
     var save = BS.Campaign.get();
     var player = BS.Ships.create(save.shipClass, { isPlayer: true, pos: { x: 0, y: 0 }, heading: -Math.PI / 2, layout: BS.Campaign.battleLayout(save.shipClass), mods: BS.Campaign.skillMods() });
@@ -44,9 +47,10 @@ BS.Game = (function () {
     var dist = BS.Ships.px(B.arenaStartDistanceKm);
     var enc = BS.Campaign.encounter();
     var enemy = BS.Ships.create(enc.classId, { name: enc.name, layout: enc.rows, pos: { x: Math.cos(ang) * dist, y: Math.sin(ang) * dist }, heading: ang + Math.PI, statMult: BS.Campaign.enemyStatMult(enc.aiProfile), mods: { damageMult: BS.Data.enemyAI[enc.aiProfile].damageMult } });
-    BS.EnemyAI.attach(enemy, player, enc.aiProfile);
+    BS.EnemyAI.attach(enemy, player, enc.aiProfile, enc.doctrine);
     state.encounter = enc;
     player.selected = enemy;
+    BS.EnemyAI.setStance(player, enemy, BS.Data.helm.defaultStance);   // the helm flies the default stance from the start
     state.player = player; state.enemy = enemy; state.ships = [player, enemy];
     BS.Crew.reset(player, enemy);
     BS.UI.setAlert("none");
@@ -75,6 +79,7 @@ BS.Game = (function () {
     var p = state.player, e = state.enemy;
     BS.Crew.update(dt);
     BS.EnemyAI.update(e, p, dt);
+    BS.EnemyAI.update(p, e, dt);
     BS.Ships.update(p, dt);
     BS.Ships.update(e, dt);
     BS.Weapons.update(dt);
