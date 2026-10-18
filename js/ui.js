@@ -17,7 +17,7 @@ BS.UI = (function () {
     ["own-speed", "own-cmd", "own-subsystems", "enemy-subsystems", "gauge", "help-screen", "btn-help", "btn-help-close",
      "target-none", "target-info", "tg-name", "tg-hull", "tg-hull-val", "tg-shield", "tg-shield-val", "tg-range", "tg-angular", "tg-chance", "tg-aim",
      "clock", "alert-label", "btn-pause", "btn-redalert", "btn-zoom-in", "btn-zoom-out", "pause-overlay", "start-screen", "result-screen", "result-title", "result-sub", "result-head",
-     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "rs-credits", "rs-salvage", "heat-bar", "heat-num", "btn-governor", "own-heat", "ship-name", "view", "module-bar", "overview", "sel-name", "play-buttons"]
+     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "rs-credits", "rs-salvage", "heat-bar", "heat-num", "btn-governor", "own-heat", "own-crew", "scan-view", "scan-info", "btn-log", "ship-name", "view", "module-bar", "overview", "sel-name", "play-buttons"]
       .forEach(function (id) { el[id] = $(id); });
     logList = $("log");
     buildGauge();
@@ -49,6 +49,7 @@ BS.UI = (function () {
 
   function subscribe() {
     BS.Events.on("log", function (e) { addLog(e.speaker, e.text, e.cls); });
+    el["btn-log"].addEventListener("click", function () { document.getElementById("comms").classList.toggle("expanded"); });
     BS.Events.on("alertChanged", function (e) { if (e.ship.isPlayer) setAlert(e.alert); });
   }
 
@@ -209,6 +210,7 @@ BS.UI = (function () {
       switch (ev.key.toLowerCase()) {
         case "l": game.command("lock"); break;
         case "h": game.command("governor"); break;
+        case "g": document.getElementById("comms").classList.toggle("expanded"); break;
         case "s": game.command("stop"); break;
         case "r": game.command("redAlert"); break;
       }
@@ -273,6 +275,9 @@ BS.UI = (function () {
     bar.classList.toggle("holding", p.governorHold && p.overload <= 0);
     el["heat-num"].textContent = p.overload > 0 ? "OVERLOAD " + p.overload.toFixed(1) + " s" : p.governorHold ? "HOLD " + Math.round(hf * 100) + "%" : Math.round(p.heat) + " / " + Math.round(cap);
     el["btn-governor"].classList.toggle("active", p.heatGovernor);
+    var cw = p.stats.crew || { supply: 0, need: 0, manning: 1 };
+    el["own-crew"].textContent = cw.supply + " / " + cw.need + " · " + Math.round(cw.manning * 100) + "%" + (cw.manning < 1 ? " undermanned" : "");
+    el["own-crew"].style.color = cw.manning < 0.7 ? "#e0463c" : cw.manning < 1 ? "#f2c14e" : "";
     el["own-heat"].textContent = Math.round(p.heat) + " / " + Math.round(cap) + " · −" + p.stats.heatDissipation.toFixed(0) + "/s" + (p.overload > 0 ? " · OVERLOAD" : p.governorHold ? " · holding" : "");
   }
 
@@ -332,22 +337,23 @@ BS.UI = (function () {
       var facing = S.facingToward(t, p.pos.x, p.pos.y), sf = S.shieldFrac(t, facing);
       setBar(el["tg-shield"], sf, pctColor(sf)); el["tg-shield-val"].textContent = Math.round(sf * 100);
       var dKm = S.distanceKm(p, t);
-      var turretBlock = p.stats.weapons.filter(function (b) { return b.type === "phaser"; })[0];
+      var turretBlock = p.stats.weapons.filter(function (b) { return b.alive && b.def.weapon.kind === "turret"; })[0];
       var turret = turretBlock ? turretBlock.def.weapon : null;
-      var band = turret ? (dKm <= turret.optimalKm ? "optimal" : dKm <= turret.optimalKm + turret.falloffKm ? "falloff" : "out of phaser range") : "";
+      var band = turret ? (dKm <= turret.optimalKm ? "optimal" : dKm <= turret.optimalKm + turret.falloffKm ? "falloff" : "out of beam range") : "";
       el["tg-range"].textContent = fmtKm(dKm) + " · " + band;
       el["tg-angular"].textContent = S.angularVelocity(p, t).toFixed(2) + " rad/s · " + S.speedKmS(t).toFixed(1) + " km/s";
       if (turret && p.lock.locked) {
         var ch = BS.Weapons.turretHitChance(p, t, turret);
-        var launcherBlock = p.stats.weapons.filter(function (b) { return b.type === "torpedo"; })[0];
+        var launcherBlock = p.stats.weapons.filter(function (b) { return b.alive && b.def.weapon.kind === "launcher"; })[0];
         var tm = launcherBlock ? BS.Weapons.torpedoDamageMult(launcherBlock.def.weapon, t) : 1;
-        el["tg-chance"].textContent = "PHA " + Math.round(ch * 100) + "% · TOR " + Math.round(tm * 100) + "%";
+        el["tg-chance"].textContent = turretBlock.def.short + " " + Math.round(ch * 100) + "%" + (launcherBlock ? " · TOR " + Math.round(tm * 100) + "%" : "");
       } else el["tg-chance"].textContent = p.lock.locked ? "—" : "locking…";
       el["tg-aim"].textContent = p.aimType === "exposed" ? "Exposed hull (−15%)" : p.aimType ? BS.Data.blocks[p.aimType].name + "s (−15%)" : "Any block";
     }
 
     // overview
     updateOverview(state);
+    updateScan(state);
     el["sel-name"].textContent = p.selected ? p.selected.name : "nothing";
     var auto = p.ai && !p.ai.suspended;
     document.querySelectorAll("[data-cmd='stance']").forEach(function (b) { b.classList.toggle("active", !!auto && !p.play && p.stance === b.getAttribute("data-stance")); });
@@ -360,11 +366,74 @@ BS.UI = (function () {
       me.el.classList.toggle("active", m.active);
       me.el.classList.toggle("running", m.running);
       var weapon = BS.Modules.isWeapon(m);
-      ["nocap", "nolock", "range", "notarmed", "arc", "none", "heat", "overload", "cloaked", "surge"].forEach(function (st) { me.el.classList.toggle(st, (m.active || m.def.kind === "cloak") && m.state === st); });
+      ["nocap", "nolock", "range", "notarmed", "arc", "none", "heat", "overload", "cloaked", "surge", "field"].forEach(function (st) { me.el.classList.toggle(st, (m.active || m.def.kind === "cloak") && m.state === st); });
       me.ring.style.setProperty("--p", weapon ? (100 * (1 - m.readiness)).toFixed(1) : (m.running ? (100 * (1 - m.cycleLeft / m.cycleTime)).toFixed(1) : 0));
       me.el.classList.toggle("running", weapon ? m.active && m.readiness < 1 : m.running);
-      me.state.textContent = m.active && m.state !== "running" && m.state !== "off" && m.state !== "ok" ? ({ nocap: "no cap", nolock: "no lock", range: "range", notarmed: "safe", arc: "no arc", none: "lost", heat: "hot", overload: "OVERLOAD", cloaked: "cloaked", cloaking: "cloaking", decloaking: "decloak", surge: "surge" })[m.state] || "" : "";
+      me.state.textContent = m.active && m.state !== "running" && m.state !== "off" && m.state !== "ok" ? ({ nocap: "no cap", nolock: "no lock", range: "range", notarmed: "safe", arc: "no arc", none: "lost", heat: "hot", overload: "OVERLOAD", cloaked: "cloaked", cloaking: "cloaking", decloaking: "decloak", surge: "surge", field: "no field" })[m.state] || "" : "";
     }
+  }
+
+  // ---- enemy scan panel: the locked ship's blocks, cover, fields, crew, power, heat and what bears on us ----
+  var scanFrame = 0, scanHtmlLast = "";
+  function updateScan(state) {
+    var p = state.player, e = state.enemy, cv = el["scan-view"], c = cv.getContext("2d");
+    if (!p || !e) return;
+    var locked = p.lock.target === e && p.lock.locked, vis = S.visibility(e, p);
+    scanFrame++;
+    if (!locked || e.flags.destroyed || vis <= 0) {
+      c.clearRect(0, 0, cv.width, cv.height);
+      var msg = e.flags.destroyed ? "Target destroyed." : vis <= 0 ? "Sensors show nothing: the target is cloaked." : p.lock.target === e ? "Locking… scan follows the lock." : "No lock. Lock the target to scan it.";
+      if (scanHtmlLast !== msg) { el["scan-info"].innerHTML = "<div class='dim'>" + msg + "</div>"; scanHtmlLast = msg; }
+      return;
+    }
+    if (scanFrame % 3 === 0) {
+      var g = e.grid, cp = g.cellPx, k = Math.min(cv.width / (g.h * cp), cv.height / (g.w * cp)) * 0.88;
+      c.clearRect(0, 0, cv.width, cv.height);
+      c.save(); c.translate(cv.width / 2, cv.height / 2); c.scale(k, k); c.rotate(-Math.PI / 2);   // bow up
+      BS.Renderer.drawGridShip(c, e, 0.5, { still: true });
+      BS.Renderer.drawShieldCover(c, e, "rgba(110,180,255,0.7)");
+      var half = cp / 2, st = e.stats;
+      c.fillStyle = "rgba(255,70,60,0.45)";
+      g.blocks.forEach(function (b) { if (b.alive && !b.structural && !b.covered) c.fillRect(b.lx - half, b.ly - half, cp, cp); });
+      c.lineWidth = 1.2;
+      if (st.cloakCover && st.cloakCover.sources) { c.strokeStyle = "rgba(155,140,255,0.95)"; g.blocks.forEach(function (b) { if (b.alive && !b.structural && !b.cloakCovered) c.strokeRect(b.lx - half + 0.6, b.ly - half + 0.6, cp - 1.2, cp - 1.2); }); }
+      if (st.jamCover && st.jamCover.sources) { c.strokeStyle = "rgba(53,224,143,0.95)"; g.blocks.forEach(function (b) { if (b.alive && !b.structural && !b.jamCovered) c.strokeRect(b.lx - half + 1.6, b.ly - half + 1.6, cp - 3.2, cp - 3.2); }); }
+      // the block type we aim at, if any
+      if (p.aimType && p.aimType !== "exposed" && p.aimType !== "unjammed") { c.strokeStyle = "rgba(255,230,120,0.9)"; g.blocks.forEach(function (b) { if (b.alive && b.type === p.aimType) c.strokeRect(b.lx - half - 0.5, b.ly - half - 0.5, cp + 1, cp + 1); }); }
+      c.restore();
+    }
+    if (scanFrame % 6 !== 1) return;
+    var st2 = e.stats, D = BS.Data, hull = e.hull / e.hullMax;
+    function pct(x) { return Math.round(x * 100) + "%"; }
+    function cls(x, lo, hi) { return x < lo ? "bad" : x < hi ? "warn" : "good"; }
+    var html = "<div><h4>Hull & shields</h4>";
+    html += "<div class='sl'><label>Hull</label><div class='bar enemy'><div class='fill' style='width:" + pct(hull) + ";background:" + hullColor(hull) + "'></div></div><span class='num'>" + pct(hull) + "</span></div>";
+    S.FACINGS.forEach(function (f) { var fr = S.shieldFrac(e, f); html += "<div class='sl'><label>" + f + "</label><div class='bar enemy'><div class='fill' style='width:" + pct(fr) + ";background:" + pctColor(fr) + "'></div></div><span class='num'>" + Math.round(e.shields[f]) + "</span></div>"; });
+    html += "<div class='sl'><label>Cover</label><span class='v " + cls(st2.coverFrac, 0.7, 0.9) + "'>" + pct(st2.coverFrac) + (st2.exposed ? " · " + st2.exposed + " bare" : "") + "</span></div>";
+    if (st2.cloakCover && st2.cloakCover.sources) html += "<div class='sl'><label>Cloak</label><span class='v'>" + st2.cloakCover.sources + " device" + (st2.cloakCover.sources > 1 ? "s" : "") + " · field " + pct(st2.cloakCover.frac) + (st2.cloakCover.exposed ? " <span class='good'>(" + st2.cloakCover.exposed + " out: cannot cloak)</span>" : "") + "</span></div>";
+    if (st2.jamCover && st2.jamCover.sources) html += "<div class='sl'><label>ECM</label><span class='v'>" + st2.jamCover.sources + " jammer" + (st2.jamCover.sources > 1 ? "s" : "") + " · field " + pct(st2.jamCover.frac) + (st2.jamCover.exposed ? " · " + st2.jamCover.exposed + " out" : " (breaks locks)") + "</span></div>";
+    html += "</div><div><h4>Systems</h4>";
+    var order = ["phaser", "disruptor", "pulse", "torpedo", "reactor", "shield", "engine", "sensor", "jammer", "cloak", "quarters"];
+    order.forEach(function (t) { var n = st2.counts[t]; if (!n) return; var a = st2.alive[t] || 0; html += "<div class='sl'><label>" + D.blocks[t].short + "</label><span class='v " + (a === 0 ? "bad" : a < n ? "warn" : "") + "'>" + a + " / " + n + "</span></div>"; });
+    var cw = st2.crew || { manning: 1, supply: 0, need: 0 };
+    html += "<div class='sl'><label>Crew</label><span class='v " + cls(cw.manning, 0.7, 1) + "'>" + cw.supply + " / " + cw.need + " · " + pct(cw.manning) + "</span></div>";
+    html += "<div class='sl'><label>Power</label><span class='v " + cls(st2.powerFactor, 0.7, 1) + "'>" + st2.powerUsed + " / " + st2.powerMax + " · " + pct(st2.powerFactor) + "</span></div>";
+    html += "<div class='sl'><label>Heat</label><span class='v'>" + Math.round(e.heat) + " / " + Math.round(st2.heatCap) + (e.overload > 0 ? " <span class='good'>OVERLOADED</span>" : "") + "</span></div>";
+    html += "</div><div><h4>Tactical</h4>";
+    var total = st2.weapons.filter(function (b) { return b.alive; }).length, bearing = BS.EnemyAI.bearingCount(e, p, false);
+    html += "<div class='sl'><label>Bearing</label><span class='v " + (bearing === 0 ? "good" : bearing >= total * 0.6 ? "bad" : "warn") + "'>" + bearing + " of " + total + " weapons on us</span></div>";
+    var stLabel = e.ai ? (D.enemyAI.stateLabels[e.ai.state] || e.ai.state) : "";
+    html += "<div class='sl'><label>Orders</label><span class='v'>" + (e.play ? e.play.def.label + " · " + e.play.def.phases[e.play.phase].label + " · " : (e.doctrineId || "") + " · ") + stLabel + "</span></div>";
+    html += "<div class='sl'><label>Motion</label><span class='v'>" + fmtKm(S.distanceKm(p, e)) + " · " + S.speedKmS(e).toFixed(1) + " km/s · " + S.angularVelocity(p, e).toFixed(2) + " rad/s</span></div>";
+    var theirTube = st2.weapons.filter(function (b) { return b.alive && b.def.weapon.kind === "launcher"; })[0];
+    var theirTurret = st2.weapons.filter(function (b) { return b.alive && b.def.weapon.kind === "turret"; })[0];
+    var threat = [];
+    if (theirTurret) threat.push(theirTurret.def.short + " " + pct(BS.Weapons.turretHitChance(e, p, theirTurret.def.weapon)) + " to hit us");
+    if (theirTube) threat.push("torpedoes " + pct(BS.Weapons.torpedoDamageMult(theirTube.def.weapon, p)) + " damage on us");
+    html += "<div class='sl'><label>Threat</label><span class='v'>" + (threat.length ? threat.join(" · ") : "unarmed") + "</span></div>";
+    html += "<div class='sl'><label>Cloak</label><span class='v'>" + (e.cloak.state !== "off" ? e.cloak.state : e.cloak.surge > 0 ? "surge: shields down" : e.cloak.strike > 0 ? "<span class='bad'>decloak strike " + e.cloak.strike.toFixed(0) + " s</span>" : "off") + (vis < 1 ? " · ghost contact" : "") + "</span></div>";
+    html += "</div>";
+    if (html !== scanHtmlLast) { el["scan-info"].innerHTML = html; scanHtmlLast = html; }
   }
 
   function updateOverview(state) {
@@ -385,7 +454,9 @@ BS.UI = (function () {
       cells[1].textContent = s.flags.destroyed || vis <= 0 ? "—" : fmtKm(S.distanceKm(p, s)) + (vis < 1 ? " ghost" : "");
       cells[2].textContent = s.flags.destroyed ? "—" : S.speedKmS(s).toFixed(1);
       cells[3].textContent = s.flags.destroyed ? "—" : S.angularVelocity(p, s).toFixed(2);
-      cells[4].textContent = s.flags.destroyed ? "destroyed" : s.flags.disabled ? "disabled" : s.cloak.state !== "off" ? s.cloak.state : s.ai ? (BS.Data.enemyAI.stateLabels[s.ai.state] || s.ai.state) : "";
+      var stLabel = s.ai ? (BS.Data.enemyAI.stateLabels[s.ai.state] || s.ai.state) : "";
+      if (s.play && s.cloak.state === "off") stLabel = s.play.def.label + " · " + stLabel;
+      cells[4].textContent = s.flags.destroyed ? "destroyed" : s.flags.disabled ? "disabled" : s.cloak.state !== "off" ? s.cloak.state : stLabel;
       row.classList.toggle("selected", p.selected === s);
       row.classList.toggle("locked", p.lock.target === s && p.lock.locked);
     });

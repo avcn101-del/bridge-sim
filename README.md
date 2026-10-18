@@ -45,8 +45,13 @@ tell the helm how to fly relative to it, and you switch modules on and off.
 - The camera keeps both ships in view; wheel or +/− zooms on top of that.
   A Constitution measures about 1 km on the game's scale (three times its
   real size, so you can see the blocks).
+- The bottom row is the **scan panel**: once you hold a lock it shows the
+  enemy's blocks and damage, shields and bare hull, cloak and ECM field
+  gaps, crew, power, heat, how many of its weapons bear on you and what its
+  torpedoes would do to you. The bridge log is the two-line ticker at the
+  top of the display; LOG (G) opens the full log.
 - Switch on systems in the bar at the bottom of the display (click or
-  F1–F8): F1 fires every phaser emitter that can bear, F2 every torpedo
+  F1–F8): F1 fires every phaser emitter that can bear (cannons and pulse phasers get their own groups), F2 every torpedo
   tube, then shield booster, shield hardener, afterburner. Every cycle costs **capacitor**: the dashed outer ring of the
   round gauge next to the module bar. The middle ring shows your four shield
   facings (top = front), the centre your hull. If the capacitor runs dry,
@@ -148,26 +153,27 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | Where | What it changes |
 |---|---|
 | `units.pxPerKm`, `grid.cellPx` | World scale and cell size |
-| `blocks.*` | Every block: hp, mass, cost, colour, glyph, weapon stats (damage, cycle, cap, optimal / falloff / tracking, arc), effects |
+| `blocks.*` | Every block: hp, mass, cost, colour, glyph, weapon stats (damage, cycle, cap, heat, optimal / falloff / tracking, arc, `pierceBonus`), effects |
 | `grid.lineOfFire / lineOfFireMuzzle / lineOfFireRangeCells` | Whether and how the own hull masks weapons |
 | `grid.shieldBase / shieldAdd / regenBase / regenAdd / shieldRadius` | Shield facings from emitters; bubble radius in cells |
-| `helm` | Stances (doctrine, ranges from fitted weapons, keys), auto-flip interval and shield thresholds, plays (phases, module policies, exit conditions) |
+| `helm` | Stances (doctrine, ranges from fitted weapons, keys), auto-flip interval and shield thresholds, keep geometry (`bearingStep / keepBand / keepRunBelow / holdSpeed / keepFireFraction / kiteMinBearing`), plays (phases, module policies, exit conditions) |
 | `balance.zoom` | Auto-fit camera limits and margin, manual zoom bias range |
 | `grid.capBase / capAdd / capRechargeTime` | Capacitor from reactors |
+| `grid.crew`, `blocks.*.crew` | Crew posts per system, bridge and quarters supply, manning floor, far-from-quarters radius and repair penalty |
 | `grid.thrustPerPoint / nacelleThrustMult / speedMultMin / speedMultMax` | Speed from engines and mass |
 | `grid.hitScatter / penetration / torpedoSplash / aimRadius / aimScatter / deadFraction / structureHp` | Where shots land, how damage travels through the hull, when a ship is lost |
 | `blocks.*.pierceCost`, `grid.structurePierceCost` | How much of a beam's penetration each block type eats (armor 2, structure 3) |
 | `blocks.reactor.explosion`, `grid.lineOfFire` | Reactor breach damage and radius; whether the own hull masks weapons |
 | `blocks.*.power`, `shipClasses.*.powerBase`, `grid.powerPerReactor / brownoutMin` | Power grid: what each system draws, what a hull and its reactors supply, how a brownout bites |
 | `grid.heat`, `blocks.*.weapon.heat` | Heat capacity and dissipation, overload time, heat per shot |
-| `ew.*`, `science.cloakDetectRangeKm` | Jam strength and duration, cloak timings and drain, detection range |
+| `ew.*`, `science.cloakDetectRangeKm` | Jam strength and duration, cloak timings, surge and drain, decloak strike (`ew.strike`: window, shield bypass, damage), field radii (`cloakRadius`, `jamRadius`), detection range |
 | `campaign.salvage` | Share of the enemy's surviving block value paid after a win (destroyed / disabled) |
 | `grid.variant` | How much a random enemy variant differs from its base layout |
 | `shipClasses.*.mask / layout / variants` | Hull shapes, default builds, enemy layouts |
 | `modules.*` (booster, hardener, afterburner) | Built-in active systems |
 | `shipClasses.*.presets` | Preset builds offered in the editor |
 | `editor.refund / maxSavedBuilds` | Refund on removed blocks, saved builds per hull |
-| `campaign.encounters / enemyScaling / klingonNames` | Which enemy shows up when, how it scales, what it pays |
+| `campaign.encounters / enemyScaling / klingonNames` | Which enemy shows up when, which play it runs (`play`), its own damage multiplier (`damageMult`), how it scales, what it pays |
 | `campaign.*`, `skills.*` | Economy, training |
 | `balance.capCurve / lockBase / zoom` | Capacitor curve, lock time, zoom |
 | `enemyAI.doctrines` | How each doctrine flies (enemy encounters and player stances): strafe pass range and timing, brawl orbit and flip timer, standoff hold and kite ranges, broadside band and roll timer, evade range |

@@ -2,6 +2,115 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.14.0] — 2026-10-18 (enemy scan panel)
+
+### Added
+- **Enemy scan panel** in the bottom row: the locked ship's block grid with
+  damage, shield bubbles, bare hull, cloak and ECM field gaps and the aimed
+  block type; hull and facings; systems alive / total, crew manning, power
+  and heat; weapons bearing on us, orders, motion, threat (their hit chance
+  on us, their torpedo damage on us) and cloak state with the decloak strike
+  countdown. Cloaked targets show nothing.
+
+### Changed
+- The bridge log is a two-line ticker at the top-left of the tactical view;
+  **LOG** (key G) expands it to the full scrollable log. The full-width
+  comms row is gone.
+
+## [0.13.0] — 2026-10-18 (crew manning)
+
+### Added
+- **Crew** (`grid.crew`, `blocks.*.crew`): every system block needs hands
+  (phaser / cannon 2, pulse 1, tube 3, reactor 2, shield 1, engine 1, sensor
+  1, jammer 1, cloak 2); the bridge supplies 10, each crew quarters 8.
+  Manning = supply / need (floor 0.4) scales weapon cycling and shield
+  regen like a brownout, so losing quarters in battle slows the ship. A
+  build short of crew cannot undock. Hangar "Crew" line and a Ship-panel
+  "Crew" row.
+- Blocks more than 6 cells from any quarters or the bridge repair at half
+  speed (amber dots in the hangar, validator warning).
+
+### Changed
+- Every default build, preset and enemy layout gained crew quarters
+  (placed to cover the systems: Constitution 8, Galaxy 11, Bird-of-Prey 6,
+  K't'inga 8); quarters draw no power.
+
+## [0.12.0] — 2026-10-18 (disruptor cannons and pulse phasers)
+
+### Added
+- **Disruptor cannon** (block `D`, group DIS): 32 damage every 2.5 s,
+  optimal 5 km, falloff 6 km, tracking 0.75 rad/s, one extra penetration
+  point (through a plate of armor), drawn as a travelling bolt.
+- **Pulse phaser** (block `U`, group PUL): 9.5 damage every second, tracking
+  1.6 rad/s, optimal 4 km, falloff 3 km.
+- Weapon `pierceBonus` carried through `applyDamage` / `Grid.hit`; glyphs
+  `bolt` and `burst`; random variants may roll both types.
+
+### Changed
+- Klingon layouts (Bird-of-Prey and all variants, K't'inga and Siege) mount
+  disruptor cannons instead of phasers. The broadside doctrine holds
+  4.5–7 km (was 5.5–8.5) so cannons stay in optimal. The Gunboat goes back
+  to the brawl doctrine (its Hit & fade with cannons stalled fights). Constitution **Brawler** preset: six pulse phasers on the
+  saucer rim, four cannons at the bow.
+- Stance ranges, plays (`noPhasers`), the target panel and the fit
+  statistics treat any turret as a beam (`weapon.kind`), not just phasers.
+- Harness results in `DESIGN.md` §8 (v0.12.0).
+
+## [0.11.0] — 2026-10-18 (cloak and ECM fields)
+
+### Added
+- **Cloak field** (`ew.cloakRadius` 10): every cloaking device covers the
+  blocks within 10 cells; a ship can cloak only while every alive block is
+  inside a field (module reads "no field", Engineering counts the blocks
+  outside), and losing a device or a section while cloaked collapses the
+  cloak. Several devices per hull (5 power, 250 cr each, no longer unique).
+  Shadow hunter carries three, the Shadow Bird-of-Prey five. The hangar
+  frames cells outside the field in purple; play condition `noCloak`.
+- **ECM field** (`ew.jamRadius` 7): a jam breaks the lock only when every
+  block sits inside a jammer's field. A partial field keeps the enemy's lock
+  but steers its fire onto the blocks outside the field for 4 s (aim
+  `unjammed`), so half cover is a liability. Hangar frames those cells in
+  green; the validator warns about both fields.
+
+### Changed
+- Shadow hunter preset: no jammers (its half field only pushed fire onto the
+  nacelles), cloaks deep in the engineering hull. Jammer boat description.
+
+## [0.10.0] — 2026-10-18 (firing bearings, decloak strike, enemy plays)
+
+### Added
+- **Firing-bearing keep geometry** (`helm.bearingStep / keepBand /
+  keepRunBelow / holdSpeed / keepFireFraction / kiteMinBearing`,
+  `BS.Grid.bearingProfile`, `BS.Ships.firingBearings`): a ship keeping range
+  holds the target on the bearing where the most of its fire bears (arc and
+  line of fire included), slows to a stop at the bottom of the band, holds
+  station down to 75% of the range and only then opens it, on a bearing that
+  keeps the guns talking when one exists. Bow torpedo tubes used to fire at a
+  third of their rate on both sides because `keep` flew abeam and ran tail-on.
+- **Decloak strike** (`ew.strike`): for 10 s after decloaking every hit deals
+  ×2 and 60% of it skips the shield into the hull; Tactical calls it,
+  Engineering warns when it is done to you. Shadow enemies get it too.
+- **Shields kept through the cloak**: cloaked or surging, the facing pools are
+  down (absorb nothing, not drawn) but no longer zeroed; they recharge at the
+  condition-green rate and the booster still fills them.
+- **Enemy plays** (`campaign.encounters[].play`): an enemy bridge can run a
+  play from `helm.plays` over its doctrine; the Gunboat runs Hit & fade, the
+  Torpedo boat Siege. Encounters may also set their own `damageMult`.
+  The Overview status shows "Play · state" for such an enemy.
+
+### Changed
+- **Siege** fires everything that reaches instead of tubes only, and returns
+  to bombarding after 30 s or beyond 9 km (12 km never came against a
+  strafer). **Ambush** strikes for the decloak window aiming at reactors,
+  Reinforces, and slips away only until the shields are back.
+- Torpedo boat damage ×1.25 and Shadow ×1.2 as encounter overrides (the
+  Bird-of-Prey's ×1.5 stays: ×1.6–1.8 turned Engage, Turtle and Hunter into
+  coin flips rather than costing 30–50% hull, see `DESIGN.md` §8); decloak
+  surge 5 s (was 8).
+- A new stance or doctrine keeps the once-per-battle retreat flag and pass
+  count (`carryAI`), so an enemy on a play cannot retreat every phase.
+- Harness results in `DESIGN.md` §8.
+
 ## [0.9.0] — 2026-10-18 (world scale, auto camera, plays)
 
 ### Added

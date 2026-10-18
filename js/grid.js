@@ -76,27 +76,52 @@ BS.Grid = (function () {
         case "sensor": s.sensors += g.sensorAdd; break;
         case "quarters": s.repair += g.repairAdd; break;
         case "bridge": s.bridgeAlive = true; break;
-        case "phaser": case "torpedo": s.weapons.push(b); break;
       }
+      if (b.def.weapon) s.weapons.push(b);
     });
     if (g.lineOfFire) s.weapons.forEach(function (b) { updateFacing(grid, b); });
     // shield cover: a block is protected only while an alive emitter sits within grid.shieldRadius cells (b.coverBy = nearest)
-    var emitters = grid.blocks.filter(function (b) { return b.alive && b.type === "shield"; }), R2 = g.shieldRadius * g.shieldRadius;
-    s.covered = 0; s.exposed = 0;
-    grid.blocks.forEach(function (b) {
-      if (!b.alive) return;
-      var best = null, bestD = Infinity;
-      for (var i = 0; i < emitters.length; i++) { var e = emitters[i], dx = e.x - b.x, dy = e.y - b.y, d2 = dx * dx + dy * dy; if (d2 <= R2 && d2 < bestD) { bestD = d2; best = e; } }
-      b.coverBy = best; b.covered = !!best;
-      if (!b.structural) { if (best) s.covered++; else s.exposed++; }
-    });
-    s.coverFrac = s.covered + s.exposed ? s.covered / (s.covered + s.exposed) : 0;
+    var sc = fieldCover(grid, "shield", g.shieldRadius, "covered", "coverBy");
+    s.covered = sc.covered; s.exposed = sc.exposed; s.coverFrac = sc.frac;
+    // cloak and ECM fields (ew.cloakRadius / jamRadius): a cloak needs every block inside a field; blocks outside the
+    // ECM field can still be targeted through a jam
+    s.cloakCover = fieldCover(grid, "cloak", BS.Data.ew.cloakRadius, "cloakCovered");
+    s.jamCover = fieldCover(grid, "jammer", BS.Data.ew.jamRadius, "jamCovered");
     grid.rev = (grid.rev || 0) + 1;
     s.speedMult = s.mass > 0 ? U.clamp(s.thrust * g.thrustPerPoint / s.mass, g.speedMultMin, g.speedMultMax) : g.speedMultMin;
     // brownout: with reactors gone the surviving systems share what is left
     s.powerFactor = s.powerUsed > s.powerMax ? Math.max(g.brownoutMin, s.powerMax / s.powerUsed) : 1;
+    // crew: systems need hands (blocks.*.crew), the bridge and the quarters supply them; manning = supply / need, and a
+    // system far from any quarters or the bridge (grid.crew.radius) is slow to repair (b.farCrew)
+    var cr = g.crew, need = 0, supply = s.bridgeAlive ? cr.bridge : 0, far = 0, hands = grid.blocks.filter(function (b) { return b.alive && (b.type === "quarters" || b.type === "bridge"); });
+    grid.blocks.forEach(function (b) {
+      if (!b.alive || b.structural) return;
+      if (b.type === "quarters") supply += cr.perQuarters;
+      var c = b.def.crew || 0; need += c; b.farCrew = false;
+      if (c > 0) {
+        var near = false;
+        for (var i = 0; i < hands.length && !near; i++) { var dx = hands[i].x - b.x, dy = hands[i].y - b.y; if (dx * dx + dy * dy <= cr.radius * cr.radius) near = true; }
+        if (!near) { b.farCrew = true; far++; }
+      }
+    });
+    s.crew = { need: need, supply: supply, far: far, manning: need > 0 ? U.clamp(supply / need, cr.minManning, 1) : 1 };
     grid.stats = s; grid.dirty = false;
     return s;
+  }
+
+  // Blocks within `radius` cells of an alive block of `type` are inside its field: sets b[flag] (and b[byKey] = the nearest
+  // such block when asked) and counts the non-structural blocks in and out. frac is 1 only when every block is covered.
+  function fieldCover(grid, type, radius, flag, byKey) {
+    var sources = grid.blocks.filter(function (b) { return b.alive && b.type === type; }), R2 = radius * radius, out = { covered: 0, exposed: 0, sources: sources.length };
+    grid.blocks.forEach(function (b) {
+      if (!b.alive) return;
+      var best = null, bestD = Infinity;
+      for (var i = 0; i < sources.length; i++) { var e = sources[i], dx = e.x - b.x, dy = e.y - b.y, d2 = dx * dx + dy * dy; if (d2 <= R2 && d2 < bestD) { bestD = d2; best = e; } }
+      b[flag] = !!best; if (byKey) b[byKey] = best;
+      if (!b.structural) { if (best) out.covered++; else out.exposed++; }
+    });
+    out.frac = out.covered + out.exposed ? out.covered / (out.covered + out.exposed) : 0;
+    return out;
   }
 
   // ---- geometry -----------------------------------------------------------------
@@ -178,7 +203,7 @@ BS.Grid = (function () {
   }
   function pierceCost(b) { return b.def.pierceCost || 1; }
   // Blocks a beam with `points` penetration points reaches: it enters each block while points remain, and each block costs its pierceCost.
-  function beamChain(ship, first, fromX, fromY, points) {
+  function beamChain(ship, first, fromX, fromY, points) {   // points: grid.penetration plus the weapon's pierceBonus
     var chain = [first], left = points - pierceCost(first);
     if (left > 0) blocksBehind(ship, first, fromX, fromY, points).some(function (q) { chain.push(q); left -= pierceCost(q); return left <= 0; });
     return chain;
@@ -216,6 +241,24 @@ BS.Grid = (function () {
     return b.coverage;
   }
   function weaponFacingOf(b) { return b.facing === undefined || b.facing === null ? b.outward : b.facing; }
+  // Fire that bears at each relative bearing (−180 .. 180 in steps of stepDeg; positive = starboard): the sum of damage
+  // per second of the alive weapons whose arc contains that bearing with a clear line of fire, restricted to the block
+  // types in `types` when given.
+  // The helm uses it to hold a target where the guns are (ships.js firingBearings).
+  function bearingProfile(ship, types, stepDeg) {
+    var out = [];
+    for (var deg = -180; deg < 180; deg += stepDeg) {
+      var ang = deg * U.DEG, w = 0;
+      ship.stats.weapons.forEach(function (b) {
+        if (!b.alive || b.facing === null || (types && !types[b.type])) return;
+        if (Math.abs(U.normAngle(ang - weaponFacingOf(b))) > (b.def.weapon.arc / 2) * U.DEG) return;
+        if (G().lineOfFire && !lineOfFireClear(ship.grid, b, ang)) return;   // the own hull masks this bearing
+        w += b.def.weapon.damage / b.def.weapon.cycle;
+      });
+      out.push({ deg: deg, w: w });
+    }
+    return out;
+  }
   function nearestOfType(grid, b, type, radius) {
     var best = null, bestD = Infinity;
     for (var dy = -radius; dy <= radius; dy++) for (var dx = -radius; dx <= radius; dx++) {
@@ -227,22 +270,24 @@ BS.Grid = (function () {
     return best;
   }
 
-  // Nearest alive block outside shield cover (aim type "exposed").
-  function nearestExposed(grid, from) {
+  // Nearest alive block outside a field: shield cover (aim type "exposed", flag "covered") or the ECM field ("unjammed").
+  function nearestExposed(grid, from, flag) {
     var best = null, bestD = Infinity;
+    flag = flag || "covered";
     grid.blocks.forEach(function (q) {
-      if (!q.alive || q.covered) return;
+      if (!q.alive || q[flag]) return;
       var d = Math.abs(q.x - from.x) + Math.abs(q.y - from.y);
       if (d < bestD) { bestD = d; best = q; }
     });
     return best;
   }
   // The block a shot from a world point lands on, after aiming. Null when the line misses the hull.
-  // aimType: a block type (steer at the nearest one), "exposed" (nearest block outside shield cover) or null (spray).
+  // aimType: a block type (steer at the nearest one), "exposed" (nearest block outside shield cover), "unjammed" (nearest
+  // block outside the ECM field, forced on a partially jammed attacker) or null (spray).
   function resolveEntry(ship, fromX, fromY, aimType) {
     var grid = ship.grid, entry = entryBlock(ship, fromX, fromY);
     if (!entry || !aimType) return entry;
-    var aimed = aimType === "exposed" ? nearestExposed(grid, entry) : nearestOfType(grid, entry, aimType, G().aimRadius);
+    var aimed = aimType === "exposed" ? nearestExposed(grid, entry) : aimType === "unjammed" ? nearestExposed(grid, entry, "jamCovered") : nearestOfType(grid, entry, aimType, G().aimRadius);
     return aimed ? entryBlockThrough(ship, fromX, fromY, aimed) : entry;
   }
 
@@ -251,7 +296,7 @@ BS.Grid = (function () {
   // kind "phaser": penetrates up to grid.penetration blocks along the shot line.
   // kind "torpedo": explodes on the entry block and splashes into its neighbours.
   // `first` is the entry block from resolveEntry when the caller already looked it up (so shield cover and the hit agree).
-  function hit(ship, amount, fromX, fromY, aimType, kind, first) {
+  function hit(ship, amount, fromX, fromY, aimType, kind, first, pierceBonus) {
     var grid = ship.grid, g = G();
     var res = { hits: [], destroyed: [], cutOff: [], explosions: [] };
     if (first === undefined) first = resolveEntry(ship, fromX, fromY, aimType);
@@ -282,7 +327,7 @@ BS.Grid = (function () {
       nbs.forEach(function (q) { left -= damage(q, amount * splash.neighbour); });
       if (!first.alive && left > 0) { var deeper = blocksBehind(ship, first, fromX, fromY, 1); if (deeper.length) damage(deeper[0], left); }
     } else {
-      var chain = beamChain(ship, first, fromX, fromY, g.penetration);
+      var chain = beamChain(ship, first, fromX, fromY, g.penetration + (pierceBonus || 0));
       var rem = amount;
       for (var i = 0; i < chain.length && rem > 0.01; i++) rem -= damage(chain[i], rem);
     }
@@ -318,9 +363,10 @@ BS.Grid = (function () {
     var budget = rate * dt, pool = grid.blocks.filter(function (b) { return b.alive && b.hp < b.maxHp; });
     if (!pool.length) return;
     pool.sort(function (a, b) { return (b.type === priorityType) - (a.type === priorityType) || (a.hp / a.maxHp) - (b.hp / b.maxHp); });
+    var farMult = G().crew.farRepairMult;
     for (var i = 0; i < pool.length && budget > 0; i++) {
       var b = pool[i], d = Math.min(b.maxHp - b.hp, budget);
-      b.hp += d; budget -= d;
+      b.hp += b.farCrew ? d * farMult : d; budget -= d;   // a block far from the crew decks costs the same time for half the repair
     }
   }
 
@@ -356,16 +402,20 @@ BS.Grid = (function () {
     if (!st.weapons.length) errors.push("No weapons.");
     if (st.thrust === 0) errors.push("No engines.");
     if (st.powerUsed > st.powerMax) errors.push("Power grid overloaded: " + st.powerUsed + " / " + st.powerMax + ". Fewer systems or more reactors.");
+    if (st.crew.supply < st.crew.need) errors.push("Undermanned: " + st.crew.supply + " crew for " + st.crew.need + " posts. Add crew quarters (8 each) or fewer systems.");
     // warnings do not block undocking
     var warnings = [], masked = st.weapons.filter(function (b) { return arcCoverage(grid, b) <= 0; }).length;
     if (masked) warnings.push(masked + " weapon(s) cannot fire past the hull.");
     if (st.exposed && st.coverFrac < 0.9) warnings.push(st.exposed + " block(s) outside shield cover (" + G().shieldRadius + " cells from an emitter) take hits unshielded.");
+    if (st.cloakCover.sources && st.cloakCover.exposed) warnings.push(st.cloakCover.exposed + " block(s) outside the cloak field (" + BS.Data.ew.cloakRadius + " cells from a cloaking device): the ship cannot cloak.");
+    if (st.jamCover.sources && st.jamCover.exposed) warnings.push(st.jamCover.exposed + " block(s) outside the ECM field (" + BS.Data.ew.jamRadius + " cells from a jammer): a jammed enemy can still hit them.");
     var hot = 0;
     grid.blocks.forEach(function (b) {
       if (b.type !== "reactor") return;
       for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) { var q = grid.at[(b.x + dx) + "," + (b.y + dy)]; if (q && q !== b && (q.type === "reactor" || q.type === "bridge")) hot++; }
     });
     if (hot) warnings.push("Reactors touch each other or the bridge: one breach will chain.");
+    if (st.crew.far) warnings.push(st.crew.far + " system block(s) more than " + G().crew.radius + " cells from crew quarters or the bridge repair at half speed.");
     return { ok: errors.length === 0, errors: errors, warnings: warnings, counts: counts, stats: st, masked: masked, grid: grid };
   }
   // Random variant of a layout: re-roll a fraction of the editable cells (armor ↔ system blocks, weighted by
@@ -396,6 +446,6 @@ BS.Grid = (function () {
   }
 
   return { build: build, derive: derive, facingOf: facingOf, worldToLocal: worldToLocal, localToWorld: localToWorld, cellOfLocal: cellOfLocal,
-    blockAtWorld: blockAtWorld, blockWorld: blockWorld, entryBlock: entryBlock, entryBlockThrough: entryBlockThrough, resolveEntry: resolveEntry, hit: hit, blockFacing: facingOf, lineOfFireClear: lineOfFireClear, arcCoverage: arcCoverage, weaponFacing: weaponFacingOf, repair: repair, pruneDisconnected: pruneDisconnected,
+    blockAtWorld: blockAtWorld, blockWorld: blockWorld, entryBlock: entryBlock, entryBlockThrough: entryBlockThrough, resolveEntry: resolveEntry, hit: hit, blockFacing: facingOf, lineOfFireClear: lineOfFireClear, arcCoverage: arcCoverage, weaponFacing: weaponFacingOf, bearingProfile: bearingProfile, fieldCover: fieldCover, repair: repair, pruneDisconnected: pruneDisconnected,
     layoutFromGrid: layoutFromGrid, validateLayout: validateLayout, randomVariant: randomVariant, layoutCost: layoutCost, typeForLetter: typeForLetter };
 })();

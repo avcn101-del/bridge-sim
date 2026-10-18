@@ -29,8 +29,8 @@ button { font-family: inherit; }
   display: grid;
   height: 100vh;
   grid-template-columns: 272px minmax(360px, 1fr) 300px;
-  grid-template-rows: 48px minmax(200px, 1fr) 120px;
-  grid-template-areas: "top top top" "status tactical orders" "comms comms comms";
+  grid-template-rows: 48px minmax(200px, 1fr) 176px;
+  grid-template-areas: "top top top" "status tactical orders" "scan scan scan";
   gap: 8px;
   padding: 8px;
 }
@@ -65,7 +65,7 @@ body.alert-red #alert-label { animation: blink 1s steps(2) infinite; }
 
 #status { grid-area: status; }
 #orders { grid-area: orders; }
-#comms { grid-area: comms; }
+#scan { grid-area: scan; }
 #tactical { grid-area: tactical; position: relative; border-radius: var(--radius); overflow: hidden; background: #03040a; box-shadow: 0 0 0 2px #222 inset, 0 0 40px var(--glow); transition: box-shadow 0.5s; }
 body.alert-red #tactical { animation: redpulse 1.6s ease-in-out infinite; }
 @keyframes redpulse { 0%, 100% { box-shadow: 0 0 0 2px #5a1a1a inset, 0 0 30px var(--glow); } 50% { box-shadow: 0 0 0 3px #b03030 inset, 0 0 70px var(--glow); } }
@@ -208,15 +208,35 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
 .module:hover { border-color: var(--c-peach); }
 
 /* --------------------------------------------------------------- log */
-#comms .panel-body { padding: 6px 12px; }
-#log { list-style: none; margin: 0; padding: 0; font-size: 14px; }
+/* the bridge log is a two-line ticker over the tactical view; LOG expands it */
+#comms { position: absolute; left: 12px; top: 10px; width: min(640px, 62%); z-index: 3; pointer-events: none; display: flex; align-items: flex-start; gap: 6px; }
+#comms #log { flex: 1; min-width: 0; background: rgba(4,5,14,0.55); border-radius: 8px; padding: 2px 8px; max-height: 44px; overflow: hidden; transition: max-height 0.2s; }
+#comms.expanded #log { max-height: 320px; overflow-y: auto; pointer-events: auto; background: rgba(4,5,14,0.9); }
+#comms #log li:nth-child(n+3) { display: none; }
+#comms.expanded #log li:nth-child(n+3) { display: flex; }
+#comms .log-btn { pointer-events: auto; font-family: inherit; font-size: 11px; letter-spacing: 0.12em; padding: 3px 8px; border-radius: 10px; border: 1px solid var(--c-peach); background: rgba(4,5,14,0.7); color: var(--c-peach); cursor: pointer; }
+#comms.expanded .log-btn, #comms .log-btn:hover { background: var(--c-peach); color: #111; }
+#log { list-style: none; margin: 0; padding: 0; font-size: 13px; }
 #log li { padding: 2px 0; overflow: hidden; border-bottom: 1px solid #141428; display: flex; gap: 8px; animation: login 0.25s ease-out; }
 @keyframes login { from { opacity: 0; transform: translateX(-6px); } }
 #log .t { color: var(--c-dim); width: 44px; flex-shrink: 0; font-size: 12px; }
 #log .who { font-weight: 700; width: 112px; flex-shrink: 0; text-transform: uppercase; letter-spacing: 0.08em; }
 #log .who.helm { color: var(--c-blue); } #log .who.tactical { color: var(--c-orange); } #log .who.engineering { color: var(--c-purple); }
 #log .who.comms { color: var(--c-peach); } #log .who.enemy { color: #7cff8a; } #log .who.computer { color: #ddd; }
-#log .msg { flex: 1; min-width: 0; }
+#log .msg { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#comms.expanded #log .msg { white-space: normal; }
+
+/* -------------------------------------------------------------- scan */
+#scan .panel-body { display: flex; gap: 12px; padding: 4px 12px; align-items: stretch; }
+#scan-view { width: 250px; height: 160px; flex-shrink: 0; background: radial-gradient(ellipse at center, #0a0c1c 0%, #03040a 100%); border-radius: 8px; box-shadow: 0 0 0 1px #222 inset; }
+.scan-info { flex: 1; display: grid; grid-template-columns: 1.1fr 1fr 1.2fr; gap: 0 14px; font-size: 12.5px; align-content: start; }
+.scan-info h4 { margin: 2px 0 2px; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--c-peach); }
+.scan-info .sl { display: flex; align-items: center; gap: 6px; padding: 1px 0; white-space: nowrap; }
+.scan-info .sl label { color: var(--c-dim); width: 64px; flex-shrink: 0; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
+.scan-info .sl .bar { flex: 1; height: 7px; }
+.scan-info .sl .num { width: 34px; text-align: right; font-size: 12px; }
+.scan-info .v { color: var(--c-text); }
+.scan-info .warn { color: var(--c-yellow); } .scan-info .bad { color: var(--c-red); } .scan-info .good { color: #7fd8a0; }
 #log li.warn .msg { color: #ff8f7a; }
 #log li.enemy .msg { color: #9cff9c; }
 #log li.system .msg { color: #fff; font-weight: 700; }
@@ -302,7 +322,7 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
 
 /* ------------------------------------------------------ short screens */
 @media (max-height: 760px) {
-  #app { grid-template-rows: 44px minmax(200px, 1fr) 115px; gap: 6px; padding: 6px; }
+  #app { grid-template-rows: 44px minmax(200px, 1fr) 150px; gap: 6px; padding: 6px; }
   .lcars-btn { min-height: 26px; font-size: 12px; }
   h3 { margin: 5px 0 3px; font-size: 12px; }
   .module { width: 50px; height: 50px; font-size: 11px; }
@@ -314,6 +334,6 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
   .row label { width: 56px; }
 }
 @media (max-width: 900px) {
-  #app { grid-template-columns: 1fr 1fr; grid-template-rows: 48px 46vh auto 140px; grid-template-areas: "top top" "tactical tactical" "status orders" "comms comms"; }
+  #app { grid-template-columns: 1fr 1fr; grid-template-rows: 48px 46vh auto 150px; grid-template-areas: "top top" "tactical tactical" "status orders" "scan scan"; }
   html, body { overflow: auto; }
 }

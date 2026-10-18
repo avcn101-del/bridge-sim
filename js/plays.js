@@ -67,9 +67,10 @@ BS.Plays = (function () {
         case "time": return time > v;
         case "cloakOff": return ship.cloak.state === "off";
         case "cloaked": return ship.cloak.state === "cloaked";
+        case "noCloak": return ship.cloak.state === "off" && !S.cloakFieldComplete(ship);   // the field is broken: fight without it
         case "overloaded": return ship.overload > 0;
-        case "noTubes": return !(alive.torpedo > 0);
-        case "noPhasers": return !(alive.phaser > 0);
+        case "noTubes": return !ship.stats.weapons.some(function (b) { return b.alive && b.def.weapon.kind === "launcher"; });
+        case "noPhasers": return !ship.stats.weapons.some(function (b) { return b.alive && b.def.weapon.kind === "turret"; });
         case "enemyReactorsGone": return !(ealive.reactor > 0);
         case "enemyShieldsDown": return S.shieldFrac(target, S.facingToward(target, ship.pos.x, ship.pos.y)) <= 0.02;
         default: return false;

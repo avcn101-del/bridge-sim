@@ -129,12 +129,15 @@ BS.Crew = (function () {
       if (e.ship === ship) say("engineering", BS.Data.blockReports.reactorExploded, "warn");
       else if (e.ship === enemy) say("tactical", BS.Data.blockReports.enemyReactorExploded);
     });
+    BS.Events.on("hullHit", function (e) { if (e.ship === ship && e.strike && now() - (ship._strikeReported || -99) > 20) { ship._strikeReported = now(); say("engineering", D().events.enemyStrike, "warn"); } });
     BS.Events.on("jammed", function (e) {
       if (!e.hit) return;
-      if (e.target === ship) report("tactical", "jammedUs", {}, "warn"); else if (e.ship === ship) report("tactical", "jammedThem");
+      if (e.target === ship) report("tactical", e.partial ? "jammedUsPartial" : "jammedUs", { n: e.exposed }, "warn");
+      else if (e.ship === ship) report("tactical", e.partial ? "jammedThemPartial" : "jammedThem", { n: e.exposed });
     });
+    BS.Events.on("cloakRefused", function (e) { if (e.ship === ship) report("engineering", "cloakField", { n: e.exposed }, "warn"); });
     BS.Events.on("cloakChanged", function (e) {
-      if (e.ship === ship) { if (e.state === "cloaking") report("engineering", "cloakOn"); else if (e.state === "decloaking") report("engineering", e.reason === "nocap" ? "cloakNoCap" : "cloakOff", {}, e.reason === "nocap" ? "warn" : null); }
+      if (e.ship === ship) { if (e.state === "cloaking") report("engineering", "cloakOn"); else if (e.state === "decloaking") report("engineering", e.reason === "nocap" ? "cloakNoCap" : e.reason === "field" ? "cloakCollapsed" : "cloakOff", {}, e.reason ? "warn" : null); else if (e.state === "off" && ship.cloak.strike > 0) report("tactical", "strikeWindow"); }
       else if (e.ship === enemy) {
         if (e.state === "cloaking") say("tactical", D().events.enemyCloaked, "warn");
         else if (e.state === "decloaking") say("tactical", U.template(D().events.enemyDecloak, { facing: S.facingToward(ship, enemy.pos.x, enemy.pos.y) }), "warn");

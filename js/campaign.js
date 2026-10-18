@@ -169,7 +169,7 @@ BS.Campaign = (function () {
       ok: v.ok, errors: v.errors, warnings: v.warnings || [], masked: v.masked || 0, counts: v.counts,
       dps: Math.round(turretDps + launcherDps), turretDps: Math.round(turretDps), launcherDps: Math.round(launcherDps),
       cap: capMax, drain: drain.toFixed(1), peakRecharge: peak.toFixed(1), stableAt: stableAt, lasts: lasts,
-      powerUsed: st.powerUsed, powerMax: st.powerMax, coverFrac: st.coverFrac, exposed: st.exposed,
+      powerUsed: st.powerUsed, powerMax: st.powerMax, coverFrac: st.coverFrac, exposed: st.exposed, cloakCover: st.cloakCover, jamCover: st.jamCover, crew: st.crew,
       heatCap: Math.round(st.heatCap), heatDissipation: st.heatDissipation.toFixed(1), salvoHeat: salvoHeat, heatPerSec: heatPerSec.toFixed(1),
       heatNeutral: Math.min(1, heatPerSec > 0 ? st.heatDissipation / heatPerSec : 1),
       speed: (cls.speed * st.speedMult * mods.speedMult / D().units.pxPerKm).toFixed(1), speedMult: st.speedMult.toFixed(2), mass: st.mass, thrust: st.thrust,
@@ -197,7 +197,7 @@ BS.Campaign = (function () {
     else rows = cls.layout;
     var names = D().campaign.klingonNames, name = names.length ? names[Math.floor(rng() * names.length)] : cls.name;
     var doc = pick.doctrine; if (Array.isArray(doc)) doc = doc[Math.floor(rng() * doc.length)];
-    return { id: pick.id, classId: pick.enemyClass, cls: cls, rows: rows, name: name, variantName: variantName, rewardMult: pick.rewardMult, aiProfile: cls.aiProfile || "default",
+    return { id: pick.id, classId: pick.enemyClass, cls: cls, rows: rows, name: name, variantName: variantName, rewardMult: pick.rewardMult, play: pick.play || null, damageMult: pick.damageMult || null, aiProfile: cls.aiProfile || "default",
       doctrine: doc || D().enemyAI[cls.aiProfile || "default"].doctrine, label: cls.className + (variantName ? " · " + variantName : "") };
   }
   function settleBattle(state) {
