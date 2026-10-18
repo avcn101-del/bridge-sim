@@ -130,7 +130,7 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
 .lcars-btn:active { transform: scale(0.97); filter: brightness(0.9); }
 .lcars-btn.active { box-shadow: 0 0 0 2px #fff inset, 0 0 12px currentColor; filter: brightness(1.2); }
 .lcars-btn.active::before { background: #fff; }
-.lcars-btn:disabled { filter: grayscale(0.6) brightness(0.5); cursor: default; }
+.lcars-btn:disabled, .lcars-btn.off { filter: grayscale(0.6) brightness(0.5); cursor: default; }
 .lcars-btn.big { font-size: 20px; padding: 12px 24px; border-radius: 24px; margin-top: 18px; width: 100%; text-align: center; }
 .lcars-btn.big::before { display: none; }
 .lcars-btn.sq { min-width: 38px; border-radius: 6px; font-size: 18px; padding: 0 8px; text-align: center; } .lcars-btn.sq::before { display: none; }

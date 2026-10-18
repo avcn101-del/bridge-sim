@@ -34,6 +34,7 @@ These rules apply to every session working in this repository.
   - `js/weapons.js` — turret blocks (tracking/falloff) and launcher blocks (signature/velocity), hit resolution
   - `js/crew.js` — crew voices: instant commands with reports, warnings
   - `js/enemyai.js` — doctrine machine for both ships (enemy doctrines, player stances, auto-flip)
+  - `js/plays.js` — plays: scripted phase sequences (stance/doctrine, module policy, governor, aim, exit conditions) from `helm.plays`
   - `js/campaign.js` — progress between battles: save/load/export/import, credits, ownership, fitting rules, fit stats, real-time skills, enemy scaling
   - `js/hangar.js` — hangar screen DOM: ship, fitting, market, skills, save buttons
   - `js/ui.js` — DOM panels, order buttons, comms log, alert states
@@ -47,7 +48,7 @@ These rules apply to every session working in this repository.
   outside `renderer.js` and `data.js`.
 - **Controls are EVE-style commands.** The player never steers directly:
   `BS.Game.command(id, args)` → `BS.Crew.command` executes instantly on the
-  player ship (select, lock, stance, flyTo, stop, module, aim, repair,
+  player ship (select, lock, stance, play, flyTo, stop, module, aim, repair,
   reinforce, governor, redAlert, hail) and the officer reports. Movement is
   the helm's: the player picks a stance and `BS.EnemyAI` flies it with the
   same doctrine machine and the same `BS.Ships.setCommand` /
@@ -62,7 +63,9 @@ These rules apply to every session working in this repository.
   Blocks cut off from the bridge break away. Never hard-code block effects
   outside `grid.js`; every number is in `BS.Data.grid` and `BS.Data.blocks`.
 - **Interface shows km and km/s**; the world is pixels (`units.pxPerKm`,
-  50; `grid.cellPx` 6, so a Constitution is 156 px long). Keep
+  150; `grid.cellPx` 6, so a Constitution is 156 px ≈ 1 km long, three
+  times its real size so blocks stay readable). The camera auto-fits both
+  ships; manual zoom is a bias on top. Keep
   `visual.length/width` equal to the grid size because shields, hit radius
   and effects use them.
 - **Progress lives in `BS.Campaign`** (localStorage key `bridgesim.save`,

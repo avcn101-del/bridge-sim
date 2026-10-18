@@ -3,7 +3,7 @@ window.BS = window.BS || {};
 
 BS.Game = (function () {
   var U = BS.Util;
-  var state = { phase: "start", time: 0, paused: false, player: null, enemy: null, ships: [], result: null, endTimer: 0, hover: null, zoom: 1, reward: null, encounter: null };
+  var state = { phase: "start", time: 0, paused: false, player: null, enemy: null, ships: [], result: null, endTimer: 0, hover: null, zoom: 1, zoomBias: 1, reward: null, encounter: null };
   var accumulator = 0, lastFrame = 0, running = false;
   var subscribed = false;
 
@@ -40,7 +40,7 @@ BS.Game = (function () {
     BS.UI.clearLog();
     BS.UI.hideOverlays();
     state.time = 0; state.paused = false; state.result = null; state.resultHow = null; state.endTimer = 0; state.hover = null; state.reward = null;
-    state.zoom = BS.Data.balance.zoom.start;
+    state.zoom = BS.Data.balance.zoom.start; state.zoomBias = 1;
     var save = BS.Campaign.get();
     var player = BS.Ships.create(save.shipClass, { isPlayer: true, pos: { x: 0, y: 0 }, heading: -Math.PI / 2, layout: BS.Campaign.battleLayout(save.shipClass), mods: BS.Campaign.skillMods() });
     var ang = U.rand(-0.6, 0.6) - Math.PI / 2;
@@ -67,7 +67,8 @@ BS.Game = (function () {
     BS.Crew.command(id, args);
   }
   function setHover(h) { state.hover = h; }
-  function setZoom(z) { var Z = BS.Data.balance.zoom; state.zoom = U.clamp(z, Z.min, Z.max); }
+  // the camera auto-fits both ships; a manual zoom scales a bias on top of that fit
+  function setZoom(z) { var Z = BS.Data.balance.zoom; state.zoomBias = U.clamp(state.zoomBias * (U.clamp(z, Z.min, Z.max) / Math.max(0.01, state.zoom)), Z.biasMin, Z.biasMax); }
 
   function togglePause() {
     if (state.phase !== "battle") return;
@@ -79,6 +80,7 @@ BS.Game = (function () {
     var p = state.player, e = state.enemy;
     BS.Crew.update(dt);
     BS.EnemyAI.update(e, p, dt);
+    BS.Plays.update(p, dt);
     BS.EnemyAI.update(p, e, dt);
     BS.Ships.update(p, dt);
     BS.Ships.update(e, dt);

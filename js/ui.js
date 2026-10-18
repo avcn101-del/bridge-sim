@@ -17,17 +17,19 @@ BS.UI = (function () {
     ["own-speed", "own-cmd", "own-subsystems", "enemy-subsystems", "gauge", "help-screen", "btn-help", "btn-help-close",
      "target-none", "target-info", "tg-name", "tg-hull", "tg-hull-val", "tg-shield", "tg-shield-val", "tg-range", "tg-angular", "tg-chance", "tg-aim",
      "clock", "alert-label", "btn-pause", "btn-redalert", "btn-zoom-in", "btn-zoom-out", "pause-overlay", "start-screen", "result-screen", "result-title", "result-sub", "result-head",
-     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "rs-credits", "rs-salvage", "heat-bar", "heat-num", "btn-governor", "own-heat", "ship-name", "view", "module-bar", "overview", "sel-name"]
+     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "rs-credits", "rs-salvage", "heat-bar", "heat-num", "btn-governor", "own-heat", "ship-name", "view", "module-bar", "overview", "sel-name", "play-buttons"]
       .forEach(function (id) { el[id] = $(id); });
     logList = $("log");
     buildGauge();
     buildSubsystemWidgets();
+    buildPlayButtons();
 
     document.querySelectorAll("[data-cmd]").forEach(function (btn) {
       btn.addEventListener("click", function () {
         var args = {};
         if (btn.hasAttribute("data-range")) args.rangeKm = parseFloat(btn.getAttribute("data-range"));
         if (btn.hasAttribute("data-stance")) args.stance = btn.getAttribute("data-stance");
+        if (btn.hasAttribute("data-play")) args.play = btn.getAttribute("data-play");
         game.command(btn.getAttribute("data-cmd"), args); btn.blur();
       });
     });
@@ -72,6 +74,18 @@ BS.UI = (function () {
     ex.textContent = "EXP 0"; ex.addEventListener("click", function () { game.command("aim", { type: "exposed" }); });
     el["enemy-subsystems"].appendChild(ex); el["en-exposed"] = ex;
   }
+  var playEls = {};
+  function buildPlayButtons() {
+    var plays = BS.Data.helm.plays;
+    el["play-buttons"].innerHTML = ""; playEls = {};
+    Object.keys(plays).forEach(function (id) {
+      var P = plays[id], b = document.createElement("button");
+      b.className = "lcars-btn c-peach"; b.setAttribute("data-cmd", "play"); b.setAttribute("data-play", id);
+      b.textContent = P.label; b.title = P.key + ": " + P.desc;   // the generic [data-cmd] handler sends the command
+      el["play-buttons"].appendChild(b); playEls[id] = b;
+    });
+  }
+
   // Circular ship gauge: hull (centre), four shield facings (middle), capacitor (outer).
   var gauge = {};
   function arcPath(cx, cy, r, a0, a1) {
@@ -190,6 +204,8 @@ BS.UI = (function () {
       if (fk) { var i = parseInt(fk[1], 10) - 1; if (moduleEls[i]) { ev.preventDefault(); game.command("module", { module: moduleEls[i].m }); } return; }
       var stances = BS.Data.helm.stances, stanceKey = Object.keys(stances).filter(function (id) { return stances[id].key === ev.key; })[0];
       if (stanceKey) { game.command("stance", { stance: stanceKey }); return; }
+      var plays = BS.Data.helm.plays, playKey = Object.keys(plays).filter(function (id) { return plays[id].key === ev.key; })[0];
+      if (playKey) { game.command("play", { play: playKey }); return; }
       switch (ev.key.toLowerCase()) {
         case "l": game.command("lock"); break;
         case "h": game.command("governor"); break;
@@ -266,7 +282,10 @@ BS.UI = (function () {
   function setBar(fill, frac, color) { fill.style.width = (U.clamp(frac, 0, 1) * 100).toFixed(1) + "%"; if (color) fill.style.backgroundColor = color; }
   function fmtKm(k) { return (k < 10 ? k.toFixed(1) : Math.round(k)) + " km"; }
   function cmdText(p) {
-    if (p.ai && !p.ai.suspended && p.stance) return BS.Data.helm.stances[p.stance].label + " · " + (BS.Data.enemyAI.stateLabels[p.ai.state] || p.ai.state);
+    var st = p.ai ? (BS.Data.enemyAI.stateLabels[p.ai.state] || p.ai.state) : "";
+    if (p.play && p.ai && !p.ai.suspended) { var ph = p.play.def.phases[p.play.phase]; return p.play.def.label + " · " + ph.label + " · " + st; }
+    if (p.ai && !p.ai.suspended && p.stance) return BS.Data.helm.stances[p.stance].label + " · " + st;
+    if (p.ai && !p.ai.suspended) return (p.doctrineId || "helm") + " · " + st;
     return p.cmd.type === "flyTo" ? "Manual · flying to point" : "Manual · all stop";
   }
 
@@ -331,7 +350,8 @@ BS.UI = (function () {
     updateOverview(state);
     el["sel-name"].textContent = p.selected ? p.selected.name : "nothing";
     var auto = p.ai && !p.ai.suspended;
-    document.querySelectorAll("[data-cmd='stance']").forEach(function (b) { b.classList.toggle("active", !!auto && p.stance === b.getAttribute("data-stance")); });
+    document.querySelectorAll("[data-cmd='stance']").forEach(function (b) { b.classList.toggle("active", !!auto && !p.play && p.stance === b.getAttribute("data-stance")); });
+    Object.keys(playEls).forEach(function (id) { playEls[id].classList.toggle("active", !!p.play && p.play.id === id); playEls[id].classList.toggle("off", !BS.Plays.available(p, id)); });
     document.querySelectorAll("[data-cmd='stop']").forEach(function (b) { b.classList.toggle("active", !auto); });
 
     // module bar
