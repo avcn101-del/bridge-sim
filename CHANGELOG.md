@@ -2,6 +2,39 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.16.0] — 2026-10-18 (reactor power range, section physics, core breach)
+
+### Added
+- **Reactor power range** (`grid.powerRadius` 15, `unpoweredFactor` 0.5):
+  systems outside every alive reactor's range run at half (weapon cycle,
+  emitter strength and regen, thrust, sensors). Hangar dims those cells and
+  reports coverage; the scan panel dims them on the enemy. Every layout's
+  reactors were re-placed for 100% coverage (solver, mirrored, interior,
+  never touching another reactor or the bridge).
+- **Warp core breach** (`grid.breach`): the last reactor dying starts an
+  8 s countdown; the ship then blows up and deals up to 900 damage within
+  2 km. Crew callouts both ways; both AIs clear the radius on the
+  afterburner (`clear` state).
+- **Section physics** (`visuals.fragments`): severed sections keep full
+  momentum, burn their engines, cook off their reactors and are solid:
+  a ship they drift into takes damage per cell (`debrisHit`).
+
+## [0.15.0] — 2026-10-18 (shield recharge delay, attack side, critical hits)
+
+### Added
+- **Shield recharge delay** (`grid.shieldRechargeDelay` 4 s): a facing that
+  was hit stops regenerating for 4 s; the booster still fills it. Rewards
+  hit-and-run over sustained brawling.
+- **Attack side** (`helm.sides`, key B, command `side`): Engage / Skirmish
+  can shadow the enemy's port, starboard or aft, or its **blind** sector
+  (where the fewest of its weapons bear) with the new `shadow` movement
+  command. The scan panel shows their fire per sector. Enemies come about
+  after `blindTolerance` seconds with nothing bearing (`enemyAI.*`).
+- **Critical hits** (`grid.crits`): a hit leaving a system under half hp
+  rolls 25% to breach a reactor, tumble the ship (engine), drop its lock
+  (sensor), bleed a facing (emitter), jam a mount (weapon), lose crew
+  quarters or drop a cloak. Crew callouts, flash, "tumbling" status.
+
 ## [0.14.0] — 2026-10-18 (enemy scan panel)
 
 ### Added
@@ -73,6 +106,8 @@ All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
   green; the validator warns about both fields.
 
 ### Changed
+- Torpedo boat damage back to ×1.0 (was 1.25): with the recharge delay its
+  stream pins a facing for good; beat it from aft or with Alpha strike.
 - Shadow hunter preset: no jammers (its half field only pushed fire onto the
   nacelles), cloaks deep in the engineering hull. Jammer boat description.
 

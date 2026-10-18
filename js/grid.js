@@ -56,11 +56,16 @@ BS.Grid = (function () {
       regen: { fore: g.regenBase, aft: g.regenBase, port: g.regenBase, starboard: g.regenBase }, sensors: g.sensorBase, repair: g.repairBase,
       counts: {}, alive: {}, hullTotal: 0, hullAlive: 0, weapons: [], bridgeAlive: false, powerUsed: 0, powerMax: grid.cls.powerBase || 0,
       heatCap: g.heat.base, heatDissipation: g.heat.dissipationBase, rimCells: 0 };
+    // reactor power range: systems outside every alive reactor's radius run at g.unpoweredFactor (b.powered, b.powerMult)
+    var pc = fieldCover(grid, "reactor", g.powerRadius, "powered");
+    s.powered = pc.covered; s.unpowered = pc.exposed; s.poweredFrac = pc.frac;
     grid.blocks.forEach(function (b) {
       if (b.structural) return;
       s.counts[b.type] = (s.counts[b.type] || 0) + 1;
       s.hullTotal += b.maxHp;
       if (!b.alive) return;
+      b.powerMult = b.powered ? 1 : g.unpoweredFactor;
+      var pm = b.powerMult;
       s.alive[b.type] = (s.alive[b.type] || 0) + 1;
       s.hullAlive += b.hp;
       s.mass += b.def.mass;
@@ -70,10 +75,10 @@ BS.Grid = (function () {
       if (isRim(grid, b)) { s.rimCells++; s.heatDissipation += g.heat.dissipationPerRimCell; }
       var f = facingOf(b);
       switch (b.type) {
-        case "engine": s.thrust += b.nacelle ? g.nacelleThrustMult : 1; break;
+        case "engine": s.thrust += (b.nacelle ? g.nacelleThrustMult : 1) * pm; break;
         case "reactor": s.cap += g.capAdd; break;
-        case "shield": s.shieldMax[f] += g.shieldAdd; s.regen[f] += g.regenAdd; break;
-        case "sensor": s.sensors += g.sensorAdd; break;
+        case "shield": s.shieldMax[f] += g.shieldAdd * pm; s.regen[f] += g.regenAdd * pm; break;
+        case "sensor": s.sensors += g.sensorAdd * pm; break;
         case "quarters": s.repair += g.repairAdd; break;
         case "bridge": s.bridgeAlive = true; break;
       }
@@ -298,15 +303,20 @@ BS.Grid = (function () {
   // `first` is the entry block from resolveEntry when the caller already looked it up (so shield cover and the hit agree).
   function hit(ship, amount, fromX, fromY, aimType, kind, first, pierceBonus) {
     var grid = ship.grid, g = G();
-    var res = { hits: [], destroyed: [], cutOff: [], explosions: [] };
+    var res = { hits: [], destroyed: [], cutOff: [], explosions: [], crits: [] };
     if (first === undefined) first = resolveEntry(ship, fromX, fromY, aimType);
     if (!first) return res;
-    var toExplode = [];
+    var toExplode = [], C = g.crits;
     function damage(b, d) {
       if (!b.alive || d <= 0) return 0;
       var taken = Math.min(b.hp, d);
       b.hp -= taken; res.hits.push({ block: b, dmg: taken });
       if (b.hp <= 0) { b.alive = false; res.destroyed.push(b); if (b.def.explosion) toExplode.push(b); }
+      // critical hit on a wounded system (grid.crits): reactors and crew decks are lost outright, the rest is applied by the ship
+      else if (C && (b.def.crew || 0) > 0 && b.hp < b.maxHp * C.below && Math.random() < C.chance) {
+        res.crits.push({ block: b, kind: b.def.weapon ? "weapon" : b.type });
+        if (b.type === "reactor" || b.type === "quarters") { b.hp = 0; b.alive = false; res.destroyed.push(b); if (b.def.explosion) toExplode.push(b); }
+      }
       return taken;
     }
     // a destroyed reactor blows up its neighbours; reactors among them explode in turn (chain reaction)
@@ -416,6 +426,8 @@ BS.Grid = (function () {
     });
     if (hot) warnings.push("Reactors touch each other or the bridge: one breach will chain.");
     if (st.crew.far) warnings.push(st.crew.far + " system block(s) more than " + G().crew.radius + " cells from crew quarters or the bridge repair at half speed.");
+    var unp = grid.blocks.filter(function (b) { return b.alive && !b.structural && !b.powered && (b.def.crew || 0) > 0; }).length;
+    if (unp) warnings.push(unp + " system block(s) more than " + G().powerRadius + " cells from a reactor run at " + Math.round(100 * G().unpoweredFactor) + "% power (dim cells).");
     return { ok: errors.length === 0, errors: errors, warnings: warnings, counts: counts, stats: st, masked: masked, grid: grid };
   }
   // Random variant of a layout: re-roll a fraction of the editable cells (armor ↔ system blocks, weighted by

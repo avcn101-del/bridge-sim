@@ -57,6 +57,11 @@ BS.Crew = (function () {
         break;
       }
       case "unlock": S.clearLock(ship, "unlock"); if (ship.ai) ship.ai.relock = false; report("tactical", "unlock"); break;
+      case "side": {
+        if (!target) return report("helm", "sideNoTarget");
+        if (BS.EnemyAI.setAttackSide(ship, target, args.side)) report("helm", "side_" + args.side);
+        break;
+      }
       case "aim": {
         var bt = args.type;
         if (!bt || ship.aimType === bt || !(BS.Data.blocks[bt] || bt === "exposed")) { ship.aimType = null; report("tactical", "targetHull"); }
@@ -117,6 +122,19 @@ BS.Crew = (function () {
       if (e.ship !== ship) return;
       var r = BS.Data.blockReports[e.block.type];
       if (r && r.destroyed && (e.block.type !== "armor" || now() - lastBlockReport > 10)) { say("engineering", r.destroyed, "warn"); lastBlockReport = now(); }
+    });
+    BS.Events.on("coreBreach", function (e) {
+      if (e.ship === ship) report("engineering", "breachOwn", { t: Math.round(e.time) }, "warn");
+      else if (e.ship === enemy) say("tactical", U.template(D().events.enemyBreach, { t: Math.round(e.time) }), "warn");
+    });
+    BS.Events.on("coreBlast", function (e) {
+      if (e.ship === enemy) say("tactical", D().events.enemyBreachBlast, "warn");
+      e.hits.forEach(function (h) { if (h.ship === ship) say("engineering", U.template(D().events.blastHit, { dmg: Math.round(h.damage) }), "warn"); });
+    });
+    BS.Events.on("debrisHit", function (e) { if (e.ship === ship && now() - (ship._debrisReported || -99) > 6) { ship._debrisReported = now(); report("engineering", "debrisHit", { facing: S.facingToward(ship, e.fragment.x, e.fragment.y) }, "warn"); } });
+    BS.Events.on("criticalHit", function (e) {
+      if (e.ship === ship) report("engineering", "crit_" + e.kind, { facing: e.facing || "" }, "warn");
+      else if (e.ship === enemy) report("tactical", "enemyCrit_" + e.kind, {});
     });
     BS.Events.on("sectionLost", function (e) {
       if (e.ship !== ship) return;
