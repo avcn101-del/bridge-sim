@@ -50,6 +50,7 @@ BS.Game = (function () {
     BS.EnemyAI.attach(enemy, player, enc.aiProfile, enc.doctrine);
     state.encounter = enc;
     player.selected = enemy;
+    BS.EnemyAI.setStance(player, enemy, BS.Data.helm.defaultStance);   // the helm flies the default stance from the start
     state.player = player; state.enemy = enemy; state.ships = [player, enemy];
     BS.Crew.reset(player, enemy);
     BS.UI.setAlert("none");
@@ -78,6 +79,7 @@ BS.Game = (function () {
     var p = state.player, e = state.enemy;
     BS.Crew.update(dt);
     BS.EnemyAI.update(e, p, dt);
+    BS.EnemyAI.update(p, e, dt);
     BS.Ships.update(p, dt);
     BS.Ships.update(e, dt);
     BS.Weapons.update(dt);

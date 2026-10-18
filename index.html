@@ -89,19 +89,20 @@
           <tbody></tbody>
         </table>
 
-        <h3 class="officer helm">Selected · <span id="sel-name">nothing</span></h3>
+        <h3 class="officer helm">Helm · vs <span id="sel-name">nothing</span></h3>
         <div class="btn-grid">
           <button class="lcars-btn c-orange" data-cmd="lock" title="L">Lock target</button>
           <button class="lcars-btn c-orange" data-cmd="unlock">Unlock</button>
-          <button class="lcars-btn c-blue" data-cmd="approach" title="A">Approach</button>
-          <button class="lcars-btn c-blue" data-cmd="stop" title="S">Stop ship</button>
         </div>
-        <div class="sub-label">Orbit at</div>
-        <div class="btn-grid five" id="orbit-buttons"></div>
-        <div class="sub-label">Keep at range</div>
-        <div class="btn-grid three" id="keep-buttons"></div>
+        <div class="sub-label">Stance · the helm flies it (1–4)</div>
         <div class="btn-grid">
-          <button class="lcars-btn c-blue wide" data-cmd="comeAbout" title="C: hold the strongest shield toward the target at low speed">Come about · strongest shield</button>
+          <button class="lcars-btn c-blue" data-cmd="stance" data-stance="engage" title="1: close orbit inside phaser optimal; the helm flips sides to keep guns and shields fresh">Engage</button>
+          <button class="lcars-btn c-blue" data-cmd="stance" data-stance="skirmish" title="2: tight orbit on the afterburner; too fast to track, but the burn eats capacitor">Skirmish</button>
+          <button class="lcars-btn c-lilac" data-cmd="stance" data-stance="standoff" title="3: hold at torpedo range and kite when they close">Standoff</button>
+          <button class="lcars-btn c-lilac" data-cmd="stance" data-stance="disengage" title="4: open the range at full burn until you pick another stance">Disengage</button>
+        </div>
+        <div class="btn-grid">
+          <button class="lcars-btn c-blue wide" data-cmd="stop" title="S: all stop, helm on manual; double-click empty space to fly there">Stop ship · manual</button>
         </div>
 
       </div>
@@ -145,14 +146,15 @@
       <div class="lcars-bar c-blue head"><span class="bar-label">CONTROLS</span></div>
       <ul class="tips">
         <li><b>Click the enemy</b> to select and lock it. Double-click its Overview row does the same.</li>
-        <li><b>Orbit / Keep at range / Approach</b> tell the helm how to fly relative to the target. <b>Right-click</b> the enemy to orbit at 6 km; right-click or double-click empty space to fly there.</li>
+        <li><b>Stance</b> (1–4) tells the helm how to fight: <b>Engage</b> orbits inside phaser range and flips sides on its own when the other battery or a fresher shield would do better, <b>Skirmish</b> orbits tight on the afterburner so their guns cannot track you, <b>Standoff</b> holds torpedo range and kites, <b>Disengage</b> runs. Ranges come from the weapons you fitted. <b>Right-click</b> the enemy to engage; double-click empty space to fly there (helm on manual until you pick a stance).</li>
         <li><b>Module bar</b> (bottom of the display, F1–F8): phasers, torpedoes, shield booster, hardener, afterburner. Each cycle costs capacitor; the gauge's outer ring is your capacitor, the middle ring your four shield facings, the centre your hull.</li>
         <li>Phasers hit best inside 8 km and against slow targets. Torpedoes always home in but lose damage against small fast ships.</li>
         <li>Hover the locked enemy to see its blocks; click one to aim at all blocks of that type (−15% accuracy). Shots hit the outer blocks first and armor stops a beam dead; blocks cut off from the bridge break away. A destroyed reactor explodes and takes its neighbours with it. A ship with no weapons and no engines left is disabled: the fight ends and the wreck pays salvage. Click your own block rows to set repair priority.</li>
         <li>Top bar: <b>Reinforce</b> moves shield strength to the weakest facing, <b>Red alert</b> arms weapons (automatic when you switch a weapon on), <b>+/−</b> zoom.</li>
-        <li>Weapons fire only where the hull does not block them, so a saucer fights best with the enemy on its beam. <b>Reverse</b> (V) flips your orbit to bring the other side's weapons to bear.</li>
+        <li>Weapons fire only where the hull does not block them, so a saucer fights best with the enemy on its beam; the helm reverses the orbit when the other side has more guns to bring to bear.</li>
+        <li><b>Shield bubbles</b>: each emitter protects the blocks within 5 cells; the rings you see are that cover. Hull outside every ring takes hits unshielded. The <b>EXPOSED</b> chip aims at the enemy's bare hull; the hangar paints yours red.</li>
         <li><b>Heat</b>: the bar under the module bar. Every shot adds heat (phasers a little, torpedoes a lot); at the cap weapons stop, and a salvo that crosses it overloads everything for six seconds. The pale mark shows where your next full salvo would land. <b>GOV</b> (H) is the heat governor: on, your weapons hold fire above 85% and resume at 60%; off, you can alpha-strike into an overload.</li>
-        <li>Keys: L lock · A approach · O orbit 6 km · V reverse orbit · K keep 10 km · C come about · S stop · R red alert · H heat governor · Space pause.</li>
+        <li>Keys: L lock · 1 engage · 2 skirmish · 3 standoff · 4 disengage · S stop (manual) · R red alert · H heat governor · Space pause.</li>
       </ul>
       <button id="btn-help-close" class="lcars-btn c-blue big">Back to the bridge</button>
     </div>

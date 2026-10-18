@@ -120,6 +120,7 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
 .chips { display: flex; gap: 3px; margin: 4px 0 2px; }
 .chip { flex: 1; text-align: center; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; padding: 2px 0; border-radius: 4px; background: #15162a; color: #000; transition: background-color 0.3s; cursor: pointer; }
 .chip:hover { filter: brightness(1.2); }
+.chip.exposed { background-color: #5a2d2d; color: #ffd0c0; }
 .chip.targeted { box-shadow: 0 0 0 2px #fff inset; }
 
 /* ------------------------------------------------------------ buttons */

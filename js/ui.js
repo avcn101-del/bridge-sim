@@ -17,18 +17,17 @@ BS.UI = (function () {
     ["own-speed", "own-cmd", "own-subsystems", "enemy-subsystems", "gauge", "help-screen", "btn-help", "btn-help-close",
      "target-none", "target-info", "tg-name", "tg-hull", "tg-hull-val", "tg-shield", "tg-shield-val", "tg-range", "tg-angular", "tg-chance", "tg-aim",
      "clock", "alert-label", "btn-pause", "btn-redalert", "btn-zoom-in", "btn-zoom-out", "pause-overlay", "start-screen", "result-screen", "result-title", "result-sub", "result-head",
-     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "rs-credits", "rs-salvage", "heat-bar", "heat-num", "btn-governor", "own-heat", "ship-name", "view", "module-bar", "overview", "sel-name", "orbit-buttons", "keep-buttons"]
+     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "rs-credits", "rs-salvage", "heat-bar", "heat-num", "btn-governor", "own-heat", "ship-name", "view", "module-bar", "overview", "sel-name"]
       .forEach(function (id) { el[id] = $(id); });
     logList = $("log");
     buildGauge();
     buildSubsystemWidgets();
-    buildRangeButtons();
 
     document.querySelectorAll("[data-cmd]").forEach(function (btn) {
       btn.addEventListener("click", function () {
         var args = {};
         if (btn.hasAttribute("data-range")) args.rangeKm = parseFloat(btn.getAttribute("data-range"));
-        if (btn.hasAttribute("data-flip")) args.flip = true;
+        if (btn.hasAttribute("data-stance")) args.stance = btn.getAttribute("data-stance");
         game.command(btn.getAttribute("data-cmd"), args); btn.blur();
       });
     });
@@ -68,19 +67,11 @@ BS.UI = (function () {
       chip.addEventListener("click", function () { game.command("aim", { type: type }); });
       el["enemy-subsystems"].appendChild(chip); el["en-" + type] = chip;
     });
+    // hull outside every shield bubble: hits there skip the shield entirely
+    var ex = document.createElement("span"); ex.className = "chip exposed"; ex.title = "Aim at hull outside their shield cover: nothing absorbs those hits (−15% accuracy)";
+    ex.textContent = "EXP 0"; ex.addEventListener("click", function () { game.command("aim", { type: "exposed" }); });
+    el["enemy-subsystems"].appendChild(ex); el["en-exposed"] = ex;
   }
-  function buildRangeButtons() {
-    var B = BS.Data.balance;
-    el["orbit-buttons"].innerHTML = ""; el["keep-buttons"].innerHTML = "";
-    B.orbitRangesKm.forEach(function (r) {
-      var b = document.createElement("button"); b.className = "lcars-btn c-blue"; b.setAttribute("data-cmd", "orbit"); b.setAttribute("data-range", r); b.textContent = r + " km"; el["orbit-buttons"].appendChild(b);
-    });
-    var flip = document.createElement("button"); flip.className = "lcars-btn c-blue"; flip.setAttribute("data-cmd", "orbit"); flip.setAttribute("data-flip", "1"); flip.textContent = "Reverse"; flip.title = "V: reverse the orbit direction (bring the other side's weapons to bear)"; el["orbit-buttons"].appendChild(flip);
-    B.keepRangesKm.forEach(function (r) {
-      var b = document.createElement("button"); b.className = "lcars-btn c-lilac"; b.setAttribute("data-cmd", "keep"); b.setAttribute("data-range", r); b.textContent = r + " km"; el["keep-buttons"].appendChild(b);
-    });
-  }
-
   // Circular ship gauge: hull (centre), four shield facings (middle), capacitor (outer).
   var gauge = {};
   function arcPath(cx, cy, r, a0, a1) {
@@ -178,7 +169,7 @@ BS.UI = (function () {
       ev.preventDefault();
       var s = game.state, h = hoverAt(ev);
       if (s.phase !== "battle") return;
-      if (h) { game.command("select", { target: s.enemy }); game.command("orbit", { target: s.enemy, rangeKm: s.enemy.cls.preferredRangeKm || 6 }); }
+      if (h) { game.command("select", { target: s.enemy }); game.command("stance", { target: s.enemy, stance: "engage" }); }
       else game.command("flyTo", { point: worldAt(ev) });
     });
     view.addEventListener("wheel", function (ev) {
@@ -197,14 +188,11 @@ BS.UI = (function () {
       if (s.phase !== "battle") return;
       var fk = /^F(\d)$/.exec(ev.key);
       if (fk) { var i = parseInt(fk[1], 10) - 1; if (moduleEls[i]) { ev.preventDefault(); game.command("module", { module: moduleEls[i].m }); } return; }
+      var stances = BS.Data.helm.stances, stanceKey = Object.keys(stances).filter(function (id) { return stances[id].key === ev.key; })[0];
+      if (stanceKey) { game.command("stance", { stance: stanceKey }); return; }
       switch (ev.key.toLowerCase()) {
         case "l": game.command("lock"); break;
-        case "a": game.command("approach"); break;
-        case "o": game.command("orbit", { rangeKm: BS.Data.balance.orbitRangesKm[1] }); break;
-        case "v": game.command("orbit", { flip: true }); break;
         case "h": game.command("governor"); break;
-        case "k": game.command("keep", { rangeKm: BS.Data.balance.keepRangesKm[1] }); break;
-        case "c": game.command("comeAbout"); break;
         case "s": game.command("stop"); break;
         case "r": game.command("redAlert"); break;
       }
@@ -278,15 +266,8 @@ BS.UI = (function () {
   function setBar(fill, frac, color) { fill.style.width = (U.clamp(frac, 0, 1) * 100).toFixed(1) + "%"; if (color) fill.style.backgroundColor = color; }
   function fmtKm(k) { return (k < 10 ? k.toFixed(1) : Math.round(k)) + " km"; }
   function cmdText(p) {
-    var c = p.cmd, k = BS.Ships.km(c.range);
-    switch (c.type) {
-      case "approach": return "Approaching";
-      case "orbit": return "Orbit " + fmtKm(k);
-      case "keep": return "Keep " + fmtKm(k);
-      case "flyTo": return "Flying to point";
-      case "comeAbout": return "Presenting " + c.facing + " shield";
-      default: return "All stop";
-    }
+    if (p.ai && !p.ai.suspended && p.stance) return BS.Data.helm.stances[p.stance].label + " · " + (BS.Data.enemyAI.stateLabels[p.ai.state] || p.ai.state);
+    return p.cmd.type === "flyTo" ? "Manual · flying to point" : "Manual · all stop";
   }
 
   function update(state) {
@@ -318,6 +299,7 @@ BS.UI = (function () {
         el["en-" + type].classList.toggle("targeted", p.aimType === type);
       }
     });
+    if (e) { el["en-exposed"].textContent = "EXP " + e.stats.exposed; el["en-exposed"].classList.toggle("targeted", p.aimType === "exposed"); el["en-exposed"].style.display = e.flags.destroyed ? "none" : ""; }
 
     // target panel
     var locked = p.lock.target && !p.lock.target.flags.destroyed ? p.lock.target : null;
@@ -342,17 +324,15 @@ BS.UI = (function () {
         var tm = launcherBlock ? BS.Weapons.torpedoDamageMult(launcherBlock.def.weapon, t) : 1;
         el["tg-chance"].textContent = "PHA " + Math.round(ch * 100) + "% · TOR " + Math.round(tm * 100) + "%";
       } else el["tg-chance"].textContent = p.lock.locked ? "—" : "locking…";
-      el["tg-aim"].textContent = p.aimType ? BS.Data.blocks[p.aimType].name + "s (−15%)" : "Any block";
+      el["tg-aim"].textContent = p.aimType === "exposed" ? "Exposed hull (−15%)" : p.aimType ? BS.Data.blocks[p.aimType].name + "s (−15%)" : "Any block";
     }
 
     // overview
     updateOverview(state);
     el["sel-name"].textContent = p.selected ? p.selected.name : "nothing";
-    document.querySelectorAll("[data-cmd='orbit'][data-range],[data-cmd='keep']").forEach(function (b) {
-      var r = parseFloat(b.getAttribute("data-range"));
-      b.classList.toggle("active", p.cmd.type === b.getAttribute("data-cmd") && Math.abs(S.km(p.cmd.range) - r) < 0.01);
-    });
-    document.querySelectorAll("[data-cmd='approach'],[data-cmd='comeAbout']").forEach(function (b) { b.classList.toggle("active", p.cmd.type === b.getAttribute("data-cmd")); });
+    var auto = p.ai && !p.ai.suspended;
+    document.querySelectorAll("[data-cmd='stance']").forEach(function (b) { b.classList.toggle("active", !!auto && p.stance === b.getAttribute("data-stance")); });
+    document.querySelectorAll("[data-cmd='stop']").forEach(function (b) { b.classList.toggle("active", !auto); });
 
     // module bar
     for (var i = 0; i < moduleEls.length; i++) {

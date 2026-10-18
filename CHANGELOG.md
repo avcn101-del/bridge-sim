@@ -2,6 +2,43 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.8.0] — 2026-10-18 (shield bubbles, stance helm)
+
+### Added
+- **Shield bubbles**: every emitter covers the blocks within 5 cells
+  (`grid.shieldRadius`); a hit on a covered block draws from the covering
+  emitter's facing, a hit on bare hull skips the shield entirely. Bubbles
+  are drawn as the union outline of the emitters' circles, coloured by the
+  facing they feed, with ripples on the bubble that was hit. The hangar
+  paints exposed cells red and shows "cover n% (m exposed)"; the validator
+  warns below 90% cover. Aim type **Exposed** (EXP chip, hover highlight)
+  steers shots at bare hull; enemies aim at it 10% of the time. All default
+  layouts, presets and enemy variants had their emitters re-placed for
+  93–100% cover.
+- **Stance helm**: the Helm panel is four stances (keys 1–4) instead of
+  orbit / keep / approach / come about / reverse. **Engage** (default at
+  battle start) orbits inside phaser range, **Skirmish** orbits tight on
+  the afterburner, **Standoff** holds torpedo range and kites,
+  **Disengage** runs. Ranges derive from the fitted weapons (`helm.stances`);
+  the helm reverses the orbit on its own when the other side has more
+  guns to bear or a fresher shield (`orbitFlipped`), narrates its moves,
+  owns the afterburner and re-locks a target you locked before. Stop (S)
+  and fly-to put the helm on manual.
+- The doctrine machine in `enemyai.js` now drives both ships; new **evade**
+  doctrine; `stateChanged` / `stanceChanged` events.
+
+### Changed
+- Enemy multipliers re-tuned for working shields: Bird-of-Prey strength
+  ×1.4 (was 1.08) and damage ×1.5 (was 1.35), K't'inga damage ×1.33.
+- Removed `balance.orbitRangesKm / keepRangesKm` and class
+  `preferredRangeKm`; right-click on the enemy now means Engage.
+
+### Fixed
+- Since 0.6.0 shield emitters added nothing: the facing lookup used by
+  `derive` had been shadowed by the line-of-fire facing function, so every
+  facing stayed at the 80 base. Facings are now 80 + 70 per emitter as
+  documented (a stock Constitution: fore 360, others 220).
+
 ## [0.7.0] — 2026-10-18 (power grid, heat, electronic warfare)
 
 ### Added

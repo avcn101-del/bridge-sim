@@ -80,6 +80,18 @@ BS.Grid = (function () {
       }
     });
     if (g.lineOfFire) s.weapons.forEach(function (b) { updateFacing(grid, b); });
+    // shield cover: a block is protected only while an alive emitter sits within grid.shieldRadius cells (b.coverBy = nearest)
+    var emitters = grid.blocks.filter(function (b) { return b.alive && b.type === "shield"; }), R2 = g.shieldRadius * g.shieldRadius;
+    s.covered = 0; s.exposed = 0;
+    grid.blocks.forEach(function (b) {
+      if (!b.alive) return;
+      var best = null, bestD = Infinity;
+      for (var i = 0; i < emitters.length; i++) { var e = emitters[i], dx = e.x - b.x, dy = e.y - b.y, d2 = dx * dx + dy * dy; if (d2 <= R2 && d2 < bestD) { bestD = d2; best = e; } }
+      b.coverBy = best; b.covered = !!best;
+      if (!b.structural) { if (best) s.covered++; else s.exposed++; }
+    });
+    s.coverFrac = s.covered + s.exposed ? s.covered / (s.covered + s.exposed) : 0;
+    grid.rev = (grid.rev || 0) + 1;
     s.speedMult = s.mass > 0 ? U.clamp(s.thrust * g.thrustPerPoint / s.mass, g.speedMultMin, g.speedMultMax) : g.speedMultMin;
     // brownout: with reactors gone the surviving systems share what is left
     s.powerFactor = s.powerUsed > s.powerMax ? Math.max(g.brownoutMin, s.powerMax / s.powerUsed) : 1;
@@ -203,7 +215,7 @@ BS.Grid = (function () {
     if (b.coverage === undefined) updateFacing(grid, b);
     return b.coverage;
   }
-  function facingOf(b) { return b.facing === undefined || b.facing === null ? b.outward : b.facing; }
+  function weaponFacingOf(b) { return b.facing === undefined || b.facing === null ? b.outward : b.facing; }
   function nearestOfType(grid, b, type, radius) {
     var best = null, bestD = Infinity;
     for (var dy = -radius; dy <= radius; dy++) for (var dx = -radius; dx <= radius; dx++) {
@@ -215,18 +227,35 @@ BS.Grid = (function () {
     return best;
   }
 
+  // Nearest alive block outside shield cover (aim type "exposed").
+  function nearestExposed(grid, from) {
+    var best = null, bestD = Infinity;
+    grid.blocks.forEach(function (q) {
+      if (!q.alive || q.covered) return;
+      var d = Math.abs(q.x - from.x) + Math.abs(q.y - from.y);
+      if (d < bestD) { bestD = d; best = q; }
+    });
+    return best;
+  }
+  // The block a shot from a world point lands on, after aiming. Null when the line misses the hull.
+  // aimType: a block type (steer at the nearest one), "exposed" (nearest block outside shield cover) or null (spray).
+  function resolveEntry(ship, fromX, fromY, aimType) {
+    var grid = ship.grid, entry = entryBlock(ship, fromX, fromY);
+    if (!entry || !aimType) return entry;
+    var aimed = aimType === "exposed" ? nearestExposed(grid, entry) : nearestOfType(grid, entry, aimType, G().aimRadius);
+    return aimed ? entryBlockThrough(ship, fromX, fromY, aimed) : entry;
+  }
+
   // ---- damage --------------------------------------------------------------------
   // Apply `amount` hull damage arriving from a world point. Returns { hits: [{block, dmg}], destroyed: [block], cutOff: [block] }.
   // kind "phaser": penetrates up to grid.penetration blocks along the shot line.
   // kind "torpedo": explodes on the entry block and splashes into its neighbours.
-  function hit(ship, amount, fromX, fromY, aimType, kind) {
+  // `first` is the entry block from resolveEntry when the caller already looked it up (so shield cover and the hit agree).
+  function hit(ship, amount, fromX, fromY, aimType, kind, first) {
     var grid = ship.grid, g = G();
     var res = { hits: [], destroyed: [], cutOff: [], explosions: [] };
-    var entry = entryBlock(ship, fromX, fromY);
-    if (!entry) return res;
-    var first = entry;
-    // aiming steers the shot line through the nearest block of that type; armor in front of it still takes the hit first
-    if (aimType) { var aimed = nearestOfType(grid, entry, aimType, g.aimRadius); if (aimed) first = entryBlockThrough(ship, fromX, fromY, aimed); }
+    if (first === undefined) first = resolveEntry(ship, fromX, fromY, aimType);
+    if (!first) return res;
     var toExplode = [];
     function damage(b, d) {
       if (!b.alive || d <= 0) return 0;
@@ -330,6 +359,7 @@ BS.Grid = (function () {
     // warnings do not block undocking
     var warnings = [], masked = st.weapons.filter(function (b) { return arcCoverage(grid, b) <= 0; }).length;
     if (masked) warnings.push(masked + " weapon(s) cannot fire past the hull.");
+    if (st.exposed && st.coverFrac < 0.9) warnings.push(st.exposed + " block(s) outside shield cover (" + G().shieldRadius + " cells from an emitter) take hits unshielded.");
     var hot = 0;
     grid.blocks.forEach(function (b) {
       if (b.type !== "reactor") return;
@@ -366,6 +396,6 @@ BS.Grid = (function () {
   }
 
   return { build: build, derive: derive, facingOf: facingOf, worldToLocal: worldToLocal, localToWorld: localToWorld, cellOfLocal: cellOfLocal,
-    blockAtWorld: blockAtWorld, blockWorld: blockWorld, entryBlock: entryBlock, entryBlockThrough: entryBlockThrough, hit: hit, lineOfFireClear: lineOfFireClear, arcCoverage: arcCoverage, weaponFacing: facingOf, repair: repair, pruneDisconnected: pruneDisconnected,
+    blockAtWorld: blockAtWorld, blockWorld: blockWorld, entryBlock: entryBlock, entryBlockThrough: entryBlockThrough, resolveEntry: resolveEntry, hit: hit, blockFacing: facingOf, lineOfFireClear: lineOfFireClear, arcCoverage: arcCoverage, weaponFacing: weaponFacingOf, repair: repair, pruneDisconnected: pruneDisconnected,
     layoutFromGrid: layoutFromGrid, validateLayout: validateLayout, randomVariant: randomVariant, layoutCost: layoutCost, typeForLetter: typeForLetter };
 })();

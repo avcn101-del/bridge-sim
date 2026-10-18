@@ -146,6 +146,10 @@ BS.Hangar = (function () {
     }
     BS.Renderer.drawGridShip(c, ed.ship, 0.5, { still: true });
     drawFireArcs(c, g);
+    // shield cover: bubble outlines, and the cells no bubble reaches (hit unshielded)
+    BS.Renderer.drawShieldCover(c, ed.ship);
+    c.fillStyle = "rgba(255,70,60,0.4)";
+    g.blocks.forEach(function (b) { if (b.alive && !b.structural && !b.covered) c.fillRect(b.lx - half, b.ly - half, cp, cp); });
     // mirror line
     if (ed.mirror) { c.strokeStyle = "rgba(255,200,120,0.35)"; c.setLineDash([3, 3]); c.lineWidth = 0.6; c.beginPath(); c.moveTo(-g.w * cp / 2, 0); c.lineTo(g.w * cp / 2, 0); c.stroke(); c.setLineDash([]); }
     // hover
@@ -188,7 +192,7 @@ BS.Hangar = (function () {
       "<div><label>Capacitor</label><span>" + st.cap + " · " + capLine + " <span class='dim'>(drain " + st.drain + "/s · peak " + st.peakRecharge + "/s)</span></span></div>" +
       "<div><label>Heat</label><span>cap " + st.heatCap + " · full salvo " + st.salvoHeat + (st.salvoHeat > st.heatCap ? " <span class='bad'>(overloads)</span>" : "") + " · bleeds " + st.heatDissipation + "/s vs " + st.heatPerSec + "/s firing" + (st.heatNeutral < 1 ? " <span class='warn'>(sustained fire " + Math.round(100 * st.heatNeutral) + "%)</span>" : " (sustainable)") + "</span></div>" +
       "<div><label>Power</label><span class='" + (st.powerUsed > st.powerMax ? "bad" : "") + "'>" + st.powerUsed + " / " + st.powerMax + " <span class='dim'>(" + (st.counts.reactor || 0) + " reactors · phaser 5, tube 8, shield 4, sensor 3, engine 1, quarters 1)</span></span></div>" +
-      "<div><label>Defence</label><span>hull " + st.hull + " · shields " + shields + " · repair " + st.repair + "/s</span></div>" +
+      "<div><label>Defence</label><span>hull " + st.hull + " · shields " + shields + " · cover " + Math.round(100 * st.coverFrac) + "%" + (st.exposed ? " <span class='" + (st.coverFrac < 0.9 ? "bad" : "warn") + "'>(" + st.exposed + " exposed, red cells)</span>" : "") + " · repair " + st.repair + "/s</span></div>" +
       "<div><label>Mobility</label><span>" + st.speed + " km/s <span class='dim'>(thrust " + st.thrust + " / mass " + st.mass + " = ×" + st.speedMult + ")</span> · lock " + st.lockTime + " s</span></div>";
     var net = delta.net;
     el["hg-delta"].textContent = ed.dirty ? (net > 0 ? "Costs " + net.toLocaleString() + " cr" : net < 0 ? "Refunds " + (-net).toLocaleString() + " cr" : "No cost change") + (delta.cost ? " (buy " + delta.cost.toLocaleString() + ", refund " + delta.refund.toLocaleString() + ")" : "") : "Build matches the current layout";

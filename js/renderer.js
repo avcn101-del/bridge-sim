@@ -421,42 +421,92 @@ BS.Renderer = (function () {
     return [Math.round(U.lerp(a[0], b[0], k)), Math.round(U.lerp(a[1], b[1], k)), Math.round(U.lerp(a[2], b[2], k))];
   }
 
+  // Shield bubbles: one circle of grid.shieldRadius cells per alive emitter. The outline is the union of the
+  // circles (arcs that fall inside a neighbour's circle are dropped); cached per grid revision.
+  function freeArcs(occl) {
+    var TAU = Math.PI * 2, iv = [];
+    occl.forEach(function (p) {
+      var len = p[1] - p[0];
+      if (len >= TAU) { iv.push([0, TAU]); return; }
+      var a0 = ((p[0] % TAU) + TAU) % TAU, a1 = a0 + len;
+      if (a1 > TAU) { iv.push([a0, TAU]); iv.push([0, a1 - TAU]); } else iv.push([a0, a1]);
+    });
+    iv.sort(function (a, b) { return a[0] - b[0]; });
+    var free = [], cur = 0;
+    iv.forEach(function (p) { if (p[0] > cur + 1e-6) free.push([cur, p[0]]); cur = Math.max(cur, p[1]); });
+    if (cur < TAU - 1e-6) free.push([cur, TAU]);
+    return free;
+  }
+  function shieldArcs(ship) {
+    var g = ship.grid, c = ship._shieldArcs;
+    if (c && c.rev === g.rev) return c.list;
+    var R = BS.Data.grid.shieldRadius * g.cellPx, em = g.blocks.filter(function (b) { return b.alive && b.type === "shield"; });
+    var list = em.map(function (e, i) {
+      var occl = [];
+      for (var j = 0; j < em.length; j++) {
+        if (j === i) continue;
+        var o = em[j], dx = o.lx - e.lx, dy = o.ly - e.ly, d = Math.sqrt(dx * dx + dy * dy);
+        if (d >= 2 * R - 0.01) continue;
+        if (d < 0.01) { if (j < i) occl.push([0, Math.PI * 2]); continue; }
+        var a = Math.atan2(dy, dx), half = Math.acos(d / (2 * R));
+        occl.push([a - half, a + half]);
+      }
+      return { b: e, arcs: freeArcs(occl), facing: BS.Grid.blockFacing(e) };
+    });
+    ship._shieldArcs = { rev: g.rev, list: list };
+    return list;
+  }
+  function traceArcs(c, list, R, filter) {
+    c.beginPath();
+    list.forEach(function (a) {
+      if (filter && !filter(a)) return;
+      a.arcs.forEach(function (s) { c.moveTo(a.b.lx + Math.cos(s[0]) * R, a.b.ly + Math.sin(s[0]) * R); c.arc(a.b.lx, a.b.ly, R, s[0], s[1]); });
+    });
+  }
+  // Thin union outline of the bubbles in the ship's local frame (hangar editor).
+  function drawShieldCover(c, ship, color) {
+    var list = shieldArcs(ship), R = BS.Data.grid.shieldRadius * ship.grid.cellPx;
+    c.strokeStyle = color || "rgba(110,180,255,0.6)"; c.lineWidth = 0.8;
+    traceArcs(c, list, R); c.stroke();
+  }
+
   function drawShields(ship, alpha, t) {
     if (ship.flags.destroyed || ship.cloak.state !== "off") return;
+    var list = shieldArcs(ship);
+    if (!list.length) return;
     var x = U.lerp(ship.prevPos.x, ship.pos.x, alpha), y = U.lerp(ship.prevPos.y, ship.pos.y, alpha);
     var h = U.lerpAngle(ship.prevHeading, ship.heading, alpha);
-    var rx = ship.visual.length * 0.62, ry = Math.max(ship.visual.width * 0.62, ship.visual.length * 0.42);
+    var R = BS.Data.grid.shieldRadius * ship.grid.cellPx;
     var recentHits = BS.Effects.ripples.filter(function (r) { return r.ship === ship; });
     ctx.save(); ctx.translate(x, y); ctx.rotate(h);
     ctx.globalCompositeOperation = "lighter";
-    // four facing arcs, each 90° centred on bow / starboard / stern / port
-    var facings = [["fore", 0], ["starboard", Math.PI / 2], ["aft", Math.PI], ["port", -Math.PI / 2]];
-    for (var i = 0; i < facings.length; i++) {
-      var f = facings[i][0], c = facings[i][1];
-      var frac = BS.Ships.shieldFrac(ship, f);
+    // soft fill of the union: one path, so overlaps are filled once
+    ctx.beginPath();
+    list.forEach(function (a) { if (BS.Ships.shieldFrac(ship, a.facing) > 0.001) { ctx.moveTo(a.b.lx + R, a.b.ly); ctx.arc(a.b.lx, a.b.ly, R, 0, Math.PI * 2); } });
+    ctx.fillStyle = "rgba(90,170,255,0.045)"; ctx.fill();
+    // outline per emitter, coloured by the strength of the facing it feeds
+    for (var i = 0; i < list.length; i++) {
+      var a = list[i], frac = BS.Ships.shieldFrac(ship, a.facing);
       if (frac <= 0.001) continue;
-      var col = shieldColor(frac);
-      var flashBoost = 0;
-      for (var r = 0; r < recentHits.length; r++) if (recentHits[r].facing === f) flashBoost = Math.max(flashBoost, recentHits[r].life / recentHits[r].maxLife);
-      var a = 0.10 + 0.22 * frac + flashBoost * 0.5;
-      ctx.lineWidth = 2 + frac * 2 + flashBoost * 3;
-      ctx.strokeStyle = "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + a.toFixed(3) + ")";
-      ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, c - Math.PI / 4 + 0.03, c + Math.PI / 4 - 0.03); ctx.stroke();
-      // soft fill wedge
-      ctx.fillStyle = "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (a * 0.18).toFixed(3) + ")";
-      ctx.beginPath(); ctx.moveTo(0, 0); ctx.ellipse(0, 0, rx, ry, 0, c - Math.PI / 4, c + Math.PI / 4); ctx.closePath(); ctx.fill();
+      var col = shieldColor(frac), flash = 0;
+      for (var r = 0; r < recentHits.length; r++) { var rh = recentHits[r]; if (rh.emitter === a.b || (!rh.emitter && rh.facing === a.facing)) flash = Math.max(flash, rh.life / rh.maxLife); }
+      var al = 0.12 + 0.25 * frac + flash * 0.5;
+      ctx.lineWidth = 1.5 + frac * 2 + flash * 3;
+      ctx.strokeStyle = "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + al.toFixed(3) + ")";
+      traceArcs(ctx, [a], R); ctx.stroke();
     }
-    // ripples
+    // ripples: an arc on the hit emitter's bubble, centred on the attack direction, growing and fading
     for (var k = 0; k < recentHits.length; k++) {
-      var rp = recentHits[k], life = rp.life / rp.maxLife, grow = 1 - life;
-      var rel = rp.angle - h;
-      var colr = shieldColor(BS.Ships.shieldFrac(ship, rp.facing));
-      ctx.lineWidth = 2.5 + grow * 4;
-      ctx.strokeStyle = "rgba(" + colr[0] + "," + colr[1] + "," + colr[2] + "," + (life * 0.9).toFixed(3) + ")";
-      var span = 0.25 + grow * 0.9 * rp.strength;
-      ctx.beginPath(); ctx.ellipse(0, 0, rx * (1 + grow * 0.12), ry * (1 + grow * 0.12), 0, rel - span, rel + span); ctx.stroke();
-      ctx.strokeStyle = "rgba(255,255,255," + (life * 0.6).toFixed(3) + ")"; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.ellipse(0, 0, rx * (1 + grow * 0.05), ry * (1 + grow * 0.05), 0, rel - span * 0.5, rel + span * 0.5); ctx.stroke();
+      var rp = recentHits[k], life = rp.life / rp.maxLife, grow = 1 - life, rel = rp.angle - h;
+      var centres = rp.emitter && rp.emitter.alive ? [rp.emitter] : list.filter(function (q) { return q.facing === rp.facing; }).map(function (q) { return q.b; });
+      var colr = shieldColor(BS.Ships.shieldFrac(ship, rp.facing)), span = 0.25 + grow * 0.9 * rp.strength;
+      for (var m = 0; m < centres.length; m++) {
+        var e = centres[m];
+        ctx.lineWidth = 2.5 + grow * 4; ctx.strokeStyle = "rgba(" + colr[0] + "," + colr[1] + "," + colr[2] + "," + (life * 0.9).toFixed(3) + ")";
+        ctx.beginPath(); ctx.arc(e.lx, e.ly, R * (1 + grow * 0.12), rel - span, rel + span); ctx.stroke();
+        ctx.strokeStyle = "rgba(255,255,255," + (life * 0.6).toFixed(3) + ")"; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(e.lx, e.ly, R * (1 + grow * 0.05), rel - span * 0.5, rel + span * 0.5); ctx.stroke();
+      }
     }
     ctx.restore();
   }
@@ -563,7 +613,7 @@ BS.Renderer = (function () {
     ctx.translate(x, y); ctx.rotate(h);
     if (aim) {
       ctx.strokeStyle = "rgba(255,120,80," + (0.6 + 0.3 * Math.sin(t * 5)).toFixed(2) + ")"; ctx.lineWidth = 1 / zoom;
-      for (var i = 0; i < g.blocks.length; i++) { var b = g.blocks[i]; if (b.alive && b.type === aim) ctx.strokeRect(b.lx - half, b.ly - half, cp, cp); }
+      for (var i = 0; i < g.blocks.length; i++) { var b = g.blocks[i]; if (b.alive && (b.type === aim || (aim === "exposed" && !b.covered))) ctx.strokeRect(b.lx - half, b.ly - half, cp, cp); }
     }
     if (hover && hover.block && hover.block.alive) {
       var hb = hover.block;
@@ -573,10 +623,10 @@ BS.Renderer = (function () {
     ctx.restore();
     if (hover && hover.block) {
       var blk = hover.block, bw = BS.Grid.blockWorld(e, blk);
-      var facingPct = BS.Ships.shieldFrac(e, BS.Ships.facingToward(e, p.pos.x, p.pos.y));
+      var facingPct = blk.coverBy ? BS.Ships.shieldFrac(e, BS.Grid.blockFacing(blk.coverBy)) : 0;
       var name = blk.structural ? "STRUCTURE" : blk.def.name.toUpperCase();
-      var label = name + " " + Math.round(blk.hp) + "/" + blk.maxHp + (facingPct > 0.05 ? " · SHIELDED " + Math.round(facingPct * 100) + "%" : " · SHIELD DOWN");
-      var hint = p.lock.target !== e ? "click: lock target · right-click: orbit" : blk.structural ? "" : (aim === blk.type ? "click: stop aiming" : "click: aim at " + blk.def.name.toLowerCase() + "s");
+      var label = name + " " + Math.round(blk.hp) + "/" + blk.maxHp + (!blk.covered ? " · NO SHIELD COVER" : facingPct > 0.05 ? " · SHIELDED " + Math.round(facingPct * 100) + "%" : " · SHIELD DOWN");
+      var hint = p.lock.target !== e ? "click: lock target · right-click: engage" : blk.structural ? "" : (aim === blk.type ? "click: stop aiming" : "click: aim at " + blk.def.name.toLowerCase() + "s");
       var z = 1 / zoom, lx = bw.x + 14 * z, ly = bw.y - 14 * z;
       ctx.save();
       ctx.font = "bold " + (12 * z).toFixed(1) + "px Antonio, 'Arial Narrow', sans-serif"; ctx.textBaseline = "middle";
@@ -620,7 +670,7 @@ BS.Renderer = (function () {
     ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
   }
 
-  return { init: init, draw: draw, resize: resize, resetCamera: resetCamera, drawers: drawers, camera: camera, shieldColor: shieldColor, drawPreview: drawPreview, drawGridShip: drawGridShip, drawBlockGlyph: drawBlockGlyph, blockIcon: blockIcon,
+  return { init: init, draw: draw, resize: resize, resetCamera: resetCamera, drawers: drawers, camera: camera, shieldColor: shieldColor, drawPreview: drawPreview, drawGridShip: drawGridShip, drawShieldCover: drawShieldCover, drawBlockGlyph: drawBlockGlyph, blockIcon: blockIcon,
     screenToWorld: function (x, y) { return { x: (x - W / 2) / zoom + camera.x, y: (y - H / 2) / zoom + camera.y }; },
     worldToScreen: function (x, y) { return { x: (x - camera.x) * zoom + W / 2, y: (y - camera.y) * zoom + H / 2 }; } };
 })();

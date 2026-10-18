@@ -28,11 +28,14 @@ tell the helm how to fly relative to it, and you switch modules on and off.
 - **Click the Klingon ship** on the display (or double-click its row in the
   Overview). That selects it and starts a lock; "Target locked" appears in
   the log after about 3 s.
-- Give the helm a command: **Orbit 6 km** is a good default. **Keep at
-  range** holds a distance, **Approach** closes, **Come about** holds your
-  strongest shield toward the enemy at low speed.
+- Pick a **stance** (Helm panel, keys 1–4) and the helm flies it:
+  **Engage** (default) orbits inside phaser range and reverses on its own
+  when the other side has more guns or a fresher shield, **Skirmish** orbits
+  tight on the afterburner so their guns cannot track you, **Standoff**
+  holds torpedo range and kites, **Disengage** runs. Ranges come from the
+  weapons you fitted. **Stop** puts the helm on manual.
 - Switch on systems in the bar at the bottom of the display (click or
-  F1–F5): F1 fires every phaser emitter that can bear, F2 every torpedo
+  F1–F8): F1 fires every phaser emitter that can bear, F2 every torpedo
   tube, then shield booster, shield hardener, afterburner. Every cycle costs **capacitor**: the dashed outer ring of the
   round gauge next to the module bar. The middle ring shows your four shield
   facings (top = front), the centre your hull. If the capacitor runs dry,
@@ -41,8 +44,11 @@ tell the helm how to fly relative to it, and you switch modules on and off.
 - Phasers hit best inside 8 km and against slow targets; orbiting fast and
   close makes enemy beams miss you (and yours miss them). Torpedoes always
   home in but do less damage to small fast ships.
-- Damage hits the shield facing toward the enemy. **Reinforce** (top bar)
-  or **Come about** when one facing collapses.
+- Each shield emitter projects a bubble five cells wide; the rings around a
+  ship are that cover, coloured by the facing they feed. Hull outside every
+  bubble takes hits unshielded: the **EXP** chip aims at the enemy's bare
+  hull, the hangar paints yours red. **Reinforce** (top bar) when one
+  facing collapses.
 - Ships are made of blocks. Shots land anywhere on the side facing the
   attacker and hit the outer blocks first; a beam stops in the first armor
   plate it meets but digs two blocks deep through exposed systems;
@@ -78,16 +84,15 @@ tell the helm how to fly relative to it, and you switch modules on and off.
   more credits.
 - Each enemy fights its own way, and the Overview status column tells you
   which: a **strafing** raider runs in, makes a close firing pass and breaks
-  off to come around again (turn into it with **Approach** so your bow
-  weapons bear); a **brawler** orbits close and reverses direction; a
-  **standoff** torpedo boat sits at 14 km and runs when you close (chase it,
-  or let your own torpedoes reach it); the **broadside** cruiser turns
-  slowly to keep a fresh shield toward you.
+  off to come around again; a **brawler** orbits close and reverses
+  direction; a **standoff** torpedo boat sits at 14 km and runs when you
+  close (Engage chases it); the **broadside** cruiser turns slowly to keep
+  a fresh shield toward you. Your helm answers with the stance you pick.
 - Weapons only fire where your own hull does not block them, so a saucer
-  fights with the guns on the side facing the enemy. When that side's
-  guns are gone, **Reverse** (V) flips your orbit and brings the other
-  side round. Paint weapons on the rim; a weapon buried inside the hull
-  shows a red cross in the editor and never fires.
+  fights with the guns on the side facing the enemy; the helm reverses the
+  orbit when the other side has more to bring to bear. Paint weapons on
+  the rim; a weapon buried inside the hull shows a red cross in the editor
+  and never fires.
 - **Space** pauses; commands still work while paused. Mouse wheel zooms.
   The **?** button lists all controls.
 - Destroy the enemy to win. The result screen shows the credits you earned;
@@ -134,7 +139,8 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `units.pxPerKm`, `grid.cellPx` | World scale and cell size |
 | `blocks.*` | Every block: hp, mass, cost, colour, glyph, weapon stats (damage, cycle, cap, optimal / falloff / tracking, arc), effects |
 | `grid.lineOfFire / lineOfFireMuzzle / lineOfFireRangeCells` | Whether and how the own hull masks weapons |
-| `grid.shieldBase / shieldAdd / regenBase / regenAdd` | Shield facings from emitters |
+| `grid.shieldBase / shieldAdd / regenBase / regenAdd / shieldRadius` | Shield facings from emitters; bubble radius in cells |
+| `helm` | Stances (doctrine, ranges from fitted weapons, keys), auto-flip interval and shield thresholds |
 | `grid.capBase / capAdd / capRechargeTime` | Capacitor from reactors |
 | `grid.thrustPerPoint / nacelleThrustMult / speedMultMin / speedMultMax` | Speed from engines and mass |
 | `grid.hitScatter / penetration / torpedoSplash / aimRadius / aimScatter / deadFraction / structureHp` | Where shots land, how damage travels through the hull, when a ship is lost |
@@ -151,8 +157,8 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `editor.refund / maxSavedBuilds` | Refund on removed blocks, saved builds per hull |
 | `campaign.encounters / enemyScaling / klingonNames` | Which enemy shows up when, how it scales, what it pays |
 | `campaign.*`, `skills.*` | Economy, training |
-| `balance.capCurve / lockBase / orbitRangesKm / keepRangesKm / zoom` | Capacitor curve, lock time, range buttons, zoom |
-| `enemyAI.doctrines` | How each enemy fights: strafe pass range and timing, brawl orbit and flip timer, standoff hold and kite ranges, broadside band and roll timer |
+| `balance.capCurve / lockBase / zoom` | Capacitor curve, lock time, zoom |
+| `enemyAI.doctrines` | How each doctrine flies (enemy encounters and player stances): strafe pass range and timing, brawl orbit and flip timer, standoff hold and kite ranges, broadside band and roll timer, evade range |
 | `enemyAI.default / ktinga` | Enemy accuracy, damage and stat multipliers, retreat thresholds, aim weights (`none` = spray) |
 | `visuals.fragments` | Section break-off and ship shatter: piece count, speed, spin, lifetime |
 | `crew.reports`, `crew.events`, `blockReports` | All officer dialogue |

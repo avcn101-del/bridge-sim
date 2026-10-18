@@ -32,7 +32,7 @@ BS.Ships = (function () {
       capMax: 0, capacitor: 0, heat: 0, overload: 0, heatGovernor: true, governorHold: false, jammed: 0, cloak: { state: "off", t: 0, surge: 0 },
       signature: cls.signature,
       flags: { alert: "none", destroyed: false, disabled: false, armed: false },
-      selected: null, lock: { target: null, progress: 0, locked: false, time: 0 }, aimType: null,
+      selected: null, lock: { target: null, progress: 0, locked: false, time: 0 }, aimType: null, stance: null,
       cmd: { type: "idle", target: null, range: 0, point: null, orbitDir: Math.random() < 0.5 ? 1 : -1, facing: null },
       desiredHeading: options.heading || 0, desiredSpeed: 0,
       repairPriority: null, reinforce: null, reinforceCooldown: 0,
@@ -195,8 +195,11 @@ BS.Ships = (function () {
   function applyDamage(ship, amount, fromX, fromY, aimType, attacker, kind) {
     if (ship.flags.destroyed) return null;
     var B = BS.Data.balance;
-    var facing = facingToward(ship, fromX, fromY);
-    var shield = ship.shields[facing];
+    // the shot lands on `first`; it is shielded only while an emitter covers that block, and then draws from that emitter's facing
+    var first = Gr.resolveEntry(ship, fromX, fromY, aimType);
+    var exposed = !!first && !first.covered;
+    var facing = first && first.coverBy ? Gr.blockFacing(first.coverBy) : facingToward(ship, fromX, fromY);
+    var shield = exposed ? 0 : ship.shields[facing];
     var resist = ship.activeEffects.shieldResist || 0;
     var shieldAmount = amount * (1 - resist);
     var absorbed = Math.min(shield, shieldAmount);
@@ -207,10 +210,15 @@ BS.Ships = (function () {
     var shieldsDown = ship.shields[facing] <= 0 && shield > 0;
     var ang = U.angleTo(ship.pos.x, ship.pos.y, fromX, fromY);
     var impact = { x: ship.pos.x + Math.cos(ang) * ship.visual.length * 0.5, y: ship.pos.y + Math.sin(ang) * ship.visual.length * 0.5 };
-    var result = { ship: ship, facing: facing, absorbed: absorbed, hullDamage: hullDamage, shieldsDown: shieldsDown, impact: impact, angle: ang, kind: kind, amount: amount, attacker: attacker, hits: [], destroyed: [], cutOff: [], explosions: [] };
+    var emitter = first && first.coverBy ? first.coverBy : null;
+    if (emitter) {   // the shield ripple sits on the covering emitter's bubble, on the attacker's side
+      var ew = Gr.blockWorld(ship, emitter), ea = U.angleTo(ew.x, ew.y, fromX, fromY), R = BS.Data.grid.shieldRadius * ship.grid.cellPx;
+      impact = { x: ew.x + Math.cos(ea) * R, y: ew.y + Math.sin(ea) * R };
+    }
+    var result = { ship: ship, facing: facing, absorbed: absorbed, hullDamage: hullDamage, shieldsDown: shieldsDown, impact: impact, angle: ang, kind: kind, amount: amount, attacker: attacker, exposed: exposed, emitter: emitter, hits: [], destroyed: [], cutOff: [], explosions: [] };
     if (absorbed > 0) BS.Events.emit("shieldHit", result);
     if (hullDamage > 0) {
-      var hr = Gr.hit(ship, hullDamage, fromX, fromY, aimType, kind);
+      var hr = Gr.hit(ship, hullDamage, fromX, fromY, aimType, kind, first);
       result.hits = hr.hits; result.destroyed = hr.destroyed; result.cutOff = hr.cutOff; result.explosions = hr.explosions;
       var dealt = hr.hits.reduce(function (a, h) { return a + h.dmg; }, 0);
       ship.battle.damageTaken += dealt;
