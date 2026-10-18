@@ -54,6 +54,20 @@ tell the helm how to fly relative to it, and you switch modules on and off.
 - **Reactors explode** when destroyed and take their neighbours with them;
   reactors that touch chain. Aim at the enemy's reactors; keep your own
   apart and armored.
+- **Power**: every system draws power from the hull's grid plus 15 per
+  reactor; the editor shows "Power 118 / 140" and refuses a build that
+  draws more. Lose reactors in battle and your weapons and shields slow
+  down. **Heat**: every shot heats the ship (thin outer ring of the
+  gauge); at the cap weapons stop, and a salvo that crosses it overloads
+  everything for six seconds. Big alpha strikes are possible, spamming is
+  not.
+- **Electronic warfare**: an **ECM jammer** block (F6) rolls against the
+  enemy's sensors every five seconds and breaks their lock; a **cloaking
+  device** (F7, one per ship, 400 cr) makes you unlockable and unseen
+  beyond ten kilometres, at the price of shields, weapons and capacitor.
+  Klingon Shadows do the same to you: when Tactical says they cloaked,
+  watch for the ghost inside ten kilometres and keep your strong shield
+  toward it.
 - A ship with no weapons and no engines left is **disabled** and the battle
   ends. Disabling the enemy instead of destroying it pays 25% of its
   remaining block value as **salvage** (10% for a wreck).
@@ -125,6 +139,9 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `grid.hitScatter / penetration / torpedoSplash / aimRadius / aimScatter / deadFraction / structureHp` | Where shots land, how damage travels through the hull, when a ship is lost |
 | `blocks.*.pierceCost`, `grid.structurePierceCost` | How much of a beam's penetration each block type eats (armor 2, structure 3) |
 | `blocks.reactor.explosion`, `grid.lineOfFire` | Reactor breach damage and radius; whether the own hull masks weapons |
+| `blocks.*.power`, `shipClasses.*.powerBase`, `grid.powerPerReactor / brownoutMin` | Power grid: what each system draws, what a hull and its reactors supply, how a brownout bites |
+| `grid.heat`, `blocks.*.weapon.heat` | Heat capacity and dissipation, overload time, heat per shot |
+| `ew.*`, `science.cloakDetectRangeKm` | Jam strength and duration, cloak timings and drain, detection range |
 | `campaign.salvage` | Share of the enemy's surviving block value paid after a win (destroyed / disabled) |
 | `grid.variant` | How much a random enemy variant differs from its base layout |
 | `shipClasses.*.mask / layout / variants` | Hull shapes, default builds, enemy layouts |

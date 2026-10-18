@@ -44,6 +44,7 @@ BS.Modules = (function () {
       if (!m.active || b.cycleLeft > 0) return;
       if (!ship.flags.armed || ship.flags.disabled) { reason = "notarmed"; return; }
       if (ship.overload > 0) { reason = "overload"; return; }
+      if (ship.cloak.state !== "off") { reason = "cloaked"; return; }
       if (ship.heat >= ship.stats.heatCap || (ship.aiProfile && ship.heat > ship.stats.heatCap * BS.Data.grid.heat.aiFireBelow)) { reason = "heat"; return; }
       if (!target) { reason = "nolock"; return; }
       var dKm = BS.Ships.distanceKm(ship, target);
@@ -66,6 +67,14 @@ BS.Modules = (function () {
     var def = m.def;
     if (ship.capacitor < def.cap) { m.state = "nocap"; return false; }
     ship.capacitor -= def.cap;
+    if (def.effect && def.effect.jam) {
+      var target = ship.lock.target || ship.selected, strength = weaponBlocks(ship, m).length * BS.Data.ew.jamPerBlock;
+      if (target && !target.flags.destroyed && strength > 0) {
+        var chance = strength / (strength + Math.max(1, target.stats.sensors)), hit = Math.random() < chance;
+        if (hit) { target.jammed = BS.Data.ew.jamDuration; BS.Ships.clearLock(target, "jammed"); }
+        BS.Events.emit("jammed", { ship: ship, target: target, hit: hit, chance: chance });
+      }
+    }
     if (def.effect && def.effect.shieldBoost) {
       var f = BS.Ships.weakestFacing(ship);
       ship.shields[f] = Math.min(ship.shieldMax[f], ship.shields[f] + def.effect.shieldBoost);
@@ -77,6 +86,7 @@ BS.Modules = (function () {
   }
 
   function setActive(ship, m, on) {
+    if (m.def.kind === "cloak") { m.active = on; BS.Ships.setCloak(ship, on); BS.Events.emit("moduleToggled", { ship: ship, module: m, on: on }); return; }
     if (on && isWeapon(m) && !ship.flags.armed && ship.isPlayer) {
       BS.Ships.setAlert(ship, "red");
       BS.Events.emit("alertChanged", { ship: ship, alert: "red", auto: true });
@@ -96,6 +106,14 @@ BS.Modules = (function () {
     for (var i = 0; i < order.length; i++) {
       var m = order[i];
       if (isWeapon(m)) { updateWeaponGroup(ship, m, dt); continue; }
+      if (m.def.kind === "cloak") {
+        var cs = ship.cloak.state;
+        if (!weaponBlocks(ship, m).length) { if (cs !== "off") BS.Ships.setCloak(ship, false); m.active = false; m.state = "none"; continue; }
+        if (cs === "off" && m.active) m.active = false;   // dropped for lack of capacitor
+        m.running = cs !== "off"; m.cycleTime = 1; m.cycleLeft = 0;
+        m.state = cs === "off" ? (ship.cloak.surge > 0 ? "surge" : "off") : cs;
+        continue;
+      }
       if (ship.overload > 0) { m.state = m.active ? "overload" : "off"; continue; }   // overloaded: nothing cycles or starts
       if (m.running) {
         m.cycleLeft -= dt;

@@ -320,6 +320,7 @@ BS.Grid = (function () {
       if (t === "bridge") bridges++;
     }
     if (bridges !== 1) errors.push("Exactly one bridge is required (" + bridges + " placed).");
+    Object.keys(counts).forEach(function (t) { if (t !== "bridge" && BS.Data.blocks[t].unique && counts[t] > 1) errors.push("Only one " + BS.Data.blocks[t].name.toLowerCase() + " per ship."); });
     var grid = build(cls, rows);
     if (grid.bridge) { var lost = pruneDisconnected(grid).filter(function (b) { return !b.structural; }); if (lost.length) errors.push(lost.length + " block(s) are not connected to the bridge."); }
     var st = derive(grid);

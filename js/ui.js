@@ -131,7 +131,7 @@ BS.UI = (function () {
     var active = ship.modules.filter(function (m) { return m.def.kind !== "passive"; });
     active.forEach(function (m, i) {
       var b = document.createElement("div"); b.className = "module";
-      var capText = m.def.cap ? m.def.cap + " cap" : (BS.Data.blocks[m.def.block].weapon.cap + " cap/shot");
+      var capText = m.def.capText || (m.def.cap ? m.def.cap + " cap" : (BS.Data.blocks[m.def.block].weapon.cap + " cap/shot"));
       b.innerHTML = '<span class="key">F' + (i + 1) + '</span><div class="ring"></div><span class="short">' + m.def.short + '</span><span class="capcost">' + capText + '</span><span class="state"></span>';
       b.title = m.def.name + " — " + m.def.desc + (m.def.cycle ? " Cycle " + m.def.cycle + " s, " + m.def.cap + " capacitor per cycle." : "");
       b.addEventListener("click", function () { game.command("module", { module: m }); });
@@ -146,7 +146,7 @@ BS.UI = (function () {
     function worldAt(ev) { var r = view.getBoundingClientRect(); return BS.Renderer.screenToWorld(ev.clientX - r.left, ev.clientY - r.top); }
     function hoverAt(ev) {
       var s = game.state;
-      if (s.phase !== "battle" || !s.enemy || s.enemy.flags.destroyed) { game.setHover(null); return null; }
+      if (s.phase !== "battle" || !s.enemy || s.enemy.flags.destroyed || BS.Ships.visibility(s.enemy, s.player) < 1) { game.setHover(null); return null; }
       var w = worldAt(ev);
       var b = BS.Grid.blockAtWorld(s.enemy, w.x, w.y, s.zoom < 0.8 ? 2 : 1);
       var h = b ? { ship: s.enemy, block: b } : null;
@@ -341,10 +341,10 @@ BS.UI = (function () {
       me.el.classList.toggle("active", m.active);
       me.el.classList.toggle("running", m.running);
       var weapon = BS.Modules.isWeapon(m);
-      ["nocap", "nolock", "range", "notarmed", "arc", "none", "heat", "overload"].forEach(function (st) { me.el.classList.toggle(st, m.active && m.state === st); });
+      ["nocap", "nolock", "range", "notarmed", "arc", "none", "heat", "overload", "cloaked", "surge"].forEach(function (st) { me.el.classList.toggle(st, (m.active || m.def.kind === "cloak") && m.state === st); });
       me.ring.style.setProperty("--p", weapon ? (100 * (1 - m.readiness)).toFixed(1) : (m.running ? (100 * (1 - m.cycleLeft / m.cycleTime)).toFixed(1) : 0));
       me.el.classList.toggle("running", weapon ? m.active && m.readiness < 1 : m.running);
-      me.state.textContent = m.active && m.state !== "running" && m.state !== "off" && m.state !== "ok" ? ({ nocap: "no cap", nolock: "no lock", range: "range", notarmed: "safe", arc: "no arc", none: "lost", heat: "hot", overload: "OVERLOAD" })[m.state] || "" : "";
+      me.state.textContent = m.active && m.state !== "running" && m.state !== "off" && m.state !== "ok" ? ({ nocap: "no cap", nolock: "no lock", range: "range", notarmed: "safe", arc: "no arc", none: "lost", heat: "hot", overload: "OVERLOAD", cloaked: "cloaked", cloaking: "cloaking", decloaking: "decloak", surge: "surge" })[m.state] || "" : "";
     }
   }
 
@@ -362,10 +362,11 @@ BS.UI = (function () {
       }
       var cells = row.children;
       cells[0].textContent = s.name; cells[0].title = s.cls.className;
-      cells[1].textContent = s.flags.destroyed ? "—" : fmtKm(S.distanceKm(p, s));
+      var vis = S.visibility(s, p);
+      cells[1].textContent = s.flags.destroyed || vis <= 0 ? "—" : fmtKm(S.distanceKm(p, s)) + (vis < 1 ? " ghost" : "");
       cells[2].textContent = s.flags.destroyed ? "—" : S.speedKmS(s).toFixed(1);
       cells[3].textContent = s.flags.destroyed ? "—" : S.angularVelocity(p, s).toFixed(2);
-      cells[4].textContent = s.flags.destroyed ? "destroyed" : s.flags.disabled ? "disabled" : s.ai ? (BS.Data.enemyAI.stateLabels[s.ai.state] || s.ai.state) : "";
+      cells[4].textContent = s.flags.destroyed ? "destroyed" : s.flags.disabled ? "disabled" : s.cloak.state !== "off" ? s.cloak.state : s.ai ? (BS.Data.enemyAI.stateLabels[s.ai.state] || s.ai.state) : "";
       row.classList.toggle("selected", p.selected === s);
       row.classList.toggle("locked", p.lock.target === s && p.lock.locked);
     });

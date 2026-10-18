@@ -29,7 +29,7 @@ BS.Ships = (function () {
       grid: grid, stats: st, statMult: statMult, mods: mods,
       hullMax: st.hullTotal, hull: st.hullAlive,
       shieldMax: {}, shields: {}, shieldRegen: {},
-      capMax: 0, capacitor: 0, heat: 0, overload: 0,
+      capMax: 0, capacitor: 0, heat: 0, overload: 0, jammed: 0, cloak: { state: "off", t: 0, surge: 0 },
       signature: cls.signature,
       flags: { alert: "none", destroyed: false, disabled: false, armed: false },
       selected: null, lock: { target: null, progress: 0, locked: false, time: 0 }, aimType: null,
@@ -128,6 +128,38 @@ BS.Ships = (function () {
     return ship.reinforce;
   }
 
+  // ---- electronic warfare -------------------------------------------------
+  function isCloaked(ship) { return ship.cloak.state === "cloaked" || ship.cloak.state === "cloaking"; }
+  // How visible `ship` is to `viewer`: 1 normal, 0 invisible, in between a ghost or a transition.
+  function visibility(ship, viewer) {
+    var c = ship.cloak, E = BS.Data.ew;
+    if (c.state === "off") return 1;
+    var hidden = viewer === ship ? E.ownCloakAlpha : (viewer && distanceKm(ship, viewer) <= detectRangeKm(viewer) ? E.ghostAlpha : 0);
+    if (c.state === "cloaked") return hidden;
+    var k = U.clamp(c.t / (c.state === "cloaking" ? E.cloakTime : E.decloakTime), 0, 1);
+    return c.state === "cloaking" ? U.lerp(1, hidden, k) : U.lerp(hidden, 1, k);
+  }
+  function detectRangeKm(viewer) { return BS.Data.science.cloakDetectRangeKm + BS.Data.ew.detectPerSensor * ((viewer.stats.alive && viewer.stats.alive.sensor) || 0); }
+  function setCloak(ship, on) {
+    var c = ship.cloak;
+    if (on && c.state === "off") { c.state = "cloaking"; c.t = 0; BS.Events.emit("cloakChanged", { ship: ship, state: c.state }); return true; }
+    if (!on && isCloaked(ship)) { c.state = "decloaking"; c.t = 0; BS.Events.emit("cloakChanged", { ship: ship, state: c.state }); return true; }
+    return false;
+  }
+  function updateCloak(ship, dt) {
+    var c = ship.cloak, E = BS.Data.ew;
+    if (c.surge > 0) c.surge -= dt;
+    if (c.state === "off") return;
+    c.t += dt;
+    if (c.state === "cloaking" && c.t >= E.cloakTime) { c.state = "cloaked"; c.t = 0; BS.Events.emit("cloakChanged", { ship: ship, state: c.state }); }
+    if (c.state === "cloaked") {
+      ship.capacitor = Math.max(0, ship.capacitor - E.cloakDrain * dt);
+      if (ship.capacitor < E.cloakMinCap) { c.state = "decloaking"; c.t = 0; BS.Events.emit("cloakChanged", { ship: ship, state: "decloaking", reason: "nocap" }); }
+    }
+    if (c.state === "decloaking" && c.t >= E.decloakTime) { c.state = "off"; c.t = 0; c.surge = E.surgeTime; BS.Events.emit("cloakChanged", { ship: ship, state: "off" }); }
+    if (isCloaked(ship)) FACINGS.forEach(function (f) { ship.shields[f] = 0; });
+  }
+
   // ---- locking ----------------------------------------------------------
   function lockTime(ship, target) {
     var B = BS.Data.balance;
@@ -135,6 +167,8 @@ BS.Ships = (function () {
   }
   function startLock(ship, target) {
     if (!target || target.flags.destroyed) return "noTarget";
+    if (ship.jammed > 0) return "jammed";
+    if (isCloaked(target)) return "cloaked";
     if (distanceKm(ship, target) > ship.cls.lockRangeKm) return "outOfRange";
     if (ship.lock.target === target && (ship.lock.locked || ship.lock.progress > 0)) return "already";
     ship.lock = { target: target, progress: 0, locked: false, time: lockTime(ship, target) };
@@ -150,6 +184,7 @@ BS.Ships = (function () {
     var L = ship.lock;
     if (!L.target) return;
     if (L.target.flags.destroyed || distanceKm(ship, L.target) > ship.cls.lockRangeKm * 1.1) { clearLock(ship, "range"); return; }
+    if (isCloaked(L.target)) { clearLock(ship, "cloaked"); return; }
     if (L.locked) return;
     L.time = lockTime(ship, L.target);
     L.progress += dt / L.time;
@@ -216,6 +251,7 @@ BS.Ships = (function () {
   function updateCommand(ship, dt) {
     var c = ship.cmd, out, t = c.target;
     if (t && t.flags.destroyed) { c.type = "idle"; t = null; }
+    if (t && c.type !== "flyTo" && visibility(t, ship) <= 0) { ship.desiredHeading = ship.heading; ship.desiredSpeed = maxSpeed(ship) * 0.5; return; }   // lost them: hold course
     switch (c.type) {
       case "approach": out = { heading: U.angleTo(ship.pos.x, ship.pos.y, t.pos.x, t.pos.y), speed: distanceTo(ship, t) < ship.visual.length ? 0.2 : 1 }; break;
       case "orbit": out = orbitHeading(ship, t, c.range, c.orbitDir); break;
@@ -257,10 +293,13 @@ BS.Ships = (function () {
     var rate = (ship.capMax / g.capRechargeTime) * B.capCurve * Math.max(0, Math.sqrt(f) - f) * capRechargeMult(ship);
     if (f < 0.02) rate = (ship.capMax / g.capRechargeTime) * 0.4 * capRechargeMult(ship);
     ship.capacitor = Math.min(ship.capMax, ship.capacitor + rate * dt);
-    FACINGS.forEach(function (fc) {
+    var shieldsUp = ship.cloak.state === "off" && ship.cloak.surge <= 0;
+    if (shieldsUp) FACINGS.forEach(function (fc) {
       var regen = ship.shieldRegen[fc] * shieldsMult(ship) * (ship.stats.powerFactor || 1) * dt;
       if (ship.shields[fc] < ship.shieldMax[fc]) ship.shields[fc] = Math.min(ship.shieldMax[fc], ship.shields[fc] + regen);
     });
+    if (ship.jammed > 0) ship.jammed -= dt;
+    updateCloak(ship, dt);
     if (ship.reinforceCooldown > 0) ship.reinforceCooldown -= dt;
     ship.heat = Math.max(0, ship.heat - ship.stats.heatDissipation * dt);
     if (ship.overload > 0) ship.overload -= dt;
@@ -291,5 +330,6 @@ BS.Ships = (function () {
     distanceTo: distanceTo, distanceKm: distanceKm, bearingTo: bearingTo, angularVelocity: angularVelocity, speedKmS: speedKmS,
     setCommand: setCommand, setAlert: setAlert, startReinforce: startReinforce, startLock: startLock, clearLock: clearLock, lockTime: lockTime,
     trackingMult: trackingMult, maxSpeed: maxSpeed, capRechargeMult: capRechargeMult, blockTypes: blockTypes,
+    isCloaked: isCloaked, visibility: visibility, detectRangeKm: detectRangeKm, setCloak: setCloak,
   };
 })();

@@ -58,13 +58,14 @@ BS.EnemyAI = (function () {
     var facingPct = S.shieldFrac(ship, facing);
     var capPct = ship.capacitor / ship.capMax;
     var dKm = S.distanceKm(ship, player);
-    var engaged = ai.state !== "approach" && ai.state !== "retreat";
+    var engaged = ai.state !== "approach" && ai.state !== "retreat" && ai.state !== "stalk";
 
     // module management shared by all states: weapons stay on whenever there is capacitor for them
     var weaponsOn = capPct > 0.12;
     M.weapons(ship).forEach(function (m) { if (m.active !== weaponsOn) M.setActive(ship, m, weaponsOn); });
     setModule(ship, "shield_booster", facingPct < p.boosterBelow && capPct > p.boosterMinCap);
-    setModule(ship, "shield_hardener", capPct > 0.15 && engaged);
+    setModule(ship, "shield_hardener", capPct > 0.15 && engaged && ship.cloak.state === "off");
+    setModule(ship, "jammer", engaged && capPct > 0.3 && ship.cloak.state === "off");
     if (ai.timer > 20 && engaged) { ship.aimType = pickTarget(p); ai.timer = 0; }
 
     // retreat is shared: once per battle, when the hull gets low
@@ -98,11 +99,24 @@ BS.EnemyAI = (function () {
       case "break_off":
         setModule(ship, "afterburner", capPct > d.abMinCap);
         keep(ship, player, d.breakKm);
+        if (d.kind === "ambush") { if (dKm > d.recloakKm || ai.timer > d.breakMaxTime) { setState(ship, "stalk"); S.setCommand(ship, "approach", { target: player }); } break; }
         if (dKm > d.breakKm * 0.9 || ai.timer > d.breakMaxTime) { setState(ship, "turn_in"); orbit(ship, player, d.breakKm, Math.random() < 0.5); }
         break;
       case "turn_in":
         setModule(ship, "afterburner", false);
         if (ai.timer > d.turnTime) { setState(ship, "run_in"); S.setCommand(ship, "approach", { target: player }); }
+        break;
+
+      // ---- ambush: stalk cloaked, decloak at knife range, firing pass, break off and cloak again
+      case "stalk":
+        setModule(ship, "afterburner", false);
+        if (ship.cloak.state === "off" && capPct > 0.5) setModule(ship, "cloak", true);
+        if (ship.cmd.type !== "approach") S.setCommand(ship, "approach", { target: player });
+        if (dKm < d.decloakKm || (ship.cloak.state === "off" && capPct < 0.5)) { setState(ship, "uncloak"); setModule(ship, "cloak", false); }
+        break;
+      case "uncloak":
+        setModule(ship, "cloak", false);
+        if (ship.cloak.state === "off") { ai.passes++; setState(ship, "pass"); orbit(ship, player, d.passOrbitKm, Math.random() < 0.5); }
         break;
 
       // ---- brawl: close orbit, flip direction on a timer or when the fight turns into a tail chase
@@ -148,6 +162,7 @@ BS.EnemyAI = (function () {
   function enter(ship, player, d, flip) {
     switch (d.kind) {
       case "strafe": setState(ship, "run_in"); S.setCommand(ship, "approach", { target: player }); break;
+      case "ambush": setState(ship, "stalk"); S.setCommand(ship, "approach", { target: player }); break;
       case "standoff": setState(ship, "standoff"); keep(ship, player, d.holdKm); break;
       case "broadside": setState(ship, "broadside"); S.setCommand(ship, "comeAbout", { target: player }); ship.ai.rollTimer = 0; break;
       default: setState(ship, "brawl"); orbit(ship, player, d.orbitKm, flip); ship.ai.flipTimer = 0; break;

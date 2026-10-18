@@ -2,6 +2,39 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.7.0] — 2026-10-18 (power grid, heat, electronic warfare)
+
+### Added
+- **Power grid**: every system draws power (phaser 5, tube 8, shield 4,
+  sensor 3, engine 1, quarters 1, jammer 6, cloak 12); a hull supplies a
+  class base plus 15 per reactor. The editor shows the figure and refuses
+  an overdrawn build; losing reactors in battle browns the ship out
+  (weapons and shields at supply / draw). This replaces any fixed weapon
+  hardpoint count.
+- **Heat and overload**: shots add heat (phaser 6, torpedo 30); capacity
+  grows with the hull, dissipation with its rim. At capacity weapons stop;
+  the shot that crosses it overloads the ship for 6 s. Heat ring on the
+  gauge, "hot"/"OVERLOAD" states in the module bar, salvo and sustained
+  figures in the editor, Engineering warnings; the AI stops at 85%.
+- **ECM jammer** block and module (F6): rolls jam strength against the
+  enemy's sensors every 5 s; a hit breaks their lock for 4 s and blinds
+  their torpedoes in flight.
+- **Cloaking device** block and module (F7, one per ship): unlockable and,
+  beyond 10 km (+1 km per enemy sensor array), unseen; shields down, weapons
+  cold, capacitor drains 8/s; 2 s to decloak and 8 s of shield surge after.
+  Ghost rendering inside detection range, overview shows "ghost" / "—".
+- Enemies: **Jammer boat** (two ECM blocks, from win 3) and **Shadow**
+  (cloak, new **ambush** doctrine: stalk cloaked, decloak at 4.5 km, pass,
+  break off and cloak again; from win 3). Constitution preset **Shadow
+  hunter** (cloak, two jammers, six phasers).
+
+### Changed
+- Brawler preset is ten phasers (power); Bird-of-Prey power base 35.
+
+### Measured (DESIGN.md §8)
+- Straightforward Constitution: 4 of 4 vs the raider (2:09–6:30), 3 of 4
+  vs the Gunboat and vs the Shadow, 1 of 4 vs the Jammer boat.
+
 ## [0.6.0] — 2026-10-17 (Cosmoteer ideas: breaches, line of fire, armor, salvage)
 
 ### Added

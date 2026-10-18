@@ -209,7 +209,8 @@ BS.Hangar = (function () {
     var cls = BS.Data.shipClasses[ed.classId], m = cls.mask[y][x];
     if (m === "." || m === "p") return false;
     var row = ed.rows[y];
-    if (letter === "B") { ed.rows = ed.rows.map(function (r) { return r.replace(/B/g, "A"); }); row = ed.rows[y]; }   // only one bridge
+    var type = Gr.typeForLetter(letter);
+    if (type && BS.Data.blocks[type].unique) { ed.rows = ed.rows.map(function (r) { return r.split(letter).join(type === "bridge" ? "A" : "."); }); row = ed.rows[y]; }   // unique blocks move
     if (row[x] === letter) return false;
     ed.rows[y] = row.slice(0, x) + letter + row.slice(x + 1);
     return true;

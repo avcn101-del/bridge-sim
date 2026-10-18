@@ -86,9 +86,9 @@ BS.Data = {
     aimScatter: 2.0,              // aimed shots wander ±this many cells around the aimed block's line, so a focused volley still has to clear a strip of armor
     deadFraction: 0.3,            // ship is lost when alive block hp falls below this fraction of total
     // random enemy variants: a fraction of the base layout's cells is re-rolled (armor → system, system → armor) and the result re-validated
-    variant: { fraction: 0.12, attempts: 12, systemWeights: { phaser: 4, shield: 3, reactor: 2, engine: 2, armor: 6, quarters: 1, sensor: 1, torpedo: 1 } },
+    variant: { fraction: 0.12, attempts: 12, systemWeights: { phaser: 4, shield: 3, reactor: 2, engine: 2, armor: 6, quarters: 1, sensor: 1, torpedo: 1, jammer: 1 } },
     maskLegend: { ".": "empty", "#": "fillable", "n": "nacelle (engine ×2)", "p": "structure (fixed)" },
-    layoutLegend: { A: "armor", P: "phaser", T: "torpedo", S: "shield", R: "reactor", E: "engine", N: "sensor", B: "bridge", Q: "quarters" },
+    layoutLegend: { A: "armor", P: "phaser", T: "torpedo", S: "shield", R: "reactor", E: "engine", N: "sensor", B: "bridge", Q: "quarters", J: "jammer", C: "cloak" },
   },
 
   editor: {
@@ -108,6 +108,8 @@ BS.Data = {
     engine:   { letter: "E", name: "Impulse engine",  short: "EN", hp: 45, mass: 2, cost: 80,  power: 1,  color: "#7fd8ff", desc: "Thrust. Counts double inside nacelles. Speed = thrust / mass." },
     sensor:   { letter: "N", name: "Sensor array",    short: "SE", hp: 35, mass: 1, cost: 110, power: 3, color: "#cc99cc", desc: "Faster locks and better tracking." },
     bridge:   { letter: "B", name: "Bridge",          short: "BR", hp: 200, mass: 2, cost: 0,   color: "#ffffff", unique: true, desc: "Exactly one. If it dies, the ship is lost. Blocks cut off from it break away." },
+    jammer:   { letter: "J", name: "ECM jammer",      short: "JM", hp: 35, mass: 2, cost: 110, power: 6, color: "#8fd1c9", desc: "Electronic warfare. Each 5 s cycle (10 cap) rolls jam strength 3 against the enemy's sensors: on a hit their lock drops and they cannot lock for 4 s, and their torpedoes in flight go blind." },
+    cloak:    { letter: "C", name: "Cloaking device", short: "CL", hp: 40, mass: 3, cost: 400, power: 12, unique: true, color: "#7a6fb0", desc: "One per ship. While cloaked you cannot be locked or seen beyond sensor range, but shields are down, weapons are cold and the capacitor drains 8/s. Decloaking takes 2 s and shields stay down 8 s more." },
     quarters: { letter: "Q", name: "Crew quarters",   short: "CQ", hp: 35, mass: 1, cost: 40,  power: 1,  color: "#d3bfa6", desc: "+0.5 hp/s damage-control repair of damaged blocks." },
   },
 
@@ -119,6 +121,8 @@ BS.Data = {
     shield_booster: { kind: "active", name: "Shield booster", short: "SB", cycle: 4, cap: 32, effect: { shieldBoost: 50 }, desc: "Each cycle restores 50 shield to the weakest facing. Expensive on capacitor: pulse it." },
     shield_hardener: { kind: "active", name: "Shield hardener", short: "SH", cycle: 8, cap: 7, effect: { shieldResist: 0.3 }, desc: "While running, shields take 30% less damage." },
     afterburner: { kind: "active", name: "Afterburner", short: "AB", cycle: 8, cap: 16, effect: { speedMult: 1.5 }, desc: "+50% speed while running. Higher angular velocity makes enemy beams miss." },
+    jammer: { kind: "active", block: "jammer", name: "ECM jammer", short: "JAM", cycle: 5, cap: 10, effect: { jam: true }, desc: "Every 5 s: jam strength (3 per jammer block) against the enemy's sensor strength. A hit breaks their lock for 4 s and blinds their torpedoes." },
+    cloak: { kind: "cloak", block: "cloak", name: "Cloaking device", short: "CLK", cycle: 0, cap: 0, capText: "8 cap/s", desc: "Cloak in 3 s: unlockable and unseen beyond their sensors. Shields down, weapons cold, capacitor drains. Decloak takes 2 s; shields recover 8 s later." },
   },
   builtInModules: ["shield_booster", "shield_hardener", "afterburner"],
 
@@ -170,6 +174,24 @@ BS.Data = {
       ],
       visual: { kind: "grid", sprite: null, nacelleColor: "90,160,255", hullTint: "#c6ccda" },
       presets: {
+        shadowhunter: { name: "Shadow hunter", desc: "A cloaking device and two ECM jammers in the crew decks, six phasers. Cloak, close, decloak on their flank, jam their lock and fire.", rows: [
+          "..........................",
+          ".EEEEEAAAA.........P......",
+          ".EEEEEAAAA......PAAAAAP...",
+          "...............ASAAAASAA..",
+          "..............SAAAAAAAAAA.",
+          ".......AA.....AAARAACAAAA.",
+          "...AA..AAAAA.AARAAJARAANAT",
+          "..ASAAAAAAAA...AAAAAAAAAAA",
+          "..ASAAAAAAAA...AAABAAAAAAA",
+          "...AA..AAAAA.AARAAJARAANAT",
+          ".......AA.....AAARAAQAAAA.",
+          "..............SAAAAAAAAAA.",
+          "...............ASAAAASAA..",
+          ".EEEEEAAAA......PAAAAAP...",
+          ".EEEEEAAAA.........P......",
+          ".........................."
+        ] },
         brawler: { name: "Brawler", desc: "Ten phaser emitters on the flanks, armored bow, three tubes. Orbit close and keep them on your beam.", rows: [
           "..........................",
           ".EEEEEAAAA.........A......",
@@ -590,6 +612,54 @@ BS.Data = {
       ],
       visual: { kind: "grid", sprite: null, nacelleColor: "110,255,120", hullTint: "#5d7a5c" },
       variants: {
+        shadow: { name: "Shadow", desc: "A cloaking device in place of the crew decks, six disruptors. It stalks you cloaked and decloaks at knife range.", rows: [
+          "EEE.....................",
+          "EEEP....................",
+          "..AAP...................",
+          "...AAA..................",
+          "....AAA.................",
+          ".....AAA................",
+          "......AAA...............",
+          ".......AAA..............",
+          ".....AAARAA.......AAA...",
+          "....ARAACASP....AAAAAAA.",
+          "...AAAAAAAAAAAAAASAAANAA",
+          "...ASAAABAAAAAAAASAAAAAT",
+          "....ARAAQASP....AAAAAAA.",
+          ".....AAARAA.......AAA...",
+          ".......AAA..............",
+          "......AAA...............",
+          ".....AAA................",
+          "....AAA.................",
+          "...AAA..................",
+          "..AAP...................",
+          "EEEP....................",
+          "EEE....................."
+        ] },
+        jammer: { name: "Jammer boat", desc: "Two ECM jammers, six disruptors. Breaks your target lock every few seconds.", rows: [
+          "EEE.....................",
+          "EEEP....................",
+          "..AAP...................",
+          "...AAA..................",
+          "....AAA.................",
+          ".....AAA................",
+          "......AAA...............",
+          ".......AAA..............",
+          ".....AAARAA.......AAA...",
+          "....ARAAQASP....AAAAAAA.",
+          "...AAAAJJAAAAAAAASAAANAA",
+          "...ASAAABAAAAAAAASAAAAAT",
+          "....ARAAQASP....AAAAAAA.",
+          ".....AAARAA.......AAA...",
+          ".......AAA..............",
+          "......AAA...............",
+          ".....AAA................",
+          "....AAA.................",
+          "...AAA..................",
+          "..AAP...................",
+          "EEEP....................",
+          "EEE....................."
+        ] },
         gunboat: { name: "Gunboat", desc: "Eleven disruptors along the wings, no torpedo, thinner armor.", rows: [
           "EEE.....................",
           "EEEP....................",
@@ -742,6 +812,13 @@ BS.Data = {
       unlock: "Target released.",
       lockNoTarget: "No target selected, Captain.",
       lockOutOfRange: "Target is beyond sensor range. Close to {range} kilometres.",
+      lockJammed: "Our targeting is jammed, Captain! No lock until it clears.",
+      lockCloaked: "Can't get a lock, Captain. They're cloaked.",
+      jammedUs: "They're jamming our targeting! Lock lost.",
+      jammedThem: "Their lock just dropped. The jammer is working.",
+      cloakOn: "Cloak engaged. Shields down, weapons cold, Captain.",
+      cloakOff: "Decloaking. Shields will take a moment to come back.",
+      cloakNoCap: "Capacitor too low to hold the cloak. We're decloaking!",
       targetHull: "Targeting whatever we can hit, Captain. Full accuracy.",
       reinforceShields: "Reinforcing the {weak} shield from the {strong} grid.",
       reinforceShields_none: "Shields are already balanced, Captain.",
@@ -786,6 +863,8 @@ BS.Data = {
       enemyBroadside: "The cruiser is turning to bring its broadside to bear.",
       enemyRoll: "They're rolling a fresh shield toward us.",
       enemyFlip: "They've reversed their orbit, Captain.",
+      enemyCloaked: "They've cloaked, Captain. Sensors show nothing inside ten kilometres... stay sharp.",
+      enemyDecloak: "Decloaking off the {facing} bow! Here they come!",
       enemyDestroyed: "Enemy vessel destroyed, Captain.",
       enemyLocking: "They're locking us, Captain.",
       enemyFiringTorpedo: "Incoming torpedo!",
@@ -807,10 +886,11 @@ BS.Data = {
       brawl:     { kind: "brawl", engageKm: 8, orbitKm: 3.5, flipEvery: 20, abMinCap: 0.7, tailChaseAngular: 0.15, tailChaseTime: 4 },
       standoff:  { kind: "standoff", engageKm: 15, holdKm: 14, kiteBelowKm: 9, kiteToKm: 17, kiteMaxTime: 15, tailChaseAngular: 0.15, tailChaseTime: 99 },
       broadside: { kind: "broadside", engageKm: 10, bandKm: [5.5, 8.5], rollEvery: 30, tailChaseAngular: 0.15, tailChaseTime: 99 },
+      ambush:    { kind: "ambush", engageKm: 22, decloakKm: 4.5, recloakKm: 9, passOrbitKm: 3, passTime: 12, breakKm: 10, breakMaxTime: 10, abMinCap: 0.5, tailChaseAngular: 0.15, tailChaseTime: 99 },
       siege:     { kind: "standoff", engageKm: 18, holdKm: 17, kiteBelowKm: 11, kiteToKm: 20, kiteMaxTime: 15, tailChaseAngular: 0.15, tailChaseTime: 99 },
     },
     // Overview status text per AI state
-    stateLabels: { approach: "closing", retreat: "retreating", run_in: "strafing run", pass: "firing pass", break_off: "breaking off", turn_in: "coming around", brawl: "attacking", reposition: "turning", standoff: "standing off", kite: "kiting", broadside: "broadside" },
+    stateLabels: { approach: "closing", retreat: "retreating", run_in: "strafing run", pass: "firing pass", break_off: "breaking off", turn_in: "coming around", brawl: "attacking", reposition: "turning", standoff: "standing off", kite: "kiting", broadside: "broadside", stalk: "cloaked", uncloak: "decloaking" },
     default: {
       doctrine: "brawl",
       accuracyMult: 0.85, reactionDelay: 1.2, statMult: 1.08, damageMult: 1.35,
@@ -859,6 +939,8 @@ BS.Data = {
       { id: "gunboat",  enemyClass: "bird_of_prey", layout: "gunboat", doctrine: "brawl",     minWins: 1, weight: 2, rewardMult: 1.1 },
       { id: "torpedo",  enemyClass: "bird_of_prey", layout: "torpedo", doctrine: "standoff",  minWins: 1, weight: 2, rewardMult: 1.1 },
       { id: "variant",  enemyClass: "bird_of_prey", layout: "random",  doctrine: ["strafe", "brawl"], minWins: 2, weight: 3, rewardMult: 1.1 },
+      { id: "jammer",   enemyClass: "bird_of_prey", layout: "jammer",  doctrine: "brawl",     minWins: 3, weight: 2, rewardMult: 1.2 },
+      { id: "shadow",   enemyClass: "bird_of_prey", layout: "shadow",  doctrine: "ambush",    minWins: 3, weight: 2, rewardMult: 1.3 },
       { id: "cruiser",  enemyClass: "ktinga",       layout: "default", doctrine: "broadside", minWins: 4, weight: 2, rewardMult: 1.8 },
       { id: "siege",    enemyClass: "ktinga",       layout: "siege",   doctrine: "siege",     minWins: 6, weight: 2, rewardMult: 1.9 },
       { id: "warlord",  enemyClass: "ktinga",       layout: "random",  doctrine: ["broadside", "brawl"], minWins: 8, weight: 2, rewardMult: 1.9 },
@@ -867,6 +949,8 @@ BS.Data = {
   },
 
   science: { scanDuration: 4, weaknessBonus: 1.25, cloakDetectRangeKm: 10 },
+  // electronic warfare: ECM rolls jam / (jam + target sensors); cloak timings in seconds; detection grows with sensor arrays
+  ew: { jamPerBlock: 3, jamDuration: 4, cloakTime: 3, decloakTime: 2, surgeTime: 8, cloakDrain: 8, cloakMinCap: 5, detectPerSensor: 1, ghostAlpha: 0.25, ownCloakAlpha: 0.35 },
 
   saveDefaults: {
     version: 2, credits: 600, shipClass: "constitution", ownedShips: ["constitution"],

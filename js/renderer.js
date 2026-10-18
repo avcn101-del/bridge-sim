@@ -156,7 +156,7 @@ BS.Renderer = (function () {
       ctx.beginPath(); ctx.arc(c.point.x, c.point.y, 6 / zoom, 0, U.TAU); ctx.stroke();
       ctx.setLineDash([3 / zoom, 5 / zoom]); ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(c.point.x, c.point.y); ctx.stroke(); ctx.setLineDash([]);
     }
-    if (!e || e.flags.destroyed) { ctx.restore(); return; }
+    if (!e || e.flags.destroyed || BS.Ships.visibility(e, p) <= 0) { ctx.restore(); return; }
     var ex = U.lerp(e.prevPos.x, e.pos.x, alpha), ey = U.lerp(e.prevPos.y, e.pos.y, alpha);
     var R = e.visual.length * 0.75;
     // enemy velocity vector
@@ -309,14 +309,26 @@ BS.Renderer = (function () {
     return sc;
   }
 
+  var viewer = null;   // the player's ship: what the display can see is judged from here
   function drawShip(ship, alpha, t) {
     if (ship.flags.destroyed) return;   // the hull has broken into fragments (see drawFragments)
+    var vis = BS.Ships.visibility(ship, viewer);
+    if (vis <= 0) return;
     var x = U.lerp(ship.prevPos.x, ship.pos.x, alpha), y = U.lerp(ship.prevPos.y, ship.pos.y, alpha);
     var h = U.lerpAngle(ship.prevHeading, ship.heading, alpha);
     ctx.save();
     ctx.translate(x, y); ctx.rotate(h); ctx.scale(ship.visual.scale || 1, ship.visual.scale || 1);
+    if (vis < 1) {
+      // cloak shimmer: the hull shows as a wavering ghost
+      ctx.globalAlpha = vis * (0.7 + 0.3 * Math.sin(t * 7 + ship.id));
+      ctx.translate(Math.sin(t * 11) * 1.5, Math.cos(t * 9) * 1.5);
+    }
     var drawer = ship.visual.kind === "sprite" ? drawers.sprite : drawers.grid;
     drawer(ship, t);
+    if (vis < 1) {
+      ctx.globalAlpha = Math.min(1, vis * 1.5); ctx.strokeStyle = "rgba(150,170,255,0.6)"; ctx.lineWidth = 1; ctx.setLineDash([3, 5]);
+      ctx.beginPath(); ctx.ellipse(0, 0, ship.visual.length * 0.55, Math.max(ship.visual.width * 0.55, ship.visual.length * 0.35), 0, 0, U.TAU); ctx.stroke();
+    }
     ctx.restore();
   }
 
@@ -362,7 +374,7 @@ BS.Renderer = (function () {
   }
 
   function drawShields(ship, alpha, t) {
-    if (ship.flags.destroyed) return;
+    if (ship.flags.destroyed || ship.cloak.state !== "off") return;
     var x = U.lerp(ship.prevPos.x, ship.pos.x, alpha), y = U.lerp(ship.prevPos.y, ship.pos.y, alpha);
     var h = U.lerpAngle(ship.prevHeading, ship.heading, alpha);
     var rx = ship.visual.length * 0.62, ry = Math.max(ship.visual.width * 0.62, ship.visual.length * 0.42);
@@ -495,7 +507,7 @@ BS.Renderer = (function () {
   // ------------------------------------------------- targeting overlay
   function drawTargeting(state, alpha, t) {
     var p = state.player, e = state.enemy;
-    if (!p || !e || e.flags.destroyed) return;
+    if (!p || !e || e.flags.destroyed || BS.Ships.visibility(e, p) < 1) return;
     var hover = state.hover && state.hover.ship === e ? state.hover : null, aim = p.aimType;
     var x = U.lerp(e.prevPos.x, e.pos.x, alpha), y = U.lerp(e.prevPos.y, e.pos.y, alpha);
     var h = U.lerpAngle(e.prevHeading, e.heading, alpha), g = e.grid, cp = g.cellPx, half = cp / 2;
@@ -533,6 +545,7 @@ BS.Renderer = (function () {
     if (!ctx) return;
     time += dt;
     var player = state.player, ships = state.ships;
+    viewer = player;
     updateCamera(player, alpha, dt);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     drawSpace();

@@ -79,6 +79,7 @@ BS.Weapons = (function () {
       t = torpedoes[i];
       t.prevX = t.x; t.prevY = t.y; t.age += dt; t.life -= dt;
       var tg = t.target;
+      if (tg && (BS.Ships.isCloaked(tg) || t.source.jammed > 0)) tg = null;   // blind: the target cloaked or the launcher is jammed
       if (!t.dead && tg && !tg.flags.destroyed) {
         var want = Math.atan2(tg.pos.y - t.y, tg.pos.x - t.x), diff = U.normAngle(want - t.heading);
         var maxTurn = t.w.turnRate * U.DEG * dt * (t.age < 0.4 ? 0.3 : 1);
