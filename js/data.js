@@ -3,11 +3,11 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.8.0",
+  version: "0.9.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
-  units: { pxPerKm: 50 },
+  units: { pxPerKm: 150 },          // a Constitution (156 px) measures about 1 km: three times its real size, so blocks stay readable at combat ranges
 
   // ---------------------------------------------------------------- balance
   balance: {
@@ -33,7 +33,7 @@ BS.Data = {
     lockBase: 3.0, lockRefSignature: 300, lockRefSensor: 10,
     // turret hit chance = accuracy × 0.5 ^ ((angular / tracking)² + (max(0, d − optimal) / falloff)²)
     // torpedo damage mult = min(1, sig / explosionRadius, ((sig / explosionRadius) × (explosionVelocity / targetSpeed)) ^ 0.6)
-    zoom: { min: 0.3, max: 2.0, step: 0.1, start: 0.8 },
+    zoom: { min: 0.2, max: 2.5, step: 0.1, start: 0.8, autoMin: 0.22, autoMax: 1.0, fitMargin: 1.25, lerp: 0.05, biasMin: 0.4, biasMax: 3 },   // auto-fit keeps both ships in view; wheel / buttons scale a bias on top
   },
 
   // ---------------------------------------------------------- aim penalty
@@ -133,7 +133,7 @@ BS.Data = {
     constitution: {
       id: "constitution", name: "USS Constitution", className: "Constitution class",
       role: "Heavy cruiser", faction: "federation", cost: 0, purchasable: true,
-      speed: 95, turnRate: 90, signature: 400, lockRangeKm: 45,
+      speed: 285, turnRate: 90, signature: 400, lockRangeKm: 45,
       powerBase: 50,              // power grid before reactors (grid.powerPerReactor each)
       mask: [
         "..........................",
@@ -232,7 +232,7 @@ BS.Data = {
     miranda: {
       id: "miranda", name: "USS Reliant", className: "Miranda class",
       role: "Light cruiser", faction: "federation", cost: 800, purchasable: true,
-      speed: 100, turnRate: 100, signature: 340, lockRangeKm: 40,
+      speed: 300, turnRate: 100, signature: 340, lockRangeKm: 40,
       powerBase: 30,              // power grid before reactors (grid.powerPerReactor each)
       mask: [
         "......................",
@@ -289,7 +289,7 @@ BS.Data = {
     defiant: {
       id: "defiant", name: "USS Defiant", className: "Defiant class",
       role: "Escort", faction: "federation", cost: 2400, purchasable: true,
-      speed: 130, turnRate: 140, signature: 220, lockRangeKm: 40,
+      speed: 390, turnRate: 140, signature: 220, lockRangeKm: 40,
       powerBase: 30,              // power grid before reactors (grid.powerPerReactor each)
       mask: [
         "..................",
@@ -340,7 +340,7 @@ BS.Data = {
     excelsior: {
       id: "excelsior", name: "USS Excelsior", className: "Excelsior class",
       role: "Heavy cruiser", faction: "federation", cost: 3200, purchasable: true,
-      speed: 95, turnRate: 80, signature: 450, lockRangeKm: 50,
+      speed: 285, turnRate: 80, signature: 450, lockRangeKm: 50,
       powerBase: 55,              // power grid before reactors (grid.powerPerReactor each)
       mask: [
         "..............................",
@@ -409,7 +409,7 @@ BS.Data = {
     galaxy: {
       id: "galaxy", name: "USS Galaxy", className: "Galaxy class",
       role: "Explorer", faction: "federation", cost: 5600, purchasable: true,
-      speed: 85, turnRate: 60, signature: 600, lockRangeKm: 55,
+      speed: 255, turnRate: 60, signature: 600, lockRangeKm: 55,
       powerBase: 80,              // power grid before reactors (grid.powerPerReactor each)
       mask: [
         "....................................",
@@ -484,7 +484,7 @@ BS.Data = {
     sovereign: {
       id: "sovereign", name: "USS Sovereign", className: "Sovereign class",
       role: "Battleship", faction: "federation", cost: 8000, purchasable: true,
-      speed: 100, turnRate: 75, signature: 520, lockRangeKm: 60,
+      speed: 300, turnRate: 75, signature: 520, lockRangeKm: 60,
       powerBase: 90,              // power grid before reactors (grid.powerPerReactor each)
       mask: [
         "......................................",
@@ -553,7 +553,7 @@ BS.Data = {
     bird_of_prey: {
       id: "bird_of_prey", name: "IKS Rotarran", className: "B'rel class Bird-of-Prey",
       role: "Raider", faction: "klingon", cost: 0, purchasable: false,
-      speed: 105, turnRate: 110, signature: 250, lockRangeKm: 40,
+      speed: 315, turnRate: 110, signature: 250, lockRangeKm: 40,
       powerBase: 35,              // power grid before reactors (grid.powerPerReactor each)
       mask: [
         "nnn.....................",
@@ -706,7 +706,7 @@ BS.Data = {
     ktinga: {
       id: "ktinga", name: "IKS Amar", className: "K't'inga class battlecruiser",
       role: "Battlecruiser", faction: "klingon", cost: 0, purchasable: false,
-      speed: 85, turnRate: 70, signature: 480, lockRangeKm: 45,
+      speed: 255, turnRate: 70, signature: 480, lockRangeKm: 45,
       powerBase: 50,              // power grid before reactors (grid.powerPerReactor each)
       aiProfile: "ktinga",
       mask: [
@@ -796,6 +796,8 @@ BS.Data = {
       stance_standoff: "Standing off at torpedo range, Captain. We'll kite if they close.",
       stance_disengage: "Breaking off! Opening the range at full burn.",
       stanceNoTarget: "No target to fly against, Captain.",
+      playRequires: "We can't run that play without a {module}, Captain.",
+      playStopped: "Play cancelled. Helm, your orders?",
       autoFlip: "Coming about, bringing the other battery to bear.",
       autoFlipShield: "Reversing our orbit, showing them a fresh shield.",
       helm_run_in: "Coming around for another pass.",
@@ -899,6 +901,54 @@ BS.Data = {
     // auto-flip (player and enemy): an orbiting ship reverses when the mirrored geometry would bring more weapons to
     // bear, or its engaged shield facing is below flipShieldLow while the opposite one is above flipShieldHigh
     flipMinInterval: 8, flipShieldLow: 0.3, flipShieldHigh: 0.6,
+    // Plays: scripted sequences of phases (js/plays.js). A phase sets a stance or a doctrine, a module policy
+    // (module id or "weapons" → on/off), governor, aim and repair priority, and moves on when any condition in
+    // `until` holds or every condition in `untilAll` holds (dKmBelow/Above, heatAbove/Below, facingBelow/Above,
+    // weakestBelow/Above (weakest facing), capBelow/Above, time, cloakOff, cloaked, overloaded, noTubes, noPhasers,
+    // enemyReactorsGone, enemyShieldsDown). A phase never ends before minTime (default playPolicy.minPhaseTime).
+    // `next` names the phase to go to (default: the following one, wrapping round). booster "auto" and reinforce
+    // true are standing policies (playPolicy). Picking a stance, Stop or fly-to ends the play.
+    playPolicy: { boosterBelow: 0.5, boosterMinCap: 0.4, reinforceBelow: 0.3, minPhaseTime: 3 },
+    plays: {
+      alpha:   { label: "Alpha strike", key: "5", desc: "Close with weapons cold, then fire everything with the governor off; vent when the heat is up and strike again. For builds whose salvo beats the heat cap.",
+                 say: "Alpha strike, aye. Closing in, weapons cold until we're on top of them.",
+                 phases: [
+                   { label: "closing", doctrine: "closein", modules: { weapons: false, shield_hardener: true }, governor: true, until: { dKmBelow: 4.5 } },
+                   { label: "strike", stance: "engage", modules: { weapons: true, shield_hardener: true }, governor: false, booster: "auto", reinforce: true, say: "In range. All weapons, fire at will!", minTime: 10, until: { heatAbove: 0.9, overloaded: true } },
+                   { label: "venting", stance: "engage", modules: { weapons: false }, governor: true, booster: "auto", reinforce: true, say: "Venting heat. Weapons cold for a moment.", minTime: 4, until: { heatBelow: 0.3 }, next: 1 },
+                 ] },
+      siege:   { label: "Siege", key: "6", desc: "Torpedoes only from standoff range, phasers cold; fights with everything if they get inside 5 km and goes back to range when they fall off. For torpedo builds.",
+                 say: "Siege pattern. Tubes only, holding at range.",
+                 phases: [
+                   { label: "bombarding", stance: "standoff", modules: { phaser_group: false, torpedo_group: true, shield_hardener: true }, governor: true, booster: "auto", minTime: 8, until: { noTubes: true, dKmBelow: 5 } },
+                   { label: "repelling", stance: "engage", modules: { weapons: true, shield_hardener: true }, say: "They're on us. All weapons!", booster: "auto", minTime: 15, until: { dKmAbove: 12 }, next: 0 },
+                 ] },
+      turtle:  { label: "Turtle", key: "7", desc: "Hold a slow broadside at mid range with the hardener on, reinforce and roll fresh shields; wins by attrition.",
+                 say: "Shield wall, aye. Holding the broadside, hardener up.",
+                 phases: [
+                   { label: "holding", doctrine: "broadside", modules: { weapons: true, shield_hardener: true }, governor: true, booster: "auto", reinforce: true, repair: "shield" },
+                 ] },
+      hunter:  { label: "Hunter", key: "8", desc: "Engage and aim for the reactors; when they are gone, pick at hull outside their shield cover.",
+                 say: "Hunter pattern. Going for their reactors.",
+                 phases: [
+                   { label: "reactors", stance: "engage", modules: { weapons: true, shield_hardener: true }, governor: true, aim: "reactor", booster: "auto", until: { enemyReactorsGone: true } },
+                   { label: "exposed hull", stance: "engage", aim: "exposed", say: "Their reactors are gone. Targeting bare hull.", booster: "auto" },
+                 ] },
+      ambush:  { label: "Ambush", key: "9", requires: "cloak", desc: "Cloak, close to knife range, decloak and strike with the governor off, then cloak and slip away to do it again. Needs a cloaking device.",
+                 say: "Ambush, aye. Cloaking and closing.",
+                 phases: [
+                   { label: "stalking", doctrine: "closein", modules: { weapons: false, cloak: true, shield_hardener: false }, governor: true, until: { dKmBelow: 3.5, capBelow: 0.15 } },
+                   { label: "decloaking", doctrine: "closein", modules: { cloak: false }, say: "Dropping the cloak!", minTime: 0, until: { cloakOff: true } },
+                   { label: "strike", stance: "engage", modules: { weapons: true, shield_hardener: true }, governor: false, booster: "auto", minTime: 12, until: { heatAbove: 0.85, time: 35 } },
+                   { label: "slipping away", stance: "disengage", modules: { weapons: false, shield_hardener: false, cloak: true }, governor: true, say: "Cloaking. Breaking off to come round again.", minTime: 8, until: { dKmAbove: 12, time: 40, capBelow: 0.2 }, next: 0 },
+                 ] },
+      hitfade: { label: "Hit & fade", key: "0", desc: "Engage until a shield facing runs low, then fade into a tight afterburner orbit they cannot track while the shields recover, and engage again.",
+                 say: "Hit and fade, aye. Engaging until the shields say otherwise.",
+                 phases: [
+                   { label: "hitting", stance: "engage", modules: { weapons: true, shield_hardener: true }, governor: true, booster: "auto", minTime: 10, until: { weakestBelow: 0.25 } },
+                   { label: "fading", stance: "skirmish", modules: { weapons: true, shield_hardener: false }, booster: "auto", reinforce: true, say: "Shields are thin. Going to full burn until they recover.", minTime: 10, untilAll: { weakestAbove: 0.6 }, until: { time: 45 }, next: 0 },
+                 ] },
+    },
   },
 
   // --------------------------------------------------------------- enemy AI
@@ -911,6 +961,7 @@ BS.Data = {
       standoff:  { kind: "standoff", engageKm: 15, holdKm: 14, kiteBelowKm: 9, kiteToKm: 17, kiteMaxTime: 15, tailChaseAngular: 0.15, tailChaseTime: 99 },
       broadside: { kind: "broadside", engageKm: 10, bandKm: [5.5, 8.5], rollEvery: 30, tailChaseAngular: 0.15, tailChaseTime: 99 },
       evade:     { kind: "evade", engageKm: 999, holdKm: 24, abMinCap: 0.25, tailChaseAngular: 0.15, tailChaseTime: 99 },
+      closein:   { kind: "approach", engageKm: 0, tailChaseAngular: 0.15, tailChaseTime: 99 },   // plays: approach and keep approaching
       ambush:    { kind: "ambush", engageKm: 22, decloakKm: 4.5, recloakKm: 9, passOrbitKm: 3, passTime: 12, breakKm: 10, breakMaxTime: 10, abMinCap: 0.5, tailChaseAngular: 0.15, tailChaseTime: 99 },
       siege:     { kind: "standoff", engageKm: 18, holdKm: 17, kiteBelowKm: 11, kiteToKm: 20, kiteMaxTime: 15, tailChaseAngular: 0.15, tailChaseTime: 99 },
     },

@@ -101,6 +101,8 @@
           <button class="lcars-btn c-lilac" data-cmd="stance" data-stance="standoff" title="3: hold at torpedo range and kite when they close">Standoff</button>
           <button class="lcars-btn c-lilac" data-cmd="stance" data-stance="disengage" title="4: open the range at full burn until you pick another stance">Disengage</button>
         </div>
+        <div class="sub-label">Plays · scripted sequences (5–0)</div>
+        <div class="btn-grid three" id="play-buttons"></div>
         <div class="btn-grid">
           <button class="lcars-btn c-blue wide" data-cmd="stop" title="S: all stop, helm on manual; double-click empty space to fly there">Stop ship · manual</button>
         </div>
@@ -152,9 +154,10 @@
         <li>Hover the locked enemy to see its blocks; click one to aim at all blocks of that type (−15% accuracy). Shots hit the outer blocks first and armor stops a beam dead; blocks cut off from the bridge break away. A destroyed reactor explodes and takes its neighbours with it. A ship with no weapons and no engines left is disabled: the fight ends and the wreck pays salvage. Click your own block rows to set repair priority.</li>
         <li>Top bar: <b>Reinforce</b> moves shield strength to the weakest facing, <b>Red alert</b> arms weapons (automatic when you switch a weapon on), <b>+/−</b> zoom.</li>
         <li>Weapons fire only where the hull does not block them, so a saucer fights best with the enemy on its beam; the helm reverses the orbit when the other side has more guns to bring to bear.</li>
+        <li><b>Plays</b> (5–0) are whole strategies the bridge runs in phases: <b>Alpha strike</b> closes cold, dumps everything with the governor off and breaks off to cool; <b>Siege</b> is tubes only from range; <b>Turtle</b> holds a broadside with hardener and reinforce; <b>Hunter</b> goes for reactors then bare hull; <b>Ambush</b> cloaks in, strikes and slips away cloaked (needs a cloak); <b>Hit &amp; fade</b> engages until a shield runs low, fades into a tight afterburner orbit until it recovers, then re-engages. The Helm row shows the phase. Any stance, Stop or fly-to cancels the play; you can still toggle modules by hand.</li>
         <li><b>Shield bubbles</b>: each emitter protects the blocks within 5 cells; the rings you see are that cover. Hull outside every ring takes hits unshielded. The <b>EXPOSED</b> chip aims at the enemy's bare hull; the hangar paints yours red.</li>
         <li><b>Heat</b>: the bar under the module bar. Every shot adds heat (phasers a little, torpedoes a lot); at the cap weapons stop, and a salvo that crosses it overloads everything for six seconds. The pale mark shows where your next full salvo would land. <b>GOV</b> (H) is the heat governor: on, your weapons hold fire above 85% and resume at 60%; off, you can alpha-strike into an overload.</li>
-        <li>Keys: L lock · 1 engage · 2 skirmish · 3 standoff · 4 disengage · S stop (manual) · R red alert · H heat governor · Space pause.</li>
+        <li>Keys: L lock · 1 engage · 2 skirmish · 3 standoff · 4 disengage · 5–0 plays · S stop (manual) · R red alert · H heat governor · Space pause.</li>
       </ul>
       <button id="btn-help-close" class="lcars-btn c-blue big">Back to the bridge</button>
     </div>
@@ -236,6 +239,7 @@
   <script src="js/weapons.js"></script>
   <script src="js/crew.js"></script>
   <script src="js/enemyai.js"></script>
+  <script src="js/plays.js"></script>
   <script src="js/effects.js"></script>
   <script src="js/renderer.js"></script>
   <script src="js/campaign.js"></script>

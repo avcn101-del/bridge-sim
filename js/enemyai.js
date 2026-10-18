@@ -68,6 +68,17 @@ BS.EnemyAI = (function () {
     BS.Events.emit("stanceChanged", { ship: ship, stance: stanceId });
     return true;
   }
+  // A play may hand the helm a doctrine directly (no stance; ranges as in the doctrine).
+  function setDoctrine(ship, target, doctrineId) {
+    var d = BS.Data.enemyAI.doctrines[doctrineId];
+    if (!d || !target) return false;
+    var relock = ship.ai ? ship.ai.relock : false;
+    ship.stance = null; ship.doctrine = d; ship.doctrineId = doctrineId;
+    ship.ai = newAI(target); ship.ai.relock = relock;
+    if (S.distanceKm(ship, target) < d.engageKm) enter(ship, target, d); else S.setCommand(ship, "approach", { target: target });
+    BS.Events.emit("stanceChanged", { ship: ship, stance: null, doctrine: doctrineId });
+    return true;
+  }
   // Manual helm: the doctrine stops driving until a stance is picked again.
   function suspend(ship) { if (ship.ai) ship.ai.suspended = true; }
 
@@ -219,7 +230,7 @@ BS.EnemyAI = (function () {
         setModule(ship, "afterburner", false);
         // too far: close in; otherwise hold the broadside (a cruiser that runs shows its tail and fires nothing)
         if (dKm > d.bandKm[1]) { if (ship.cmd.type !== "approach") S.setCommand(ship, "approach", { target: target }); }
-        else if (ship.cmd.type !== "comeAbout" || ai.rollTimer > d.rollEvery || (facingPct < p.repositionShield && S.strongestFacing(ship) !== facing)) {
+        else if (ship.cmd.type !== "comeAbout" || ai.rollTimer > d.rollEvery || (facingPct < (enemy ? p.repositionShield : H.flipShieldLow) && S.strongestFacing(ship) !== facing)) {
           S.setCommand(ship, "comeAbout", { target: target }); ai.rollTimer = 0;
           BS.Events.emit("enemyRolled", { ship: ship, facing: ship.cmd.facing });
         }
@@ -241,9 +252,10 @@ BS.EnemyAI = (function () {
       case "standoff": setState(ship, "standoff"); keep(ship, target, d.holdKm); break;
       case "broadside": setState(ship, "broadside"); S.setCommand(ship, "comeAbout", { target: target }); ship.ai.rollTimer = 0; break;
       case "evade": setState(ship, "evade"); keep(ship, target, d.holdKm); break;
+      case "approach": setState(ship, "approach"); S.setCommand(ship, "approach", { target: target }); break;
       default: setState(ship, "brawl"); orbit(ship, target, d.orbitKm, flip); ship.ai.flipTimer = 0; break;
     }
   }
 
-  return { attach: attach, update: update, setStance: setStance, suspend: suspend, doctrineFor: doctrineFor, bearingCount: bearingCount };
+  return { attach: attach, update: update, setStance: setStance, setDoctrine: setDoctrine, suspend: suspend, doctrineFor: doctrineFor, bearingCount: bearingCount };
 })();

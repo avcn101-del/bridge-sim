@@ -1,6 +1,6 @@
 # DESIGN.md — Bridge Sim
 
-Version: 0.8.0 (shield bubbles, stance helm). Keep this file in sync with the game.
+Version: 0.9.0 (world scale, auto camera, plays). Keep this file in sync with the game.
 
 ## 1. Concept
 
@@ -18,7 +18,7 @@ Decided parameters:
 | Topic | Decision |
 |---|---|
 | Control | EVE-style commands relative to the target; no direct steering keys |
-| Units | km and km/s in the interface (`units.pxPerKm` = 50); ships drawn at about half size so orbits read correctly |
+| Units | km and km/s in the interface (`units.pxPerKm` = 150); a Constitution measures about 1 km, three times its real size, so blocks stay readable at combat ranges. The camera auto-fits both ships (`balance.zoom.autoMin/autoMax/fitMargin`); wheel and +/− scale a bias on top |
 | Shields | Four facings kept (fore / starboard / aft / port) |
 | Enemies | One ship per battle, picked from `campaign.encounters` by battles won: Bird-of-Prey layouts and random variants, then the K't'inga battlecruiser; small groups later |
 | Crew | Voices and warnings only; orders execute instantly |
@@ -78,8 +78,11 @@ on), **?** help overlay, zoom, pause.
 - Right-click enemy: Engage stance. Right-click / double-click empty
   space: fly there (helm on manual until a stance is picked). Wheel: zoom.
 - Keys: F1–F8 toggle modules (F6 jammer, F7 cloak when fitted), L lock,
-  1–4 stances (Engage, Skirmish, Standoff, Disengage), S stop (manual),
+  1–4 stances (Engage, Skirmish, Standoff, Disengage), 5–0 plays (Alpha
+  strike, Siege, Turtle, Hunter, Ambush, Hit & fade), S stop (manual),
   R red alert, H heat governor, Space pause.
+- Wheel and +/− scale a zoom bias; the camera itself follows the player,
+  leans a third of the way toward the enemy and zooms so both ships fit.
 - **Stances** (Helm panel, `helm.stances`): the captain picks how to
   fight; the helm flies it and reverses the orbit on its own when the
   other side has more guns to bear or a fresher shield. No orbit, keep,
@@ -120,6 +123,32 @@ on), **?** help overlay, zoom, pause.
   facing is below 30% while the opposite one is above 60%; at most once
   per 8 s. Helm calls it ("Coming about, bringing the other battery to
   bear" / "showing them a fresh shield").
+- **Plays** (`helm.plays`, `js/plays.js`, keys 5–0): a play is a sequence
+  of phases the bridge runs on its own. Each phase sets a stance or a
+  doctrine for the helm, a module policy (`weapons` or a module id → on /
+  off), the heat governor, the aim and the repair priority, and names its
+  exit: any condition in `until`, or every condition in `untilAll`
+  (`dKmBelow/Above`, `heatAbove/Below`, `facingBelow/Above` for the engaged
+  facing, `weakestBelow/Above` for the weakest, `capBelow/Above`, `time`,
+  `cloakOff`, `cloaked`, `overloaded`, `noTubes`, `noPhasers`,
+  `enemyReactorsGone`, `enemyShieldsDown`), never before the phase's
+  `minTime` (default 3 s). `next` names the following phase (default: the
+  next one, wrapping). Standing policies: `booster: "auto"` (booster when
+  the weakest facing < 50% and cap > 40%), `reinforce: true` (Reinforce when
+  the weakest facing < 30%). `requires` names a module the ship must carry
+  (Ambush: cloak); the button greys out without it. Picking a stance, Stop or
+  fly-to ends the play; module toggles by hand are allowed and the play
+  re-applies its policy only on the next phase. The Helm row reads
+  "Play · phase · state"; the helm narrates phase changes (`say`).
+
+  | Play | Phases |
+  |---|---|
+  | **Alpha strike** | close in (`closein` doctrine, weapons cold, hardener) until 4.5 km → strike (Engage, governor off, everything on, booster auto, Reinforce) until heat > 90% or an overload → venting (Engage, weapons off, governor on) until heat < 30% → strike again. Only differs from Engage on builds whose salvo beats the heat cap |
+  | **Siege** | Standoff with tubes only, phasers cold, hardener, booster auto → when the tubes are gone or they come inside 5 km, Engage with everything → back to bombarding once they are beyond 12 km. For torpedo builds |
+  | **Turtle** | `broadside` doctrine (5.5–8.5 km band, come about, roll a fresh shield every 30 s or below 30%), hardener, booster auto, Reinforce, shield repair priority |
+  | **Hunter** | Engage aiming at reactors → when none are left, aim at exposed hull |
+  | **Ambush** (needs a cloak) | cloak and close (`closein`) until 3.5 km or cap < 15% → decloak → strike (Engage, governor off) 12–35 s or heat > 85% → slip away cloaked (Disengage) until 12 km, 40 s or cap < 20% → repeat |
+  | **Hit & fade** | Engage (hardener, booster auto) until the weakest facing < 25% → Skirmish (tight afterburner orbit, booster auto, Reinforce) until the weakest facing > 60%, at most 45 s → repeat |
 
 ### Lock
 - `lockTime = lockBase × (lockRefSignature / targetSignature) ×
@@ -412,8 +441,10 @@ Game logic is untouched: everything is driven by `blockDestroyed`,
 
 ```js
 units: { pxPerKm }
-balance: { ..., capCurve, lockBase, lockRefSignature, lockRefSensor, zoom }
-helm: { defaultStance, reactionDelay, stances: { id: { label, key, doctrine, desc, ranges: { field: [ref, fraction, ..., fallbackKm] } } }, flipMinInterval, flipShieldLow, flipShieldHigh }
+balance: { ..., capCurve, lockBase, lockRefSignature, lockRefSensor, zoom: { min, max, step, start, autoMin, autoMax, fitMargin, lerp, biasMin, biasMax } }
+helm: { defaultStance, reactionDelay, stances: { id: { label, key, doctrine, desc, ranges: { field: [ref, fraction, ..., fallbackKm] } } }, flipMinInterval, flipShieldLow, flipShieldHigh,
+        playPolicy: { boosterBelow, boosterMinCap, reinforceBelow, minPhaseTime },
+        plays: { id: { label, key, desc, say, requires?, phases: [{ label, stance | doctrine, modules, governor, aim, repair, booster, reinforce, minTime, until, untilAll, next, say }] } } }
 subsystems: { weapons, torpedoes, engines, shields, sensors, bridge: { label, short, effect, targetReport, damaged, repaired } }
 subsystemEffects: { sensorsAccuracyFloor, sensorsLockMaxMult, bridgeCapMinMult, targetAccuracyMult }
 modules: { id: { slot, kind: turret|launcher|active|passive, name, short, cycle, cap, pg, cpu, cost, desc, ...stats, effect } }
@@ -427,7 +458,7 @@ shipClasses: { id: { name, className, role, faction, cost, purchasable, speed, t
                      mask: [rows], layout: [rows], presets: { id: { name, desc, rows } }, variants: { id: { name, desc, rows } } (enemies),
                      aiProfile?, visual: { kind, sprite, nacelleColor, hullTint } } }
 crew: { officers, reports, events (battleStart is templated with {className}, {name}, {range}), hailReplies }
-enemyAI: { doctrines: { id: { kind: strafe|brawl|standoff|broadside|ambush|evade, engageKm, ...per-kind ranges and timers, tailChaseAngular, tailChaseTime } }, stateLabels,
+enemyAI: { doctrines: { id: { kind: strafe|brawl|standoff|broadside|ambush|evade|approach, engageKm, ...per-kind ranges and timers, tailChaseAngular, tailChaseTime } }, stateLabels,
            default | ktinga: { doctrine, accuracyMult, reactionDelay, statMult, damageMult, retreat*, reposition*, retreatRangeKm, booster*, afterburnerMinCap, targetWeights (none = spray) } }
 campaign: { startingCredits, credits, salvage: { destroyed, disabled }, enemyScaling, encounters: [{ id, enemyClass, layout, doctrine, minWins, weight, rewardMult }], klingonNames }
 visuals: { starLayers, nebulae, shieldColors, shake*, fragments: { sectionLife, deathLife, deathPieces, driftSpeed, deathSpeed, spin, fadeFrom } }
@@ -438,7 +469,7 @@ Runtime ship: `pos, vel, heading, speed, hull, shields{4}, capacitor, capMax,
 subsystems{6}, lock{target, progress, locked, time}, selected, targetSubsystem,
 cmd{type, target, range, point, orbitDir, facing}, modules[{id, def, slot,
 active, running, cycleLeft, cycleTime, state}], fitEffects, activeEffects,
-repairPriority, reinforce, stats, mods, aiProfile, ai{state, timer, suspended, relock, ...}, stance, doctrine`;
+repairPriority, reinforce, stats, mods, aiProfile, ai{state, timer, suspended, relock, ...}, stance, doctrine, play{id, def, phase, t, target}`;
 block: `covered, coverBy` from derive.
 
 ## 7. Events
@@ -446,7 +477,7 @@ block: `covered, coverBy` from derive.
 moduleOffline, shieldBoosted, phaserFired, torpedoLaunched, torpedoHit,
 torpedoExpired, shieldHit, hullHit, blockDestroyed, sectionLost,
 blockExploded, shipDisabled, shipDestroyed, overload, jammed, cloakChanged,
-alertChanged, stateChanged, orbitFlipped, stanceChanged, enemyRolled, commandGiven,
+alertChanged, stateChanged, orbitFlipped, stanceChanged, playChanged, playPhase, enemyRolled, commandGiven,
 log, battleStarted, battleEnded, skillTrained`.
 
 ## 8. Measured balance (accelerated simulation, scripted captains, default builds, no skills)
@@ -562,5 +593,6 @@ than slower (it is nearly untouched, as intended).
 | v0.6.0 (done) | Cosmoteer ideas: reactor breaches that chain, line of fire blocked by the own hull, armor pierce cost, disabled ships and salvage |
 | v0.7.0 (done) | Power grid from reactors, heat and overload, ECM jammer, cloaking device, ambush doctrine, Jammer boat and Shadow encounters |
 | v0.8.0 (done) | Shield bubbles (cover radius, exposed hull), stance helm (Engage / Skirmish / Standoff / Disengage, auto-flip), shield-facing bug fix and re-tune |
+| v0.9.0 (done) | World scale 150 px/km with an auto-fitting camera; plays (Alpha strike, Siege, Turtle, Hunter, Ambush, Hit & fade) as scripted phase sequences |
 | later | Fire spreading put out by crew quarters; reactor power range; audio; sector map; sprites |
 | later | Audio via events, sector map and missions, science scans and cloaked ships, optional image sprites |

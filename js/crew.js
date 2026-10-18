@@ -33,11 +33,19 @@ BS.Crew = (function () {
     switch (id) {
       case "stance": {
         if (!target) return report("helm", "stanceNoTarget");
+        BS.Plays.stop(ship);
         if (BS.EnemyAI.setStance(ship, target, args.stance)) report("helm", "stance_" + args.stance);
         break;
       }
-      case "flyTo": BS.EnemyAI.suspend(ship); S.setCommand(ship, "flyTo", { point: args.point }); report("helm", "flyTo"); break;
-      case "stop": BS.EnemyAI.suspend(ship); S.setCommand(ship, "idle"); report("helm", "stop"); break;
+      case "play": {
+        if (!target) return report("helm", "stanceNoTarget");
+        var P = BS.Data.helm.plays[args.play], pr = P ? BS.Plays.start(ship, target, args.play) : false;
+        if (pr === "requires") report("helm", "playRequires", { module: BS.Data.blocks[P.requires] ? BS.Data.blocks[P.requires].name.toLowerCase() : P.requires }, "warn");
+        else if (pr === true && P.say) say("helm", P.say);
+        break;
+      }
+      case "flyTo": BS.Plays.stop(ship); BS.EnemyAI.suspend(ship); S.setCommand(ship, "flyTo", { point: args.point }); report("helm", "flyTo"); break;
+      case "stop": BS.Plays.stop(ship); BS.EnemyAI.suspend(ship); S.setCommand(ship, "idle"); report("helm", "stop"); break;
       case "select": ship.selected = args.target || null; break;
       case "lock": {
         if (!target) return report("tactical", "lockNoTarget");
@@ -172,6 +180,7 @@ BS.Crew = (function () {
       else if (e.state === "broadside" && e.prev === "approach") say("tactical", ev.enemyBroadside);
     });
     BS.Events.on("enemyRolled", function (e) { if (e.ship === enemy && now() - (e.ship._rollReported || -99) > 25 && e.ship.ai.timer > 1) { e.ship._rollReported = now(); say("tactical", D().events.enemyRoll); } });
+    BS.Events.on("playPhase", function (e) { if (e.ship === ship && e.phase > 0 && e.def.say) say(e.def.officer || "helm", e.def.say); });
     BS.Events.on("orbitFlipped", function (e) { if (e.ship === enemy) say("helm", D().events.enemyFlip); else if (e.ship === ship) report("helm", e.reason === "shield" ? "autoFlipShield" : "autoFlip"); });
     BS.Events.on("shipDestroyed", function (e) { if (e.ship === enemy) say("tactical", D().events.enemyDestroyed); else if (e.ship === ship) report("engineering", "shipDead", {}, "warn"); });
     // targeted part behind an intact shield

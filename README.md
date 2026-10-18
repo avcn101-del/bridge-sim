@@ -34,6 +34,17 @@ tell the helm how to fly relative to it, and you switch modules on and off.
   tight on the afterburner so their guns cannot track you, **Standoff**
   holds torpedo range and kites, **Disengage** runs. Ranges come from the
   weapons you fitted. **Stop** puts the helm on manual.
+- Or run a **play** (keys 5–0): a whole strategy in phases. **Alpha
+  strike** closes with weapons cold, dumps everything with the governor off
+  and breaks off to cool; **Siege** fires tubes only from range; **Turtle**
+  holds a broadside with hardener and reinforce; **Hunter** goes for
+  reactors, then bare hull; **Ambush** cloaks in, strikes and slips away
+  cloaked (needs a cloaking device); **Hit & fade** engages until a shield
+  runs low and goes to full burn until it recovers. The Helm row shows the
+  phase; any stance or Stop cancels the play.
+- The camera keeps both ships in view; wheel or +/− zooms on top of that.
+  A Constitution measures about 1 km on the game's scale (three times its
+  real size, so you can see the blocks).
 - Switch on systems in the bar at the bottom of the display (click or
   F1–F8): F1 fires every phaser emitter that can bear, F2 every torpedo
   tube, then shield booster, shield hardener, afterburner. Every cycle costs **capacitor**: the dashed outer ring of the
@@ -140,7 +151,8 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `blocks.*` | Every block: hp, mass, cost, colour, glyph, weapon stats (damage, cycle, cap, optimal / falloff / tracking, arc), effects |
 | `grid.lineOfFire / lineOfFireMuzzle / lineOfFireRangeCells` | Whether and how the own hull masks weapons |
 | `grid.shieldBase / shieldAdd / regenBase / regenAdd / shieldRadius` | Shield facings from emitters; bubble radius in cells |
-| `helm` | Stances (doctrine, ranges from fitted weapons, keys), auto-flip interval and shield thresholds |
+| `helm` | Stances (doctrine, ranges from fitted weapons, keys), auto-flip interval and shield thresholds, plays (phases, module policies, exit conditions) |
+| `balance.zoom` | Auto-fit camera limits and margin, manual zoom bias range |
 | `grid.capBase / capAdd / capRechargeTime` | Capacitor from reactors |
 | `grid.thrustPerPoint / nacelleThrustMult / speedMultMin / speedMultMax` | Speed from engines and mass |
 | `grid.hitScatter / penetration / torpedoSplash / aimRadius / aimScatter / deadFraction / structureHp` | Where shots land, how damage travels through the hull, when a ship is lost |

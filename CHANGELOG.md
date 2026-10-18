@@ -2,6 +2,27 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.9.0] — 2026-10-18 (world scale, auto camera, plays)
+
+### Added
+- **Plays** (keys 5–0, Helm panel): scripted sequences of phases the bridge
+  runs on its own, each phase a stance or doctrine plus a module policy,
+  governor, aim and repair priority with exit conditions (`helm.plays`,
+  `js/plays.js`). Six plays: Alpha strike, Siege, Turtle, Hunter, Ambush
+  (needs a cloak) and Hit & fade. The helm narrates phase changes; the Helm row
+  shows play, phase and state; any stance, Stop or fly-to cancels.
+- **Auto-fitting camera**: follows the player, leans toward the enemy and
+  zooms so both ships stay in view; wheel and +/− scale a bias on top.
+- Doctrine `closein` (approach and keep approaching) for plays;
+  `BS.EnemyAI.setDoctrine`; events `playChanged`, `playPhase`.
+
+### Changed
+- **World scale**: 150 px per km instead of 50, ship speeds ×3 in pixels
+  (unchanged in km/s). A Constitution now measures about 1 km instead of
+  3 km, so a 6 km orbit is six ship lengths rather than two. Tracking,
+  ranges and timings are unchanged in km; the harness confirms the same
+  outcomes.
+
 ## [0.8.0] — 2026-10-18 (shield bubbles, stance helm)
 
 ### Added
