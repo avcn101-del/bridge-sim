@@ -78,7 +78,7 @@ BS.Renderer = (function () {
       var ex = U.lerp(enemy.prevPos.x, enemy.pos.x, alpha), ey = U.lerp(enemy.prevPos.y, enemy.pos.y, alpha);
       tx = px + (ex - px) * 0.33; ty = py + (ey - py) * 0.33;
       var span = U.dist(px, py, ex, ey) * 2 * 0.67 + player.visual.length + enemy.visual.length;
-      fit = U.clamp(Math.min(W, H) / (span * Z.fitMargin), Z.autoMin, Z.autoMax);
+      fit = U.clamp(Math.min(W, H) / (span * Z.fitMargin), Math.min(W, H) < Z.shortPx ? Z.autoMinShort : Z.autoMin, Z.autoMax);
     }
     if (!camera.initialised) { camera.x = tx; camera.y = ty; camera.zoom = fit; camera.initialised = true; }
     var k = 1 - Math.pow(1 - BS.Data.balance.cameraLerp, dt * 60), kz = 1 - Math.pow(1 - Z.lerp, dt * 60);

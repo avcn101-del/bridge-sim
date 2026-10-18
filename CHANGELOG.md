@@ -2,6 +2,25 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.20.0] — 2026-10-18 (phone landscape)
+
+### Added
+- **Compact mode** under 540 px of height: the tactical view fills the
+  screen, the Ship / Orders / Scan panels are drawers opened from SHIP /
+  SCAN / ORDERS tabs in the top strip, bigger buttons, smaller HUD,
+  scrolling overlays and hangar (Build first, 4-column palette).
+- **Touch**: tap the enemy to lock, tap a block to aim at its type,
+  long-press the enemy to Engage, long-press or double-tap empty space to
+  fly there, pinch to zoom; finger painting in the hangar editor.
+- ⛶ fullscreen button (locks landscape where allowed); "turn your phone"
+  screen in portrait; mobile web-app meta tags.
+- `zoom.autoMinShort / shortPx`: the camera zooms out further on short
+  views; `zoom.min` 0.1.
+
+### Not changed
+- Balance and game logic. Distribution is still a URL: the repository is
+  private, so GitHub Pages is not available on the free plan.
+
 ## [0.19.0] — 2026-10-18 (decoys, energy neutralisers, boarding)
 
 ### Added

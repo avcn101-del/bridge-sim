@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Bridge Sim</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&display=swap" rel="stylesheet">
@@ -19,6 +22,12 @@
       <div class="lcars-bar c-peach short"><span class="bar-label" id="ship-name">USS CONSTITUTION</span></div>
       <div class="lcars-bar c-blue short"><span class="bar-label">T+ <span id="clock">00:00</span></span></div>
       <div class="lcars-bar c-purple flex"><span class="bar-label" id="alert-label">CONDITION GREEN</span></div>
+      <!-- compact (phone landscape) mode: the side panels and the scan panel become drawers opened by these tabs -->
+      <div id="drawer-tabs">
+        <button class="lcars-btn c-orange" data-drawer="status" title="Ship, blocks and target panel">SHIP</button>
+        <button class="lcars-btn c-peach" data-drawer="scan" title="Enemy scan panel">SCAN</button>
+        <button class="lcars-btn c-blue" data-drawer="orders" title="Helm, stances, plays, transporter">ORDERS</button>
+      </div>
       <button class="lcars-btn c-purple" data-cmd="reinforce" title="Move shield strength from the strongest facing to the weakest (20 s cooldown)">REINFORCE</button>
       <button class="lcars-btn c-peach" data-cmd="hail" title="Hail the enemy">HAIL</button>
       <button id="btn-redalert" class="lcars-btn c-red" title="Arm weapons, shields to full (R)">RED ALERT</button>
@@ -26,6 +35,7 @@
       <button id="btn-zoom-out" class="lcars-btn c-blue sq" title="Zoom out (mouse wheel)">−</button>
       <button id="btn-zoom-in" class="lcars-btn c-blue sq" title="Zoom in (mouse wheel)">+</button>
       <button id="btn-pause" class="lcars-btn c-peach" title="Pause (Space)">PAUSE</button>
+      <button id="btn-full" class="lcars-btn c-blue sq" title="Fullscreen (landscape on phones)">⛶</button>
       <div class="lcars-cap right"></div>
     </header>
 
@@ -142,6 +152,7 @@
   </div>
 
   <!-- ============================================ overlays -->
+  <div id="rotate-hint"><div><b>Turn your phone sideways</b><br>Bridge Sim plays in landscape.</div></div>
   <div id="start-screen" class="overlay">
     <div class="overlay-card">
       <div class="lcars-bar c-orange head"><span class="bar-label">STARFLEET TACTICAL SIMULATOR</span></div>
@@ -184,6 +195,7 @@
         <li><b>Critical hits</b>: a hit that leaves a system under half its hp may cripple it: a reactor breaches, an engine sends the ship tumbling with no helm for 3 s, a sensor drops the lock, a shield emitter bleeds its facing, a weapon mount jams, crew decks are lost, a cloak generator drops the cloak. Aimed fire at wounded systems is how a small ship guts a big one.</li>
         <li><b>Decoys and neutralisers</b> (blocks, then modules in the bar): a <b>decoy launcher</b> drops a flare astern for 8 s and every torpedo hunting you within 3 km of it turns on the flare and blows up on it: fire it when Tactical calls the volley 2–4 km out. An <b>energy neutraliser</b>, with a lock inside 4 km, drains 30 capacitor per block from the enemy every 6 s: their booster, hardener, afterburner and cloak starve, then their guns. The Leech raider does it to you; reactors and range are the answer.</li>
         <li><b>Boarding</b> (T): with a lock, inside 3 km, and their shield facing you at zero, the transporter beams your spare crew across (crew on hand minus posts, at least 4; the Ship panel's Crew row). They are gone for the rest of the battle, so your guns slow down. Aboard they fight the enemy's spare crew plus a bridge guard; win and the ship is <b>captured</b> (victory, the best salvage), lose and the party is lost. Killing their crew decks first thins the defenders.</li>
+        <li><b>Touch</b> (phones and tablets, landscape): tap the enemy to lock, tap one of its blocks to aim at that type, <b>long-press</b> the enemy to Engage, <b>long-press or double-tap</b> empty space to fly there, <b>pinch</b> to zoom. On a small screen the panels are drawers: SHIP, SCAN and ORDERS in the top bar open them; ⛶ goes fullscreen.</li>
         <li>Keys: L lock · 1 engage · 2 skirmish · 3 standoff · 4 disengage · 5–0 plays · B attack side · T board · S stop (manual) · R red alert · H heat governor · G log · Space pause.</li>
       </ul>
       <button id="btn-help-close" class="lcars-btn c-blue big">Back to the bridge</button>

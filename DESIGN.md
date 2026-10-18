@@ -71,6 +71,32 @@ Top bar: ship name, clock, alert state, **Reinforce**, **Hail**, **Red
 alert** (also set automatically the first time a weapon module is switched
 on), **?** help overlay, zoom, pause.
 
+### Compact mode (phone landscape, `css/lcars.css` `@media (max-height: 540px)`)
+Under 540 CSS px of height the tactical view fills the screen under a 36 px
+top strip. The Ship / Target panel, the Orders panel and the Scan panel
+become drawers (`body.drawer-status / drawer-orders / drawer-scan`) opened
+by the SHIP / SCAN / ORDERS tabs in the top strip (`#drawer-tabs`, hidden on
+desktop); on a screen under 700 px wide opening one side drawer closes the
+other; starting a battle closes all three. The HUD shrinks (84 px gauge,
+46 px modules), buttons grow to 34 px, overlays and the hangar scroll, the
+hangar shows the Build column first with a 4-column palette. ⛶ requests
+fullscreen and, where the browser allows, locks landscape; a phone held
+upright shows a "turn your phone" screen (`#rotate-hint`). The auto-fit
+camera may zoom out to `zoom.autoMinShort` (0.12) when the view is under
+`zoom.shortPx` (500) tall; at battle start the enemy at 38 km is still off a
+phone screen for about ten seconds (LOCK TARGET in Orders works meanwhile).
+Measured in headless Chromium with touch emulation at 844×390, 740×360 and
+1180×820: zero console errors over 30+ simulated seconds.
+
+### Touch (`BS.UI.bindTouch`, Pointer Events, mouse untouched)
+Tap the enemy = select and lock; tap one of its blocks while locked = aim at
+that type; long-press (500 ms) the enemy = Engage; long-press or double-tap
+(350 ms, 30 px) empty space = fly there; two fingers = pinch zoom on the
+zoom bias. A finger's hit radius grows as the camera zooms out (26 screen
+px). The compatibility `click` a tap also fires is ignored for 700 ms. The
+hangar editor paints under a finger (pointer events, `touch-action: none`);
+Erase is the palette entry. Every keyboard shortcut has a button.
+
 ### Input
 
 - Click enemy: select and start lock. Click a part of a locked enemy: aim

@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.19.0",
+  version: "0.20.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -33,7 +33,7 @@ BS.Data = {
     lockBase: 3.0, lockRefSignature: 300, lockRefSensor: 10,
     // turret hit chance = accuracy × 0.5 ^ ((angular / tracking)² + (max(0, d − optimal) / falloff)²)
     // torpedo damage mult = min(1, sig / explosionRadius, ((sig / explosionRadius) × (explosionVelocity / targetSpeed)) ^ 0.6)
-    zoom: { min: 0.2, max: 2.5, step: 0.1, start: 0.8, autoMin: 0.22, autoMax: 1.0, fitMargin: 1.25, lerp: 0.05, biasMin: 0.4, biasMax: 3 },   // auto-fit keeps both ships in view; wheel / buttons scale a bias on top
+    zoom: { min: 0.1, max: 2.5, step: 0.1, start: 0.8, autoMin: 0.22, autoMinShort: 0.12, shortPx: 500, autoMax: 1.0, fitMargin: 1.25, lerp: 0.05, biasMin: 0.4, biasMax: 3 },   // auto-fit keeps both ships in view (a view under shortPx tall, a phone, may zoom out to autoMinShort); wheel / buttons / pinch scale a bias on top
   },
 
   // ---------------------------------------------------------- aim penalty

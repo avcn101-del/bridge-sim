@@ -296,6 +296,20 @@ BS.Hangar = (function () {
     });
     window.addEventListener("mouseup", function () { ed.painting = false; });
     canvas.addEventListener("mouseleave", function () { ed.hover = null; ed.painting = false; renderEditor(); });
+    // touch: a finger paints the brush (the Erase palette entry erases); preventDefault keeps the page from scrolling
+    // and stops the compatibility mouse events, so a tap paints once
+    canvas.addEventListener("pointerdown", function (ev) {
+      if (ev.pointerType !== "touch") return;
+      ev.preventDefault();
+      var cell = cellAt(ev); if (!cell) return;
+      try { canvas.setPointerCapture(ev.pointerId); } catch (e) {}
+      ed.painting = true; ed.paintType = ed.brush; ed.hover = cell; paint(cell, ed.paintType);
+    });
+    canvas.addEventListener("pointermove", function (ev) {
+      if (ev.pointerType !== "touch" || !ed.painting) return;
+      var cell = cellAt(ev); if (cell) { ed.hover = cell; paint(cell, ed.paintType); }
+    });
+    ["pointerup", "pointercancel"].forEach(function (n) { canvas.addEventListener(n, function (ev) { if (ev.pointerType === "touch") { ed.painting = false; ed.hover = null; renderEditor(); } }); });
   }
 
   // ---- skills ----------------------------------------------------------------

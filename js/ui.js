@@ -41,6 +41,7 @@ BS.UI = (function () {
     el["btn-zoom-out"].addEventListener("click", function () { game.setZoom(game.state.zoom - BS.Data.balance.zoom.step); });
     $("btn-start").addEventListener("click", function () { game.openHangar(); });
     el["btn-help"].addEventListener("click", function () { el["help-screen"].classList.remove("hidden"); });
+    bindCompact();
     el["btn-help-close"].addEventListener("click", function () { el["help-screen"].classList.add("hidden"); });
     $("btn-restart").addEventListener("click", function () { game.openHangar(); });
     bindCanvas();
@@ -174,15 +175,45 @@ BS.UI = (function () {
     });
   }
 
+  // ---- compact mode (phone landscape): drawers and fullscreen --------------------------------
+  // The CSS turns the panels into drawers under 540 px of height; the tabs toggle body classes. Starting a battle
+  // closes them so the display is clear; fullscreen asks for landscape where the browser allows it.
+  function bindCompact() {
+    document.querySelectorAll("#drawer-tabs [data-drawer]").forEach(function (b) {
+      var id = b.getAttribute("data-drawer");
+      b.addEventListener("click", function () {
+        var on = document.body.classList.toggle("drawer-" + id);
+        b.classList.toggle("active", on);
+        if (on && id !== "scan") { var other = id === "status" ? "orders" : "status"; if (window.innerWidth < 700) closeDrawer(other); }   // no room for both on a phone
+        b.blur();
+      });
+    });
+    var full = document.getElementById("btn-full");
+    if (full) full.addEventListener("click", function () {
+      var root = document.documentElement;
+      if (!document.fullscreenElement && root.requestFullscreen) {
+        root.requestFullscreen().then(function () { if (screen.orientation && screen.orientation.lock) screen.orientation.lock("landscape").catch(function () {}); }).catch(function () {});
+      } else if (document.exitFullscreen && document.fullscreenElement) document.exitFullscreen();
+      full.blur();
+    });
+    BS.Events.on("battleStarted", function () { ["status", "orders", "scan"].forEach(closeDrawer); });
+  }
+  function closeDrawer(id) {
+    document.body.classList.remove("drawer-" + id);
+    var b = document.querySelector("#drawer-tabs [data-drawer='" + id + "']"); if (b) b.classList.remove("active");
+  }
+
   // ---- canvas input --------------------------------------------------------
   function bindCanvas() {
     var view = el["view"];
     function worldAt(ev) { var r = view.getBoundingClientRect(); return BS.Renderer.screenToWorld(ev.clientX - r.left, ev.clientY - r.top); }
-    function hoverAt(ev) {
+    // touch: a finger is about 26 screen px wide, so the search radius grows as the camera zooms out
+    function hoverAt(ev, touch) {
       var s = game.state;
       if (s.phase !== "battle" || !s.enemy || s.enemy.flags.destroyed || BS.Ships.visibility(s.enemy, s.player) < 1) { game.setHover(null); return null; }
       var w = worldAt(ev);
-      var b = BS.Grid.blockAtWorld(s.enemy, w.x, w.y, s.zoom < 0.8 ? 2 : 1);
+      var tol = touch ? Math.max(2, Math.ceil(26 / (Math.max(0.05, s.zoom) * BS.Data.grid.cellPx))) : (s.zoom < 0.8 ? 2 : 1);
+      var b = BS.Grid.blockAtWorld(s.enemy, w.x, w.y, tol);
       var h = b ? { ship: s.enemy, block: b } : null;
       game.setHover(h);
       return h;
@@ -194,6 +225,7 @@ BS.UI = (function () {
     });
     view.addEventListener("mouseleave", function () { game.setHover(null); view.classList.remove("can-target", "on-hardpoint"); });
     view.addEventListener("click", function (ev) {
+      if (performance.now() - lastTouchAt < 700) return;   // a tap was handled by the touch code below
       var s = game.state, h = hoverAt(ev);
       if (!h) return;
       var p = s.player, e = s.enemy;
@@ -217,6 +249,72 @@ BS.UI = (function () {
       var Z = BS.Data.balance.zoom;
       game.setZoom(game.state.zoom + (ev.deltaY < 0 ? Z.step : -Z.step));
     }, { passive: false });
+    bindTouch(view, hoverAt, worldAt);
+  }
+
+  // Touch: tap the enemy = select and lock, tap one of its blocks (locked) = aim at that type, long-press the enemy =
+  // Engage, long-press or double-tap empty space = fly there, two fingers = pinch zoom. Mouse events keep working;
+  // the compatibility click a tap also fires is ignored for 700 ms (lastTouchAt).
+  var lastTouchAt = -1e9;
+  function bindTouch(view, hoverAt, worldAt) {
+    var touches = {}, start = null, longTimer = null, lastTap = null, pinch = null;
+    function count() { return Object.keys(touches).length; }
+    function clearLong() { if (longTimer) { clearTimeout(longTimer); longTimer = null; } }
+    function tapOrPress(ev, press, onEnemyAtStart) {   // onEnemyAtStart: the finger landed on the enemy (it may have moved during a long press)
+      var s = game.state; if (s.phase !== "battle") return;
+      lastTouchAt = performance.now();
+      var h = hoverAt(ev, true), p = s.player, e = s.enemy;
+      if (press) {
+        if (h || onEnemyAtStart) { game.command("select", { target: e }); game.command("stance", { target: e, stance: "engage" }); }
+        else game.command("flyTo", { point: worldAt(ev) });
+        return;
+      }
+      if (h) {
+        if (p.lock.target !== e) { game.command("select", { target: e }); game.command("lock", { target: e }); }
+        else if (h.block && !h.block.structural) game.command("aim", { type: h.block.type });
+        lastTap = null;
+        return;
+      }
+      var now = performance.now();
+      if (lastTap && now - lastTap.t < 350 && Math.abs(lastTap.x - ev.clientX) < 30 && Math.abs(lastTap.y - ev.clientY) < 30) { game.command("flyTo", { point: worldAt(ev) }); lastTap = null; }
+      else lastTap = { t: now, x: ev.clientX, y: ev.clientY };
+    }
+    view.addEventListener("pointerdown", function (ev) {
+      if (ev.pointerType !== "touch") return;
+      ev.preventDefault();
+      touches[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
+      try { view.setPointerCapture(ev.pointerId); } catch (e) {}
+      clearLong();
+      if (count() === 2) {
+        var ids = Object.keys(touches), a = touches[ids[0]], b = touches[ids[1]];
+        pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), zoom: game.state.zoom }; start = null;
+        return;
+      }
+      start = { x: ev.clientX, y: ev.clientY, t: performance.now(), moved: false, id: ev.pointerId, ev: ev, onEnemy: game.state.phase === "battle" && !!hoverAt(ev, true) };
+      longTimer = setTimeout(function () { longTimer = null; if (start && !start.moved && count() === 1) { tapOrPress(start.ev, true, start.onEnemy); start = null; } }, 500);
+    });
+    view.addEventListener("pointermove", function (ev) {
+      if (ev.pointerType !== "touch" || !touches[ev.pointerId]) return;
+      touches[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
+      if (pinch && count() === 2) {
+        var ids = Object.keys(touches), a = touches[ids[0]], b = touches[ids[1]], d = Math.hypot(a.x - b.x, a.y - b.y);
+        if (pinch.d > 0) game.setZoom(pinch.zoom * d / pinch.d);
+        return;
+      }
+      if (start && ev.pointerId === start.id && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) > 12) { start.moved = true; clearLong(); }
+    });
+    function end(ev) {
+      if (ev.pointerType !== "touch") return;
+      delete touches[ev.pointerId];
+      if (count() < 2) pinch = null;
+      if (start && ev.pointerId === start.id) {
+        clearLong();
+        if (!start.moved && performance.now() - start.t < 500) tapOrPress(ev, false);
+        start = null;
+      }
+    }
+    view.addEventListener("pointerup", end);
+    view.addEventListener("pointercancel", end);
   }
 
   function bindKeys() {
