@@ -160,6 +160,10 @@ BS.Effects = (function () {
       debris(e.pos.x, e.pos.y, 10, 120, [242, 193, 78]);
       addShake(e.ship.isPlayer ? 9 : 4);
     });
+    BS.Events.on("criticalHit", function (e) {
+      flash(e.pos.x, e.pos.y, 26, [255, 240, 200], 0.45); sparks(e.pos.x, e.pos.y, 22, 190, [255, 230, 140]); smoke(e.pos.x, e.pos.y, 5);
+      addShake(e.ship.isPlayer ? 7 : 3);
+    });
     BS.Events.on("sectionLost", function (e) {
       var V = BS.Data.visuals.fragments;
       // the whole section drifts off as one piece; sparks along the break

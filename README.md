@@ -28,6 +28,8 @@ tell the helm how to fly relative to it, and you switch modules on and off.
 - **Click the Klingon ship** on the display (or double-click its row in the
   Overview). That selects it and starts a lock; "Target locked" appears in
   the log after about 3 s.
+- Pick an **attack side** (B): shadow their blind sector, a flank or their
+  tail instead of circling; the scan panel shows their fire per sector.
 - Pick a **stance** (Helm panel, keys 1–4) and the helm flies it:
   **Engage** (default) orbits inside phaser range and reverses on its own
   when the other side has more guns or a fresher shield, **Skirmish** orbits
@@ -155,7 +157,9 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `units.pxPerKm`, `grid.cellPx` | World scale and cell size |
 | `blocks.*` | Every block: hp, mass, cost, colour, glyph, weapon stats (damage, cycle, cap, heat, optimal / falloff / tracking, arc, `pierceBonus`), effects |
 | `grid.lineOfFire / lineOfFireMuzzle / lineOfFireRangeCells` | Whether and how the own hull masks weapons |
-| `grid.shieldBase / shieldAdd / regenBase / regenAdd / shieldRadius` | Shield facings from emitters; bubble radius in cells |
+| `grid.shieldBase / shieldAdd / regenBase / regenAdd / shieldRadius / shieldRechargeDelay` | Shield facings from emitters; bubble radius in cells; seconds a hit facing waits before regenerating |
+| `grid.crits` | Critical hits: hp threshold, chance, tumble time and spin, sensor blind time, emitter drain, weapon jam cycles |
+| `helm.sides`, `helm.shadow`, `enemyAI.*.blindTolerance` | Attack sides (bearings from the target's heading, blind-sector hysteresis, station radius) and how long an enemy tolerates nothing bearing before it comes about |
 | `helm` | Stances (doctrine, ranges from fitted weapons, keys), auto-flip interval and shield thresholds, keep geometry (`bearingStep / keepBand / keepRunBelow / holdSpeed / keepFireFraction / kiteMinBearing`), plays (phases, module policies, exit conditions) |
 | `balance.zoom` | Auto-fit camera limits and margin, manual zoom bias range |
 | `grid.capBase / capAdd / capRechargeTime` | Capacitor from reactors |

@@ -298,15 +298,20 @@ BS.Grid = (function () {
   // `first` is the entry block from resolveEntry when the caller already looked it up (so shield cover and the hit agree).
   function hit(ship, amount, fromX, fromY, aimType, kind, first, pierceBonus) {
     var grid = ship.grid, g = G();
-    var res = { hits: [], destroyed: [], cutOff: [], explosions: [] };
+    var res = { hits: [], destroyed: [], cutOff: [], explosions: [], crits: [] };
     if (first === undefined) first = resolveEntry(ship, fromX, fromY, aimType);
     if (!first) return res;
-    var toExplode = [];
+    var toExplode = [], C = g.crits;
     function damage(b, d) {
       if (!b.alive || d <= 0) return 0;
       var taken = Math.min(b.hp, d);
       b.hp -= taken; res.hits.push({ block: b, dmg: taken });
       if (b.hp <= 0) { b.alive = false; res.destroyed.push(b); if (b.def.explosion) toExplode.push(b); }
+      // critical hit on a wounded system (grid.crits): reactors and crew decks are lost outright, the rest is applied by the ship
+      else if (C && (b.def.crew || 0) > 0 && b.hp < b.maxHp * C.below && Math.random() < C.chance) {
+        res.crits.push({ block: b, kind: b.def.weapon ? "weapon" : b.type });
+        if (b.type === "reactor" || b.type === "quarters") { b.hp = 0; b.alive = false; res.destroyed.push(b); if (b.def.explosion) toExplode.push(b); }
+      }
       return taken;
     }
     // a destroyed reactor blows up its neighbours; reactors among them explode in turn (chain reaction)

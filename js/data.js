@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.14.0",
+  version: "0.15.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -63,6 +63,7 @@ BS.Data = {
     structureHp: 700,             // fixed structural cells (neck, pylons) — not editable, not counted as hull; tough, so a cut neck is a rare disaster
     structurePierceCost: 3,       // beams never pass through a structural member
     shieldBase: 80,               // shield per facing before emitters
+    shieldRechargeDelay: 4,       // seconds a facing must go unhit before it regenerates (0 = always); the booster ignores it
     shieldAdd: 70,                // per shield emitter on that facing
     shieldRadius: 5,              // cells: a block is protected only while an alive emitter sits within this radius; hits elsewhere skip the shield
     regenBase: 0.6, regenAdd: 0.4,
@@ -78,6 +79,11 @@ BS.Data = {
     // Short of crew, weapons cycle and shields regenerate at supply / need (never below minManning), like a brownout.
     // A system block farther than `radius` cells from the nearest quarters or the bridge is repaired at farRepairMult.
     crew: { bridge: 10, perQuarters: 8, radius: 6, farRepairMult: 0.5, minManning: 0.4 },
+    // critical hits: a hit that leaves a system block under `below` of its hp rolls `chance` for a critical effect by type:
+    // reactor breaches (explodes), engine tumbles the ship (tumbleTime s, tumbleSpin °/s, no helm), sensor blinds it
+    // (lock lost, sensorBlind s), shield emitter bleeds emitterDrain of its facing, a weapon mount jams for weaponJam
+    // cycles, crew quarters are lost with their crew, a cloaking device drops the cloak. Aimed fire finds them.
+    crits: { below: 0.5, chance: 0.25, tumbleTime: 3, tumbleSpin: 70, sensorBlind: 2, emitterDrain: 0.3, weaponJam: 2 },
     // heat: every shot adds its weapon's heat; capacity grows with hull size, dissipation with hull surface (rim cells)
     heat: { base: 80, perBlock: 2, dissipationBase: 6, dissipationPerRimCell: 0.25, overloadTime: 6, aiFireBelow: 0.85,
             governorHigh: 0.85, governorLow: 0.6 },   // heat governor (H): holds fire above governorHigh until heat falls below governorLow
@@ -811,6 +817,26 @@ BS.Data = {
       stance_standoff: "Standing off at torpedo range, Captain. We'll kite if they close.",
       stance_disengage: "Breaking off! Opening the range at full burn.",
       stanceNoTarget: "No target to fly against, Captain.",
+      side_auto: "Back to a free orbit, Captain. I'll pick the side.",
+      side_blind: "Shadowing their blind sector, Captain. Staying where their guns can't reach.",
+      side_port: "Holding on their port side, Captain.",
+      side_starboard: "Holding on their starboard side, Captain.",
+      side_aft: "Sitting on their tail, Captain. Watch for them coming about.",
+      sideNoTarget: "No target to shadow, Captain.",
+      crit_reactor: "Critical hit on a reactor, it's breaching!",
+      crit_engine: "Engine took a critical hit. We're tumbling, helm has no control!",
+      crit_sensor: "Sensors knocked out! Lock lost, re-acquiring.",
+      crit_shield: "Emitter feedback! The {facing} shield is bleeding off!",
+      crit_weapon: "Weapon mount jammed by that hit, Captain.",
+      crit_quarters: "Direct hit on the crew decks. Heavy casualties.",
+      crit_cloak: "Cloak generator hit! Cloak is down!",
+      enemyCrit_reactor: "Critical hit! Their reactor is breaching!",
+      enemyCrit_engine: "Their engines just blew. They're tumbling, Captain!",
+      enemyCrit_sensor: "We knocked out their sensors. They've lost their lock on us!",
+      enemyCrit_shield: "Their emitter is feeding back, that shield is draining!",
+      enemyCrit_weapon: "Jammed one of their mounts, Captain.",
+      enemyCrit_quarters: "Their crew decks are venting. They'll be short-handed.",
+      enemyCrit_cloak: "We hit their cloak generator!",
       playRequires: "We can't run that play without a {module}, Captain.",
       playStopped: "Play cancelled. Helm, your orders?",
       autoFlip: "Coming about, bringing the other battery to bear.",
@@ -929,6 +955,18 @@ BS.Data = {
     // range on the bearing beyond kiteMinBearing with the most fire, tail-on when less than keepFireFraction of the best
     // fire bears back there; beyond the band it closes
     bearingStep: 10, keepBand: [0.92, 1.08], keepRunBelow: 0.75, holdSpeed: 0.35, keepFireFraction: 0.5, kiteMinBearing: 120,
+    // attack side (player, Engage / Skirmish): instead of circling, the helm shadows the target at a bearing measured from
+    // the target's own heading (sides[].bearing, degrees, positive = their starboard). "blind" picks the bearing where the
+    // least of their fire bears (their bearingProfile), and only moves when another sector has under blindHysteresis of
+    // the current one's fire. shadow.stationKm: how close to the station point counts as on station.
+    sides: {
+      auto:      { label: "Auto",  desc: "Orbit and let the helm flip sides for guns and shields." },
+      blind:     { label: "Blind", desc: "Shadow the sector where the fewest of their weapons bear; re-checked as they lose guns." },
+      port:      { label: "Port",  bearing: -90, desc: "Stay on their port side." },
+      starboard: { label: "Stbd",  bearing: 90,  desc: "Stay on their starboard side." },
+      aft:       { label: "Aft",   bearing: 180, desc: "Sit on their tail: most hulls carry little aft fire, but it is where their engines are." },
+    },
+    shadow: { stationKm: 0.5, blindHysteresis: 0.7 },
     // Plays: scripted sequences of phases (js/plays.js). A phase sets a stance or a doctrine, a module policy
     // (module id or "weapons" → on/off), governor, aim and repair priority, and moves on when any condition in
     // `until` holds or every condition in `untilAll` holds (dKmBelow/Above, heatAbove/Below, facingBelow/Above,
@@ -994,12 +1032,12 @@ BS.Data = {
       siege:     { kind: "standoff", engageKm: 18, holdKm: 17, kiteBelowKm: 11, kiteToKm: 20, kiteMaxTime: 15, tailChaseAngular: 0.15, tailChaseTime: 99 },
     },
     // Overview status text per AI state
-    stateLabels: { approach: "closing", retreat: "retreating", run_in: "strafing run", pass: "firing pass", break_off: "breaking off", turn_in: "coming around", brawl: "attacking", reposition: "turning", standoff: "standing off", kite: "kiting", broadside: "broadside", stalk: "cloaked", uncloak: "decloaking", evade: "disengaging" },
+    stateLabels: { approach: "closing", shadow: "shadowing", retreat: "retreating", run_in: "strafing run", pass: "firing pass", break_off: "breaking off", turn_in: "coming around", brawl: "attacking", reposition: "turning", standoff: "standing off", kite: "kiting", broadside: "broadside", stalk: "cloaked", uncloak: "decloaking", evade: "disengaging" },
     default: {
       doctrine: "brawl",
       accuracyMult: 0.85, reactionDelay: 1.2, statMult: 1.4, damageMult: 1.5,
       retreatHull: 0.28, retreatMinTime: 9, retreatMaxTime: 22,
-      repositionShield: 0.22, repositionDuration: 5,
+      repositionShield: 0.22, repositionDuration: 5, blindTolerance: 3,   // seconds with no weapon bearing on the target before it comes about to bring guns round
       orbitRangeKm: 6, retreatRangeKm: 22,
       boosterBelow: 0.45, boosterMinCap: 0.35, afterburnerMinCap: 0.25,
       targetWeights: { none: 0.3, exposed: 0.1, phaser: 0.15, reactor: 0.15, engine: 0.12, shield: 0.13, bridge: 0.05 },   // none = spray the hull, no −15% aim penalty; exposed = hull outside shield cover
@@ -1009,7 +1047,7 @@ BS.Data = {
       doctrine: "broadside",
       accuracyMult: 0.7, reactionDelay: 1.6, statMult: 0.9, damageMult: 1.33,
       retreatHull: 0.2, retreatMinTime: 8, retreatMaxTime: 16,
-      repositionShield: 0.2, repositionDuration: 6,
+      repositionShield: 0.2, repositionDuration: 6, blindTolerance: 4,
       orbitRangeKm: 7, retreatRangeKm: 18,
       boosterBelow: 0.5, boosterMinCap: 0.3, afterburnerMinCap: 0.35,
       targetWeights: { none: 0.2, exposed: 0.1, phaser: 0.18, reactor: 0.17, engine: 0.12, shield: 0.13, bridge: 0.1 },

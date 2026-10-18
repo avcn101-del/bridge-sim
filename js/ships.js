@@ -29,11 +29,11 @@ BS.Ships = (function () {
       grid: grid, stats: st, statMult: statMult, mods: mods,
       hullMax: st.hullTotal, hull: st.hullAlive,
       shieldMax: {}, shields: {}, shieldRegen: {},
-      capMax: 0, capacitor: 0, heat: 0, overload: 0, heatGovernor: true, governorHold: false, jammed: 0, partialJam: 0, partialJamBy: null, cloak: { state: "off", t: 0, surge: 0, strike: 0 },
+      capMax: 0, capacitor: 0, heat: 0, overload: 0, heatGovernor: true, governorHold: false, jammed: 0, partialJam: 0, partialJamBy: null, shieldDelay: { fore: 0, aft: 0, port: 0, starboard: 0 }, attackSide: "auto", tumble: 0, tumbleDir: 1, cloak: { state: "off", t: 0, surge: 0, strike: 0 },
       signature: cls.signature,
       flags: { alert: "none", destroyed: false, disabled: false, armed: false },
       selected: null, lock: { target: null, progress: 0, locked: false, time: 0 }, aimType: null, stance: null, play: null,
-      cmd: { type: "idle", target: null, range: 0, point: null, orbitDir: Math.random() < 0.5 ? 1 : -1, facing: null },
+      cmd: { type: "idle", target: null, range: 0, point: null, orbitDir: Math.random() < 0.5 ? 1 : -1, facing: null, bearing: 0 },
       desiredHeading: options.heading || 0, desiredSpeed: 0,
       repairPriority: null, reinforce: null, reinforceCooldown: 0,
       visual: Object.assign({}, cls.visual, { scale: 1, length: grid.w * grid.cellPx, width: grid.h * grid.cellPx }),
@@ -114,7 +114,8 @@ BS.Ships = (function () {
     c.type = type; c.target = opts.target || null;
     c.range = opts.rangeKm !== undefined ? px(opts.rangeKm) : c.range;
     c.point = opts.point || null;
-    if (type === "comeAbout") c.facing = strongestFacing(ship);
+    if (type === "comeAbout") c.facing = opts.facing || strongestFacing(ship);
+    if (opts.bearing !== undefined) c.bearing = opts.bearing;   // shadow: radians from the target's heading
     if (opts.flipOrbit) c.orbitDir = -c.orbitDir;
   }
   function setAlert(ship, level) { ship.flags.alert = level; ship.flags.armed = level !== "none"; }
@@ -202,6 +203,19 @@ BS.Ships = (function () {
     if (L.progress >= 1) { L.progress = 1; L.locked = true; BS.Events.emit("lockAcquired", { ship: ship, target: L.target }); }
   }
 
+  // ---- critical hits (grid.crits): the ship-level consequences; reactors and quarters were already lost in Grid.hit ----
+  function applyCrit(ship, block, kind, attacker) {
+    var C = BS.Data.grid.crits, facing = null;
+    switch (kind) {
+      case "engine": ship.tumble = C.tumbleTime; ship.tumbleDir = Math.random() < 0.5 ? 1 : -1; break;
+      case "sensor": clearLock(ship, "crit"); ship.jammed = Math.max(ship.jammed, C.sensorBlind); break;
+      case "shield": facing = Gr.blockFacing(block); ship.shields[facing] *= (1 - C.emitterDrain); break;
+      case "weapon": block.cycleLeft = Math.max(block.cycleLeft || 0, block.def.weapon.cycle * C.weaponJam); break;
+      case "cloak": if (isCloaked(ship)) setCloak(ship, false); break;
+    }
+    BS.Events.emit("criticalHit", { ship: ship, block: block, kind: kind, facing: facing, attacker: attacker, pos: Gr.blockWorld(ship, block) });
+  }
+
   // ---- damage -----------------------------------------------------------
   function applyDamage(ship, amount, fromX, fromY, aimType, attacker, kind, pierceBonus) {
     if (ship.flags.destroyed) return null;
@@ -232,9 +246,11 @@ BS.Ships = (function () {
     }
     var result = { ship: ship, facing: facing, absorbed: absorbed, hullDamage: hullDamage, shieldsDown: shieldsDown, impact: impact, angle: ang, kind: kind, amount: amount, attacker: attacker, exposed: exposed, emitter: emitter, strike: !!strike, hits: [], destroyed: [], cutOff: [], explosions: [] };
     if (absorbed > 0) BS.Events.emit("shieldHit", result);
+    if (!exposed) ship.shieldDelay[facing] = BS.Data.grid.shieldRechargeDelay;   // a facing under fire does not recharge
     if (hullDamage > 0) {
       var hr = Gr.hit(ship, hullDamage, fromX, fromY, aimType, kind, first, pierceBonus);
-      result.hits = hr.hits; result.destroyed = hr.destroyed; result.cutOff = hr.cutOff; result.explosions = hr.explosions;
+      result.hits = hr.hits; result.destroyed = hr.destroyed; result.cutOff = hr.cutOff; result.explosions = hr.explosions; result.crits = hr.crits;
+      hr.crits.forEach(function (cr) { applyCrit(ship, cr.block, cr.kind, attacker); });
       var dealt = hr.hits.reduce(function (a, h) { return a + h.dmg; }, 0);
       ship.battle.damageTaken += dealt;
       if (attacker) attacker.battle.damageDealt += dealt;
@@ -304,6 +320,13 @@ BS.Ships = (function () {
       case "approach": out = { heading: U.angleTo(ship.pos.x, ship.pos.y, t.pos.x, t.pos.y), speed: distanceTo(ship, t) < ship.visual.length ? 0.2 : 1 }; break;
       case "orbit": out = orbitHeading(ship, t, c.range, c.orbitDir); break;
       case "keep": out = keepHeading(ship, t, c.range, c.orbitDir); break;
+      case "shadow": {   // hold a station point at c.range from the target on bearing c.bearing from its heading (helm.shadow)
+        var H = BS.Data.helm.shadow, sa = t.heading + c.bearing, sx = t.pos.x + Math.cos(sa) * c.range, sy = t.pos.y + Math.sin(sa) * c.range;
+        var ds = U.dist(ship.pos.x, ship.pos.y, sx, sy), station = px(H.stationKm);
+        if (ds > station) out = { heading: U.angleTo(ship.pos.x, ship.pos.y, sx + t.vel.x * 0.8, sy + t.vel.y * 0.8), speed: 1 };
+        else out = { heading: ds < station * 0.25 ? t.heading : U.angleTo(ship.pos.x, ship.pos.y, sx, sy), speed: U.clamp((t.speed + ds * 1.5) / Math.max(1, maxSpeed(ship)), 0.1, 1) };
+        break;
+      }
       case "flyTo": {
         var d = U.dist(ship.pos.x, ship.pos.y, c.point.x, c.point.y);
         if (d < 12) { c.type = "idle"; out = { heading: ship.heading, speed: 0 }; }
@@ -324,7 +347,10 @@ BS.Ships = (function () {
   function updateMovement(ship, dt) {
     ship.prevPos.x = ship.pos.x; ship.prevPos.y = ship.pos.y; ship.prevHeading = ship.heading;
     var diff = U.normAngle(ship.desiredHeading - ship.heading), maxTurn = turnRate(ship) * dt;
-    if (Math.abs(diff) <= maxTurn) ship.heading = ship.desiredHeading; else ship.heading += Math.sign(diff) * maxTurn;
+    if (ship.tumble > 0) {   // an engine critical: spinning, no helm, bleeding speed (grid.crits)
+      ship.tumble -= dt; ship.heading += ship.tumbleDir * BS.Data.grid.crits.tumbleSpin * U.DEG * dt; ship.desiredSpeed = Math.min(ship.desiredSpeed, ship.speed * 0.6);
+    }
+    else if (Math.abs(diff) <= maxTurn) ship.heading = ship.desiredHeading; else ship.heading += Math.sign(diff) * maxTurn;
     ship.heading = U.normAngle(ship.heading);
     var accel = maxSpeed(ship) * 0.8;
     if (ship.speed < ship.desiredSpeed) ship.speed = Math.min(ship.desiredSpeed, ship.speed + accel * dt);
@@ -342,6 +368,7 @@ BS.Ships = (function () {
     if (f < 0.02) rate = (ship.capMax / g.capRechargeTime) * 0.4 * capRechargeMult(ship);
     ship.capacitor = Math.min(ship.capMax, ship.capacitor + rate * dt);
     FACINGS.forEach(function (fc) {   // the pools recharge whether or not they are projected (cloaked: at the condition-green rate)
+      if (ship.shieldDelay[fc] > 0) { ship.shieldDelay[fc] -= dt; return; }   // recharge delay after a hit (grid.shieldRechargeDelay)
       var regen = ship.shieldRegen[fc] * shieldsMult(ship) * (ship.stats.powerFactor || 1) * (ship.stats.crew ? ship.stats.crew.manning : 1) * (shieldsUp(ship) ? 1 : BS.Data.balance.noAlertShieldRegenMult) * dt;
       if (ship.shields[fc] < ship.shieldMax[fc]) ship.shields[fc] = Math.min(ship.shieldMax[fc], ship.shields[fc] + regen);
     });

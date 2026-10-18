@@ -17,7 +17,7 @@ BS.UI = (function () {
     ["own-speed", "own-cmd", "own-subsystems", "enemy-subsystems", "gauge", "help-screen", "btn-help", "btn-help-close",
      "target-none", "target-info", "tg-name", "tg-hull", "tg-hull-val", "tg-shield", "tg-shield-val", "tg-range", "tg-angular", "tg-chance", "tg-aim",
      "clock", "alert-label", "btn-pause", "btn-redalert", "btn-zoom-in", "btn-zoom-out", "pause-overlay", "start-screen", "result-screen", "result-title", "result-sub", "result-head",
-     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "rs-credits", "rs-salvage", "heat-bar", "heat-num", "btn-governor", "own-heat", "own-crew", "scan-view", "scan-info", "btn-log", "ship-name", "view", "module-bar", "overview", "sel-name", "play-buttons"]
+     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "rs-credits", "rs-salvage", "heat-bar", "heat-num", "btn-governor", "own-heat", "own-crew", "scan-view", "scan-info", "btn-log", "side-buttons", "ship-name", "view", "module-bar", "overview", "sel-name", "play-buttons"]
       .forEach(function (id) { el[id] = $(id); });
     logList = $("log");
     buildGauge();
@@ -30,6 +30,7 @@ BS.UI = (function () {
         if (btn.hasAttribute("data-range")) args.rangeKm = parseFloat(btn.getAttribute("data-range"));
         if (btn.hasAttribute("data-stance")) args.stance = btn.getAttribute("data-stance");
         if (btn.hasAttribute("data-play")) args.play = btn.getAttribute("data-play");
+        if (btn.hasAttribute("data-side")) args.side = btn.getAttribute("data-side");
         game.command(btn.getAttribute("data-cmd"), args); btn.blur();
       });
     });
@@ -50,6 +51,12 @@ BS.UI = (function () {
   function subscribe() {
     BS.Events.on("log", function (e) { addLog(e.speaker, e.text, e.cls); });
     el["btn-log"].addEventListener("click", function () { document.getElementById("comms").classList.toggle("expanded"); });
+    Object.keys(BS.Data.helm.sides).forEach(function (id) {
+      var sd = BS.Data.helm.sides[id], b = document.createElement("button");
+      b.className = "lcars-btn c-blue"; b.setAttribute("data-cmd", "side"); b.setAttribute("data-side", id); b.textContent = sd.label; b.title = sd.desc;
+      b.addEventListener("click", function () { game.command("side", { side: id }); b.blur(); });
+      el["side-buttons"].appendChild(b);
+    });
     BS.Events.on("alertChanged", function (e) { if (e.ship.isPlayer) setAlert(e.alert); });
   }
 
@@ -210,6 +217,7 @@ BS.UI = (function () {
       switch (ev.key.toLowerCase()) {
         case "l": game.command("lock"); break;
         case "h": game.command("governor"); break;
+        case "b": { var ids = Object.keys(BS.Data.helm.sides), cur = ids.indexOf(game.state.player.attackSide); game.command("side", { side: ids[(cur + 1) % ids.length] }); break; }
         case "g": document.getElementById("comms").classList.toggle("expanded"); break;
         case "s": game.command("stop"); break;
         case "r": game.command("redAlert"); break;
@@ -288,6 +296,8 @@ BS.UI = (function () {
   function fmtKm(k) { return (k < 10 ? k.toFixed(1) : Math.round(k)) + " km"; }
   function cmdText(p) {
     var st = p.ai ? (BS.Data.enemyAI.stateLabels[p.ai.state] || p.ai.state) : "";
+    if (p.cmd.type === "shadow") st = "shadowing " + (p.attackSide === "blind" ? "blind sector" : p.attackSide);
+    if (p.tumble > 0) st = "TUMBLING";
     if (p.play && p.ai && !p.ai.suspended) { var ph = p.play.def.phases[p.play.phase]; return p.play.def.label + " · " + ph.label + " · " + st; }
     if (p.ai && !p.ai.suspended && p.stance) return BS.Data.helm.stances[p.stance].label + " · " + st;
     if (p.ai && !p.ai.suspended) return (p.doctrineId || "helm") + " · " + st;
@@ -357,6 +367,7 @@ BS.UI = (function () {
     el["sel-name"].textContent = p.selected ? p.selected.name : "nothing";
     var auto = p.ai && !p.ai.suspended;
     document.querySelectorAll("[data-cmd='stance']").forEach(function (b) { b.classList.toggle("active", !!auto && !p.play && p.stance === b.getAttribute("data-stance")); });
+    document.querySelectorAll("[data-cmd='side']").forEach(function (b) { b.classList.toggle("active", p.attackSide === b.getAttribute("data-side")); });
     Object.keys(playEls).forEach(function (id) { playEls[id].classList.toggle("active", !!p.play && p.play.id === id); playEls[id].classList.toggle("off", !BS.Plays.available(p, id)); });
     document.querySelectorAll("[data-cmd='stop']").forEach(function (b) { b.classList.toggle("active", !auto); });
 
@@ -422,6 +433,9 @@ BS.UI = (function () {
     html += "</div><div><h4>Tactical</h4>";
     var total = st2.weapons.filter(function (b) { return b.alive; }).length, bearing = BS.EnemyAI.bearingCount(e, p, false);
     html += "<div class='sl'><label>Bearing</label><span class='v " + (bearing === 0 ? "good" : bearing >= total * 0.6 ? "bad" : "warn") + "'>" + bearing + " of " + total + " weapons on us</span></div>";
+    var prof = BS.Grid.bearingProfile(e, null, 90), sec = {};
+    prof.forEach(function (q) { sec[q.deg] = Math.round(q.w); });
+    html += "<div class='sl'><label>Sectors</label><span class='v' title='Their fire (dps) toward their bow / starboard / stern / port: shadow the weakest'>bow " + (sec[0] || 0) + " · stbd " + (sec[90] || 0) + " · aft " + (sec[-180] || 0) + " · port " + (sec[-90] || 0) + "</span></div>";
     var stLabel = e.ai ? (D.enemyAI.stateLabels[e.ai.state] || e.ai.state) : "";
     html += "<div class='sl'><label>Orders</label><span class='v'>" + (e.play ? e.play.def.label + " · " + e.play.def.phases[e.play.phase].label + " · " : (e.doctrineId || "") + " · ") + stLabel + "</span></div>";
     html += "<div class='sl'><label>Motion</label><span class='v'>" + fmtKm(S.distanceKm(p, e)) + " · " + S.speedKmS(e).toFixed(1) + " km/s · " + S.angularVelocity(p, e).toFixed(2) + " rad/s</span></div>";
@@ -456,6 +470,7 @@ BS.UI = (function () {
       cells[3].textContent = s.flags.destroyed ? "—" : S.angularVelocity(p, s).toFixed(2);
       var stLabel = s.ai ? (BS.Data.enemyAI.stateLabels[s.ai.state] || s.ai.state) : "";
       if (s.play && s.cloak.state === "off") stLabel = s.play.def.label + " · " + stLabel;
+      if (s.tumble > 0) stLabel = "tumbling";
       cells[4].textContent = s.flags.destroyed ? "destroyed" : s.flags.disabled ? "disabled" : s.cloak.state !== "off" ? s.cloak.state : stLabel;
       row.classList.toggle("selected", p.selected === s);
       row.classList.toggle("locked", p.lock.target === s && p.lock.locked);

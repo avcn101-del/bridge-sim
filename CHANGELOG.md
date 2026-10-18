@@ -2,6 +2,22 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.15.0] — 2026-10-18 (shield recharge delay, attack side, critical hits)
+
+### Added
+- **Shield recharge delay** (`grid.shieldRechargeDelay` 4 s): a facing that
+  was hit stops regenerating for 4 s; the booster still fills it. Rewards
+  hit-and-run over sustained brawling.
+- **Attack side** (`helm.sides`, key B, command `side`): Engage / Skirmish
+  can shadow the enemy's port, starboard or aft, or its **blind** sector
+  (where the fewest of its weapons bear) with the new `shadow` movement
+  command. The scan panel shows their fire per sector. Enemies come about
+  after `blindTolerance` seconds with nothing bearing (`enemyAI.*`).
+- **Critical hits** (`grid.crits`): a hit leaving a system under half hp
+  rolls 25% to breach a reactor, tumble the ship (engine), drop its lock
+  (sensor), bleed a facing (emitter), jam a mount (weapon), lose crew
+  quarters or drop a cloak. Crew callouts, flash, "tumbling" status.
+
 ## [0.14.0] — 2026-10-18 (enemy scan panel)
 
 ### Added

@@ -1,6 +1,6 @@
 # DESIGN.md — Bridge Sim
 
-Version: 0.14.0 (enemy scan panel). Keep this file in sync with the game.
+Version: 0.15.0 (shield recharge delay, attack side, critical hits). Keep this file in sync with the game.
 
 ## 1. Concept
 
@@ -129,6 +129,20 @@ on), **?** help overlay, zoom, pause.
   stance is picked again; the Helm row reads "Manual · …" meanwhile. The
   tactical officer re-locks a target the captain locked before whenever
   the lock drops and the target is in range (`ai.relock`).
+- **Attack side** (`helm.sides`, `helm.shadow`, command `side`, key B,
+  `BS.EnemyAI.setAttackSide`): in Engage or Skirmish the helm can shadow
+  one side of the target instead of circling. The `shadow` movement command
+  holds a station point at the orbit range on a bearing measured from the
+  **target's** heading (port −90°, starboard 90°, aft 180°), chasing it with
+  a little lead and matching its speed on station. **Blind** picks the
+  bearing where the least of the target's fire bears (its
+  `bearingProfile`, all alive weapons) and keeps it until another sector has
+  under 70% of its fire. The Helm row reads "shadowing blind sector"; the
+  scan panel shows their fire per sector (bow / stbd / aft / port, dps).
+  Enemies answer it: an enemy with no weapon bearing on its target for
+  `blindTolerance` seconds (3, K't'inga 4) comes about with the side that
+  carries the most fire (`reposition` state, Tactical calls the roll), so a
+  slow hull turns while a fast one re-shadows.
 - **Auto-flip** (`helm.flipMinInterval/flipShieldLow/flipShieldHigh`, both
   sides): an orbiting ship reverses its orbit when mirroring the geometry
   would bring more weapons to bear (`bearingCount`), or when the engaged
@@ -309,6 +323,18 @@ on), **?** help overlay, zoom, pause.
   disabled** (`shipDisabled`): it stops, its modules shut down and the
   battle ends; for the enemy that is a victory by capture.
 
+### Critical hits (`grid.crits`)
+A hit that leaves a system block (anything with a crew need) under 50% of
+its hp rolls 25% for a critical effect by type, applied in `Grid.hit`
+(reactors and crew quarters are destroyed outright, a reactor therefore
+breaching) and `BS.Ships.applyCrit`: an **engine** crit sends the ship
+tumbling for 3 s (no helm, 70°/s spin, speed bleeding), a **sensor** crit
+drops its lock and blinds it 2 s, a **shield emitter** crit bleeds 30% of
+its facing, a **weapon** crit jams the mount for two cycles, a **cloak**
+crit drops the cloak. Event `criticalHit` (crew callouts both ways, flash
+and sparks). Aimed fire at a wounded system is how a small ship cripples a
+big one; the Overview and Helm rows read "tumbling".
+
 ### Repair
 Damage control restores hp to damaged (not destroyed) blocks at the ship's
 repair rate, the repair-priority type first, then the most damaged.
@@ -381,7 +407,11 @@ Galaxy 11, Bird-of-Prey 6, K't'inga 8); quarters draw no power.
 
 ### Shields
 Four facing pools (80 base + 70 per emitter on that facing, `grid.shieldBase /
-shieldAdd`). Passive regen is low (0.6/s per facing plus 0.4 per emitter);
+shieldAdd`). A facing that was hit does not regenerate for
+`grid.shieldRechargeDelay` (4 s; the booster still fills it), so sustained
+fire keeps a facing down while hit-and-run lets it come back: measured, this
+sped Engage up (2:31–2:54) without changing its hull loss and took Hit & fade
+to 93–97% and the Defiant to 100%. Passive regen is low (0.6/s per facing plus 0.4 per emitter);
 the booster (+50 to the weakest facing per 4 s) is the real tank, but no
 longer out-heals a focused attack. Reinforce moves 45% of the strongest
 facing to the weakest over 3 s with a 20 s cooldown. Weapons must be armed
@@ -612,6 +642,26 @@ every fight once that side's phasers are gone.
 | Galaxy vs K't'inga **siege** (6 wins) | straightforward | 4 of 4 wins in 4:17–4:58 keeping 97–99% |
 | Miranda / Defiant vs Raider strafe | speed tank (orbit 3 km + afterburner, no reverse) | mostly stalemates: the script never reverses, so the stripped side stays toward the enemy |
 
+v0.15.0 (shield recharge delay 4 s, attack sides, critical hits, enemy
+comes about when nothing bears; 1–3 runs):
+
+| Matchup | Captain | Outcome |
+|---|---|---|
+| Constitution vs Raider | Engage auto / Engage **blind** / Engage **aft** | 3 of 3 in 2:07–3:01 keeping 76–88% / 6 of 6 in 2:17–5:13 keeping 73–99% / 3 of 3 in 2:04–2:52 keeping 88–97% |
+| Constitution vs Raider | Skirmish blind / Hit & fade / no orders | 3:37 keeping 99% / 2:23–3:27 keeping 93–97% / lost in 2:54–4:32 |
+| Constitution vs K't'inga broadside (4 wins) | Engage auto / Engage blind | 6:19 keeping 76% / 4 of 4 in 5:29–8:22 keeping 97–100%: the cruiser carries no aft fire and turns too slowly to shake a shadow at 4 km |
+| **Defiant** vs K't'inga broadside | Engage auto / Engage blind | 7:47 keeping 82% / **4 of 4 in 5:10–6:29 keeping 100%**: the escort beats the cruiser on geometry alone |
+| Defiant vs Raider | Engage blind / Hit & fade | 3:13–3:39 keeping 100% / 2:38–3:44 keeping 100% |
+| Constitution vs Gunboat | Engage auto / blind | 3:21 keeping 66% / 2 of 2 in 3:23–3:37 keeping 99% |
+| Constitution vs Raider | Siege / Hunter / Ambush | 1 of 3 (one stalemate) / 0 of 2 / 4:39 keeping 84%: crits add variance both ways; Hunter's reactor aim now breaches reactors but eats the −15% |
+
+Honest reading: shadowing the blind sector is the strongest single lever in
+the game now, as intended for "the weak ship wins by geometry"; the enemy
+counter-roll (`blindTolerance`) makes it cost hull against the raider but
+not against the slow cruiser, whose fire is all abeam. If that proves too
+easy in hand play, give the K't'inga aft cannons in its layout rather than
+nerfing the mechanic.
+
 v0.13.0 (crew manning, quarters added to every layout in interior cells,
 cannon 32 / 2.5 s; 1–3 runs):
 
@@ -803,6 +853,7 @@ than slower (it is nearly untouched, as intended).
 | v0.11.0 (done) | Cloak and ECM fields: a ship cloaks only with every block inside a cloak field (several devices per hull), a partial ECM field steers the jammed enemy's fire onto the uncovered blocks |
 | v0.12.0 (done) | Disruptor cannons (punch, penetration, poor tracking) and pulse phasers (tracking, knife range) as blocks and weapon groups; Klingons mount cannons |
 | v0.13.0 (done) | Crew: systems need hands, the bridge and crew quarters supply them, manning slows weapons and shields, blocks far from quarters repair slowly; every layout re-fitted |
+| v0.15.0 (done) | Shield recharge delay (hit facings pause 4 s), attack side / blind-sector shadowing with an enemy counter-roll, critical hits by system |
 | v0.14.0 (done) | Enemy scan panel in place of the full-width log (block grid with damage, shield bubbles and bare hull, cloak / ECM field gaps, systems, crew, power, heat, weapons bearing on us, threat); the bridge log is a two-line ticker over the display, LOG / G expands it |
 | later | Science scan (`science.scanDuration`) gating the panel's detail; weakness bonus |
 | later | Fire spreading put out by crew quarters; reactor power range; audio; sector map; sprites |
