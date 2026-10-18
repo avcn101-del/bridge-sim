@@ -90,7 +90,7 @@ BS.Game = (function () {
       if (state.phase === "battle" && state.time < DR.maxSeconds) { if (onProgress) onProgress(state.time); setTimeout(chunk, 0); return; }
       var guard = 0; while (state.phase === "ending" && guard++ < 2000) step(dt);
       var blockMax = p.grid.blocks.reduce(function (a, b) { return a + (b.structural ? 0 : b.maxHp); }, 0), blockNow = p.grid.blocks.reduce(function (a, b) { return a + (b.alive && !b.structural ? b.hp : 0); }, 0);
-      var out = { result: state.result || "stalemate", how: state.resultHow, time: state.time, hullPct: Math.round(100 * blockNow / Math.max(1, blockMax)), enemyHullPct: Math.round(100 * e.hull / e.hullMax), trace: (p.scriptTrace || []).slice(), scanned: !!p.scanned };
+      var out = { result: state.result || "stalemate", how: state.resultHow, time: state.time, hullPct: Math.round(100 * blockNow / Math.max(1, blockMax)), enemyHullPct: Math.round(100 * e.hull / e.hullMax), trace: (p.scriptTrace || []).slice(), scanned: !!p.scanned, neverFired: BS.Script.explain(p) };
       state.phase = "ended"; state.dry = false; state.paused = false;
       if (onDone) onDone(out);
     }

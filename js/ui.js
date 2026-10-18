@@ -17,7 +17,7 @@ BS.UI = (function () {
     ["own-speed", "own-cmd", "own-subsystems", "enemy-subsystems", "gauge", "help-screen", "btn-help", "btn-help-close",
      "target-none", "target-info", "tg-name", "tg-hull", "tg-hull-val", "tg-shield", "tg-shield-val", "tg-range", "tg-angular", "tg-chance", "tg-aim",
      "clock", "alert-label", "btn-pause", "btn-redalert", "btn-zoom-in", "btn-zoom-out", "pause-overlay", "start-screen", "result-screen", "result-title", "result-sub", "result-head",
-     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "rs-credits", "rs-salvage", "heat-bar", "heat-num", "btn-governor", "own-heat", "own-crew", "own-boarding", "own-boarding-row", "btn-board", "scan-view", "scan-info", "btn-log", "side-buttons", "ship-name", "view", "module-bar", "overview", "sel-name", "play-buttons", "trace", "speed-buttons", "call-tokens", "call-play", "call-side", "btn-focus", "bridge-calls"]
+     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "rs-credits", "rs-salvage", "heat-bar", "heat-num", "btn-governor", "own-heat", "own-crew", "own-boarding", "own-boarding-row", "btn-board", "scan-view", "scan-info", "btn-log", "side-buttons", "ship-name", "view", "module-bar", "overview", "sel-name", "play-buttons", "trace", "speed-buttons", "call-tokens", "call-play", "call-side", "btn-focus", "bridge-calls", "rs-clean", "rs-script", "btn-retry"]
       .forEach(function (id) { el[id] = $(id); });
     logList = $("log");
     buildGauge();
@@ -44,6 +44,7 @@ BS.UI = (function () {
     bindCompact();
     el["btn-help-close"].addEventListener("click", function () { el["help-screen"].classList.add("hidden"); });
     $("btn-restart").addEventListener("click", function () { game.openHangar(); });
+    $("btn-retry").addEventListener("click", function () { BS.Campaign.setRetry(game.state.encounter); game.openHangar(); });
     bindCanvas();
     bindKeys();
     bindBridge();
@@ -443,14 +444,36 @@ BS.UI = (function () {
       ? (captured ? "Your boarding party holds their bridge. The Klingon vessel is taken intact: a prize crew brings it home." : disabled ? "The Klingon vessel is dead in space, without weapons or engines. Salvage teams recover what they can." : "The Klingon vessel has been destroyed. Starfleet Command sends its compliments, Captain.")
       : (disabled ? "Without weapons or engines the ship drifted until the Klingons boarded. Starfleet will review the sensor logs." : "The ship was lost with all hands. Starfleet will review the sensor logs.");
     el["rs-time"].textContent = U.formatTime(state.time);
-    el["rs-dealt"].textContent = Math.round(p.stats.damageDealt);
-    el["rs-taken"].textContent = Math.round(p.stats.damageTaken);
+    el["rs-dealt"].textContent = Math.round(p.battle.damageDealt);
+    el["rs-taken"].textContent = Math.round(p.battle.damageTaken);
     el["rs-hull"].textContent = Math.round(100 * p.hull / p.hullMax) + "%";
-    el["rs-phasers"].textContent = p.stats.phaserHits + " / " + p.stats.phasersFired;
-    el["rs-torps"].textContent = p.stats.torpedoHits + " / " + p.stats.torpedoesFired;
+    el["rs-phasers"].textContent = p.battle.phaserHits + " / " + p.battle.phasersFired;
+    el["rs-torps"].textContent = p.battle.torpedoHits + " / " + p.battle.torpedoesFired;
     var rw = state.reward;
     el["rs-credits"].textContent = rw ? "+" + rw.earned + " cr" + (rw.streak > 1 ? " (streak " + rw.streak + ")" : "") + " · " + BS.Campaign.get().credits.toLocaleString() + " cr total" : "—";
     el["rs-salvage"].textContent = rw && rw.salvage ? "+" + rw.salvage + " cr from the " + (rw.how === "captured" ? "prize (taken by boarding)" : rw.how === "disabled" ? "wreck (captured intact)" : "wreck") : "—";
+    el["rs-clean"].textContent = rw && rw.clean ? "no bridge call spent · ×" + BS.Data.script.bridgeCall.noCallBonus + " (+" + rw.cleanBonus + " cr) · " + rw.cleanWins + " clean win" + (rw.cleanWins === 1 ? "" : "s") : won ? (state.callsUsed || 0) + " bridge call" + (state.callsUsed === 1 ? "" : "s") + " spent" : "—";
+    el["btn-retry"].textContent = "Refit & retry · " + (state.enemy ? state.enemy.name : "same enemy");
+    renderReport(state);
+  }
+
+  // Battle report: the script's timeline (every rule firing and bridge call), the end, and the rules that never
+  // fired with the reason (BS.Script.explain).
+  function renderReport(state) {
+    var p = state.player, box = el["rs-script"], sc = p.script, won = state.result === "victory";
+    if (!sc) { box.innerHTML = ""; return; }
+    var html = "<h4>Script · " + escapeHtml(sc.def.name) + " · " + (state.callsUsed || 0) + " of " + BS.Data.script.bridgeCall.tokens + " bridge calls spent</h4><div class='tl'>";
+    (p.scriptTrace || []).forEach(function (en) {
+      html += "<div class='tr " + (en.kind || "") + "'><span class='t'>" + U.formatTime(en.t) + "</span><span class='r'>" + (en.kind === "call" ? "CALL" : en.kind === "manual" ? "MAN" : en.rule !== null && en.rule !== undefined ? "r" + (en.rule + 1) : "—") + "</span><span>" + escapeHtml(en.text) + "</span></div>";
+    });
+    var endText = won ? (state.resultHow === "captured" ? "Enemy captured" : state.resultHow === "disabled" ? "Enemy disabled" : "Enemy destroyed") : state.result === "defeat" ? (state.resultHow === "disabled" ? "Ship disabled" : "Ship lost") : "Stalemate";
+    html += "<div class='tr end'><span class='t'>" + U.formatTime(state.time) + "</span><span class='r'>END</span><span>" + endText + "</span></div></div>";
+    var nf = BS.Script.explain(p);
+    if (nf.length) {
+      html += "<h4>Never fired</h4>";
+      nf.forEach(function (e) { html += "<div class='nf'><b>r" + (e.rule + 1) + "</b> " + escapeHtml(e.text) + "<br><span class='why'>— " + escapeHtml(e.reason) + "</span></div>"; });
+    }
+    box.innerHTML = html;
   }
 
   // Heat bar: fill, warning zones, where the next full salvo would land, governor state, overload countdown.

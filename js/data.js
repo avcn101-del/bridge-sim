@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.23.0",
+  version: "0.24.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -1364,7 +1364,7 @@ BS.Data = {
     builds: {},                        // classId → [{ name, rows }] named builds (up to editor.maxSavedBuilds)
     skills: { gunnery: 0, missiles: 0, navigation: 0, shields: 0, capacitor: 0, targeting: 0 },
     training: null,                    // { skill, level, startedAt, finishesAt } (ms timestamps)
-    campaign: { missionIndex: 0, battlesWon: 0, battlesLost: 0, streak: 0 },
+    campaign: { missionIndex: 0, battlesWon: 0, battlesLost: 0, streak: 0, cleanWins: 0, retry: null },   // retry: { encounterId, seed, battlesWon } pins the last enemy for the next fight
     intel: {},                         // encounterId → { rows, classId, layoutName, seed } layouts scanned in battle or bought
     scripts: [],                       // [{ id, name, policies, rules }] the player's bridge scripts (BS.Script); templates live in script.templates
     scriptByBuild: {},                 // classId → script id or template id the ship undocks with (missing: script.defaultTemplate)
