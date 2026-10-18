@@ -260,12 +260,12 @@ BS.UI = (function () {
     var touches = {}, start = null, longTimer = null, lastTap = null, pinch = null;
     function count() { return Object.keys(touches).length; }
     function clearLong() { if (longTimer) { clearTimeout(longTimer); longTimer = null; } }
-    function tapOrPress(ev, press) {
+    function tapOrPress(ev, press, onEnemyAtStart) {   // onEnemyAtStart: the finger landed on the enemy (it may have moved during a long press)
       var s = game.state; if (s.phase !== "battle") return;
       lastTouchAt = performance.now();
       var h = hoverAt(ev, true), p = s.player, e = s.enemy;
       if (press) {
-        if (h) { game.command("select", { target: e }); game.command("stance", { target: e, stance: "engage" }); }
+        if (h || onEnemyAtStart) { game.command("select", { target: e }); game.command("stance", { target: e, stance: "engage" }); }
         else game.command("flyTo", { point: worldAt(ev) });
         return;
       }
@@ -290,8 +290,8 @@ BS.UI = (function () {
         pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), zoom: game.state.zoom }; start = null;
         return;
       }
-      start = { x: ev.clientX, y: ev.clientY, t: performance.now(), moved: false, id: ev.pointerId, ev: ev };
-      longTimer = setTimeout(function () { longTimer = null; if (start && !start.moved && count() === 1) { tapOrPress(start.ev, true); start = null; } }, 500);
+      start = { x: ev.clientX, y: ev.clientY, t: performance.now(), moved: false, id: ev.pointerId, ev: ev, onEnemy: game.state.phase === "battle" && !!hoverAt(ev, true) };
+      longTimer = setTimeout(function () { longTimer = null; if (start && !start.moved && count() === 1) { tapOrPress(start.ev, true, start.onEnemy); start = null; } }, 500);
     });
     view.addEventListener("pointermove", function (ev) {
       if (ev.pointerType !== "touch" || !touches[ev.pointerId]) return;
