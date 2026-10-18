@@ -17,6 +17,13 @@ Plain HTML/CSS/JavaScript. No install, no build, no server.
 That's it. Works offline (the sci-fi font loads from Google Fonts when
 online and falls back to a system font otherwise).
 
+**Phones and tablets**: open the same page from any URL that serves the
+folder (a phone cannot open `index.html` from disk), hold the phone
+sideways and tap ⛶ for fullscreen. Under 540 px of height the panels become
+drawers (SHIP / SCAN / ORDERS in the top bar). Touch: tap the enemy to
+lock, tap a block to aim at its type, long-press the enemy to Engage,
+long-press or double-tap empty space to fly there, pinch to zoom.
+
 ## How to play
 
 Control is EVE Online style. You never steer directly: you pick a target and
@@ -178,7 +185,7 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `grid.powerRadius / unpoweredFactor`, `grid.breach` | Reactor power range and the penalty outside it; core breach countdown, radius and damage |
 | `helm.sides`, `helm.shadow`, `enemyAI.*.blindTolerance` | Attack sides (bearings from the target's heading, blind-sector hysteresis, station radius) and how long an enemy tolerates nothing bearing before it comes about |
 | `helm` | Stances (doctrine, ranges from fitted weapons, keys), auto-flip interval and shield thresholds, keep geometry (`bearingStep / keepBand / keepRunBelow / holdSpeed / keepFireFraction / kiteMinBearing`), plays (phases, module policies, exit conditions) |
-| `balance.zoom` | Auto-fit camera limits and margin, manual zoom bias range |
+| `balance.zoom` | Auto-fit camera limits and margin (`autoMinShort / shortPx` for short phone views), manual zoom bias range |
 | `grid.capBase / capAdd / capRechargeTime` | Capacitor from reactors |
 | `grid.crew`, `blocks.*.crew` | Crew posts per system, bridge and quarters supply, manning floor, far-from-quarters radius and repair penalty |
 | `grid.thrustPerPoint / nacelleThrustMult / speedMultMin / speedMultMax` | Speed from engines and mass |

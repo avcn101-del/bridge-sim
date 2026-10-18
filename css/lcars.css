@@ -69,7 +69,9 @@ body.alert-red #alert-label { animation: blink 1s steps(2) infinite; }
 #tactical { grid-area: tactical; position: relative; border-radius: var(--radius); overflow: hidden; background: #03040a; box-shadow: 0 0 0 2px #222 inset, 0 0 40px var(--glow); transition: box-shadow 0.5s; }
 body.alert-red #tactical { animation: redpulse 1.6s ease-in-out infinite; }
 @keyframes redpulse { 0%, 100% { box-shadow: 0 0 0 2px #5a1a1a inset, 0 0 30px var(--glow); } 50% { box-shadow: 0 0 0 3px #b03030 inset, 0 0 70px var(--glow); } }
-#view { display: block; width: 100%; height: 100%; }
+#view { display: block; width: 100%; height: 100%; touch-action: none; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
+#drawer-tabs { display: none; }
+#rotate-hint { display: none; }
 #view.can-target { cursor: crosshair; }
 #view.on-hardpoint { cursor: pointer; }
 #tactical .corner { position: absolute; width: 26px; height: 26px; border: 2px solid var(--c-accent); opacity: 0.6; pointer-events: none; }
@@ -272,7 +274,7 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
 .hangar-card .head { justify-content: space-between; padding: 8px 20px; border-radius: 20px 20px 0 0; }
 .hg-head-right { font-weight: 400; font-size: 14px; } .hg-head-right b { font-size: 17px; }
 .hangar-grid { display: grid; grid-template-columns: 1fr 1.7fr; gap: 14px; padding: 10px 16px 16px; overflow: auto; min-height: 0; }
-.hg-editor { width: 100%; height: auto; background: radial-gradient(ellipse at center, #0e1026, #05060f); border-radius: 12px; border: 1px solid #1f2040; cursor: crosshair; display: block; }
+.hg-editor { width: 100%; height: auto; touch-action: none; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; background: radial-gradient(ellipse at center, #0e1026, #05060f); border-radius: 12px; border: 1px solid #1f2040; cursor: crosshair; display: block; }
 .hg-palette { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin: 6px 0; }
 .pal { display: grid; grid-template-columns: 22px 1fr; grid-template-rows: auto auto; column-gap: 6px; align-items: center; text-align: left; padding: 3px 6px; border-radius: 8px; border: 1px solid #2a2a40; background: #0b0c1c; color: var(--c-text); cursor: pointer; font-family: inherit; }
 .pal i, .pal canvas { grid-row: 1 / span 2; width: 22px; height: 22px; border-radius: 3px; }
@@ -347,4 +349,69 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
 @media (max-width: 900px) {
   #app { grid-template-columns: 1fr 1fr; grid-template-rows: 48px 46vh auto 150px; grid-template-areas: "top top" "tactical tactical" "status orders" "scan scan"; }
   html, body { overflow: auto; }
+}
+
+/* ------------------------------------------------- compact: phone landscape */
+/* Under 540 CSS px of height the tactical view takes the whole screen; the Ship / Target panel, the Orders panel and
+   the Scan panel become drawers opened from the top bar (body.drawer-status / drawer-orders / drawer-scan). Hit targets
+   grow, the HUD shrinks, overlays scroll. Touch input lives in ui.js (tap, long-press, double-tap, pinch). */
+@media (max-height: 540px) {
+  html, body { overflow: hidden; font-size: 13px; }
+  #app { display: block; height: 100vh; height: 100dvh; padding: 0; }
+  #topbar { position: fixed; left: 0; right: 0; top: 0; height: 36px; z-index: 6; gap: 4px; padding: 3px 4px 0 4px; background: #000; }
+  #topbar .lcars-cap { width: 18px; }
+  #topbar .lcars-bar { min-width: 0; font-size: 12px; padding: 0 8px; }
+  #topbar .lcars-bar.c-orange, #topbar .lcars-bar.c-peach.short, #btn-zoom-in, #btn-zoom-out, #topbar [data-cmd="hail"] { display: none; }
+  #topbar .lcars-btn { min-height: 0; font-size: 11px; padding: 0 8px; min-width: 0 !important; letter-spacing: 0.02em; }
+  #topbar .lcars-btn.sq { min-width: 32px !important; font-size: 15px; }
+  #drawer-tabs { display: flex; gap: 3px; }
+  #drawer-tabs .lcars-btn { border-radius: 6px; min-width: 56px !important; }
+  #tactical { position: fixed; left: 0; right: 0; top: 36px; bottom: 0; border-radius: 0; }
+  #tactical .corner { display: none; }
+  .panel { position: fixed; top: 36px; bottom: 0; z-index: 5; transition: transform 0.22s ease-out; box-shadow: 0 0 24px rgba(0, 0, 0, 0.8); border-radius: 0; }
+  #status { left: 0; width: min(272px, 50vw); transform: translateX(-105%); }
+  #orders { right: 0; width: min(300px, 55vw); transform: translateX(105%); }
+  #scan { left: 0; right: 0; top: auto; height: min(200px, 60vh); transform: translateY(105%); }
+  body.drawer-status #status, body.drawer-orders #orders, body.drawer-scan #scan { transform: none; }
+  .panel-side { width: 26px; } .side-seg { font-size: 9px; }
+  .panel-body { padding: 4px 8px 12px; -webkit-overflow-scrolling: touch; }
+  .lcars-btn { min-height: 34px; }
+  .btn-grid { gap: 5px; margin-bottom: 5px; }
+  .sub-grid .row, .chip { min-height: 22px; }
+  #overview td { padding: 5px 3px; }
+  #hud { bottom: 6px; gap: 8px; }
+  #gauge { width: 84px; height: 84px; }
+  #module-bar { gap: 6px; padding: 5px 8px; }
+  .module { width: 46px; height: 46px; font-size: 11px; }
+  .module .capcost { display: none; }
+  #heat-bar { padding: 2px 8px; font-size: 10px; }
+  #heat-bar .hb-num { min-width: 56px; }
+  #comms { top: 4px; left: 8px; width: min(520px, 58%); }
+  #comms #log { max-height: 38px; }
+  #log { font-size: 11px; } #log .who { width: 84px; } #log .t { width: 36px; font-size: 10px; }
+  #pause-overlay span { font-size: 26px; }
+  .overlay { align-items: flex-start; overflow-y: auto; padding: 8px 0; }
+  .overlay-card { max-width: 96vw; padding: 0 16px 16px; }
+  .overlay-card .head { margin: 0 -16px 8px; }
+  .overlay-card h1 { font-size: 26px; margin: 4px 0 2px; }
+  .overlay-card p, .tips { font-size: 13px; line-height: 1.35; }
+  .stats { font-size: 14px; }
+  .lcars-btn.big { font-size: 16px; padding: 10px 18px; margin-top: 10px; }
+  .hangar-card { width: 100vw; max-height: 100vh; max-height: 100dvh; border-radius: 0; border: 0; }
+  .hangar-card .head { padding: 6px 12px; border-radius: 0; font-size: 13px; }
+  .hg-head-right { font-size: 11px; } .hg-head-right b { font-size: 13px; }
+  .hangar-grid { grid-template-columns: 1fr; gap: 10px; padding: 8px 10px 16px; }
+  .hg-fit { order: -1; }
+  .hg-editor { width: auto; max-width: 100%; max-height: 62vh; margin: 0 auto; }
+  .hg-palette { grid-template-columns: repeat(4, 1fr); }
+  .pal { min-height: 40px; }
+  .hg-tools .lcars-btn, .hg-row .lcars-btn { min-height: 34px; }
+  .lcars-select, .lcars-input { min-height: 34px; }
+  .hg-stats { font-size: 12px; }
+  .hg-stats div { flex-wrap: wrap; }
+}
+/* phones held upright: the game is landscape only */
+@media (orientation: portrait) and (max-width: 760px) {
+  #rotate-hint { display: flex; position: fixed; inset: 0; z-index: 50; align-items: center; justify-content: center; text-align: center; background: #000; color: var(--c-peach); font-size: 20px; line-height: 1.5; padding: 24px; }
+  #rotate-hint b { color: var(--c-orange); font-size: 24px; letter-spacing: 0.08em; text-transform: uppercase; }
 }
