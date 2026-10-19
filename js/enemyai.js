@@ -210,19 +210,12 @@ BS.EnemyAI = (function () {
       if (capPct > p.drainedUntil || ai.timer > p.drainedTime) enter(ship, target, d);
       return;
     }
-    // shadowed: nothing bears on the target for too long (it sits in a blind sector), so come about with the side that
-    // carries the most fire toward it; a slow hull takes a while, which is the small ship's window
-    if (enemy && engaged && ai.state !== "reposition") {
-      if (bearingCount(ship, target, false) === 0) ai.blindTimer += p.reactionDelay; else ai.blindTimer = 0;
-      if (ai.blindTimer > p.blindTolerance) {
-        var prof = BS.Grid.bearingProfile(ship, null, 90), bestSec = null;
-        prof.forEach(function (q) { if (!bestSec || q.w > bestSec.w) bestSec = q; });
-        var fc = bestSec && bestSec.deg === 90 ? "starboard" : bestSec && bestSec.deg === -90 ? "port" : bestSec && bestSec.deg === -180 ? "aft" : "fore";
-        ai.blindTimer = 0; setState(ship, "reposition"); S.setCommand(ship, "comeAbout", { target: target, facing: fc });
-        BS.Events.emit("enemyRolled", { ship: ship, facing: fc, blind: true });
-        return;
-      }
-    }
+    // shadowed: how long nothing has borne on the target (it sits in a blind sector). Since 0.25 the answer is a
+    // script rule (condition blindFor → action roll), no longer a profile threshold here.
+    // Counted only in the states that mean to fire (brawl, pass, broadside, standoff): a ship breaking off or kiting
+    // shows its tail on purpose.
+    var firing = ai.state === "brawl" || ai.state === "pass" || ai.state === "broadside" || ai.state === "standoff";
+    if (firing) { if (bearingCount(ship, target, false) === 0) ai.blindTimer += (enemy ? p.reactionDelay : H.reactionDelay); else ai.blindTimer = 0; } else ai.blindTimer = 0;
     // auto-flip while orbiting: bring the other battery round, or show a fresh shield
     if ((ai.state === "brawl" || ai.state === "pass") && ship.cmd.type === "orbit" && ai.flipTimer > H.flipMinInterval) {
       var why = flipReason(ship, target, facing, facingPct);
@@ -287,7 +280,7 @@ BS.EnemyAI = (function () {
         break;
       case "reposition":
         setModule(ship, "afterburner", false);
-        if (ai.timer > p.repositionDuration || (ship.cmd.type === "comeAbout" && bearingCount(ship, target, false) > 0 && ai.timer > 1.5) || (facingPct > 0.5 && bearingCount(ship, target, false) > 0)) { enter(ship, target, d, true); }
+        if (ai.timer > (enemy ? p.repositionDuration : H.repositionDuration) || (ship.cmd.type === "comeAbout" && bearingCount(ship, target, false) > 0 && ai.timer > 1.5) || (facingPct > 0.5 && bearingCount(ship, target, false) > 0)) { enter(ship, target, d, true); }
         break;
 
       // ---- standoff: sit at torpedo range; kite with the afterburner when the target closes
@@ -321,6 +314,19 @@ BS.EnemyAI = (function () {
     }
   }
 
+  // Come about with the side that carries the most fire toward the target (script action `roll`): a reposition that
+  // the doctrine resumes from after repositionDuration, or sooner once guns bear again. A slow hull takes a while,
+  // which is the small ship's window. Both ships may do it.
+  function roll(ship, target) {
+    if (!ship.ai || !target || ship.flags.destroyed || ship.flags.disabled) return false;
+    var prof = BS.Grid.bearingProfile(ship, null, 90), bestSec = null;
+    prof.forEach(function (q) { if (!bestSec || q.w > bestSec.w) bestSec = q; });
+    var fc = bestSec && bestSec.deg === 90 ? "starboard" : bestSec && bestSec.deg === -90 ? "port" : bestSec && bestSec.deg === -180 ? "aft" : "fore";
+    ship.ai.blindTimer = 0; setState(ship, "reposition"); S.setCommand(ship, "comeAbout", { target: target, facing: fc });
+    BS.Events.emit("enemyRolled", { ship: ship, facing: fc, blind: true });
+    return true;
+  }
+
   // Enter the doctrine's fighting state.
   function enter(ship, target, d, flip) {
     switch (d.kind) {
@@ -334,5 +340,5 @@ BS.EnemyAI = (function () {
     }
   }
 
-  return { attach: attach, update: update, setStance: setStance, setDoctrine: setDoctrine, suspend: suspend, doctrineFor: doctrineFor, bearingCount: bearingCount, setAttackSide: setAttackSide, sideBearing: sideBearing };
+  return { attach: attach, update: update, setStance: setStance, setDoctrine: setDoctrine, suspend: suspend, doctrineFor: doctrineFor, bearingCount: bearingCount, setAttackSide: setAttackSide, sideBearing: sideBearing, roll: roll, weaponRef: weaponRef };
 })();

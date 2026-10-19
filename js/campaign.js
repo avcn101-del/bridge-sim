@@ -45,6 +45,7 @@ BS.Campaign = (function () {
     out.scripts = (s.scripts || []).filter(function (sc) { return sc && sc.id && sc.name && Array.isArray(sc.rules); });
     out.scriptByBuild = {}; Object.keys(s.scriptByBuild || {}).forEach(function (id) { if (D().shipClasses[id]) out.scriptByBuild[id] = s.scriptByBuild[id]; });
     out.plans = {}; Object.keys(s.plans || {}).forEach(function (id) { var pl = s.plans[id]; if (pl && Array.isArray(pl.targets)) out.plans[id] = pl; });
+    out.book = {}; Object.keys(s.book || {}).forEach(function (id) { var bk = s.book[id]; if (bk && typeof bk.fights === "number" && bk.rules && typeof bk.rules === "object") out.book[id] = bk; });
     out.version = 2;
     return out;
   }
@@ -261,6 +262,21 @@ BS.Campaign = (function () {
   function planFor(enc) { return enc && save.plans ? save.plans[enc.id] || null : null; }
   function setPlan(enc, targets) { save.plans[enc.id] = { targets: targets.slice(0, D().script.planTargets), rows: enc.rows.slice() }; persist(); }
 
+  // Opening book: which of the enemy's script rules were seen firing against this encounter, over how many fights
+  // (save.book[encounterId]). The enemy's script stays hidden; what it did is on record.
+  function recordBook(enc, enemyShip) {
+    if (!enc || !enemyShip || !enemyShip.script) return;
+    var b = save.book[enc.id] || (save.book[enc.id] = { fights: 0, rules: {} }), def = enemyShip.script.def, seen = {};
+    b.fights++;
+    (enemyShip.scriptTrace || []).forEach(function (en) { if (en.rule !== null && en.rule !== undefined && (en.kind === "standing" || en.kind === "callout")) seen[en.rule] = true; });
+    Object.keys(seen).forEach(function (i) {
+      var r = def.rules[i]; if (!r) return;
+      var key = (enc.script || "doctrine") + ":" + i, e = b.rules[key] || (b.rules[key] = { text: "", n: 0 });
+      e.text = r.callout || BS.Script.describe(r, def); e.n++;
+    });
+  }
+  function bookFor(enc) { return enc && save.book ? save.book[enc.id] || null : null; }
+
   function buyIntel(enc) {
     var cost = D().campaign.intelCost;
     if (save.credits < cost) return "Not enough credits (" + cost + " cr).";
@@ -270,6 +286,7 @@ BS.Campaign = (function () {
   function settleBattle(state) {
     var cr = D().campaign.credits, p = state.player, won = state.result === "victory";
     if (state.encounter && ((state.lockTime || 0) >= D().campaign.intelMinLockSeconds || p.scanned)) recordIntel(state.encounter, "scanned");
+    recordBook(state.encounter, state.enemy);
     var hullLostPct = Math.round(100 * (1 - p.hull / p.hullMax));
     var earned, salvage = 0, cleanBonus = 0, clean = won && !(state.callsUsed > 0);
     if (won) {
@@ -296,7 +313,7 @@ BS.Campaign = (function () {
 
   return { load: load, persist: persist, reset: reset, exportJSON: exportJSON, importJSON: importJSON, hasSave: hasSave, get: get,
     currentClass: currentClass, layoutFor: layoutFor, setLayout: setLayout, battleLayout: battleLayout, buyShip: buyShip, selectShip: selectShip,
-    layoutDelta: layoutDelta, countBlocks: countBlocks, applyLayout: applyLayout, builds: builds, saveBuild: saveBuild, deleteBuild: deleteBuild, intelFor: intelFor, buyIntel: buyIntel,
+    layoutDelta: layoutDelta, countBlocks: countBlocks, applyLayout: applyLayout, builds: builds, saveBuild: saveBuild, deleteBuild: deleteBuild, intelFor: intelFor, buyIntel: buyIntel, bookFor: bookFor,
     scriptFor: scriptFor, setScriptFor: setScriptFor, saveScript: saveScript, deleteScript: deleteScript, planFor: planFor, setPlan: setPlan, setRetry: setRetry, letGo: letGo,
     updateTraining: updateTraining, startTraining: startTraining, cancelTraining: cancelTraining, skillMods: skillMods, skillHours: skillHours,
     layoutStats: layoutStats, enemyStatMult: enemyStatMult, encounter: encounter, settleBattle: settleBattle };

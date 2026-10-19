@@ -473,6 +473,14 @@ BS.UI = (function () {
       html += "<h4>Never fired</h4>";
       nf.forEach(function (e) { html += "<div class='nf'><b>r" + (e.rule + 1) + "</b> " + escapeHtml(e.text) + "<br><span class='why'>— " + escapeHtml(e.reason) + "</span></div>"; });
     }
+    // their bridge: the enemy's script stays hidden, but every rule of theirs that fired is on record (and goes into
+    // the opening book the hangar shows for this encounter)
+    var e = state.enemy, et = e && e.scriptTrace ? e.scriptTrace.filter(function (en) { return en.rule !== null && en.rule !== undefined; }) : [];
+    if (et.length) {
+      html += "<h4>Their bridge · " + escapeHtml(e.name) + " (their rules, in their words)</h4><div class='tl'>";
+      et.forEach(function (en) { var r = e.script && e.script.def.rules[en.rule]; html += "<div class='tr " + (en.kind || "") + "'><span class='t'>" + U.formatTime(en.t) + "</span><span class='r'>r" + (en.rule + 1) + "</span><span>" + escapeHtml(r && r.callout ? r.callout : en.text) + "</span></div>"; });
+      html += "</div>";
+    }
     box.innerHTML = html;
   }
 
