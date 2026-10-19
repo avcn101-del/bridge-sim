@@ -1,8 +1,8 @@
 // tools/harness.js — accelerated balance runs (DESIGN.md §8). Plain Node + Playwright, no package.json:
 //   NODE_PATH=/opt/node-tools/node_modules node tools/harness.js --enemy raider --wins 0 --script brawler --runs 4
 // Options:
-//   --enemy <id>        encounter id from campaign.encounters (raider, gunboat, torpedo, variant, jammer, shadow, leech,
-//                       cruiser, siege, warlord); forced by replacing campaign.encounters
+//   --enemy <id>        encounter id from campaign.encounters (raider, gunboat, torpedo, jammer, shadow, leech, cruiser,
+//                       siege, pair, cube, pack); forced by replacing campaign.encounters
 //   --wins <n>          battles won (enemy strength and scan / weak-point rules follow it)
 //   --ship <classId>    player hull (default constitution); --preset <name> one of its presets (e.g. shadowhunter);
 //                       --rows variant:<name> flies one of the class's enemy variants (element duels: --ship bird_of_prey)

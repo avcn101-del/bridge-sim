@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.38.0",
+  version: "0.39.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -834,102 +834,6 @@ BS.Data = {
           "EEED....................",
           "EEE....................."
         ] },
-        interceptor: { name: "Interceptor", desc: "Thirty engines down the wings, six pulse phasers: a tight afterburner orbit nothing can track.", rows: [
-          "EEE.....................",
-          "EEEU....................",
-          "..SQU...................",
-          "...EEE..................",
-          "....EEE.................",
-          ".....EEE................",
-          "......SAA...............",
-          ".......AAA..............",
-          ".....AAAARA.......AAA...",
-          "....ARAAQAAU....AAQAAAA.",
-          "...AQAAAAAAAQAAAAASAANAA",
-          "...AQAAABAAAARAAAASAAAAT",
-          "....ARAAQAAU....AAQAAAA.",
-          ".....AAAARA.......AAA...",
-          ".......AAA..............",
-          "......SAA...............",
-          ".....EEE................",
-          "....EEE.................",
-          "...EEE..................",
-          "..SQU...................",
-          "EEEU....................",
-          "EEE....................."
-        ] },
-        bulwark: { name: "Bulwark", desc: "Twelve shield emitters and five reactors behind six disruptors: a wall that holds a broadside.", rows: [
-          "EEE.....................",
-          "EEED....................",
-          "..SQD...................",
-          "...AAA..................",
-          "....ASA.................",
-          ".....AAA................",
-          "......SAA...............",
-          ".......AAA..............",
-          ".....AAAARA.......AAA...",
-          "....ARAAQAAD....AAQAAAA.",
-          "...AAASAAAAAAASAAASAANAA",
-          "...AAASABAAAARASAASAAAAT",
-          "....ARAAQAAD....AAQAAAA.",
-          ".....AAAARA.......AAA...",
-          ".......AAA..............",
-          "......SAA...............",
-          ".....AAA................",
-          "....ASA.................",
-          "...AAA..................",
-          "..SQD...................",
-          "EEED....................",
-          "EEE....................."
-        ] },
-        pulser: { name: "Pulser", desc: "Ten pulse phasers in place of the cannons: light, fast, and they track anything.", rows: [
-          "EEE.....................",
-          "EEEU....................",
-          "..SQU...................",
-          "...AAA..................",
-          "....AAA.................",
-          ".....AAA................",
-          "......SAA...............",
-          ".......AAA..............",
-          ".....AAAARA.......AAU...",
-          "....ARAAQAAU....AAQAAAA.",
-          "...AAAAAAAAAAAAAAASAANUA",
-          "...AAAAABAAAAAAAAASAAUAT",
-          "....ARAAQAAU....AAQAAAA.",
-          ".....AAAARA.......AAU...",
-          ".......AAA..............",
-          "......SAA...............",
-          ".....AAA................",
-          "....AAA.................",
-          "...AAA..................",
-          "..SQU...................",
-          "EEEU....................",
-          "EEE....................."
-        ] },
-        bombard: { name: "Bombard", desc: "Four torpedo tubes on six reactors, two disruptors: it holds station and fires every tube.", rows: [
-          "EEE.....................",
-          "EEED....................",
-          "..SQA...................",
-          "...AAA..................",
-          "....AAA.................",
-          ".....AAA................",
-          "......SAA...............",
-          ".......ASA..............",
-          ".....AAARAR.......AAA...",
-          "....ARAAQAAA....AAQAAAT.",
-          "...AAAAAAAAAAAAAAASNAAAT",
-          "...AAAAABAAAAAAAAASAAAAT",
-          "....ARAAQAAA....AAQAAAT.",
-          ".....AAARAR.......AAA...",
-          ".......ASA..............",
-          "......SAA...............",
-          ".....AAA................",
-          "....AAA.................",
-          "...AAA..................",
-          "..SQA...................",
-          "EEED....................",
-          "EEE....................."
-        ] },
         torpedo: { name: "Torpedo boat", desc: "Two forward tubes, six reactors, four disruptors.", rows: [
           "EEE.....................",
           "EEED....................",
@@ -1335,9 +1239,6 @@ BS.Data = {
       watch:     { kind: "evade", engageKm: 999, holdKm: 5, abMinCap: 2, tailChaseAngular: 0.15, tailChaseTime: 99 },
     },
     // Overview status text per AI state
-    // what a script condition "they are {v}" (enemyStance) reads off the other ship's state and command
-    stanceLabels: { orbiting: "orbiting us", holding: "holding station", shadowing: "shadowing us", kiting: "kiting", closing: "closing", rolling: "rolling a fresh side" },
-    aimLabels: { hull: "spraying our hull", type: "aiming at one of our system types", weak: "aiming at one of our weak points", structure: "cutting our structure" },
     stateLabels: { approach: "closing", shadow: "shadowing", clear: "clearing the blast", drained: "drained, opening the range", retreat: "retreating", run_in: "strafing run", pass: "firing pass", break_off: "breaking off", turn_in: "coming around", brawl: "attacking", reposition: "turning", standoff: "standing off", kite: "kiting", broadside: "broadside", stalk: "cloaked", uncloak: "decloaking", evade: "disengaging" },
     default: {
       doctrine: "brawl",
@@ -1407,26 +1308,20 @@ BS.Data = {
       { id: "raider",   enemyClass: "bird_of_prey", layout: "default", doctrine: "strafe",    script: "raider",  minWins: 0, weight: 3, rewardMult: 1.0 },
       { id: "gunboat",  enemyClass: "bird_of_prey", layout: "gunboat", doctrine: "brawl",     script: "raider",   minWins: 1, weight: 2, rewardMult: 1.1 },
       { id: "torpedo",  enemyClass: "bird_of_prey", layout: "torpedo", doctrine: "bombard",   script: "torpedoBoat", minWins: 1, weight: 2, rewardMult: 1.1, damageMult: 1.0 },   // holds station and fires every tube; with the recharge delay its stream keeps a facing down
-      { id: "variant",  enemyClass: "bird_of_prey", layout: "random",  doctrine: ["strafe", "brawl"], script: "raider",   minWins: 2, weight: 3, rewardMult: 1.1 },
-      { id: "interceptor", enemyClass: "bird_of_prey", layout: "interceptor", doctrine: "dogfight", script: "raider", minWins: 2, weight: 1, rewardMult: 1.1 },   // the Impulse answer
-      { id: "bombard",  enemyClass: "bird_of_prey", layout: "bombard", doctrine: "bombard",  script: "torpedoBoat", minWins: 3, weight: 1, rewardMult: 1.2 },   // the Ordnance answer
-      { id: "bulwark",  enemyClass: "bird_of_prey", layout: "bulwark", doctrine: "broadside", script: "cruiser", minWins: 2, weight: 1, rewardMult: 1.1 },   // the Deflector answer
-      { id: "pulser",   enemyClass: "bird_of_prey", layout: "pulser",  doctrine: "brawl",     script: "raider",  minWins: 2, weight: 1, rewardMult: 1.1 },   // the Phaser answer
       { id: "jammer",   enemyClass: "bird_of_prey", layout: "jammer",  doctrine: "brawl",     script: "raider",   minWins: 3, weight: 2, rewardMult: 1.2 },
       { id: "shadow",   enemyClass: "bird_of_prey", layout: "shadow",  doctrine: "ambush",    script: "doctrine", minWins: 3, weight: 2, rewardMult: 1.3, damageMult: 1.2 },   // its decloak strikes already double
       { id: "leech",    enemyClass: "bird_of_prey", layout: "leech",   doctrine: "brawl",     script: "raider",   minWins: 3, weight: 2, rewardMult: 1.2 },   // two neutralisers: a close brawl becomes a capacitor war
       { id: "cruiser",  enemyClass: "ktinga",       layout: "default", doctrine: "broadside", script: "cruiser", minWins: 4, weight: 2, rewardMult: 1.8 },
       { id: "siege",    enemyClass: "ktinga",       layout: "siege",   doctrine: "siege",     script: "siegeCruiser", minWins: 6, weight: 2, rewardMult: 1.9 },
-      { id: "warlord",  enemyClass: "ktinga",       layout: "random",  doctrine: ["broadside", "brawl"], script: "cruiser", minWins: 8, weight: 2, rewardMult: 1.9 },
-      // fleet encounters (0.31, in the pool since 0.35 once the roster has two hulls): `ships` lists the hulls that come
+      // fleet encounters (0.31; in the pool once the roster has minHulls hulls, 0.39): `ships` lists the hulls that come
       // with the first one, each { enemyClass, layout, doctrine, script, damageMult }.
-      { id: "pair",     kind: "fleet", enemyClass: "bird_of_prey", layout: "default", doctrine: "strafe",    script: "raider",  minWins: 2, weight: 2, rewardMult: 1.8,
+      { id: "pair",     kind: "fleet", enemyClass: "bird_of_prey", layout: "default", doctrine: "strafe",    script: "raider",  minWins: 2, minHulls: 3, weight: 2, rewardMult: 1.8,
         ships: [{ enemyClass: "bird_of_prey", layout: "gunboat", doctrine: "brawl", script: "raider" }] },
       // the first boss (0.33; in the pool since 0.35 on every campaign.run.bossEvery-th battle): `kind: "boss"`, its own
       // script with the mechanics, `reinforcements` summoned by the script
       { id: "cube",     kind: "boss", enemyClass: "borg_cube", layout: "default", doctrine: "broadside", script: "borg", minWins: 4, weight: 1, rewardMult: 6,
         reinforcements: [{ enemyClass: "bird_of_prey", layout: "default", doctrine: "strafe", script: "raider" }, { enemyClass: "bird_of_prey", layout: "gunboat", doctrine: "brawl", script: "raider" }] },
-      { id: "pack",     kind: "fleet", enemyClass: "bird_of_prey", layout: "default", doctrine: "strafe",    script: "raider",  minWins: 5, weight: 2, rewardMult: 3.2,
+      { id: "pack",     kind: "fleet", enemyClass: "bird_of_prey", layout: "default", doctrine: "strafe",    script: "raider",  minWins: 5, minHulls: 4, weight: 2, rewardMult: 3.2,
         ships: [{ enemyClass: "bird_of_prey", layout: "gunboat", doctrine: "brawl", script: "raider" }, { enemyClass: "bird_of_prey", layout: "torpedo", doctrine: "bombard", script: "torpedoBoat" }, { enemyClass: "bird_of_prey", layout: "jammer", doctrine: "brawl", script: "raider" }] },
     ],
     // the very first fight: the raider does not hunt weak points yet (enemyAI profile override while battlesWon is 0)
@@ -1461,13 +1356,11 @@ BS.Data = {
   // here ({v} is the value) so the editor, the trace and the battle report read as orders, never as data.
   script: {
     tickSeconds: 0.5, scanSeconds: 4,   // scanSeconds: the scan action (beams hold fire meanwhile)              // how often the rules are read
-    chargingKmS: 1.0,              // "they are charging": closing faster than this while running in
     traceMax: 60,                  // trace entries kept per ship
     planTargets: 3,                // targets a plan may name, in order
     defaultTemplate: "brawler",    // what a ship undocks with when no script is assigned
     maxRules: 12,                  // rules per script in the editor
     maxScripts: 12,                // own scripts a save holds (Copy as new refuses beyond it)
-    rangeBands: { beam: "inside our beam optimal", torpedo: "inside our torpedo range", out: "beyond our reach" },   // condition rangeBand, measured off the fitted weapons
     // subjects (0.32, BS.Fleet.subject): a rule's `about` picks which enemy its conditions read ("target" = the ship we
     // are fighting); the action `target` switches our fire to one. "hunter" is null when nobody is shooting at us.
     subjects: { target: "the ship we are fighting", nearest: "the nearest enemy", weakest: "the enemy with the least hull", biggest: "the biggest enemy", smallest: "the smallest enemy", loudest: "the loudest enemy (largest signature)", hunter: "the enemy shooting at us", focus: "the enemy most of us are fighting" },
@@ -1482,42 +1375,21 @@ BS.Data = {
     conditions: {
       dKmBelow:         { label: "they are closer than {v}", kind: "km", def: 5 },
       dKmAbove:         { label: "they are farther than {v}", kind: "km", def: 10 },
-      facingBelow:      { label: "our shield facing them is under {v}", kind: "pct", def: 0.3 },
-      facingAbove:      { label: "our shield facing them is over {v}", kind: "pct", def: 0.6 },
       weakestBelow:     { label: "our weakest shield is under {v}", kind: "pct", def: 0.25 },
       weakestAbove:     { label: "our weakest shield is over {v}", kind: "pct", def: 0.6 },
       heatAbove:        { label: "our heat is over {v}", kind: "pct", def: 0.9 },
-      heatBelow:        { label: "our heat is under {v}", kind: "pct", def: 0.3 },
       capBelow:         { label: "our capacitor is under {v}", kind: "pct", def: 0.2 },
-      capAbove:         { label: "our capacitor is over {v}", kind: "pct", def: 0.6 },
       hullBelow:        { label: "our hull is under {v}", kind: "pct", def: 0.4 },
       time:             { label: "more than {v} have passed", kind: "sec", def: 60 },
       scanned:          { label: "we have scanned them", kind: "bool", def: true, negLabel: "we have not scanned them yet" },
-      incomingTorpedoes:{ label: "{v} or more torpedoes are coming at us", kind: "count", def: 1 },
-      overloaded:       { label: "we are overloaded", kind: "flag" },
       cloaked:          { label: "we are cloaked", kind: "flag" },
-      cloakOff:         { label: "our cloak is off", kind: "flag" },
       noCloak:          { label: "our cloak field is broken", kind: "flag" },
       noTubes:          { label: "we have no torpedo tubes left", kind: "flag" },
-      noPhasers:        { label: "we have no beam weapons left", kind: "flag" },
       enemyReactorsGone:{ label: "their reactors are all gone", kind: "flag" },
       enemyShieldsDown: { label: "their shield facing us is down", kind: "flag" },
-      enemyFacingBelow: { label: "their shield facing us is under {v}", kind: "pct", def: 0.3 },
-      enemyCapBelow:    { label: "their capacitor is under {v}", kind: "pct", def: 0.1 },
       enemyHullBelow:   { label: "their hull is under {v}", kind: "pct", def: 0.5 },
-      enemyCharging:    { label: "they are charging us", kind: "flag" },
-      enemyCloaking:    { label: "they are cloaking", kind: "flag" },
       enemyCloaked:     { label: "they are cloaked", kind: "flag" },
-      enemyRolling:     { label: "they are turning a fresh shield to us", kind: "flag" },
-      enemyBreaching:   { label: "their core is breaching", kind: "flag" },
-      enemyKiting:      { label: "they are running from us", kind: "flag" },
       enemyFocusing:    { label: "they are shooting at our {v}", kind: "type", def: "reactor" },
-      enemyState:       { label: "they are {v}", kind: "state", def: "pass" },
-      // 0.25: observations both bridges may script against
-      enemyStance:      { label: "they are {v}", kind: "stance", def: "orbiting" },          // enemyAI.stanceLabels, read off state and command
-      enemyAimingAt:    { label: "they are {v}", kind: "aiming", def: "weak" },              // enemyAI.aimLabels
-      rangeBand:        { label: "they are {v}", kind: "band", def: "beam" },                // script.rangeBands, off our own fitted weapons
-      enemyAfterburner: { label: "their afterburner is lit", kind: "flag" },
       enemyHeatAbove:   { label: "their heat is over {v}", kind: "pct", def: 0.6 },
       enemyHeatBelow:   { label: "their heat is under {v}", kind: "pct", def: 0.35 },
       blindFor:         { label: "none of our weapons have borne on them for {v}", kind: "sec", def: 3 },

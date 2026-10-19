@@ -42,15 +42,21 @@ BS.Campaign = (function () {
     out.intel = {};
     Object.keys(s.intel || {}).forEach(function (id) { var it = s.intel[id]; if (it && Array.isArray(it.rows) && D().shipClasses[it.classId]) out.intel[id] = it; });
     out.scripts = (s.scripts || []).filter(function (sc) { return sc && sc.id && sc.name && Array.isArray(sc.rules); });
-    // 0.37: the `stance` action became `doctrine` (same ids); plays are gone, a rule that only ran one is dropped
+    // 0.37: the `stance` action became `doctrine` (same ids); plays are gone, a rule that only ran one is dropped.
+    // 0.39: a rule naming a condition or action that no longer exists is dropped and the hangar says so (out.notice)
+    var dropped = [], C0 = D().script.conditions, A0 = D().script.actions;
     out.scripts.forEach(function (sc) {
       sc.rules = sc.rules.filter(function (r) {
         if (!r || !r.do) return true;
         if (r.do.stance !== undefined) { if (r.do.doctrine === undefined) r.do.doctrine = r.do.stance; delete r.do.stance; }
         if (r.do.play !== undefined) { delete r.do.play; if (!Object.keys(r.do).length) return false; }
+        var gone = Object.keys(r.when || {}).concat(Object.keys(r.until || {})).filter(function (k) { return !C0[k]; })
+          .concat(Object.keys(r.do).filter(function (k) { return k !== "modules" && !A0[k]; }));
+        if (gone.length) { dropped.push(sc.name + ": " + gone.join(", ")); return false; }
         return true;
       });
     });
+    if (dropped.length) out.notice = "Rules dropped (their conditions no longer exist): " + dropped.join(" · ");
     out.scriptByBuild = {}; Object.keys(s.scriptByBuild || {}).forEach(function (id) { if (D().shipClasses[id]) out.scriptByBuild[id] = s.scriptByBuild[id]; });
     out.plans = {}; Object.keys(s.plans || {}).forEach(function (id) { var pl = s.plans[id]; if (pl && Array.isArray(pl.targets)) out.plans[id] = pl; });
     out.tuning = {}; Object.keys(s.tuning || {}).forEach(function (id) { if (D().shipClasses[id] && Array.isArray(s.tuning[id])) out.tuning[id] = s.tuning[id]; });
@@ -214,7 +220,7 @@ BS.Campaign = (function () {
       var kind = e.kind || "solo";
       if (bossSlot) return kind === "boss";
       if (kind === "boss") return false;
-      if (kind === "fleet") return hulls >= R.fleetMinHulls;
+      if (kind === "fleet") return hulls >= (e.minHulls || R.fleetMinHulls);
       return true;
     });
     if (!pool.length) pool = D().campaign.encounters.filter(function (e) { return (e.kind || "solo") === "solo" && wonAt >= e.minWins; });

@@ -127,10 +127,9 @@ tell the helm how to fly relative to it, and you switch modules on and off.
 - A ship with no weapons and no engines left is **disabled** and the battle
   ends. Disabling the enemy instead of destroying it pays 25% of its
   remaining block value as **salvage** (10% for a wreck).
-- Enemies: Bird-of-Prey raiders in several layouts (and random variants
-  from the third battle), then the heavier K't'inga battlecruiser from the
-  fifth battle onward. Every win makes them 4% stronger; bigger enemies pay
-  more credits.
+- Enemies: Bird-of-Prey raiders in several layouts, then the heavier
+  K't'inga battlecruiser from the fifth battle onward. Every win makes them
+  4% stronger; bigger enemies pay more credits.
 - Each enemy fights its own way, and the Overview status column tells you
   which: a **strafing** raider runs in, makes a close firing pass and breaks
   off to come around again; a **brawler** orbits close and reverses
@@ -208,7 +207,6 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `balance.speeds / maxStepsPerFrame` | Battle speed buttons and the fixed steps a frame may run |
 | `campaign.firstFight`, `campaign.encounters[].script` | The first fight's enemy overrides; which script each encounter runs |
 | `campaign.salvage` | Share of the enemy's surviving block value paid after a win (destroyed / disabled / captured) |
-| `grid.variant` | How much a random enemy variant differs from its base layout |
 | `shipClasses.*.mask / layout / variants` | Hull shapes, default builds, enemy layouts |
 | `modules.*` (booster, hardener, afterburner) | Built-in active systems |
 | `shipClasses.*.presets` | Preset builds offered in the editor |
@@ -237,7 +235,7 @@ index.html      entry point
 css/            LCARS interface styles
 js/             data, grid, game loop, ships, modules, weapons, crew voices, enemy AI (the doctrine machine), fleet, scripts, campaign, hangar, UI, renderer, effects
 assets/         optional sprites / sounds (empty in MVP)
-tools/          harness.js (accelerated balance runs, DESIGN.md §8: forced encounter, enemy variant, equal-hull duels, tuning per side, fleets on both sides, --perf cost) and smoke.js (headless interface check, desktop, phone and a fleet of four); plain Node + Playwright, not needed to play
+tools/          harness.js (accelerated balance runs, DESIGN.md §8: forced encounter, equal-hull duels, tuning per side, fleets on both sides, --perf cost) and smoke.js (headless interface check, desktop, phone and a fleet of four); plain Node + Playwright, not needed to play
 DESIGN.md       full game design and data structures
 CHANGELOG.md    version history
 CLAUDE.md       rules for AI-assisted development sessions

@@ -187,20 +187,20 @@
       <div class="lcars-bar c-orange head"><span class="bar-label">STARBASE 11 · HANGAR</span><span class="hg-head-right"><span id="hg-record">0 won · 0 lost</span> · <span id="hg-threat"></span> · <b id="hg-credits">0 cr</b></span></div>
       <div class="hangar-grid">
         <section class="hg-col">
+          <h3>Flagship <small>the hull in the editor</small></h3>
+          <div id="hg-ship" class="hg-ship"></div>
+          <h3>Fleet <small>owned hulls: who undocks with the flagship</small></h3>
+          <div id="hg-ships" class="hg-list"></div>
+          <h3>Script <small>the bridge fights by these orders</small></h3>
+          <div id="hg-script" class="hg-script"></div>
           <h3>Intel <small>what sensors know about the next enemy</small></h3>
           <div class="hg-intel">
             <canvas id="hg-intel-view" width="250" height="140" title="The next enemy's layout. Tap a block to make it the next plan target."></canvas>
             <div id="hg-intel-info" class="hg-intel-info"></div>
           </div>
           <div id="hg-plan" class="hg-plan"></div>
-          <h3>Tuning <small>the ring: which modulation beats which</small></h3>
+          <h3>Tuning <small>one modulation each for weapons, shields and armor</small></h3>
           <div id="hg-doctrine" class="hg-doctrine"></div>
-          <h3>Script <small>the bridge fights by these orders</small></h3>
-          <div id="hg-script" class="hg-script"></div>
-          <h3>Your ship</h3>
-          <div id="hg-ship" class="hg-ship"></div>
-          <h3>Shipyard</h3>
-          <div id="hg-ships" class="hg-list"></div>
         </section>
         <section class="hg-col hg-fit">
           <h3>Build <small>click or drag to paint · right-click erases · mirror keeps both sides equal</small></h3>
@@ -208,7 +208,6 @@
           <div id="hg-palette" class="hg-palette"></div>
           <div class="hg-tools">
             <button id="btn-mirror" class="lcars-btn c-blue" title="Paint both sides at once">Mirror</button>
-            <button id="btn-tune" class="lcars-btn c-purple" title="Tune mode: paint shield frequencies, armor alloys and ammo modulations block by block (the ring: each beats the next)">Tune</button>
             <button id="btn-fill" class="lcars-btn c-lilac" title="Fill every empty cell with armor">Fill armor</button>
             <button id="btn-clear" class="lcars-btn c-lilac" title="Remove everything but the bridge">Clear</button>
             <select id="hg-presets" class="lcars-select"></select>
