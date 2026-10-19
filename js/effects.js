@@ -102,6 +102,7 @@ BS.Effects = (function () {
     spawn({ x: t.x + U.rand(-1, 1), y: t.y + U.rand(-1, 1), vx: -Math.cos(t.heading) * 20 + U.rand(-8, 8), vy: -Math.sin(t.heading) * 20 + U.rand(-8, 8), life: U.rand(0.35, 0.6), size: U.rand(2, 3.5), color: c, type: "glow", drag: 1.5, grow: -3 });
   }
 
+  var charges = [];   // { ship, block, life, maxLife, color } charging weapons (weaponCharging)
   function hexToRgb(hex) {
     var n = parseInt(hex.slice(1), 16);
     return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
@@ -124,6 +125,8 @@ BS.Effects = (function () {
       if (viewer(e.ship)) addShake(big ? 9 : 3);
       else if (big) addShake(2);
     });
+    // a charging weapon (0.33): a growing glow on the block until it fires
+    BS.Events.on("weaponCharging", function (e) { charges.push({ ship: e.ship, block: e.block, life: e.time, maxLife: e.time, color: hexToRgb(e.block.def.weapon.color || "#9dffb0") }); });
     BS.Events.on("subsystemDamaged", function (e) {
       var pt = e.subsystemPoint || e.impact;
       sparks(pt.x, pt.y, 8, 140, [255, 255, 200]); smoke(pt.x, pt.y, 2); flash(pt.x, pt.y, 9, [255, 240, 200], 0.2);
@@ -265,6 +268,13 @@ BS.Effects = (function () {
         }
       }
       if (f.death && Math.random() < dt * 2.5) { var c = f.cells[Math.floor(Math.random() * f.cells.length)], q = fragmentCellWorld(f, c); smoke(q.x, q.y, 1, [90, 85, 90], 12); if (Math.random() < 0.5) fire(q.x, q.y, 1); }
+    }
+    for (i = charges.length - 1; i >= 0; i--) {
+      var ch = charges[i]; ch.life -= dt;
+      if (ch.life <= 0 || !ch.block.alive || ch.ship.flags.destroyed) { charges.splice(i, 1); continue; }
+      var cw = BS.Grid.blockWorld(ch.ship, ch.block), grow = 1 - ch.life / ch.maxLife;
+      flash(cw.x, cw.y, 6 + grow * 22, ch.color, 0.08);
+      if (Math.random() < dt * (6 + grow * 20)) sparks(cw.x, cw.y, 2, 40 + grow * 80, ch.color);
     }
     shake.intensity = Math.max(0, shake.intensity - BS.Data.visuals.shakeDecay * dt * (1 + shake.intensity * 0.1));
     for (i = 0; i < ships.length; i++) updateShipDamageFX(ships[i], dt);

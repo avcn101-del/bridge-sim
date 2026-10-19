@@ -298,6 +298,9 @@ BS.Campaign = (function () {
     // the enemy side (0.31): the ship above, then every entry of pick.ships (a fleet encounter), each rolled from the
     // same seeded stream so the hangar and the battle agree
     enc.ships = [shipSpec(enc)].concat((pick.ships || []).map(function (ent) { return extraSpec(ent, rng, name); }));
+    enc.kind = pick.kind || "skirmish";
+    // a boss's reinforcements (0.33): spawned by its script's `summon` action, rolled here so hangar and battle agree
+    enc.reinforcements = (pick.reinforcements || []).map(function (ent) { return extraSpec(ent, rng, name); });
     if (enc.ships.length > 1) enc.label += " +" + (enc.ships.length - 1);
     return enc;
   }

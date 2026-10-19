@@ -67,7 +67,7 @@ BS.Game = (function () {
     if (!dry) { BS.UI.clearLog(); BS.UI.hideOverlays(); }
     state.dry = dry;
     state.time = 0; state.paused = false; state.result = null; state.resultHow = null; state.endTimer = 0; state.hover = null; state.reward = null; state.lockTime = 0; state.boardingLog = null;
-    state.speed = 1; state.calls = BS.Data.script.bridgeCall.tokens; state.callsUsed = 0; state.callLog = [];
+    state.speed = 1; state.calls = BS.Data.script.bridgeCall.tokens; state.callsUsed = 0; state.callLog = []; state.summoned = false;
     // what the fight looked like (0.26): damage landed per pair of standing rules (their rule | our rule), and each
     // ship's style (time per doctrine, side and aim, average range, cloaked and governor-off time) for the report's
     // "why you lost" and the campaign's signature of a win
@@ -88,9 +88,7 @@ BS.Game = (function () {
     var enc = BS.Campaign.encounter();
     enc.ships.forEach(function (sp, i) {
       var off = (i - (enc.ships.length - 1) / 2) * spacing, ox = Math.cos(ang + Math.PI / 2) * off, oy = Math.sin(ang + Math.PI / 2) * off;
-      var e = BS.Ships.create(sp.classId, { name: sp.name, team: "enemy", layout: sp.rows, tuning: sp.tuning || null, pos: { x: Math.cos(ang) * dist + ox, y: Math.sin(ang) * dist + oy }, heading: ang + Math.PI, statMult: BS.Campaign.enemyStatMult(sp.aiProfile), mods: { damageMult: sp.damageMult || BS.Data.enemyAI[sp.aiProfile].damageMult } });
-      e.spec = sp;
-      enemies.push(e);
+      enemies.push(spawnEnemy(sp, { x: Math.cos(ang) * dist + ox, y: Math.sin(ang) * dist + oy }, ang + Math.PI));
     });
     var enemy = enemies[0];
     state.encounter = enc;
@@ -99,14 +97,7 @@ BS.Game = (function () {
     // every ship fights its nearest hostile to begin with (BS.Fleet); both bridges fight by a script (BS.Script): the
     // enemy's names its doctrine ("encounter") and plays; the player's is the one assigned to each hull in the hangar,
     // a template by default (opts.script overrides the flagship's)
-    enemies.forEach(function (e) {
-      var sp = e.spec, t = BS.Fleet.nearestHostile(e) || player, overrides = {};
-      if (sp.weakPointChance !== null && sp.weakPointChance !== undefined) overrides.weakPointChance = sp.weakPointChance;
-      e.target = t;
-      BS.EnemyAI.attach(e, t, sp.aiProfile, sp.doctrine, Object.keys(overrides).length ? overrides : null);
-      var es = BS.Script.resolve(BS.Data.script.enemyScripts[sp.script] || BS.Data.script.enemyScripts.doctrine);
-      BS.Script.start(e, t, bindDoctrine(es, sp.doctrine));
-    });
+    enemies.forEach(function (e) { bindEnemy(e, BS.Fleet.nearestHostile(e) || player); });
     players.forEach(function (pl, i) {
       var t = BS.Fleet.nearestHostile(pl) || enemy;
       pl.target = t; pl.selected = t;
@@ -153,6 +144,39 @@ BS.Game = (function () {
   function cancelDryRun() { dryToken++; if (state.dry) { state.phase = "ended"; state.dry = false; state.paused = false; } }
   function B() { return BS.Data.balance; }
 
+  // One enemy hull from an encounter spec (BS.Campaign.encounter().ships / .reinforcements), not yet fighting.
+  function spawnEnemy(sp, pos, heading) {
+    var prof = BS.Data.enemyAI[sp.aiProfile] || BS.Data.enemyAI.default;
+    var e = BS.Ships.create(sp.classId, { name: sp.name, team: "enemy", layout: sp.rows, tuning: sp.tuning || null, pos: pos, heading: heading, statMult: BS.Campaign.enemyStatMult(sp.aiProfile), mods: { damageMult: sp.damageMult || prof.damageMult, shieldMaxMult: prof.shieldMult || 1, shieldRegenMult: prof.shieldRegenMult || 1 } });
+    e.spec = sp;
+    return e;
+  }
+  // Its doctrine machine and bridge script, against a first target.
+  function bindEnemy(e, t) {
+    var sp = e.spec, overrides = {};
+    if (sp.weakPointChance !== null && sp.weakPointChance !== undefined) overrides.weakPointChance = sp.weakPointChance;
+    e.target = t;
+    BS.EnemyAI.attach(e, t, sp.aiProfile, sp.doctrine, Object.keys(overrides).length ? overrides : null);
+    var es = BS.Script.resolve(BS.Data.script.enemyScripts[sp.script] || BS.Data.script.enemyScripts.doctrine);
+    BS.Script.start(e, t, bindDoctrine(es, sp.doctrine));
+  }
+  // Script action `summon` (0.33): the encounter's reinforcements drop in astern of the ship, once per battle.
+  function summon(ship) {
+    var enc = state.encounter, specs = enc ? enc.reinforcements : null;
+    if (!specs || !specs.length) return "no reinforcements";
+    if (state.summoned) return "already called";
+    state.summoned = true;
+    var B = BS.Data.balance, spacing = BS.Ships.px(B.fleetSpacingKm), back = ship.heading + Math.PI, out = [];
+    specs.forEach(function (sp, i) {
+      var off = (i - (specs.length - 1) / 2) * spacing, d = ship.visual.length * 0.9 + spacing;
+      var e = spawnEnemy(sp, { x: ship.pos.x + Math.cos(back) * d + Math.cos(back + Math.PI / 2) * off, y: ship.pos.y + Math.sin(back) * d + Math.sin(back + Math.PI / 2) * off }, ship.heading);
+      state.teams.enemy.push(e); state.ships.push(e);
+      bindEnemy(e, BS.Fleet.nearestHostile(e) || state.player);
+      out.push(e);
+    });
+    BS.Events.emit("reinforcements", { ship: ship, ships: out });
+    return null;
+  }
   // An enemy script's "doctrine: encounter" means the doctrine the encounter rolled.
   function bindDoctrine(sc, doctrineId) {
     var out = JSON.parse(JSON.stringify(sc));
@@ -285,6 +309,6 @@ BS.Game = (function () {
   }
   function openHangar() { BS.UI.hideOverlays(); state.phase = state.player ? "ended" : "start"; BS.Hangar.show(); }
 
-  var api = { teamHull: teamHull, styleTags: styleTags, counterSentence: counterSentence, templateId: templateId, init: init, startBattle: startBattle, dryRun: dryRun, cancelDryRun: cancelDryRun, openHangar: openHangar, command: command, bridgeCall: bridgeCall, setSpeed: setSpeed, togglePause: togglePause, setHover: setHover, setZoom: setZoom, state: state, step: step };
+  var api = { teamHull: teamHull, summon: summon, styleTags: styleTags, counterSentence: counterSentence, templateId: templateId, init: init, startBattle: startBattle, dryRun: dryRun, cancelDryRun: cancelDryRun, openHangar: openHangar, command: command, bridgeCall: bridgeCall, setSpeed: setSpeed, togglePause: togglePause, setHover: setHover, setZoom: setZoom, state: state, step: step };
   return api;
 })();

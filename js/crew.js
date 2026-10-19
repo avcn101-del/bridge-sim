@@ -202,7 +202,9 @@ BS.Crew = (function () {
     BS.Events.on("bridgeCallNothing", function (e) { if (e.ship === ship) report("engineering", "remodNothing", { why: e.why.replace(/^remodulate: /, "") }, "warn"); });
     BS.Events.on("scriptAim", function (e) { if (e.ship === ship) report("tactical", "aimWeak", { label: e.label }); });
     // an enemy reaction rule with a callout: Tactical reads it out (the enemy's script stays hidden, its moves do not)
-    BS.Events.on("scriptCallout", function (e) { if (e.ship === enemy) say("tactical", e.text, "warn"); });
+    BS.Events.on("scriptCallout", function (e) { if (e.ship && e.ship.team === "enemy") say("tactical", e.text, "warn"); });
+    // a charging weapon (0.33): the tell every bridge hears
+    BS.Events.on("weaponCharging", function (e) { if (!ship || !e.target || e.target.team !== ship.team) return; if (e.target === ship) report("tactical", "lanceOnUs", { t: Math.round(e.time) }, "warn"); else report("tactical", "lanceOnAlly", { name: e.target.name, t: Math.round(e.time) }, "warn"); });
     // second-generation EW and boarding
     BS.Events.on("decoyLaunched", function (e) { if (e.ship === ship) report("tactical", e.incoming > 0 ? "decoyLaunched" : "decoyNoTorpedoes"); else if (e.ship === enemy) report("tactical", "enemyDecoy"); });
     BS.Events.on("torpedoLured", function (e) { if (e.ship === ship && now() - (ship._luredReported || -99) > 6) { ship._luredReported = now(); report("tactical", "decoyLured"); } });

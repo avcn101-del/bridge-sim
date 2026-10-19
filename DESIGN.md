@@ -1,6 +1,6 @@
 # DESIGN.md — Bridge Sim
 
-Version: 0.32.0 (fleet scripts); direction in §10. Keep this file in sync with the game.
+Version: 0.33.0 (the first boss); direction in §10. Keep this file in sync with the game.
 
 ## 1. Concept
 
@@ -1139,6 +1139,58 @@ The script engine learns to speak about more than one enemy.
   the role blocks of 0.34; the editor's "about" dropdown appears once a
   rule has a condition.
 
+### Bosses: the Borg cube (0.33, `shipClasses.borg_cube`, `enemyAI.boss`, `script.enemyScripts.borg`, encounter `cube`)
+The first boss of §10. An encounter with `kind: "boss"` brings one large hull
+whose mechanics are rules of its script, each with a callout the fleet can
+script against, plus `reinforcements` its script summons.
+- **The hull**: a 24×24 cube (576 cells, 33k hull hp before the boss
+  profile's `statMult` 1.8), cutting beams at the centre of the fore, port
+  and starboard faces, disruptor cannons on all four faces, 12 shield
+  emitters on the fore, port and starboard sides only, 11 reactors
+  clustered toward the aft, the bridge at the centre. Shields: 360 per
+  covered facing × the profile's `shieldMult` 4 (`mods.shieldMaxMult`),
+  80 aft. Speed multiplier at the floor (0.35: slow), turn rate 24°/s,
+  signature 1400 (torpedoes hit it for full damage; it locks slowly on
+  nothing). Faction `borg`, default modulation Antiproton.
+- **Cutting beam** (block `lance`, `enemyOnly`): a turret with
+  `weapon.charge` 6 s. When it would fire it charges instead (event
+  `weaponCharging`, the tell: Tactical calls "Cutting beam charging on us",
+  a glow grows on the block, the scan panel lists the charge), then fires
+  at the ship it charged on whatever the arc, 520 damage × the profile's
+  1.6, 8 blocks deep. Tracking 0.35 rad/s: an orbit on the afterburner is
+  nearly immune, a ship holding station or closing is cut open. Conditions
+  `lanceCharging` (on us) and `allyLanced` (on an ally).
+- **The script** (`enemyScripts.borg`): scan inside 20 km; every 30 s turn
+  on the nearest ship (`notTargeting: nearest` → `target: nearest`,
+  callout); remodulate shields when our ammo beats them (`every: 45`); at
+  60% hull **summon** the reinforcements once (two assimilated
+  Birds-of-Prey drop in astern of the cube: `BS.Game.summon`, encounter
+  `reinforcements`, event `reinforcements`); at 420 s **overdrive** once
+  (`BS.Ships.overdrive`, `enemyAI.overdrive`: damage ×1.5, speed ×1.25 for
+  the rest of the fight, the enrage); roll a fresh face when blind 4 s;
+  otherwise the broadside doctrine (band 4.5–7 km, the strongest facing
+  toward the target, so the bare aft stays away from whoever it fights).
+- **Profile `boss`**: never retreats (`retreatHull` 0), no weak-point
+  hunting, sprays (`targetWeights` none 0.6), `statMult` 1.8, `damageMult`
+  1.6, `shieldMult` 4, `shieldRegenMult` 2.
+- **The intended answer**, template **Cube breaker**: skirmish on the
+  afterburner while a beam charges on us; with two or more enemies left,
+  target the smallest (the escorts first); scan, retune the ammo when
+  beaten; otherwise target the biggest, keep to their aft and shoot the
+  reactors. Measured in §8: it wins where the Brawler and the Wolf pack
+  lose. The aft halves the fight; the dodge rule changed nothing for a
+  fleet already astern (no beam faces aft); killing the escorts first and
+  concentrating on the cube is what turns the loss.
+- **New vocabulary**: subject `smallest`; conditions `notTargeting:
+  <subject>`, `enemiesAtLeast`, `lanceCharging`, `allyLanced`; actions
+  `summon` and `overdrive` (`enemyOnly`: not in the editor). Blocks marked
+  `enemyOnly` are not in the palette and fail `validateLayout` on a
+  Federation hull. Callouts from any enemy hull reach Tactical (0.32 read
+  only the primary enemy's).
+- The `cube` encounter is out of the campaign pool (`minWins` 999) until
+  the runs of 0.35; the harness reaches it with `--enemy cube`, and the
+  smoke test's fleet pass fights it.
+
 ### Win / lose
 Enemy side beaten → Victory; player side beaten → Defeat; the last enemy
 bridge taken by a boarding party → Victory ("captured"). Result overlay with
@@ -1231,6 +1283,7 @@ campaign.firstFight: { weakPointChance }; campaign.encounters[].script; campaign
 campaign.salvage: { destroyed, disabled, captured }; enemyAI.*: drainedBelow, drainedUntil, drainedTime; enemyAI.counters[].when.neutMin
 0.31: balance.fleetSpacingKm; campaign.fleetMax; campaign.encounters[].ships: [{ enemyClass, layout, doctrine, script, damageMult }]; save.fleet: [classId]; ship: team, target, contacts{}, flags.captured; state: teams { player: [], enemy: [] }, enemyFlag
 0.32: script.subjects; rule.about; action target; conditions allyShieldBelow / allyHullBelow / allyUnderFire / outnumbered / enemiesAtMost / unfocused; templates.wolfpack; ship: scannedOf{}, scanTarget
+0.33: blocks.lance (enemyOnly, weapon.charge); modules.lance_group; shipClasses.borg_cube; enemyAI.boss (shieldMult, shieldRegenMult), enemyAI.overdrive; campaign.encounters[].kind / reinforcements; script.enemyScripts.borg; templates.cubebreaker; conditions notTargeting / enemiesAtLeast / lanceCharging / allyLanced; actions summon / overdrive; tuning.factionDefault.borg; block: charging, chargeTarget; ship: overdriven; state: summoned
 shipClasses: { id: { name, className, role, faction, cost, purchasable, speed, turnRate, signature, lockRangeKm, powerBase,
                      mask: [rows], layout: [rows], presets: { id: { name, desc, rows } }, variants: { id: { name, desc, rows } } (enemies),
                      aiProfile?, visual: { kind, sprite, nacelleColor, hullTint } } }
@@ -1272,6 +1325,31 @@ harness is in the repository: `tools/harness.js` (Playwright, one
 `campaign.encounters`, seeded `Math.random`, `--noreact` for the 0.24 enemy
 bridge, `--eval` for a data tweak, `--debug` for what each bridge saw) and
 `tools/smoke.js` (the headless interface check).
+
+v0.33.0 (the first boss; four Federation hulls, the same script on all four,
+`--enemy cube --wins 0`, seeds 1–4 for the two rows that decide, 1–2 for
+the rest, `--max 600`):
+
+| Fleet script | Outcome |
+|---|---|
+| **Brawler** | **0 of 4**: lost in 7:10–8:35 keeping 31–35%, the cube at 46–49% hull, one escort destroyed at most |
+| Wolf pack | 0 of 2: lost in 7:10–8:35, as the Brawler |
+| **Cube breaker** | **4 of 4** in 4:31–5:31 keeping 83–93%: cube and both escorts destroyed (once the cube disabled), one hull lost in one fight |
+| Cube breaker without the dodge rule | 2 of 2 in 4:55–5:01 keeping 87–90% |
+| Cube breaker without the aft side (any side, no aim) | 2 of 2 in 7:58–9:15 keeping 72–93%: the enrage at 7:00 fired in both |
+
+Cost (`--perf`, cube + four hulls before the escorts, 1,402 blocks): 13 ms
+per simulated second, 10.2 ms per frame headless without a GPU.
+
+Honest reading: the first boss meets the §10 target exactly: the intended
+solution wins 4 of 4 and the two generic fleet scripts lose 0 of 6. Of the
+mechanics, the escorts (killed first or they stay on you) and
+concentration on the cube turn the loss; the bare aft halves the fight;
+the cutting beam punishes the Brawler's close orbit on the three armed
+faces but costs a fleet astern nothing, so the dodge rule is insurance
+for the approach, not a solution. The remodulation never fired (nobody
+tunes off the Federation default yet), and the enrage fired only in the
+slow fights. Bosses are tuned by data (`enemyAI.boss`), not by rules.
 
 v0.32.0 (fleet scripts: subjects, the target action; the Raider and
 Cruiser scripts gained the `unfocused` rule, so enemy packs concentrate
@@ -1852,9 +1930,10 @@ than slower (it is nearly untouched, as intended).
 | B (done, v0.4) | Hangar with slot fitting, market, credits, real-time skills, save |
 | v0.5 PR 1 (done) | Block grid hulls, nine block types, per-block damage with penetration, splash and section loss, grid renderer, build preview and statistics |
 | v0.5 PR 2 (done) | Hangar block editor (paint, erase, mirror, presets), block costs and refunds, saved builds |
+| v0.33.0 (done) | The first boss (§4 "Bosses"): the Borg cube, the cutting beam with a charge tell, summoned escorts, overdrive, the boss script with callouts, the Cube breaker template, enemy-only blocks and actions |
 | v0.32.0 (done) | Fleet scripts (§4): subjects (`about`), the `target` action, ally and count conditions, scans per ship, the Wolf pack template, enemy packs that concentrate fire, the report per hull |
 | v0.31.0 (done) | Fleet engine (§4, §10): teams, N ships against M, target selection and retargeting, team elimination, viewer and primary enemy, camera over every ship, encounters with `ships`, `save.fleet`, harness fleets and `--perf`, deterministic harness, learning zeroed |
-| v0.33–0.35 (planned) | Fleet direction, §10: the first boss with three mechanics, role blocks (shield transfer, remote repair, beacon) on role cells with the transfer actions, fleet hangar with roster and repair bills, skirmish-then-boss runs |
+| v0.34–0.35 (planned) | Fleet direction, §10: role blocks (shield transfer, remote repair, beacon) on role cells with the transfer actions, fleet hangar with roster and repair bills, skirmish-then-boss runs |
 | v0.5 PR 3 (done) | Masks for Miranda, Defiant, Excelsior, Galaxy, Sovereign; K't'inga; enemy layouts, random variants and encounters; fragments and shatter; balance pass |
 | v0.5.3 (done) | Enemy doctrines: strafe, brawl, standoff, broadside; tail-chase detection; status labels and callouts |
 | v0.6.0 (done) | Cosmoteer ideas: reactor breaches that chain, line of fire blocked by the own hull, armor pierce cost, disabled ships and salvage |
@@ -1942,15 +2021,18 @@ Oberth jams better while any hull can still be built freely.
   §8 v0.29) so a hybrid hull is a real build choice and a boss remodulation
   punishes without one-shotting.
 
-### The first boss (three mechanics)
+### The first boss (done in 0.33: the Borg cube, §4 "Bosses")
 
-1. **Lance**: a 6 s tell (callout), then a hull-penetrating beam at the
-   nearest ship. Punishes a close orbit; needs a tank or a spread.
-2. **Exposed core**: shields down on one side only while the boss rolls;
-   the reactors are reachable there. Needs positioning rules.
-3. **Adds** at 60% hull: two Birds-of-Prey. Needs "switch target" rules.
-4. **Remodulation** (optional fourth, Borg style): the boss changes shield
-   frequency with a callout; the fleet answers with `remodulate: ammo`.
+1. **Cutting beam**: a 6 s charge with a callout, then a beam 8 blocks deep
+   into the ship it charged on; low tracking. Punishes a close orbit on
+   the three armed faces.
+2. **Exposed core**: no shield emitters on the aft face, the reactors
+   clustered behind it; the broadside doctrine keeps the aft away.
+   Attack side `aft` reaches it.
+3. **Escorts** at 60% hull: two Birds-of-Prey summoned astern. "Target the
+   smallest while two or more are left."
+4. **Remodulation**: the cube retunes its shields when our ammo beats them.
+5. **Overdrive** at 7 minutes: damage ×1.5, speed ×1.25, the enrage.
 
 ### Templates: why only the Brawler wins, and the rule for new ones
 
@@ -2000,7 +2082,7 @@ Decisions:
 |---|---|
 | 0.31 (done) | Engine for N v M: teams, ship arrays per side, target selection, camera fitting every ship, harness for fleets; measured with **8 block grids** (§4 "Fleet engine", §8) |
 | 0.32 (done) | Script subjects and the target action; one script per hull; report per hull; the Wolf pack template (4 of 4 against the pack where the Brawler is 0 of 4). Transfer actions moved to 0.34 with their blocks |
-| 0.33 | The first boss hull with the three mechanics, callouts, book; enrage |
+| 0.33 (done) | The Borg cube (§4 "Bosses"): cutting beam with a tell, bare aft over the core, summoned escorts, remodulation, enrage at 7 min; the Cube breaker wins 4 of 4 where the Brawler loses 0 of 4 |
 | 0.34 | Role blocks (shield transfer, remote repair, beacon) and role cells in the masks |
 | 0.35 | Fleet hangar (four hulls, roster per fight, repair bills), the skirmish-then-boss run in `campaign.encounters`, skirmish modifiers |
 

@@ -2,8 +2,9 @@
 // battle run for N simulated seconds at desktop size and at phone landscape (844×390, touch), and fail on any console
 // error (a blocked Google Fonts request is not one).
 //   NODE_PATH=/opt/node-tools/node_modules node tools/smoke.js [--seconds 40]
-// A third pass (0.31) undocks a fleet of four against the "pack" encounter and runs the battle to its end (at most
-// --fleet-seconds 420 simulated), so the panels, the viewer hand-over and the result screen are exercised with eight hulls.
+// A third pass (0.31) undocks a fleet of four against the "cube" boss encounter (0.33: the cube, its summoned escorts,
+// its callouts and the charging beam) and runs the battle to its end (at most --fleet-seconds 420 simulated), so the
+// panels, the viewer hand-over and the result screen are exercised with the biggest grids the game has.
 var path = require("path"), pw = require("playwright");
 var seconds = parseInt((process.argv.indexOf("--seconds") >= 0 ? process.argv[process.argv.indexOf("--seconds") + 1] : "40"), 10);
 var fleetSeconds = parseInt((process.argv.indexOf("--fleet-seconds") >= 0 ? process.argv[process.argv.indexOf("--fleet-seconds") + 1] : "420"), 10);
@@ -17,7 +18,7 @@ async function play(browser, label, ctxOpts, fleet) {
   await page.evaluate(function () { BS.Campaign.reset(); });
   await page.reload(); await page.waitForFunction(function () { return window.BS && BS.Game; });
   if (fleet) {   // four hulls against the pack: the save owns them, the encounter pool holds only the pack
-    await page.evaluate(function () { var sv = BS.Campaign.get(); ["miranda", "defiant", "excelsior"].forEach(function (id) { if (sv.ownedShips.indexOf(id) < 0) sv.ownedShips.push(id); }); BS.Campaign.setFleet(["miranda", "defiant", "excelsior"]); BS.Data.campaign.encounters = BS.Data.campaign.encounters.filter(function (e) { return e.id === "pack"; }).map(function (e) { return Object.assign({}, e, { minWins: 0 }); }); });
+    await page.evaluate(function () { var sv = BS.Campaign.get(); ["miranda", "defiant", "excelsior"].forEach(function (id) { if (sv.ownedShips.indexOf(id) < 0) sv.ownedShips.push(id); }); BS.Campaign.setFleet(["miranda", "defiant", "excelsior"]); BS.Data.campaign.encounters = BS.Data.campaign.encounters.filter(function (e) { return e.id === "cube"; }).map(function (e) { return Object.assign({}, e, { minWins: 0 }); }); ["miranda", "defiant", "excelsior", "constitution"].forEach(function (id) { sv.scriptByBuild[id] = "cubebreaker"; }); });
     seconds = fleetSeconds;
   }
   // start screen → hangar → Undock, through the real buttons

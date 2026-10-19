@@ -39,6 +39,17 @@ BS.Modules = (function () {
     blocks.forEach(function (b) {
       var w = b.def.weapon;
       var cycle = w.cycle * ship.mods.cycleMult / ((ship.stats.powerFactor || 1) * (ship.stats.crew ? ship.stats.crew.manning : 1) * (b.powerMult || 1));   // brownout / short crew / out of reactor range: slower cycling
+      // a charging weapon (w.charge, 0.33): the capacitor was spent when the charge began; it fires at the ship it charged
+      // on when the time is up, arc or not, dead or not (a lost target wastes the shot)
+      if (b.charging > 0) {
+        b.charging -= dt;
+        if (b.charging > 0) return;
+        var ct = b.chargeTarget; b.charging = 0; b.chargeTarget = null;
+        if (ct && !ct.flags.destroyed && !ship.flags.destroyed) { BS.Weapons.fireTurretBlock(ship, b, ct); fired++; ship.heat += w.heat || 0; }
+        b.cycleLeft = cycle;
+        BS.Events.emit("weaponCharged", { ship: ship, block: b, target: ct });
+        return;
+      }
       if (b.cycleLeft > 0) b.cycleLeft -= dt;
       if (b.cycleLeft <= 0) ready++;
       if (!m.active || b.cycleLeft > 0) return;
@@ -56,6 +67,7 @@ BS.Modules = (function () {
       if (!blockCanFire(ship, b, target)) { if (reason === "ok") reason = "arc"; return; }
       if (ship.capacitor < w.cap) { reason = "nocap"; return; }
       ship.capacitor -= w.cap;
+      if (w.charge) { b.charging = w.charge; b.chargeTarget = target; BS.Events.emit("weaponCharging", { ship: ship, block: b, target: target, time: w.charge, pos: BS.Grid.blockWorld(ship, b) }); return; }
       if (w.kind === "turret") BS.Weapons.fireTurretBlock(ship, b, target); else BS.Weapons.fireLauncherBlock(ship, b, target);
       b.cycleLeft = cycle; fired++;
       ship.heat += w.heat || 0;
@@ -164,6 +176,12 @@ BS.Modules = (function () {
   }
 
   function find(ship, id) { return ship.modules.filter(function (m) { return m.id === id; }); }
+  // The weapons of `ship` charging on `target` (0.33): [{ block, left }], the tell a script can read (lanceCharging).
+  function chargingOn(ship, target) {
+    var out = [];
+    ship.grid.blocks.forEach(function (b) { if (b.alive && b.charging > 0 && (!target || b.chargeTarget === target)) out.push({ block: b, left: b.charging }); });
+    return out;
+  }
   function weapons(ship) { return ship.modules.filter(isWeapon); }
 
   // Heat of the next full salvo: every ready weapon that is active and could fire
@@ -172,5 +190,5 @@ BS.Modules = (function () {
     ship.modules.forEach(function (m) { if (!isWeapon(m) || !m.active) return; weaponBlocks(ship, m).forEach(function (b) { if (b.cycleLeft <= 0 && b.facing !== null) total += b.def.weapon.heat || 0; }); });
     return total;
   }
-  return { fit: fit, update: update, setActive: setActive, pendingSalvoHeat: pendingSalvoHeat, toggle: toggle, find: find, weapons: weapons, isWeapon: isWeapon, weaponBlocks: weaponBlocks, blockCanFire: blockCanFire };
+  return { fit: fit, update: update, setActive: setActive, pendingSalvoHeat: pendingSalvoHeat, toggle: toggle, find: find, weapons: weapons, isWeapon: isWeapon, weaponBlocks: weaponBlocks, blockCanFire: blockCanFire, chargingOn: chargingOn };
 })();

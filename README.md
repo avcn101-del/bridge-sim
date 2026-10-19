@@ -226,6 +226,7 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `shipClasses.*.presets` | Preset builds offered in the editor |
 | `editor.refund / maxSavedBuilds` | Refund on removed blocks, saved builds per hull |
 | `campaign.encounters / enemyScaling / klingonNames` | Which enemy shows up when, which play it runs (`play`), its own damage multiplier (`damageMult`), how it scales, what it pays; `ships` lists the hulls that come with it (a fleet encounter) |
+| `shipClasses.borg_cube`, `enemyAI.boss / overdrive`, `blocks.lance` (`weapon.charge`), `campaign.encounters[].kind / reinforcements`, `script.enemyScripts.borg`, `script.templates.cubebreaker` | The first boss (0.33): its hull and layout, its profile (stat, damage and shield multipliers, no retreat) and enrage, the cutting beam's charge time, damage, depth and tracking, which escorts it summons, the rules and callouts of its bridge, and the template that beats it |
 | `campaign.fleetMax`, `balance.fleetSpacingKm`, `save.fleet` | Hulls a side, how far apart they spawn, which owned hulls undock with the hangar's ship (set by the fleet hangar of 0.35; the harness sets it with `--fleet`) |
 | `campaign.learn.chance / tuneChance` | 0 since 0.31: the enemy no longer answers your last wins (DESIGN §10); the harness forces the path with `--learn` |
 | `campaign.*`, `skills.*` | Economy, training |

@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.32.0",
+  version: "0.33.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -51,6 +51,7 @@ BS.Data = {
     pulse:    { destroyed: "We've lost a pulse phaser!", aim: "Targeting their pulse phasers." },
     shield:   { destroyed: "Shield emitter gone! That facing will be weaker.", aim: "Targeting their shield emitters." },
     reactor:  { destroyed: "Reactor breach! Capacitor capacity is down.", aim: "Targeting their reactors. Starve their power." },
+    lance:    { destroyed: "Their cutting beam emitter is gone!", aim: "Targeting their cutting beam emitters." },
     engine:   { destroyed: "Impulse engine destroyed! We're losing speed.", aim: "Targeting their engines." },
     sensor:   { destroyed: "Sensor array hit! Locks will take longer.", aim: "Targeting their sensors." },
     bridge:   { destroyed: "The bridge... ", aim: "Going for their bridge, Captain. Precision shot." },
@@ -125,7 +126,7 @@ BS.Data = {
     // random enemy variants: a fraction of the base layout's cells is re-rolled (armor → system, system → armor) and the result re-validated
     variant: { fraction: 0.12, attempts: 12, systemWeights: { phaser: 2, disruptor: 3, pulse: 2, shield: 3, reactor: 2, engine: 2, armor: 6, quarters: 1, sensor: 1, torpedo: 1, jammer: 1, decoy: 1, neut: 1 } },
     maskLegend: { ".": "empty", "#": "fillable", "n": "nacelle (engine ×2)", "p": "structure (fixed)" },
-    layoutLegend: { A: "armor", P: "phaser", D: "disruptor", U: "pulse", T: "torpedo", S: "shield", R: "reactor", E: "engine", N: "sensor", B: "bridge", Q: "quarters", J: "jammer", C: "cloak", Y: "decoy", X: "neut" },
+    layoutLegend: { A: "armor", P: "phaser", D: "disruptor", U: "pulse", T: "torpedo", S: "shield", R: "reactor", E: "engine", N: "sensor", B: "bridge", Q: "quarters", J: "jammer", C: "cloak", Y: "decoy", X: "neut", L: "lance" },
   },
 
   editor: {
@@ -158,6 +159,11 @@ BS.Data = {
     // electronic warfare, second generation: a decoy lures torpedoes away for a few seconds; an energy neutraliser drains
     // the locked target's capacitor at short range, so its booster, hardener, afterburner and cloak starve
     decoy:    { letter: "Y", name: "Decoy launcher",  short: "DY", hp: 40, mass: 1, cost: 90,  power: 2, crew: 1, color: "#ffc96b", glyph: "flare", desc: "Module (F-key, 20 s cycle, 15 cap): drops a decoy astern that burns for 8 s. Every torpedo within 3 km of it that was hunting you turns on the decoy instead and blows up on it. Fire it when the volley is 2–4 km out: too early and the decoy burns out before they arrive, too late and they are already on you. One decoy per launcher block per cycle." },
+    // boss weapon (0.33, enemy only): a cutting beam that charges for `charge` seconds (event weaponCharging, the tell)
+    // before it fires at the ship it was charging on, and cuts `pierceBonus` blocks deep. Low tracking: an orbit on the
+    // afterburner is nearly immune, a ship holding station or closing is not.
+    lance:    { letter: "L", name: "Cutting beam",    short: "CB", hp: 90, mass: 4, cost: 600, power: 10, crew: 3, color: "#7dff9e", glyph: "lens", enemyOnly: true, desc: "Boss weapon: charges for 6 s, then a beam that cuts 8 blocks deep into the ship it charged on. Tracking 0.35 rad/s: outrun it on the afterburner.",
+                weapon: { kind: "turret", damage: 520, cycle: 28, cap: 30, heat: 20, optimalKm: 7, falloffKm: 2.5, tracking: 0.35, accuracy: 1, arc: 100, pierceBonus: 8, charge: 6, color: "#9dffb0", coreColor: "#ffffff", beamLife: 0.9 } },
     neut:     { letter: "X", name: "Energy neutraliser", short: "NT", hp: 40, mass: 2, cost: 110, power: 4, crew: 1, color: "#ff6ad5", glyph: "drain", desc: "Module (F-key, 6 s cycle, 20 cap, needs a lock inside 4 km): drains 30 capacitor per neutraliser block from the target each cycle. A ship with no capacitor loses its booster, hardener, afterburner and cloak and fires nothing. It drains your own capacitor too: fit reactors." },
   },
 
@@ -165,6 +171,7 @@ BS.Data = {
   // Weapon groups come from blocks; the three active systems are built into every ship.
   modules: {
     phaser_group:  { kind: "turretGroup",   block: "phaser",  name: "Phaser emitters", short: "PHA", desc: "All phaser emitters fire at the locked target when their arc allows." },
+    lance_group:   { kind: "turretGroup",   block: "lance",   name: "Cutting beams",   short: "CUT", desc: "Boss: every cutting beam charges on the locked target, then fires." },
     disruptor_group: { kind: "turretGroup", block: "disruptor", name: "Disruptor cannons", short: "DIS", desc: "All disruptor cannons fire at the locked target: heavy bolts, short optimal, extra penetration, poor tracking." },
     pulse_group:   { kind: "turretGroup",   block: "pulse",   name: "Pulse phasers",   short: "PUL", desc: "All pulse phasers fire at the locked target: light rapid hits with the best tracking, knife range." },
     torpedo_group: { kind: "launcherGroup", block: "torpedo", name: "Torpedo tubes",   short: "TOR", desc: "All tubes fire forward at the locked target." },
@@ -911,6 +918,68 @@ BS.Data = {
         ] },
       },
     },
+    // The first boss (0.33, DESIGN §10): a Borg cube. 24×24 cells, cutting beams on three faces, cannons on all four,
+    // shield emitters on the fore, port and starboard sides only: the aft face is bare hull over the reactor core.
+    borg_cube: {
+      id: "borg_cube", name: "Borg cube", className: "Borg cube",
+      role: "Boss", faction: "borg", cost: 0, purchasable: false,
+      speed: 300, turnRate: 24, signature: 1400, lockRangeKm: 60,
+      powerBase: 80,
+      aiProfile: "boss",
+      mask: [
+        "########################",
+        "########################",
+        "########################",
+        "########################",
+        "########################",
+        "########################",
+        "########################",
+        "########################",
+        "########################",
+        "########################",
+        "########################",
+        "########################",
+        "########################",
+        "########################",
+        "########################",
+        "########################",
+        "########################",
+        "########################",
+        "########################",
+        "########################",
+        "########################",
+        "########################",
+        "########################",
+        "########################"
+      ],
+      layout: [
+        "AAADAAADAAALAAAADAAADAAA",
+        "AANASAAAASAAAASAAAASAAAA",
+        "AAAAAAAAAAAAAAAAAAAAAANA",
+        "DAAAAAAAAAAAAAAAAAAAAAAD",
+        "AAAAAAAAAAAAAAAAAAAAAASA",
+        "AAARAAAAAAAAAAAAAAAAAAAA",
+        "AAAAAAAAAAAAAARAAAAAAAAA",
+        "DAAAAARAAAAAAAAAAAAAAAAD",
+        "AAAAAAAAAQAAEQAAAQAAAAAA",
+        "AAARAAAAARAQAAAAAAAAAASA",
+        "AAAAAEAEAAQAQAQAEAAAAAAA",
+        "AAAAEAAAEQABAQAAAAAQAAAL",
+        "AAAAEARAEAQAQAAAAAAQAAAL",
+        "AAAAAEAEAAAQAAQAEAAAAAAA",
+        "AAARAAAAARQAQAAAAAAAAASA",
+        "AAAAAAAAAQAAEQAAAQAAAAAA",
+        "DAAAAARAAAAAAAAAAAAAAAAD",
+        "AAAAAAAAAAAAAARAAAAAAAAA",
+        "AAARAAAAAAAAAAAAAAAAAAAA",
+        "AAAAAAAAAAAAAAAAAAAAAASA",
+        "DAAAAAAAAAAAAAAAAAAAAAAD",
+        "AAAAAAAAAAAAAAAAAAAAAANA",
+        "AANASAAAASAAAASAAAASAAAA",
+        "AAADAAADAAALAAAADAAADAAA"
+      ],
+      visual: { kind: "grid", sprite: null, nacelleColor: "120,255,150", hullTint: "#3d4a40" },
+    },
     ktinga: {
       id: "ktinga", name: "IKS Amar", className: "K't'inga class battlecruiser",
       role: "Battlecruiser", faction: "klingon", cost: 0, purchasable: false,
@@ -1070,6 +1139,8 @@ BS.Data = {
       remodNothing: "Nothing to remodulate, Captain: {why}.",
       enemyRemodDone: "Their {what} are back, retuned to {mod}.",
       enemyScanning: "They're scanning us, Captain. They're reading our layout.",
+      lanceOnUs: "Cutting beam charging on us, Captain: {t} seconds. Get us moving!",
+      lanceOnAlly: "Cutting beam charging on the {name}: {t} seconds.",
       aimWeak: "Aye. {label}.",
       reinforceShields: "Reinforcing the {weak} shield from the {strong} grid.",
       reinforceShields_none: "Shields are already balanced, Captain.",
@@ -1261,7 +1332,7 @@ BS.Data = {
       polaron:    { digit: "4", name: "Polaron",    short: "PO", color: "#7fd8a0", how: "Polaron beats Antiproton: a polaron charge cancels an antiproton stream before it annihilates on the target." },
       antiproton: { digit: "5", name: "Antiproton", short: "AP", color: "#ffd166", how: "Antiproton beats Graviton: antiproton annihilation overloads a graviton lattice faster than it can re-form." },
     },
-    factionDefault: { federation: "nadion", klingon: "polaron" },
+    factionDefault: { federation: "nadion", klingon: "polaron", borg: "antiproton" },
     offFactionCost: 0.15,
     // Remodulating in battle (BS.Ships.remodulate, script action `remodulate`, bridge calls Remodulate shields / ammo):
     // every emitter takes the frequency that beats the other ship's dominant ammo, with the deflector down for
@@ -1306,6 +1377,21 @@ BS.Data = {
       weakPointKinds: ["frequency", "emitter", "chain", "blackout", "crew"],   // a raider neither cuts necks nor finishes wounded systems: measured, both turned Engage into a coin flip
       targetWeights: { none: 0.3, exposed: 0.1, phaser: 0.15, reactor: 0.15, engine: 0.12, shield: 0.13, bridge: 0.05 },   // none = spray the hull, no −15% aim penalty; exposed = hull outside shield cover
     },
+    // The boss (0.33): never retreats, never hunts weak points, sprays; its answers are in its script (script.enemyScripts.borg)
+    boss: {
+      doctrine: "broadside",
+      accuracyMult: 0.8, reactionDelay: 1.5, statMult: 1.8, damageMult: 1.6,
+      shieldMult: 4, shieldRegenMult: 2,   // a boss's shield pools and regen on top of what its emitters give (BS.Ships.create mods)
+      retreatHull: 0, retreatMinTime: 8, retreatMaxTime: 16,
+      repositionShield: 0.15, repositionDuration: 8,
+      orbitRangeKm: 6, retreatRangeKm: 20,
+      boosterBelow: 0.4, boosterMinCap: 0.3, afterburnerMinCap: 0.3, weakPointChance: 0,
+      drainedBelow: 0.08, drainedUntil: 0.35, drainedTime: 20,
+      weakPointKinds: [],
+      targetWeights: { none: 0.6, exposed: 0.2, shield: 0.2 },
+    },
+    // overdrive (0.33, script action `overdrive`): a boss's enrage, damage and speed multiplied for the rest of the fight
+    overdrive: { damageMult: 1.5, speedMult: 1.25 },
     // K't'inga: slower to react, holds a longer orbit, fights to the end rather than running
     ktinga: {
       doctrine: "broadside",
@@ -1409,6 +1495,9 @@ BS.Data = {
       // more than one hull; the harness reaches them by id (--enemy pair / --enemy pack).
       { id: "pair",     enemyClass: "bird_of_prey", layout: "default", doctrine: "strafe",    script: "raider",  minWins: 999, weight: 1, rewardMult: 1.8,
         ships: [{ enemyClass: "bird_of_prey", layout: "gunboat", doctrine: "brawl", script: "raider" }] },
+      // the first boss (0.33): `kind: "boss"`, its own script with the mechanics, `reinforcements` summoned by the script
+      { id: "cube",     kind: "boss", enemyClass: "borg_cube", layout: "default", doctrine: "broadside", script: "borg", minWins: 999, weight: 1, rewardMult: 6,
+        reinforcements: [{ enemyClass: "bird_of_prey", layout: "default", doctrine: "strafe", script: "raider" }, { enemyClass: "bird_of_prey", layout: "gunboat", doctrine: "brawl", script: "raider" }] },
       { id: "pack",     enemyClass: "bird_of_prey", layout: "default", doctrine: "strafe",    script: "raider",  minWins: 999, weight: 1, rewardMult: 3.2,
         ships: [{ enemyClass: "bird_of_prey", layout: "gunboat", doctrine: "brawl", script: "raider" }, { enemyClass: "bird_of_prey", layout: "torpedo", doctrine: "standoff", script: "torpedoBoat" }, { enemyClass: "bird_of_prey", layout: "jammer", doctrine: "brawl", script: "raider" }] },
     ],
@@ -1460,7 +1549,7 @@ BS.Data = {
     rangeBands: { beam: "inside our beam optimal", torpedo: "inside our torpedo range", out: "beyond our reach" },   // condition rangeBand, measured off the fitted weapons
     // subjects (0.32, BS.Fleet.subject): a rule's `about` picks which enemy its conditions read ("target" = the ship we
     // are fighting); the action `target` switches our fire to one. "hunter" is null when nobody is shooting at us.
-    subjects: { target: "the ship we are fighting", nearest: "the nearest enemy", weakest: "the enemy with the least hull", biggest: "the biggest enemy", hunter: "the enemy shooting at us", focus: "the enemy most of us are fighting" },
+    subjects: { target: "the ship we are fighting", nearest: "the nearest enemy", weakest: "the enemy with the least hull", biggest: "the biggest enemy", smallest: "the smallest enemy", hunter: "the enemy shooting at us", focus: "the enemy most of us are fighting" },
     // bridge calls (BS.Script.bridgeCall, BS.Game.bridgeCall): the captain's `tokens` interventions per battle, never
     // refilled. A play or side call is an override that stands for holdSeconds and then hands back to the script;
     // Disengage stands until the weakest shield is back over disengageUntil (or holdSeconds); Reinforce acts at once;
@@ -1521,6 +1610,11 @@ BS.Data = {
       outnumbered:      { label: "they outnumber us", kind: "flag" },
       enemiesAtMost:    { label: "{v} or fewer enemies are left", kind: "count", def: 1 },
       unfocused:        { label: "we are not firing at the ship most of us are fighting", kind: "flag" },
+      // 0.33: bosses
+      notTargeting:     { label: "we are not firing at {v}", kind: "subject", def: "nearest" },
+      enemiesAtLeast:   { label: "{v} or more enemies are left", kind: "count", def: 2 },
+      lanceCharging:    { label: "a cutting beam is charging on us", kind: "flag" },
+      allyLanced:       { label: "a cutting beam is charging on an ally", kind: "flag" },
     },
     actions: {
       stance:    { label: "fly {v}", kind: "stance" },
@@ -1538,6 +1632,8 @@ BS.Data = {
       roll:      { label: "come about to bring guns round", kind: "flag" },   // BS.EnemyAI.roll: a reposition toward the side with the most fire
       remodulate:{ label: "remodulate our {v}", kind: "remod" },   // "shields" (frequency that beats their ammo, deflector down meanwhile) or "ammo" (ammo that beats their frequency, weapons cold meanwhile)
       target:    { label: "switch our fire to {v}", kind: "subject" },   // 0.32: script.subjects; the helm, lock and aim follow (BS.Fleet.retarget)
+      summon:    { label: "call in the reinforcements", kind: "flag", enemyOnly: true },   // 0.33: the encounter's `reinforcements` drop in beside the ship, once
+      overdrive: { label: "reroute all power to weapons", kind: "flag", enemyOnly: true }, // 0.33: enemyAI.overdrive for the rest of the fight
     },
     policies: {
       lock:      { label: "keep a lock on the target" },
@@ -1562,6 +1658,16 @@ BS.Data = {
           { when: { enemyHullBelow: 0.4 }, about: "weakest", do: { target: "weakest", stance: "engage", weapons: true, modules: { shield_hardener: true }, governor: true } },
           { when: { unfocused: true }, do: { target: "focus" }, every: 8 },
           { when: {}, do: { stance: "engage", weapons: true, modules: { shield_hardener: true }, governor: true } },
+        ] },
+      // 0.33: the intended answer to the first boss (DESIGN §4 "Bosses"): outrun the cutting beam on the afterburner
+      // while it charges, kill the escorts first, retune the ammo, and work the bare aft over the reactors.
+      cubebreaker: { name: "Cube breaker", desc: "Boss: skirmish on the afterburner while a cutting beam charges on us, finish the escorts first, retune the ammo, then stay on their aft and shoot the reactors.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto", neut: "auto" },
+        rules: [
+          { when: { lanceCharging: true }, do: { stance: "skirmish", modules: { afterburner: true } }, until: { lanceCharging: false }, holdMax: 9 },
+          { when: { enemiesAtLeast: 2 }, about: "smallest", do: { target: "smallest", stance: "engage", weapons: true, modules: { shield_hardener: true }, governor: true } },
+          { when: { scanned: false, dKmBelow: 15 }, do: { scan: true }, once: true },
+          { when: { scanned: true, ourAmmoBeaten: true, remodulating: false }, do: { remodulate: "ammo" }, every: 45 },
+          { when: {}, do: { target: "biggest", stance: "engage", side: "aft", aim: "reactor", weapons: true, modules: { shield_hardener: true }, governor: true } },
         ] },
       siege: { name: "Siege", desc: "Hold at torpedo range with everything that reaches; fight close only when they come inside 5 km.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto" },
         rules: [
@@ -1626,6 +1732,15 @@ BS.Data = {
                         { when: { enemyCloaked: false, scanned: false, dKmBelow: 8 }, do: { scan: true }, once: true },
                         { when: {}, do: { doctrine: "encounter" } } ] },
       torpedoBoat:   { name: "Torpedo boat", rules: [ { when: {}, do: { play: "siege" } } ] },
+      // the first boss (0.33): every mechanic is a rule with a callout the fleet can script against
+      borg:          { name: "Borg cube", rules: [
+                        { when: { scanned: false, dKmBelow: 20 }, do: { scan: true }, once: true },
+                        { when: { notTargeting: "nearest" }, do: { target: "nearest" }, every: 30, callout: "The cube is turning on the nearest ship." },
+                        { when: { scanned: true, enemyAmmoBeatsOurShields: true, remodulating: false }, do: { remodulate: "shields" }, every: 45, callout: "The cube is adapting: its shields are remodulating." },
+                        { when: { hullBelow: 0.6 }, do: { summon: true }, once: true, callout: "Two assimilated Birds-of-Prey are dropping out of warp beside the cube!" },
+                        { when: { time: 420 }, do: { overdrive: true }, once: true, callout: "The cube is rerouting everything to its weapons. Finish it now or not at all." },
+                        { when: { blindFor: 4 }, do: { roll: true }, every: 12, callout: "The cube is rolling a fresh face toward us." },
+                        { when: {}, do: { doctrine: "encounter" } } ] },
       cruiser:       { name: "Cruiser", rules: [
                         { when: { scanned: false, dKmBelow: 14 }, do: { scan: true }, once: true },
                         { when: { unfocused: true }, do: { target: "focus" }, every: 10, callout: "The cruiser is shifting fire to the ship its escorts are on." },

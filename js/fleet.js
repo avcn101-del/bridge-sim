@@ -41,6 +41,7 @@ BS.Fleet = (function () {
       case "nearest": return nearestOf(ship, hs);
       case "weakest": { var w = null; hs.forEach(function (o) { if (!w || o.hull / o.hullMax < w.hull / w.hullMax) w = o; }); return w; }
       case "biggest": { var g = null; hs.forEach(function (o) { if (!g || o.hullMax > g.hullMax) g = o; }); return g; }
+      case "smallest": { var sm = null; hs.forEach(function (o) { if (!sm || o.hullMax < sm.hullMax) sm = o; }); return sm; }
       case "hunter": { var h = hs.filter(function (o) { return o.target === ship; }); return h.length ? nearestOf(ship, h) : null; }
       case "focus": {   // the hostile most of our side is fighting, the nearest among equals
         var count = {}; allies(ship).concat([ship]).forEach(function (a) { if (a.target && hs.indexOf(a.target) >= 0) count[a.target.id] = (count[a.target.id] || 0) + 1; });
