@@ -1,6 +1,6 @@
 # DESIGN.md — Bridge Sim
 
-Version: 0.34.0 (role blocks); direction in §10. Keep this file in sync with the game.
+Version: 0.35.0 (runs, roster, repair bills); direction in §10. Keep this file in sync with the game.
 
 ## 1. Concept
 
@@ -1248,6 +1248,35 @@ The role layer of §10: roles are what a hull carries on its **role cells**.
   lever for 0.35+ is numbers, not rules: tank durability and healer
   throughput against the beam, or a boss whose damage cannot be spread.
 
+### Runs, roster and repair bills (0.35, `campaign.run`, `campaign.repair`, `enc.kind / roster`)
+The skirmish-then-boss run of §10 and the fleet hangar's roster.
+- **Encounter kinds** (`campaign.encounters[].kind`): `solo` (the default:
+  the hangar's ship alone), `fleet` (`pair` from 2 wins, `pack` from 5:
+  the whole roster undocks) and `boss` (`cube` from 4 wins). `enc.roster`
+  lists who undocks, `[save.shipClass]` for a solo fight and `save.fleet`
+  (flagship first) otherwise; `BS.Game.startBattle` spawns that list.
+- **Boss slots** (`campaign.run`): counting wins and losses, every
+  `bossEvery`-th battle (6: battles 6, 12, …) is a boss fight once the
+  roster has `fleetMinHulls` (2) hulls and `bossFromWins` (4) wins are in;
+  the pool is then the boss encounters only. Otherwise bosses stay out of
+  the pool, and fleet encounters need the roster too. A retry keeps its
+  slot (`retry.battles`). The hangar's threat line reads "Next: Solo /
+  Fleet / BOSS · … · n hulls undock" and counts down "boss in n"; with one
+  hull it says a second hull is needed.
+- **Roster** (`save.fleet`, at most `campaign.fleetMax` 4 with the
+  flagship): owned hulls in the shipyard get "Add to fleet" / "In fleet ✓"
+  buttons and the ship line reads "Fleet n of 4: …". Each hull undocks
+  with its own layout, tuning and script (`scriptByBuild`).
+- **Repair bills** (`campaign.repair`): after a fight every destroyed
+  block of ours costs `destroyedBlock` 20% of its price and a hull that was
+  lost costs `lostHull` 30% of its block value; the bill is capped at the
+  credits in hand (never below zero) and the report's "Repairs" row lists
+  it per hull. Losing a hull is a bill, never permanent (§10).
+- **Role numbers pass**: the cutting beam's extra penetration 8 → 4 (two
+  plates of armor instead of a core-deep cut: the tank is built to take it
+  on its armor) and the Anchor preset's saucer-rim reactors moved inboard
+  (v2). Measured in §8.
+
 ### Win / lose
 Enemy side beaten → Victory; player side beaten → Defeat; the last enemy
 bridge taken by a boarding party → Victory ("captured"). Result overlay with
@@ -1270,6 +1299,13 @@ stats.
   the Shadow (cloak, ambush doctrine, ×1.3) from win 3; K't'inga from win 4
   (×1.8), Siege from 6, random K't'inga from 8 (×1.9). Klingon ship names
   come from `campaign.klingonNames`.
+- **Kinds and runs** (0.35): each encounter has a `kind` (solo / fleet /
+  boss); `encounter()` applies `campaign.run` (a boss slot every 6th battle
+  from 4 wins with two hulls, fleet encounters only with two hulls) and
+  names who undocks in `enc.roster` (§4 "Runs, roster and repair bills").
+- **Repair bills** (`campaign.repair`, 0.35): settled with the credits,
+  20% of each destroyed block's price and 30% of a lost hull's block value,
+  capped at the credits in hand.
 - **Enemy scaling**: `statMult = profile.statMult + 0.04 × wins` (max +0.4)
   multiplies every enemy block's hp and the shields; `damageMult` 1.6
   multiplies enemy weapon damage.
@@ -1340,6 +1376,7 @@ campaign.firstFight: { weakPointChance }; campaign.encounters[].script; campaign
 campaign.salvage: { destroyed, disabled, captured }; enemyAI.*: drainedBelow, drainedUntil, drainedTime; enemyAI.counters[].when.neutMin
 0.31: balance.fleetSpacingKm; campaign.fleetMax; campaign.encounters[].ships: [{ enemyClass, layout, doctrine, script, damageMult }]; save.fleet: [classId]; ship: team, target, contacts{}, flags.captured; state: teams { player: [], enemy: [] }, enemyFlag
 0.32: script.subjects; rule.about; action target; conditions allyShieldBelow / allyHullBelow / allyUnderFire / outnumbered / enemiesAtMost / unfocused; templates.wolfpack; ship: scannedOf{}, scanTarget
+0.35: campaign.run { bossEvery, bossFromWins, fleetMinHulls }; campaign.repair { destroyedBlock, lostHull }; campaign.encounters[].kind: solo | fleet | boss; encounter(): kind, roster, battles, bossSlot, nextBoss; retry.battles; settleBattle(): repairs, repairLines[]
 0.34: mask letter r (block.roleCell); blocks transfer / repairbeam / beacon (roleOnly); modules shield_transfer / remote_repair / beacon (effect.sigMult); support { rangeKm, transferPerBlock, repairPerBlock, escortKm }; script.allySubjects; actions support / escort; policy support; subject loudest; templates anchor / lifeline; presets galaxy.anchor / excelsior.lifeline; ship: support, escorting, escortSubject
 0.33: blocks.lance (enemyOnly, weapon.charge); modules.lance_group; shipClasses.borg_cube; enemyAI.boss (shieldMult, shieldRegenMult), enemyAI.overdrive; campaign.encounters[].kind / reinforcements; script.enemyScripts.borg; templates.cubebreaker; conditions notTargeting / enemiesAtLeast / lanceCharging / allyLanced; actions summon / overdrive; tuning.factionDefault.borg; block: charging, chargeTarget; ship: overdriven; state: summoned
 shipClasses: { id: { name, className, role, faction, cost, purchasable, speed, turnRate, signature, lockRangeKm, powerBase,
@@ -1384,6 +1421,49 @@ harness is in the repository: `tools/harness.js` (Playwright, one
 bridge, `--eval` for a data tweak, `--debug` for what each bridge saw) and
 `tools/smoke.js` (the headless interface check).
 
+v0.35.0 (runs, roster, repair bills; the role numbers pass: cutting beam
+extra penetration 4, Anchor v2; `--max 600`, seeds 1–4 for the rows that
+decide, 1–2 for the rest; **every hull's script set with `--scripts`**,
+see the correction below):
+
+| Matchup | Scripts | Outcome |
+|---|---|---|
+| Constitution vs Raider (0 wins) | Brawler | **3 of 4** in 2:35–2:59 keeping 73–92%, as 0.31–0.34 |
+| Constitution + Miranda + Defiant + Excelsior vs `pack` (0 wins) | Wolf pack on all four | 2 of 2 in 3:21–3:49 keeping 72–73%, the Excelsior lost both times |
+| Constitution + Miranda vs `pair` (0 wins) | Wolf pack on both | 0 of 1 (5:09, 37%), as 0.32 |
+| Constitution + Galaxy + Excelsior + Defiant vs `cube` (0 wins) | Brawler on all four | **0 of 2**, lost in 7:56–8:25 keeping 37–42% |
+| same | **Cube breaker on all four** | **4 of 4** in 4:15–5:15 keeping 79–88%, no hull lost (the Galaxy at 48–72%) |
+| same | Cube breaker on the flagship, Brawler on the rest | 1 of 4: a win at 8:40 keeping 69%, two losses, a stalemate |
+| same | Mixed: Galaxy *Anchor*, Excelsior *Lifeline*, two breakers | **4 of 4** in 5:38–7:35 keeping 79–89%, no hull lost (the Constitution disabled in three) |
+| same at 6 wins | Cube breaker on all four | 2 of 2 in 5:33–5:35 keeping 74–93%, the Galaxy lost once |
+| same at 6 wins | Mixed | **4 of 4** in 5:45–8:14 keeping 70–82%, a hull lost in two |
+| same at 6 wins, with 0.34's beam (penetration 8, Anchor v1) | Mixed | 2 of 2 in 7:08–9:43 keeping 62–71%, a hull lost in both |
+
+Correction to the 0.33 and 0.34 tables: the harness gives `--script` to
+the flagship only; the other hulls fly their assigned script or the
+default template (the Brawler) unless `--scripts` names one per class.
+`--scripts` arrived in 0.34, and the rows labelled "the same script on all
+four" (0.33) and "four Cube breakers (default layouts)" (0.34) were run
+without it, so they measured a Cube breaker flagship with three Brawlers.
+That fleet does not reproduce those rows on the merged 0.34 either (1 of
+4 at 0 wins, 0 of 2 at 6 wins; the same with the aft beams, the loudest
+rule or the dodge rule taken out one at a time), so those rows came from
+an earlier working state and are not to be trusted. The rows above are
+the reference from now on.
+
+Honest reading: with every bridge scripted the §10 target holds (four
+Cube breakers 4 of 4, four Brawlers 0 of 2) and the run puts the boss in
+its slot on schedule. The numbers pass makes the tank + healer pair a sure
+win as well (8 of 8 over both tiers; with 0.34's deeper beam the 6-win
+fights ran longer and cost a hull each), but four breakers are still the
+faster fleet (4:15–5:15 against 5:38–7:35) and lose fewer hulls at 6 wins.
+Roles are now a valid answer, not yet the better one: a boss whose damage
+one afterburner burst cannot dodge is the lever that stays (§10). Cost
+unchanged from 0.34.
+
+> Correction (0.35): the "four Cube breakers" rows below were measured
+> with the breaker on the flagship only (no `--scripts`); see v0.35.0.
+
 v0.34.0 (role blocks; the cube with aft beams, beam 600 / 22 s; the fleet is
 Constitution + Galaxy + Excelsior + Defiant, "mixed" = Constitution and
 Defiant on the Cube breaker, Galaxy on the Anchor preset and template,
@@ -1409,6 +1489,9 @@ buys a little (a Galaxy lost once without it). Roles will pay off only
 when a boss deals damage that cannot be spread or dodged and a healer's
 throughput can hold one ship under it; that is a numbers pass for 0.35+,
 recorded here so nobody mistakes the role templates for a solution.
+
+> Correction (0.35): `--script` reached the flagship only; the other three
+> hulls flew the Brawler in every row below. See v0.35.0.
 
 v0.33.0 (the first boss; four Federation hulls, the same script on all four,
 `--enemy cube --wins 0`, seeds 1–4 for the two rows that decide, 1–2 for
@@ -2018,7 +2101,7 @@ than slower (it is nearly untouched, as intended).
 | v0.33.0 (done) | The first boss (§4 "Bosses"): the Borg cube, the cutting beam with a charge tell, summoned escorts, overdrive, the boss script with callouts, the Cube breaker template, enemy-only blocks and actions |
 | v0.32.0 (done) | Fleet scripts (§4): subjects (`about`), the `target` action, ally and count conditions, scans per ship, the Wolf pack template, enemy packs that concentrate fire, the report per hull |
 | v0.31.0 (done) | Fleet engine (§4, §10): teams, N ships against M, target selection and retargeting, team elimination, viewer and primary enemy, camera over every ship, encounters with `ships`, `save.fleet`, harness fleets and `--perf`, deterministic harness, learning zeroed |
-| v0.35 (planned) | Fleet direction, §10: fleet hangar with roster and repair bills, skirmish-then-boss runs; the numbers pass that makes a tank and a healer pay off |
+| v0.35.0 (done) | Runs, roster and repair bills (§4): encounter kinds solo / fleet / boss, a boss slot every 6th battle from 4 wins with two hulls, the shipyard's roster buttons, repair bills per destroyed block and lost hull with a Repairs row in the report; cutting beam penetration 4 and the Anchor v2 preset; §8 re-measured with every hull's script set (correction to the 0.33–0.34 fleet rows) |
 | v0.5 PR 3 (done) | Masks for Miranda, Defiant, Excelsior, Galaxy, Sovereign; K't'inga; enemy layouts, random variants and encounters; fragments and shatter; balance pass |
 | v0.5.3 (done) | Enemy doctrines: strafe, brawl, standoff, broadside; tail-chase detection; status labels and callouts |
 | v0.6.0 (done) | Cosmoteer ideas: reactor breaches that chain, line of fire blocked by the own hull, armor pierce cost, disabled ships and salvage |
@@ -2169,7 +2252,7 @@ Decisions:
 | 0.32 (done) | Script subjects and the target action; one script per hull; report per hull; the Wolf pack template (4 of 4 against the pack where the Brawler is 0 of 4). Transfer actions moved to 0.34 with their blocks |
 | 0.33 (done) | The Borg cube (§4 "Bosses"): cutting beam with a tell, bare aft over the core, summoned escorts, remodulation, enrage at 7 min; the Cube breaker wins 4 of 4 where the Brawler loses 0 of 4 |
 | 0.34 (done) | Role blocks (shield transfer, remote repair, beacon) on role cells, ally subjects, support and escort actions, Anchor and Lifeline. Measured: the pair draws the boss as designed but loses to two more breakers; the numbers pass is 0.35's |
-| 0.35 | Fleet hangar (four hulls, roster per fight, repair bills), the skirmish-then-boss run in `campaign.encounters`, skirmish modifiers |
+| 0.35 (done) | Roster in the shipyard (four hulls, "Add to fleet"), repair bills, the skirmish-then-boss run (`campaign.run`: a boss slot every 6th battle from 4 wins with two hulls; fleet encounters in the pool with two hulls). Numbers pass: beam penetration 4, Anchor v2: the mixed fleet wins 8 of 8 but four breakers are still faster (§8). Skirmish modifiers not done, deferred |
 
 Known risks: the pivot touches nearly every file; 8 grids measured in 0.31
 (12 ms a frame headless without a GPU, the simulation negligible); the §8

@@ -95,6 +95,8 @@ function fmt(t) { var m = Math.floor(t / 60), s = Math.floor(t % 60); return m +
         if (o.tune) save.tuning[o.ship] = BS.Grid.tuningRowsFor(cls, save.layouts[o.ship] || cls.layout, spec(o.tune));
         if (o.etune) { var ecls = BS.Data.shipClasses[enc.enemyClass], erows = enc.layout === "default" ? ecls.layout : ecls.variants[enc.layout].rows; var tr = BS.Grid.tuningRowsFor(ecls, erows, spec(o.etune)); ecls.variants = ecls.variants || {}; ecls.variants.__tuned = { name: (ecls.variants[enc.layout] ? ecls.variants[enc.layout].name : "default") + " tuned", rows: erows, tuning: tr }; enc.layout = "__tuned"; }
         BS.Data.campaign.encounters = [enc];
+        // the forced encounter must survive the run filter (0.35): every battle is a boss slot, one hull is enough for a fleet fight
+        BS.Data.campaign.run = { bossEvery: enc.kind === "boss" ? 1 : 1e9, bossFromWins: 0, fleetMinHulls: 1 };
         if (o.signature) { save.signatures = [0, 1, 2].map(function () { return { tags: o.signature.slice(), rangeKm: 0, side: "auto", aim: "hull", script: null, classId: o.ship, cost: 0, at: 0, tuning: o.sigtune ? (function () { var t = {}; String(o.sigtune).split(",").forEach(function (kv) { var p = kv.split("="); t[p[0].trim()] = p[1].trim(); }); return t; })() : null }; }); }
         if (o.learn) { BS.Data.campaign.learn.chance = 1; BS.Data.campaign.learn.tuneChance = 1; }
         if (o.eval) (new Function(o.eval))();

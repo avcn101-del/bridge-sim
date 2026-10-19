@@ -110,14 +110,17 @@ BS.Hangar = (function () {
     el["hg-record"].textContent = s.campaign.battlesWon + " won · " + s.campaign.battlesLost + " lost" + (s.campaign.cleanWins ? " · " + s.campaign.cleanWins + " clean" : "") + (s.campaign.streak > 1 ? " · streak " + s.campaign.streak : "");
     var enc = C.encounter();
     var docLabel = BS.Data.enemyAI.stateLabels[enc.doctrine] || enc.doctrine;
-    el["hg-threat"].textContent = (enc.retry ? "Retry: " : "Next: ") + enc.label + " · strength " + Math.round(C.enemyStatMult(enc.aiProfile) * 100) + "% · " + enc.doctrine + (enc.learned ? " (they have watched you: " + enc.learned.reason + ")" : enc.counterReason ? " (" + enc.counterReason + ")" : "");
+    var kindLabel = enc.kind === "boss" ? "BOSS" : enc.kind === "fleet" ? "Fleet" : "Solo";
+    el["hg-threat"].textContent = (enc.retry ? "Retry: " : "Next: ") + kindLabel + " · " + enc.label + " · strength " + Math.round(C.enemyStatMult(enc.aiProfile) * 100) + "% · " + enc.doctrine + (enc.learned ? " (they have watched you: " + enc.learned.reason + ")" : enc.counterReason ? " (" + enc.counterReason + ")" : "") + " · " + enc.roster.length + " hull" + (enc.roster.length === 1 ? "" : "s") + " undock" + (enc.nextBoss !== null && enc.nextBoss !== undefined ? " · boss in " + (enc.nextBoss + 1) : "");
     el["hg-threat"].title = "Sensors report a " + enc.cls.className + (enc.variantName ? " (" + enc.variantName + " layout)" : "") + ". Reward ×" + enc.rewardMult + ". Doctrine: " + enc.doctrine + (enc.counterReason ? ": " + enc.counterReason + ". Change your build and they change their plan." : ".");
     renderIntel(enc);
     renderPlan(enc);
     renderDoctrine(enc);
     renderScript();
+    var roster = C.fleet();
     el["hg-ship"].innerHTML = "<b>" + cls.name + "</b> · " + cls.className + " · " + cls.role +
-      "<br><span class='dim'>" + cls.mask[0].length + "×" + cls.mask.length + " cell hull · base speed " + (cls.speed / BS.Data.units.pxPerKm).toFixed(1) + " km/s · signature " + cls.signature + " m</span>";
+      "<br><span class='dim'>" + cls.mask[0].length + "×" + cls.mask.length + " cell hull · base speed " + (cls.speed / BS.Data.units.pxPerKm).toFixed(1) + " km/s · signature " + cls.signature + " m</span>" +
+      "<br><span class='dim'>Fleet " + roster.length + " of " + BS.Data.campaign.fleetMax + ": " + roster.map(function (id) { return BS.Data.shipClasses[id].className; }).join(", ") + (roster.length < BS.Data.campaign.run.fleetMinHulls ? " · a second hull in the fleet opens fleet fights and the boss" : "") + "</span>";
     renderShips(s); renderPalette(); renderPresets(cls); renderBuilds(); renderEditor(); renderSkills(s); renderTraining();
   }
 
@@ -137,7 +140,16 @@ BS.Hangar = (function () {
         if (owned) { C.selectShip(id); ed.rows = null; render(); say("Boarded " + cls.name + "."); }
         else { var err = C.buyShip(id); if (err) say(err, true); else { ed.rows = null; render(); say("Purchased " + cls.name + "."); } }
       });
-      row.appendChild(b); box.appendChild(row);
+      row.appendChild(b);
+      // the roster (0.35): owned hulls that undock with the flagship on fleet and boss fights
+      if (owned && !current) {
+        var inFleet = (s.fleet || []).indexOf(id) >= 0, full = C.fleet().length >= BS.Data.campaign.fleetMax;
+        var f = document.createElement("button"); f.className = "lcars-btn " + (inFleet ? "c-peach" : "c-purple"); f.textContent = inFleet ? "In fleet ✓" : "Add to fleet";
+        f.disabled = !inFleet && full; f.title = inFleet ? "Leaves the fleet" : full ? "The fleet is full (" + BS.Data.campaign.fleetMax + ")" : "Undocks with the flagship on fleet and boss fights";
+        f.addEventListener("click", function () { var fl = (s.fleet || []).slice(); if (inFleet) fl = fl.filter(function (x) { return x !== id; }); else fl.push(id); C.setFleet(fl); render(); say(inFleet ? cls.name + " leaves the fleet." : cls.name + " joins the fleet."); });
+        row.appendChild(f);
+      }
+      box.appendChild(row);
     });
   }
 

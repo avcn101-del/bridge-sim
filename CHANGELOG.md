@@ -2,6 +2,35 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.35.0] — 2026-10-19 (runs, roster and repair bills; 0.35 of DESIGN §10)
+
+### Added
+- **Runs** (`campaign.run`): counting wins and losses, every 6th battle is
+  a boss fight once the fleet has two hulls and 4 wins are in. The `cube`
+  joins the pool at 4 wins, the `pair` (2 wins) and the `pack` (5 wins)
+  are fleet encounters (`kind: "fleet"`) that need two hulls. The hangar's
+  threat line names the kind, who undocks and "boss in n".
+- **Roster**: "Add to fleet" / "In fleet ✓" on owned hulls in the shipyard
+  (at most 4 with the flagship); solo encounters send the flagship alone,
+  fleet and boss encounters send the roster (`enc.roster`).
+- **Repair bills** (`campaign.repair`): 20% of each destroyed block's
+  price, 30% of a lost hull's block value, capped at the credits in hand;
+  the report's "Repairs" row lists them per hull.
+
+### Changed
+- Cutting beam: 4 extra penetration points (was 8), so a tank takes it on
+  its armor instead of a core breach. Galaxy *Anchor* preset v2: the
+  saucer-rim reactors moved inboard.
+- Harness and smoke set `campaign.run` so a forced encounter survives the
+  run filter.
+
+### Measured (DESIGN §8), honest
+- With every hull's script set (`--scripts`): four Cube breakers 4 of 4 at
+  0 wins, four Brawlers 0 of 2; tank + healer + two breakers 4 of 4 at 0
+  and at 6 wins (with 0.34's beam: longer, a hull lost each) but still
+  slower than four breakers. Correction: the 0.33–0.34 "four breakers"
+  rows had the breaker on the flagship only. 1v1 unchanged (3 of 4).
+
 ## [0.34.0] — 2026-10-19 (role blocks on role cells; 0.34 of DESIGN §10)
 
 ### Added

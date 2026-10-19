@@ -18,7 +18,7 @@ async function play(browser, label, ctxOpts, fleet) {
   await page.evaluate(function () { BS.Campaign.reset(); });
   await page.reload(); await page.waitForFunction(function () { return window.BS && BS.Game; });
   if (fleet) {   // four hulls against the pack: the save owns them, the encounter pool holds only the pack
-    await page.evaluate(function () { var sv = BS.Campaign.get(); ["miranda", "defiant", "excelsior"].forEach(function (id) { if (sv.ownedShips.indexOf(id) < 0) sv.ownedShips.push(id); }); BS.Campaign.setFleet(["miranda", "defiant", "excelsior"]); BS.Data.campaign.encounters = BS.Data.campaign.encounters.filter(function (e) { return e.id === "cube"; }).map(function (e) { return Object.assign({}, e, { minWins: 0 }); }); ["miranda", "defiant", "excelsior", "constitution"].forEach(function (id) { sv.scriptByBuild[id] = "cubebreaker"; }); });
+    await page.evaluate(function () { var sv = BS.Campaign.get(); ["miranda", "defiant", "excelsior"].forEach(function (id) { if (sv.ownedShips.indexOf(id) < 0) sv.ownedShips.push(id); }); BS.Campaign.setFleet(["miranda", "defiant", "excelsior"]); BS.Data.campaign.encounters = BS.Data.campaign.encounters.filter(function (e) { return e.id === "cube"; }).map(function (e) { return Object.assign({}, e, { minWins: 0 }); }); BS.Data.campaign.run = { bossEvery: 1, bossFromWins: 0, fleetMinHulls: 1 }; ["miranda", "defiant", "excelsior", "constitution"].forEach(function (id) { sv.scriptByBuild[id] = "cubebreaker"; }); });
     seconds = fleetSeconds;
   }
   // start screen → hangar → Undock, through the real buttons
@@ -34,10 +34,10 @@ async function play(browser, label, ctxOpts, fleet) {
     var tab = page.locator("#drawer-tabs [data-drawer='orders']"); if (await tab.isVisible()) await tab.click();   // phone: the BRIDGE drawer
     var btn = page.locator("#bridge-calls [data-call='reinforce']"); if (await btn.count()) { await btn.click(); await btn.click(); }
   }
-  var st = await page.evaluate(function () { var s = BS.Game.state; return { phase: s.phase, time: s.time, result: s.result, calls: s.calls, log: document.body.innerText.length, ships: s.ships.length, viewer: s.player ? s.player.name : null, lost: s.ships.filter(function (x) { return x.flags.destroyed; }).length }; });
+  var st = await page.evaluate(function () { var s = BS.Game.state; return { phase: s.phase, time: s.time, result: s.result, calls: s.calls, log: document.body.innerText.length, ships: s.ships.length, viewer: s.player ? s.player.name : null, lost: s.ships.filter(function (x) { return x.flags.destroyed; }).length, repairs: document.getElementById("rs-repairs").textContent, credits: BS.Campaign.get().credits }; });
   await page.screenshot({ path: path.join(process.env.SMOKE_OUT || __dirname, "smoke-" + label + ".png") });
   await ctx.close();
-  console.log(label + ": phase " + st.phase + " at " + Math.round(st.time) + " s" + (st.result ? " (" + st.result + ")" : "") + ", bridge calls left " + st.calls + (fleet ? ", " + st.ships + " ships, " + st.lost + " destroyed, viewer " + st.viewer : "") + ", console errors " + errors.length + (errors.length ? "\n  " + errors.join("\n  ") : ""));
+  console.log(label + ": phase " + st.phase + " at " + Math.round(st.time) + " s" + (st.result ? " (" + st.result + ")" : "") + ", bridge calls left " + st.calls + (fleet ? ", " + st.ships + " ships, " + st.lost + " destroyed, viewer " + st.viewer + ", repairs: " + st.repairs + ", credits " + st.credits : "") + ", console errors " + errors.length + (errors.length ? "\n  " + errors.join("\n  ") : ""));
   return errors.length;
 }
 
