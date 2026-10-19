@@ -474,6 +474,22 @@ BS.UI = (function () {
       html += "<h4>Never fired</h4>";
       nf.forEach(function (e) { html += "<div class='nf'><b>r" + (e.rule + 1) + "</b> " + escapeHtml(e.text) + "<br><span class='why'>— " + escapeHtml(e.reason) + "</span></div>"; });
     }
+    // the rest of the fleet (0.32): every other hull of ours, its script, how it ended and which rules fired; and theirs
+    var team = state.teams ? state.teams.player : [], eteam = state.teams ? state.teams.enemy : [];
+    function hullPct(s) { var mx = 0, now = 0; s.grid.blocks.forEach(function (b) { if (!b.structural) { mx += b.maxHp; if (b.alive) now += b.hp; } }); return Math.round(100 * now / Math.max(1, mx)); }
+    function ended(s) { return s.flags.destroyed ? "lost" : s.flags.captured ? "captured" : s.flags.disabled ? "disabled" : hullPct(s) + "% of blocks"; }
+    if (team.length > 1) {
+      html += "<h4>Fleet</h4>";
+      team.forEach(function (s) {
+        if (s === p) return;
+        var fired = {}; (s.scriptTrace || []).forEach(function (en) { if (en.rule !== null && en.rule !== undefined && (en.kind === "standing" || en.kind === "callout")) fired[en.rule] = (fired[en.rule] || 0) + 1; });
+        var fl = Object.keys(fired).map(function (k) { return "r" + (parseInt(k, 10) + 1) + "×" + fired[k]; }).join(" ");
+        html += "<div class='nf'><b>" + escapeHtml(s.name) + "</b> · " + escapeHtml(s.script ? s.script.def.name : "no script") + " · " + ended(s) + "<br><span class='why'>" + (fl ? "rules fired: " + fl : "no rule fired") + (s.target ? " · last target " + escapeHtml(s.target.name) : "") + "</span></div>";
+      });
+    }
+    if (eteam.length > 1) {
+      html += "<h4>Their fleet</h4><div class='nf'>" + eteam.map(function (s) { return escapeHtml(s.name) + " (" + escapeHtml(s.cls.className) + ") " + (s.flags.destroyed ? "destroyed" : s.flags.captured ? "captured" : s.flags.disabled ? "disabled" : Math.round(100 * s.hull / s.hullMax) + "% hull"); }).join(" · ") + "</div>";
+    }
     // their bridge: the enemy's script stays hidden, but every rule of theirs that fired is on record (and goes into
     // the opening book the hangar shows for this encounter)
     var e = state.enemy, et = e && e.scriptTrace ? e.scriptTrace.filter(function (en) { return en.rule !== null && en.rule !== undefined; }) : [];

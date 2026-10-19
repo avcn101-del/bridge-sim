@@ -23,7 +23,7 @@ BS.Ships = (function () {
     var grid = Gr.build(cls, options.layout || cls.layout, statMult, options.tuning || null);
     var st = Gr.derive(grid);
     var ship = {
-      id: nextId++, classId: classId, cls: cls, name: options.name || cls.name, faction: cls.faction, isPlayer: !!options.isPlayer, team: options.team || (options.isPlayer ? "player" : "enemy"), target: null, contacts: {},
+      id: nextId++, classId: classId, cls: cls, name: options.name || cls.name, faction: cls.faction, isPlayer: !!options.isPlayer, team: options.team || (options.isPlayer ? "player" : "enemy"), target: null, contacts: {}, scanned: false, scanning: 0, scannedOf: {},
       pos: { x: options.pos ? options.pos.x : 0, y: options.pos ? options.pos.y : 0 }, prevPos: { x: 0, y: 0 },
       heading: options.heading || 0, prevHeading: options.heading || 0, speed: 0, vel: { x: 0, y: 0 },
       grid: grid, stats: st, statMult: statMult, mods: mods, layoutRows: (options.layout || cls.layout).slice(), tuningRows: options.tuning ? options.tuning.slice() : null,

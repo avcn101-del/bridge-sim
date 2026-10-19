@@ -1,6 +1,6 @@
 # DESIGN.md — Bridge Sim
 
-Version: 0.31.0 (fleet engine); direction in §10. Keep this file in sync with the game.
+Version: 0.32.0 (fleet scripts); direction in §10. Keep this file in sync with the game.
 
 ## 1. Concept
 
@@ -1100,6 +1100,45 @@ A battle holds N ships on the player's side and M on the enemy's.
   current target) and no target action; the encounters `pair` and `pack`
   stay out of the pool (`minWins` 999) until the fleet hangar of 0.35.
 
+### Fleet scripts: subjects, the target action, ally conditions (0.32, `script.subjects`, `BS.Fleet.subject`)
+The script engine learns to speak about more than one enemy.
+- **Subjects** (`script.subjects`): `target` (the ship we are fighting, the
+  default), `nearest`, `weakest` (least hull fraction), `biggest` (largest
+  hull, the boss proxy), `hunter` (the nearest enemy whose target is us;
+  null when nobody shoots at us), `focus` (the enemy most of our side is
+  fighting, the nearest among equals). `BS.Fleet.subject(ship, id)` prefers
+  ships still able to fight.
+- **`about`**: a rule may carry `about: <subject>`; its conditions (`when`
+  and `until`) then read that enemy instead of the current target: "About
+  the enemy with the least hull, when their hull is under 40%: …". Without
+  `about` nothing changes. The report's "never fired" reasons use the same
+  subject.
+- **Action `target: <subject>`** switches our fire: `BS.Fleet.retarget`
+  rebinds the helm, the lock and the aim, and the subject becomes the
+  target the rest of the rule's actions act on. "no <subject>" is the
+  trace note when none exists (no hunter, no enemy left).
+- **Ally and count conditions**: `allyShieldBelow`, `allyHullBelow` (any
+  fighting ally), `allyUnderFire` (an enemy's target is an ally),
+  `outnumbered` (more fighting enemies than our fighting hulls),
+  `enemiesAtMost: n`, `unfocused` (we are not firing at the `focus` enemy).
+  Alone, the ally conditions never hold.
+- **Scans are per ship**: `ship.scannedOf[id]`; `ship.scanned` is kept in
+  step with the current target on every retarget and scan, so a weak-point
+  aim on a fresh target waits for its own scan. The scan panel's "scanned"
+  and the tuning lines read the current target.
+- **Template "Wolf pack"** (`templates.wolfpack`): about the weakest enemy,
+  when its hull is under 40%: switch to it and engage; every 8 s when
+  unfocused: switch to the focus; otherwise engage. Alone it is the
+  Brawler. The Raider and Cruiser enemy scripts carry the same `unfocused`
+  rule (every 10 s, with a callout), so a pack concentrates its fire too;
+  in a 1v1 the condition never holds and nothing changes.
+- **Report per hull**: the battle report lists every other hull of ours
+  (script, how it ended, which rules fired, last target) and the enemy
+  fleet; the hangar's dry run prints both sides per hull.
+- Not yet: the transfer actions (shield transfer, remote repair) wait for
+  the role blocks of 0.34; the editor's "about" dropdown appears once a
+  rule has a condition.
+
 ### Win / lose
 Enemy side beaten → Victory; player side beaten → Defeat; the last enemy
 bridge taken by a boarding party → Victory ("captured"). Result overlay with
@@ -1191,6 +1230,7 @@ script: { tickSeconds, chargingKmS, traceMax, planTargets, defaultTemplate, maxR
 campaign.firstFight: { weakPointChance }; campaign.encounters[].script; campaign.learn; tuning (order, list, factionDefault, offFactionCost, tunable, measured, bonus / malus); save.tuning{}, builds[].tuning, intel[].tuning, book[].tuning, signatures[].tuning; shipClasses.*.variants / presets[].element; enemyAI.doctrineTable / signatureCounters; save: scripts[], scriptByBuild{}, plans{}, book{}, signatures[], settings.manualBridge, campaign.cleanWins, campaign.retry
 campaign.salvage: { destroyed, disabled, captured }; enemyAI.*: drainedBelow, drainedUntil, drainedTime; enemyAI.counters[].when.neutMin
 0.31: balance.fleetSpacingKm; campaign.fleetMax; campaign.encounters[].ships: [{ enemyClass, layout, doctrine, script, damageMult }]; save.fleet: [classId]; ship: team, target, contacts{}, flags.captured; state: teams { player: [], enemy: [] }, enemyFlag
+0.32: script.subjects; rule.about; action target; conditions allyShieldBelow / allyHullBelow / allyUnderFire / outnumbered / enemiesAtMost / unfocused; templates.wolfpack; ship: scannedOf{}, scanTarget
 shipClasses: { id: { name, className, role, faction, cost, purchasable, speed, turnRate, signature, lockRangeKm, powerBase,
                      mask: [rows], layout: [rows], presets: { id: { name, desc, rows } }, variants: { id: { name, desc, rows } } (enemies),
                      aiProfile?, visual: { kind, sprite, nacelleColor, hullTint } } }
@@ -1232,6 +1272,24 @@ harness is in the repository: `tools/harness.js` (Playwright, one
 `campaign.encounters`, seeded `Math.random`, `--noreact` for the 0.24 enemy
 bridge, `--eval` for a data tweak, `--debug` for what each bridge saw) and
 `tools/smoke.js` (the headless interface check).
+
+v0.32.0 (fleet scripts: subjects, the target action; the Raider and
+Cruiser scripts gained the `unfocused` rule, so enemy packs concentrate
+fire too; seeds 1–4, `--max 480` for the 4v4):
+
+| Matchup | Scripts | Outcome |
+|---|---|---|
+| Constitution vs Raider (0 wins) | Brawler | **3 of 4**, the same seconds and percentages as 0.31 (the new enemy rule never holds in a 1v1) |
+| Constitution + Miranda + Defiant + Excelsior vs `pack` | Brawler on all four | **0 of 4** in 2:49–4:08 keeping 31–32%: every hull lost or disabled, the raiders at 32–100% (0.31: 1 of 2 before the pack concentrated fire) |
+| same | **Wolf pack** on all four | **4 of 4** in 3:21–5:06 keeping 62–73%: one hull lost a fight (the Excelsior three times, the Constitution once), all four raiders destroyed or disabled |
+| Constitution + Miranda vs `pair` | Wolf pack on both | 0 of 3 in 2:55–5:09 keeping 31–47%; one raider destroyed or disabled each time, the other over 74% |
+
+Honest reading: the target action is the first script lever that moves a
+fleet fight from a sure loss to a sure win at the same hulls, which is what
+§10 asked of 0.32 (fire concentrated by plan, not by geometry). Two hulls
+against two raiders of Constitution weight still lose, as expected before
+the fleet economy. The Wolf pack beats the Brawler by concentration alone:
+no role blocks, no boss yet.
 
 v0.31.0 (fleet engine; the harness now stops the page's frame loop, so a
 seed repeats exactly: the 0.25–0.30 rows drifted by a few seconds because
@@ -1794,8 +1852,9 @@ than slower (it is nearly untouched, as intended).
 | B (done, v0.4) | Hangar with slot fitting, market, credits, real-time skills, save |
 | v0.5 PR 1 (done) | Block grid hulls, nine block types, per-block damage with penetration, splash and section loss, grid renderer, build preview and statistics |
 | v0.5 PR 2 (done) | Hangar block editor (paint, erase, mirror, presets), block costs and refunds, saved builds |
+| v0.32.0 (done) | Fleet scripts (§4): subjects (`about`), the `target` action, ally and count conditions, scans per ship, the Wolf pack template, enemy packs that concentrate fire, the report per hull |
 | v0.31.0 (done) | Fleet engine (§4, §10): teams, N ships against M, target selection and retargeting, team elimination, viewer and primary enemy, camera over every ship, encounters with `ships`, `save.fleet`, harness fleets and `--perf`, deterministic harness, learning zeroed |
-| v0.32–0.35 (planned) | Fleet direction, §10: script subjects and fleet actions, the first boss with three mechanics, role blocks (shield transfer, remote repair, beacon) on role cells, fleet hangar with roster and repair bills, skirmish-then-boss runs |
+| v0.33–0.35 (planned) | Fleet direction, §10: the first boss with three mechanics, role blocks (shield transfer, remote repair, beacon) on role cells with the transfer actions, fleet hangar with roster and repair bills, skirmish-then-boss runs |
 | v0.5 PR 3 (done) | Masks for Miranda, Defiant, Excelsior, Galaxy, Sovereign; K't'inga; enemy layouts, random variants and encounters; fragments and shatter; balance pass |
 | v0.5.3 (done) | Enemy doctrines: strafe, brawl, standoff, broadside; tail-chase detection; status labels and callouts |
 | v0.6.0 (done) | Cosmoteer ideas: reactor breaches that chain, line of fire blocked by the own hull, armor pierce cost, disabled ships and salvage |
@@ -1924,22 +1983,23 @@ Decisions:
   automatic layer cannot see (a boss callout, who the boss is aiming at,
   the weakest ally). A template without one is the Brawler in disguise.
 
-### Scripts for a fleet
+### Scripts for a fleet (0.32: done, §4 "Fleet scripts")
 
-- Conditions get a **subject**: the boss, the nearest enemy, the enemy
-  with the lowest shield, the ally with the lowest shield, "who the boss
-  is aiming at". All existing `enemy…` conditions read against the
-  script's current target.
-- Actions: **target** (a named enemy, the boss, an add, the ally the boss
-  aims at), **transfer shields to / repair** an ally, `remodulate` (exists).
-- One script per hull; the battle report keeps one timeline per hull.
+- Conditions get a **subject** (`about`): the nearest, weakest or biggest
+  enemy, the one shooting at us, the one most of us are fighting. All
+  existing `enemy…` conditions read the subject; without `about`, the
+  current target. Ally conditions: an ally's shield or hull, an ally under
+  fire, outnumbered, enemies left, unfocused.
+- Actions: **target** (a subject). The transfer actions (shields, repair)
+  come with the role blocks of 0.34. `remodulate` exists.
+- One script per hull; the battle report lists every hull.
 
 ### Order of work
 
 | PR | Scope |
 |---|---|
 | 0.31 (done) | Engine for N v M: teams, ship arrays per side, target selection, camera fitting every ship, harness for fleets; measured with **8 block grids** (§4 "Fleet engine", §8) |
-| 0.32 | Script subjects and the target / transfer actions; one script per hull; report per hull |
+| 0.32 (done) | Script subjects and the target action; one script per hull; report per hull; the Wolf pack template (4 of 4 against the pack where the Brawler is 0 of 4). Transfer actions moved to 0.34 with their blocks |
 | 0.33 | The first boss hull with the three mechanics, callouts, book; enrage |
 | 0.34 | Role blocks (shield transfer, remote repair, beacon) and role cells in the masks |
 | 0.35 | Fleet hangar (four hulls, roster per fight, repair bills), the skirmish-then-boss run in `campaign.encounters`, skirmish modifiers |

@@ -2,6 +2,32 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.32.0] — 2026-10-19 (fleet scripts: subjects and the target action; 0.32 of DESIGN §10)
+
+### Added
+- **Subjects** (`script.subjects`, `BS.Fleet.subject`): a rule may be
+  `about` the nearest, weakest or biggest enemy, the one shooting at us or
+  the one most of us are fighting; its conditions then read that ship.
+  Action **`target`** switches our fire to a subject (helm, lock and aim
+  follow). Conditions `allyShieldBelow`, `allyHullBelow`, `allyUnderFire`,
+  `outnumbered`, `enemiesAtMost`, `unfocused`. The editor shows an "about"
+  dropdown on every rule with a condition and the subjects for `target`.
+- Template **Wolf pack**: finish the enemy closest to breaking, otherwise
+  all guns on the ship most of us are fighting; the Brawler when alone.
+- The battle report lists every hull of ours (script, how it ended, rules
+  fired, last target) and the enemy fleet; the dry run prints both sides.
+
+### Changed
+- Scans are per ship (`ship.scannedOf`): `ship.scanned` follows the
+  current target, so a weak-point aim on a new target waits for its scan.
+- The Raider and Cruiser enemy scripts shift fire to the ship their pack
+  is on (`unfocused`, every 10 s, with a callout); in a 1v1 it never fires.
+
+### Measured (DESIGN §8)
+- 1v1 identical to 0.31. Four Federation hulls vs the pack: Brawler on all
+  0 of 4, **Wolf pack on all 4 of 4** in 3:21–5:06 keeping 62–73%. Two
+  hulls vs the pair still 0 of 3.
+
 ## [0.31.0] — 2026-10-19 (fleet engine: N ships against M; 0.31 of DESIGN §10)
 
 ### Added

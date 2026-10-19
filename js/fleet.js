@@ -30,6 +30,28 @@ BS.Fleet = (function () {
     return best;
   }
   function targetOf(ship) { return ship.target && alive(ship.target) ? ship.target : null; }
+  function nearestOf(ship, list) { var b = null, bd = Infinity; list.forEach(function (o) { var d = S.contactKm(ship, o); if (d < bd) { b = o; bd = d; } }); return b; }
+  // Subjects (script.subjects, 0.32): the enemy a rule is about, or the ship an action switches our fire to. Ships still
+  // able to fight come first; null when no hostile is left (or no enemy is shooting at us, for "hunter").
+  function subject(ship, id) {
+    var hs = hostiles(ship);
+    if (!hs.length) return null;
+    var f = hs.filter(fighting); if (f.length) hs = f;
+    switch (id) {
+      case "nearest": return nearestOf(ship, hs);
+      case "weakest": { var w = null; hs.forEach(function (o) { if (!w || o.hull / o.hullMax < w.hull / w.hullMax) w = o; }); return w; }
+      case "biggest": { var g = null; hs.forEach(function (o) { if (!g || o.hullMax > g.hullMax) g = o; }); return g; }
+      case "hunter": { var h = hs.filter(function (o) { return o.target === ship; }); return h.length ? nearestOf(ship, h) : null; }
+      case "focus": {   // the hostile most of our side is fighting, the nearest among equals
+        var count = {}; allies(ship).concat([ship]).forEach(function (a) { if (a.target && hs.indexOf(a.target) >= 0) count[a.target.id] = (count[a.target.id] || 0) + 1; });
+        var best = null, bn = -1;
+        hs.forEach(function (o) { var n = count[o.id] || 0; if (!best || n > bn || (n === bn && S.contactKm(ship, o) < S.contactKm(ship, best))) { best = o; bn = n; } });
+        return best;
+      }
+      default: return targetOf(ship) || nearestOf(ship, hs);
+    }
+  }
+  function fightingAllies(ship) { return allies(ship).filter(fighting); }
 
   // Point every layer of a ship at `t`. The helm re-enters the stance (player side) or doctrine (enemy side) it was
   // flying, which re-issues the movement command; the lock policy and the AI re-lock on their own tick.
@@ -41,6 +63,7 @@ BS.Fleet = (function () {
     if (ship.play) ship.play.target = t;
     if (ship.lock.target && ship.lock.target !== t) S.clearLock(ship, "retarget");
     if (ship.aimBlock && ship.aimBlock.ship !== t) S.setAimBlock(ship, null, null);
+    ship.scanned = !!(ship.scannedOf && ship.scannedOf[t.id]);   // a scan is of one ship (0.32)
     if (ship.ai && !ship.ai.suspended) {
       ship.ai.player = t;
       if (ship.stance) BS.EnemyAI.setStance(ship, t, ship.stance);
@@ -62,5 +85,5 @@ BS.Fleet = (function () {
     }
   }
 
-  return { hostiles: hostiles, allies: allies, teamShips: teamShips, teamFighting: teamFighting, nearestHostile: nearestHostile, targetOf: targetOf, retarget: retarget, update: update, fighting: fighting };
+  return { hostiles: hostiles, allies: allies, fightingAllies: fightingAllies, teamShips: teamShips, teamFighting: teamFighting, nearestHostile: nearestHostile, targetOf: targetOf, subject: subject, retarget: retarget, update: update, fighting: fighting };
 })();
