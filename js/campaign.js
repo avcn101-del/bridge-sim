@@ -218,13 +218,16 @@ BS.Campaign = (function () {
     var learned = null, L = D().campaign.learn, learnRoll = rng();
     if (wonAt >= L.fromWins && (save.signatures || []).length && learnRoll < L.chance) {
       var tag = dominantTag(), hk = pick.enemyClass === "ktinga" ? "ktinga" : "bop";
-      var row = D().enemyAI.signatureCounters.filter(function (r) { return r.tag === tag && r[hk]; })[0];
+      // first the wheel: the element that beats the element of the remembered wins; then the measured style rows
+      var el = dominantElement(), edge = el ? elementEdge(el) : null, counterEl = edge ? edge.beats : null, ans0 = edge && edge.enemy[hk];
+      var row = ans0 ? { tag: el, reason: edge.how, element: counterEl } : null;
+      row = row ? Object.assign({}, row, (function () { var o = {}; o[hk] = ans0; return o; })()) : D().enemyAI.signatureCounters.filter(function (r) { return r.tag === tag && r[hk]; })[0];
       if (row) {
         var ans = row[hk], arows = ans.layout === "default" ? cls.layout : cls.variants && cls.variants[ans.layout] ? cls.variants[ans.layout].rows : null;
         var myCost = layoutCost(battleLayout(save.shipClass)), theirs = arows ? effectiveCost(arows, cls.aiProfile || "default") : 0;
         if (arows && Math.abs(theirs - myCost) <= L.costBand * myCost) {
           rows = arows; variantName = ans.layout === "default" ? null : cls.variants[ans.layout].name; doc = ans.doctrine; script = ans.script;
-          learned = { tag: tag, reason: row.reason, fights: (save.signatures || []).length, tags: (save.signatures || []).map(function (g) { return g.tags[0] || "?"; }) };
+          learned = { tag: row.tag || tag, element: row.element || null, reason: row.reason, fights: (save.signatures || []).length, tags: (save.signatures || []).map(function (g) { return g.element && g.element !== "mixed" ? D().elements.list[g.element].name : (g.tags[0] || "?"); }) };
         }
       }
     }
@@ -247,7 +250,8 @@ BS.Campaign = (function () {
       }
     }
     if (wonAt === 0 && D().campaign.firstFight && counterWeak === null) counterWeak = D().campaign.firstFight.weakPointChance;   // the first fight: no weak-point hunting
-    return { id: pick.id, classId: pick.enemyClass, cls: cls, rows: rows, name: name, variantName: variantName, seed: seed, battlesWon: wonAt, retry: !!rt, rewardMult: pick.rewardMult, play: pick.play || null, script: script, damageMult: pick.damageMult || null, counterReason: counterReason, weakPointChance: counterWeak, aiProfile: cls.aiProfile || "default", learned: learned,
+    var elementId = (variantName && cls.variants) ? (function () { var v = null; Object.keys(cls.variants).forEach(function (k) { if (cls.variants[k].rows === rows) v = cls.variants[k]; }); return v && v.element ? v.element : BS.Grid.elementOf(cls, rows).id; })() : BS.Grid.elementOf(cls, rows).id;
+    return { id: pick.id, classId: pick.enemyClass, cls: cls, rows: rows, name: name, variantName: variantName, element: elementId, seed: seed, battlesWon: wonAt, retry: !!rt, rewardMult: pick.rewardMult, play: pick.play || null, script: script, damageMult: pick.damageMult || null, counterReason: counterReason, weakPointChance: counterWeak, aiProfile: cls.aiProfile || "default", learned: learned,
       doctrine: doc || D().enemyAI[cls.aiProfile || "default"].doctrine, label: cls.className + (variantName ? " · " + variantName : "") };
   }
   // Refit & retry: pin the last enemy for the next fight (cleared when that fight is settled, or by letGo).
@@ -301,9 +305,20 @@ BS.Campaign = (function () {
   function recordSignature(state) {
     var st = state.style ? state.style.player : null, p = state.player; if (!st || !st.t) return;
     var pick = function (m) { var b = null; Object.keys(m).forEach(function (k) { if (b === null || m[k] > m[b]) b = k; }); return b; };
-    var sig = { tags: BS.Game.styleTags(st, p), rangeKm: Math.round(10 * st.rangeSum / st.t) / 10, side: pick(st.side) || "auto", aim: pick(st.aim) || "hull", script: BS.Game.templateId(p.script ? p.script.def : null), classId: save.shipClass, cost: layoutCost(battleLayout(save.shipClass)), at: Date.now() };
+    var sig = { element: BS.Grid.elementOf(D().shipClasses[save.shipClass], battleLayout(save.shipClass)).id, tags: BS.Game.styleTags(st, p), rangeKm: Math.round(10 * st.rangeSum / st.t) / 10, side: pick(st.side) || "auto", aim: pick(st.aim) || "hull", script: BS.Game.templateId(p.script ? p.script.def : null), classId: save.shipClass, cost: layoutCost(battleLayout(save.shipClass)), at: Date.now() };
     save.signatures = (save.signatures || []).concat([sig]).slice(-D().campaign.learn.remember);
   }
+  // The element the enemy learns from: the most frequent over the remembered wins (mixed builds do not count), latest
+  // win breaking ties; null when none.
+  function dominantElement() {
+    var sigs = save.signatures || [], count = {}, best = null;
+    sigs.forEach(function (g, i) { if (g.element && g.element !== "mixed") count[g.element] = (count[g.element] || 0) + 1 + i * 0.01; });
+    Object.keys(count).forEach(function (t) { if (best === null || count[t] > count[best]) best = t; });
+    return best;
+  }
+  // The measured edge that beats a given element (BS.Data.elements.edges: loses === id), or null.
+  function elementEdge(id) { return D().elements.edges.filter(function (e) { return e.loses === id; })[0] || null; }
+  function elementBeating(id) { var e = elementEdge(id); return e ? e.beats : null; }
   // The tag the enemy learns from: the most frequent over the remembered wins, the latest win breaking ties.
   function dominantTag() {
     var sigs = save.signatures || [], count = {}, best = null;
@@ -349,7 +364,7 @@ BS.Campaign = (function () {
 
   return { load: load, persist: persist, reset: reset, exportJSON: exportJSON, importJSON: importJSON, hasSave: hasSave, get: get,
     currentClass: currentClass, layoutFor: layoutFor, setLayout: setLayout, battleLayout: battleLayout, buyShip: buyShip, selectShip: selectShip,
-    layoutDelta: layoutDelta, countBlocks: countBlocks, applyLayout: applyLayout, builds: builds, saveBuild: saveBuild, deleteBuild: deleteBuild, intelFor: intelFor, buyIntel: buyIntel, bookFor: bookFor, layoutCost: layoutCost, effectiveCost: effectiveCost, dominantTag: dominantTag,
+    layoutDelta: layoutDelta, countBlocks: countBlocks, applyLayout: applyLayout, builds: builds, saveBuild: saveBuild, deleteBuild: deleteBuild, intelFor: intelFor, buyIntel: buyIntel, bookFor: bookFor, layoutCost: layoutCost, effectiveCost: effectiveCost, dominantTag: dominantTag, dominantElement: dominantElement, elementBeating: elementBeating,
     scriptFor: scriptFor, setScriptFor: setScriptFor, saveScript: saveScript, deleteScript: deleteScript, planFor: planFor, setPlan: setPlan, setRetry: setRetry, letGo: letGo,
     updateTraining: updateTraining, startTraining: startTraining, cancelTraining: cancelTraining, skillMods: skillMods, skillHours: skillHours,
     layoutStats: layoutStats, enemyStatMult: enemyStatMult, encounter: encounter, settleBattle: settleBattle };

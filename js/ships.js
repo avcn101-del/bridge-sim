@@ -26,7 +26,7 @@ BS.Ships = (function () {
       id: nextId++, classId: classId, cls: cls, name: options.name || cls.name, faction: cls.faction, isPlayer: !!options.isPlayer,
       pos: { x: options.pos ? options.pos.x : 0, y: options.pos ? options.pos.y : 0 }, prevPos: { x: 0, y: 0 },
       heading: options.heading || 0, prevHeading: options.heading || 0, speed: 0, vel: { x: 0, y: 0 },
-      grid: grid, stats: st, statMult: statMult, mods: mods,
+      grid: grid, stats: st, statMult: statMult, mods: mods, layoutRows: (options.layout || cls.layout).slice(),
       hullMax: st.hullTotal, hull: st.hullAlive,
       shieldMax: {}, shields: {}, shieldRegen: {},
       capMax: 0, capacitor: 0, heat: 0, overload: 0, heatGovernor: true, governorHold: false, jammed: 0, partialJam: 0, partialJamBy: null, neuted: 0, boarding: null, shieldDelay: { fore: 0, aft: 0, port: 0, starboard: 0 }, attackSide: "auto", tumble: 0, tumbleDir: 1, breach: 0, hadReactors: false, aimBlock: null, cloak: { state: "off", t: 0, surge: 0, strike: 0 },
@@ -260,9 +260,10 @@ BS.Ships = (function () {
   }
 
   // ---- damage -----------------------------------------------------------
-  function applyDamage(ship, amount, fromX, fromY, aimType, attacker, kind, pierceBonus) {
+  function applyDamage(ship, amount, fromX, fromY, aimType, attacker, kind, pierceBonus, wtype) {
     if (ship.flags.destroyed) return null;
     var B = BS.Data.balance;
+    var ch = wtype && BS.Data.elements ? BS.Data.elements.chart[wtype] : null, shieldMult = ch && ch.shield !== undefined ? ch.shield : 1;   // the element chart: torpedoes drain shields faster, cannon bolts slower
     // the shot lands on `first`; it is shielded only while an emitter covers that block, and then draws from that emitter's facing
     var first = Gr.resolveEntry(ship, fromX, fromY, aimType);
     var exposed = !!first && !first.covered;
@@ -274,8 +275,8 @@ BS.Ships = (function () {
     if (strike) amount *= strike.damageMult;
     var bypass = strike && !exposed ? amount * strike.shieldBypass : 0;
     var shieldAmount = (amount - bypass) * (1 - resist);
-    var absorbed = Math.min(shield, shieldAmount);
-    ship.shields[facing] = shield - absorbed;
+    var drained = Math.min(shield, shieldAmount * shieldMult), absorbed = drained / shieldMult;   // the pool loses `drained`; the shot spends `absorbed` of its damage on it
+    ship.shields[facing] = shield - drained;
     var leftover = shieldAmount - absorbed;
     var hullDamage = leftover / Math.max(0.01, 1 - resist) + absorbed * B.shieldBleedThrough + bypass;
     if (absorbed <= 0) hullDamage = amount;
@@ -291,7 +292,7 @@ BS.Ships = (function () {
     if (absorbed > 0) BS.Events.emit("shieldHit", result);
     if (!exposed) ship.shieldDelay[facing] = BS.Data.grid.shieldRechargeDelay;   // a facing under fire does not recharge
     if (hullDamage > 0) {
-      var hr = Gr.hit(ship, hullDamage, fromX, fromY, aimType, kind, first, pierceBonus);
+      var hr = Gr.hit(ship, hullDamage, fromX, fromY, aimType, kind, first, pierceBonus, wtype);
       result.hits = hr.hits; result.destroyed = hr.destroyed; result.cutOff = hr.cutOff; result.explosions = hr.explosions; result.crits = hr.crits;
       hr.crits.forEach(function (cr) { applyCrit(ship, cr.block, cr.kind, attacker); });
       var dealt = hr.hits.reduce(function (a, h) { return a + h.dmg; }, 0);

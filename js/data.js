@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.26.0",
+  version: "0.27.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -11,6 +11,7 @@ BS.Data = {
 
   // ---------------------------------------------------------------- balance
   balance: {
+    torpedoSpeedExponent: 1.0,   // torpedo damage vs a target faster than the warhead's explosion velocity: (sig × v_expl / v_target) ^ this (the Impulse edge of the element wheel)
     simStep: 1 / 60,
     maxFrameTime: 0.1,
     maxStepsPerFrame: 32,         // fixed steps a frame may run (speed 4× at 60 fps needs 4)
@@ -223,7 +224,7 @@ BS.Data = {
       ],
       visual: { kind: "grid", sprite: null, nacelleColor: "90,160,255", hullTint: "#c6ccda" },
       presets: {
-        shadowhunter: { name: "Shadow hunter", desc: "Three cloaking devices (one in the saucer, two deep in the engineering hull) so the whole hull sits inside the cloak field, six phasers, two tubes. Cloak, close, decloak on their flank and hit the reactors. No jammer: a half-covered ECM field would only steer their fire onto the nacelles.", rows: [
+        shadowhunter: { element: "phaser", name: "Shadow hunter", desc: "Three cloaking devices (one in the saucer, two deep in the engineering hull) so the whole hull sits inside the cloak field, six phasers, two tubes. Cloak, close, decloak on their flank and hit the reactors. No jammer: a half-covered ECM field would only steer their fire onto the nacelles.", rows: [
           "..........................",
           ".EEEEESAAA.........P......",
           ".EEEEEQAAA......PAAQAAP...",
@@ -241,7 +242,43 @@ BS.Data = {
           ".EEEEESAAA.........P......",
           ".........................."
         ] },
-        brawler: { name: "Brawler", desc: "Six pulse phasers on the saucer rim and four disruptor cannons on the flanks, three tubes. Orbit close: the pulses track anything, the cannons punch through armor.", rows: [
+        courier: { element: "impulse", name: "Courier", desc: "Twelve more engines in the nacelle roots, the stock phasers and tubes: fast enough to pick the range.", rows: [
+          "..........................",
+          ".EEEEESEEE.........P......",
+          ".EEEEEQEEE......PAAQAAP...",
+          "...............SAAAAAASA..",
+          "..............AAAAASAAAAP.",
+          ".......SA.....AAARAAQAAAA.",
+          "...AA..AAAAA.AARAAQARAANAT",
+          "..AAAAAAAAAA...AAAAQAAAAAA",
+          "..AAAAAAAAAA...AAABAAAAAAA",
+          "...AA..AAAAA.AARAAQARAANAT",
+          ".......SA.....AAARAAQAAAA.",
+          "..............AAAAASAAAAP.",
+          "...............SAAAAAASA..",
+          ".EEEEEQEEE......PAAQAAP...",
+          ".EEEEESEEE.........P......",
+          ".........................."
+        ] },
+        bulwark: { element: "deflector", name: "Bulwark", desc: "Sixteen shield emitters and a seventh reactor: the saucer and the engineering hull each sit under a double wall.", rows: [
+          "..........................",
+          ".EEEEESAAA.........P......",
+          ".EEEEEQAAA......PAAQAAP...",
+          "...............SAAAAAASA..",
+          "..............ASAAASAAASP.",
+          ".......SA.....AAARAAQAAAA.",
+          "...AA..AASAA.AARAAQARAANAT",
+          "..AAAAARAAAA...AAAAAAAAAAA",
+          "..AAAAAAAAAA...AAABAAAAAAA",
+          "...AA..AASAA.AARAAQARAANAT",
+          ".......SA.....AAARAAQAAAA.",
+          "..............ASAAASAAASP.",
+          "...............SAAAAAASA..",
+          ".EEEEEQAAA......PAAQAAP...",
+          ".EEEEESAAA.........P......",
+          ".........................."
+        ] },
+        brawler: { element: "armour", name: "Brawler", desc: "Six pulse phasers on the saucer rim and four disruptor cannons on the flanks, three tubes. Orbit close: the pulses track anything, the cannons punch through armor.", rows: [
           "..........................",
           ".EEEEESAAA.........A......",
           ".EEEEEQAAA......AUAUAAA...",
@@ -259,7 +296,7 @@ BS.Data = {
           ".EEEEESAAA.........A......",
           ".........................."
         ] },
-        sniper: { name: "Sniper", desc: "Four torpedo tubes, extra sensors and engines, four phasers. Keep at range.", rows: [
+        sniper: { element: "ordnance", name: "Sniper", desc: "Four torpedo tubes, extra sensors and engines, four phasers. Keep at range.", rows: [
           "..........................",
           ".EEEEEEEEA.........A......",
           ".EEEEEEEEA......SAAQAAA...",
@@ -655,7 +692,7 @@ BS.Data = {
       ],
       visual: { kind: "grid", sprite: null, nacelleColor: "110,255,120", hullTint: "#5d7a5c" },
       variants: {
-        shadow: { name: "Shadow", desc: "Five cloaking devices spread over the hull so the field covers it all, six disruptors. It stalks you cloaked and decloaks at knife range.", rows: [
+        shadow: { element: "armour", name: "Shadow", desc: "Five cloaking devices spread over the hull so the field covers it all, six disruptors. It stalks you cloaked and decloaks at knife range.", rows: [
           "EEE.....................",
           "EEED....................",
           "..SCD...................",
@@ -679,7 +716,7 @@ BS.Data = {
           "EEED....................",
           "EEE....................."
         ] },
-        jammer: { name: "Jammer boat", desc: "Two ECM jammers in the hull, six disruptors. Its field covers only the core, so a jam pushes your fire onto the wings and nacelles instead of breaking the lock.", rows: [
+        jammer: { element: "armour", name: "Jammer boat", desc: "Two ECM jammers in the hull, six disruptors. Its field covers only the core, so a jam pushes your fire onto the wings and nacelles instead of breaking the lock.", rows: [
           "EEE.....................",
           "EEED....................",
           "..SQD...................",
@@ -703,7 +740,7 @@ BS.Data = {
           "EEED....................",
           "EEE....................."
         ] },
-        leech: { name: "Leech", desc: "Two energy neutralisers in the hull, six disruptors. It brawls inside 4 km and drains your capacitor every six seconds until your booster, hardener and afterburner starve.", rows: [
+        leech: { element: "armour", name: "Leech", desc: "Two energy neutralisers in the hull, six disruptors. It brawls inside 4 km and drains your capacitor every six seconds until your booster, hardener and afterburner starve.", rows: [
           "EEE.....................",
           "EEED....................",
           "..SQD...................",
@@ -727,7 +764,7 @@ BS.Data = {
           "EEED....................",
           "EEE....................."
         ] },
-        gunboat: { name: "Gunboat", desc: "Eleven disruptor cannons along the wings, no torpedo, thinner armor.", rows: [
+        gunboat: { element: "armour", name: "Gunboat", desc: "Eleven disruptor cannons along the wings, no torpedo, thinner armor.", rows: [
           "EEE.....................",
           "EEED....................",
           "..AQD...................",
@@ -751,7 +788,103 @@ BS.Data = {
           "EEED....................",
           "EEE....................."
         ] },
-        torpedo: { name: "Torpedo boat", desc: "Two forward tubes, six reactors, four disruptors.", rows: [
+        interceptor: { element: "impulse", name: "Interceptor", desc: "Thirty engines down the wings, six pulse phasers: a tight afterburner orbit nothing can track.", rows: [
+          "EEE.....................",
+          "EEEU....................",
+          "..SQU...................",
+          "...EEE..................",
+          "....EEE.................",
+          ".....EEE................",
+          "......SAA...............",
+          ".......AAA..............",
+          ".....AAAARA.......AAA...",
+          "....ARAAQAAU....AAQAAAA.",
+          "...AQAAAAAAAQAAAAASAANAA",
+          "...AQAAABAAAARAAAASAAAAT",
+          "....ARAAQAAU....AAQAAAA.",
+          ".....AAAARA.......AAA...",
+          ".......AAA..............",
+          "......SAA...............",
+          ".....EEE................",
+          "....EEE.................",
+          "...EEE..................",
+          "..SQU...................",
+          "EEEU....................",
+          "EEE....................."
+        ] },
+        bulwark: { element: "deflector", name: "Bulwark", desc: "Twelve shield emitters and five reactors behind six disruptors: a wall that holds a broadside.", rows: [
+          "EEE.....................",
+          "EEED....................",
+          "..SQD...................",
+          "...AAA..................",
+          "....ASA.................",
+          ".....AAA................",
+          "......SAA...............",
+          ".......AAA..............",
+          ".....AAAARA.......AAA...",
+          "....ARAAQAAD....AAQAAAA.",
+          "...AAASAAAAAAASAAASAANAA",
+          "...AAASABAAAARASAASAAAAT",
+          "....ARAAQAAD....AAQAAAA.",
+          ".....AAAARA.......AAA...",
+          ".......AAA..............",
+          "......SAA...............",
+          ".....AAA................",
+          "....ASA.................",
+          "...AAA..................",
+          "..SQD...................",
+          "EEED....................",
+          "EEE....................."
+        ] },
+        pulser: { element: "phaser", name: "Pulser", desc: "Ten pulse phasers in place of the cannons: light, fast, and they track anything.", rows: [
+          "EEE.....................",
+          "EEEU....................",
+          "..SQU...................",
+          "...AAA..................",
+          "....AAA.................",
+          ".....AAA................",
+          "......SAA...............",
+          ".......AAA..............",
+          ".....AAAARA.......AAU...",
+          "....ARAAQAAU....AAQAAAA.",
+          "...AAAAAAAAAAAAAAASAANUA",
+          "...AAAAABAAAAAAAAASAAUAT",
+          "....ARAAQAAU....AAQAAAA.",
+          ".....AAAARA.......AAU...",
+          ".......AAA..............",
+          "......SAA...............",
+          ".....AAA................",
+          "....AAA.................",
+          "...AAA..................",
+          "..SQU...................",
+          "EEEU....................",
+          "EEE....................."
+        ] },
+        bombard: { element: "ordnance", name: "Bombard", desc: "Four torpedo tubes on six reactors, two disruptors: it holds station and fires every tube.", rows: [
+          "EEE.....................",
+          "EEED....................",
+          "..SQA...................",
+          "...AAA..................",
+          "....AAA.................",
+          ".....AAA................",
+          "......SAA...............",
+          ".......ASA..............",
+          ".....AAARAR.......AAA...",
+          "....ARAAQAAA....AAQAAAT.",
+          "...AAAAAAAAAAAAAAASNAAAT",
+          "...AAAAABAAAAAAAAASAAAAT",
+          "....ARAAQAAA....AAQAAAT.",
+          ".....AAARAR.......AAA...",
+          ".......ASA..............",
+          "......SAA...............",
+          ".....AAA................",
+          "....AAA.................",
+          "...AAA..................",
+          "..SQA...................",
+          "EEED....................",
+          "EEE....................."
+        ] },
+        torpedo: { element: "ordnance", name: "Torpedo boat", desc: "Two forward tubes, six reactors, four disruptors.", rows: [
           "EEE.....................",
           "EEED....................",
           "..SQA...................",
@@ -829,7 +962,7 @@ BS.Data = {
       ],
       visual: { kind: "grid", sprite: null, nacelleColor: "255,120,90", hullTint: "#7a6660" },
       variants: {
-        siege: { name: "Siege", desc: "Four forward tubes, eight reactors, four disruptors plus two covering the stern, two decoy launchers: it holds station at torpedo range and decoys your volleys.", rows: [
+        siege: { element: "ordnance", name: "Siege", desc: "Four forward tubes, eight reactors, four disruptors plus two covering the stern, two decoy launchers: it holds station at torpedo range and decoys your volleys.", rows: [
           "EEEE............................",
           "EEEED...........................",
           "..SQAA..........................",
@@ -1105,6 +1238,45 @@ BS.Data = {
   },
 
   // --------------------------------------------------------------- enemy AI
+  // ------------------------------------------------------------- elements (0.27)
+  // Five Trek "elements", a public wheel of who beats whom (pillar 2). An element is read off a layout: the block family
+  // a build invests in most against its class default (BS.Grid.elementOf: family value / default family value, "mixed"
+  // under minEmphasis); variants and presets name theirs. Each element beats the next (`beats`) by a mechanic the game
+  // already has plus the type chart below; `how` is the public sentence. EW (cloak, jammer, neutraliser, decoy) stays
+  // outside the wheel as abilities. `enemy` is the answer an encounter takes when it learns that the player's wins carry
+  // the element this one beats (campaign.learn): per hull, the variant, doctrine and script.
+  elements: {
+    minEmphasis: 1.15, baselineFloor: 0.15,   // a family the class default lacks is measured against this share of the default's total value
+    chart: {   // weapon block type → damage multiplier against shields (shield pool drained per point) and into armor plating
+      torpedo:   { shield: 1.5, armor: 1.0 },
+      disruptor: { shield: 0.7, armor: 1.0 },
+      phaser:    { shield: 1.0, armor: 0.75 },
+      pulse:     { shield: 1.0, armor: 0.75 },
+    },
+    order: ["ordnance", "impulse", "deflector", "armour", "phaser"],
+    list: {
+      impulse:   { name: "Impulse",   blocks: ["engine"],             color: "#7fd8a0", desc: "Engines and the afterburner: speed and angle." },
+      ordnance:  { name: "Ordnance",  blocks: ["torpedo", "reactor"], color: "#ffb36a", desc: "Torpedo tubes and the reactors to feed them: mass and salvo." },
+      deflector: { name: "Deflector", blocks: ["shield"],             color: "#6ab4ff", desc: "Shield emitters, hardener and booster: absorb." },
+      armour:    { name: "Armour",    blocks: ["armor", "disruptor"], color: "#c8cfe0", desc: "Armor plating and disruptor cannons: plates and punch." },
+      phaser:    { name: "Phaser",    blocks: ["phaser", "pulse"],    color: "#ff8a5c", desc: "Phaser banks and pulse phasers: energy that tracks." },
+    },
+    // Measured edges only (DESIGN §8 v0.27, equal-hull duels, both directions): the three-element wheel Ordnance →
+    // Impulse → Deflector → Ordnance plus Impulse over Armour. Armour and Phaser have no edge that held both ways; they
+    // are the balanced elements until a mechanic gives them one (point-defence phasers are the candidate). `enemy` is the
+    // answer an encounter takes when the player's wins carry `loses` (campaign.learn): per hull, variant, doctrine, script.
+    edges: [
+      { beats: "ordnance",  loses: "impulse",   measured: "4 of 4 / 1 of 4", how: "Ordnance beats Impulse: a light fast hull has no wall to soak four warheads, and its pulses cannot crack eight emitters before the tubes reload",
+        enemy: { bop: { layout: "bombard", doctrine: "standoff", script: "torpedoBoat" }, ktinga: { layout: "siege", doctrine: "siege", script: "siegeCruiser" } } },
+      { beats: "impulse",   loses: "deflector", measured: "4 of 4 / 0 of 4", how: "Impulse beats Deflector: a tight afterburner orbit sits where a broadside's cannons cannot track, and pulse phasers drain the wall at full rate",
+        enemy: { bop: { layout: "interceptor", doctrine: "skirmish", script: "raider" }, ktinga: null } },
+      { beats: "deflector", loses: "ordnance",  measured: "4 of 4 / 1 of 4", how: "Deflector beats Ordnance: a double wall recharges faster than four tubes reload, even with warheads draining it at ×1.5",
+        enemy: { bop: { layout: "bulwark", doctrine: "broadside", script: "cruiser" }, ktinga: { layout: "default", doctrine: "broadside", script: "cruiser" } } },
+      { beats: "impulse",   loses: "armour",    measured: "4 of 4 / 0 of 4", how: "Impulse beats Armour: cannons track 0.75 rad/s and an afterburner orbit turns faster, so the bolts miss while the pulses do not",
+        enemy: { bop: { layout: "interceptor", doctrine: "skirmish", script: "raider" }, ktinga: null } },
+    ],
+  },
+
   enemyAI: {
     // How an enemy fights (enemyAI.doctrines[id]); the encounter names one. All in km / seconds.
     doctrines: {
@@ -1225,6 +1397,10 @@ BS.Data = {
       { id: "gunboat",  enemyClass: "bird_of_prey", layout: "gunboat", doctrine: "brawl",     script: "raider",   minWins: 1, weight: 2, rewardMult: 1.1 },
       { id: "torpedo",  enemyClass: "bird_of_prey", layout: "torpedo", doctrine: "standoff",  script: "torpedoBoat", minWins: 1, weight: 2, rewardMult: 1.1, damageMult: 1.0 },   // holds station and fires every tube; with the recharge delay its stream keeps a facing down
       { id: "variant",  enemyClass: "bird_of_prey", layout: "random",  doctrine: ["strafe", "brawl"], script: "raider",   minWins: 2, weight: 3, rewardMult: 1.1, counter: true },
+      { id: "interceptor", enemyClass: "bird_of_prey", layout: "interceptor", doctrine: "skirmish", script: "raider", minWins: 2, weight: 1, rewardMult: 1.1 },   // the Impulse answer
+      { id: "bombard",  enemyClass: "bird_of_prey", layout: "bombard", doctrine: "standoff", script: "torpedoBoat", minWins: 3, weight: 1, rewardMult: 1.2 },   // the Ordnance answer
+      { id: "bulwark",  enemyClass: "bird_of_prey", layout: "bulwark", doctrine: "broadside", script: "cruiser", minWins: 2, weight: 1, rewardMult: 1.1 },   // the Deflector answer
+      { id: "pulser",   enemyClass: "bird_of_prey", layout: "pulser",  doctrine: "brawl",     script: "raider",  minWins: 2, weight: 1, rewardMult: 1.1 },   // the Phaser answer
       { id: "jammer",   enemyClass: "bird_of_prey", layout: "jammer",  doctrine: "brawl",     script: "raider",   minWins: 3, weight: 2, rewardMult: 1.2 },
       { id: "shadow",   enemyClass: "bird_of_prey", layout: "shadow",  doctrine: "ambush",    script: "doctrine", minWins: 3, weight: 2, rewardMult: 1.3, damageMult: 1.2 },   // its decloak strikes already double
       { id: "leech",    enemyClass: "bird_of_prey", layout: "leech",   doctrine: "brawl",     script: "raider",   minWins: 3, weight: 2, rewardMult: 1.2 },   // two neutralisers: a close brawl becomes a capacitor war

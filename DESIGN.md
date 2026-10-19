@@ -107,6 +107,11 @@ these styles on the doctrine table". Every shield or hull hit is booked
 to the rules standing at that moment (`state.attrib`, events `shieldHit`
 / `hullHit`), so the sentence names what actually hurt, not a guess.
 
+**Elements** (0.27): the *Why you lost* block opens with both builds'
+elements ("ours Impulse · theirs Ordnance") and, when a measured edge
+joins them, the wheel's sentence ("Wheel: Ordnance beats Impulse: …"),
+else "no edge on the wheel between these two".
+
 **Their bridge** (0.25): under *Never fired*, every rule of the enemy's
 script that fired, with the time and, for a reaction, the callout Tactical
 read out ("The cruiser is coming about to bring its batteries round").
@@ -162,6 +167,13 @@ The left column of the hangar carries the pre-battle thinking:
   say when an aim needs a scan rule, when an Otherwise rule sits above
   other standing rules, or when a rule does nothing. At most
   `script.maxRules` (12) rules. Policies are checkboxes.
+- **Doctrine** (0.27, `#hg-doctrine`): the measured wheel as chips
+  (Ordnance → Impulse → Deflector → Ordnance, YOU and NEXT marked), the
+  balanced elements, what the current build reads as with its emphasis
+  per family, the chart multipliers, and every measured edge as a sentence
+  with its numbers. The Intel box adds "Element: theirs Ordnance · yours
+  Impulse · their Ordnance beats your Impulse"; the Build stats line shows
+  the element.
 - **They have watched you** (0.26): when the next encounter learned from
   your signatures (below), a yellow line under the Intel drawing and the
   "Next:" header say so: "They have watched your last 3 fights (standoff ·
@@ -890,6 +902,42 @@ intel, script); in the fight the bridge runs the script. A script is
   3, `{ x, y }` on the intel layout or `{ type }`): read by `aim: { plan: n }`;
   the hangar side arrives with PR B.
 
+### Elements: the measured wheel (0.27, `BS.Data.elements`, `BS.Grid.elementOf`)
+Pillar 2, done the way the measurements allowed. Five Trek elements are
+block families: **Impulse** (engines), **Ordnance** (torpedo tubes and
+reactors), **Deflector** (shield emitters), **Armour** (plating and
+disruptor cannons), **Phaser** (phaser banks and pulse phasers). A build's
+element is the family it invests in most against its class default
+(`elementOf`: family value / default family value, a family the default
+lacks measured against `baselineFloor` 15% of the default's total value;
+under `minEmphasis` ×1.15 the build is "mixed"). Variants and presets name
+theirs (`element`): Bird-of-Prey Interceptor (30 engines, 6 pulses),
+Bombard (4 tubes, 6 reactors), Bulwark (12 emitters), Gunboat (11
+cannons), Pulser (10 pulses); Constitution Courier (32 engines), Bulwark
+(16 emitters), Sniper, Brawler, Shadow hunter. EW blocks stay outside the
+wheel as abilities.
+
+The **type chart** (`elements.chart`) is applied in the damage path: a
+torpedo drains a shield facing at ×1.5 per point of damage (the pool loses
+more, the hull behind does not), a disruptor bolt at ×0.7, and a beam or
+pulse hit on armor plating does ×0.75 (`applyDamage`, `Grid.hit`, by the
+firing block's type). `balance.torpedoSpeedExponent` (1.0, was 0.6 in the
+formula) makes a warhead lose damage faster against a target quicker than
+its explosion velocity.
+
+**Measured edges only** (`elements.edges`, DESIGN §8 v0.27: equal-hull
+Bird-of-Prey duels, every pair in both directions, 4 fights each):
+Ordnance beats Impulse, Impulse beats Deflector, Deflector beats Ordnance
+(a three-element wheel), and Impulse beats Armour. Armour and Phaser have
+no edge that held both ways and are listed as balanced. Each edge carries
+the public sentence (`how`), its numbers (`measured`) and the enemy's
+answer per hull (`enemy`): the learning of 0.26 now looks up the wheel
+first (the edge whose `loses` is the dominant element of the remembered
+wins, `BS.Campaign.elementEdge`) and the style rows after; the report
+quotes the edge (`BS.Game.elementSentence`). The ladder the first chart
+produced (torpedoes ×2 vs shields, cannons ×0.5: Ordnance beat
+everything, the K't'inga became harmless) is why the chart is moderate.
+
 ### Honest loss (0.26)
 A loss is meant to be accepted and answered with a new build or script,
 so the enemy may never win by information the player cannot have:
@@ -1053,7 +1101,7 @@ ew: { jamPerBlock, jamDuration, cloakTime, decloakTime, surgeTime, cloakDrain, c
 grid.boarding: { rangeKm, minParty, partyMax, transportTime, bridgeGuard, defenderPerQuarters, gapStart, gapAbort, abortRangeMult, rate, floor }
 script: { tickSeconds, chargingKmS, traceMax, planTargets, defaultTemplate, maxRules, dryRun: { maxSeconds, stepsPerChunk }, bridgeCall: { tokens, holdSeconds, focusSeconds, confirmSeconds, disengageUntil, noCallBonus }, conditions: { id: { label, kind, def, negLabel? } }, actions: { id: { label, kind } }, policies: { id: { label } }, weakKinds,
           templates: { id: { name, desc, requires?, policies, rules: [{ when, do, until?, holdMax?, once?, every? }] } }, enemyScripts: { id: { name, rules } } }
-campaign.firstFight: { weakPointChance }; campaign.encounters[].script; campaign.learn; enemyAI.doctrineTable / signatureCounters; save: scripts[], scriptByBuild{}, plans{}, book{}, signatures[], settings.manualBridge, campaign.cleanWins, campaign.retry
+campaign.firstFight: { weakPointChance }; campaign.encounters[].script; campaign.learn; elements (chart, list, edges); balance.torpedoSpeedExponent; shipClasses.*.variants / presets[].element; enemyAI.doctrineTable / signatureCounters; save: scripts[], scriptByBuild{}, plans{}, book{}, signatures[], settings.manualBridge, campaign.cleanWins, campaign.retry
 campaign.salvage: { destroyed, disabled, captured }; enemyAI.*: drainedBelow, drainedUntil, drainedTime; enemyAI.counters[].when.neutMin
 shipClasses: { id: { name, className, role, faction, cost, purchasable, speed, turnRate, signature, lockRangeKm, powerBase,
                      mask: [rows], layout: [rows], presets: { id: { name, desc, rows } }, variants: { id: { name, desc, rows } } (enemies),
@@ -1096,6 +1144,57 @@ harness is in the repository: `tools/harness.js` (Playwright, one
 `campaign.encounters`, seeded `Math.random`, `--noreact` for the 0.24 enemy
 bridge, `--eval` for a data tweak, `--debug` for what each bridge saw) and
 `tools/smoke.js` (the headless interface check).
+
+v0.27.0 (elements; `tools/harness.js --ship bird_of_prey --rows variant:X
+--equal`: both ships a Bird-of-Prey, the enemy's stat, damage and accuracy
+multipliers 1, the player's reaction delay, no aim re-rolls, no retreat;
+the player flies the variant with the natural template, the enemy the
+variant with its doctrine: Interceptor / Brawler vs skirmish, Bombard /
+Siege vs standoff + Siege play, Bulwark / Turtle vs broadside, Gunboat /
+Brawler vs brawl, Pulser / Brawler vs brawl; 4 fights per cell, cells are
+the player's wins, "st" stalemates; chart ×1.5 / ×0.7 / ×0.75, exponent
+1.0):
+
+| Player \ enemy | Impulse | Ordnance | Deflector | Armour | Phaser |
+|---|---|---|---|---|---|
+| **Impulse** | — | 1 (3 st) | **4** | **4** | 4 |
+| **Ordnance** | **4** | — | 1 | 4* | 3* |
+| **Deflector** | 0 | **4** | — | 4 | 4* |
+| **Armour** | 0 | 1* | 3 | — | 4 |
+| **Phaser** | 4* | 1* | 3* | 3 | — |
+
+(* measured under the earlier chart ×2.0 / ×0.5 / ×0.5 or the 8-pulse
+Pulser; the bold cells are the edges that held in both directions and are
+published in `elements.edges`.) Reading: a three-element wheel Ordnance →
+Impulse → Deflector → Ordnance, Impulse over Armour, and the rest even:
+the player side wins both ways where no mechanic separates the builds.
+
+What the chart did on the way: at ×2.0 / ×0.5 / ×0.5 Ordnance beat every
+element (4 of 4 against all four) and the campaign broke (Brawler vs
+K't'inga 3 of 3 keeping 100%, Brawler vs Bombard 0 of 4, Galaxy vs Siege
+1 of 2); torpedoes at ×1.5 against the Bulwark stalemated both ways until
+the Bombard got its fourth tube; the cannon-armed Interceptor stalemated
+against the Bombard and lost to it as a strafer (passes with the
+afterburner off eat torpedoes), the pulse-armed Interceptor on a skirmish
+orbit is the Impulse that beats Deflector and Armour. The exponent alone
+(0.6 → 1.0, 1.5) did not give Impulse the edge over Ordnance: 2 of 4 and
+stalemates.
+
+Campaign regression under the final chart: Brawler vs Raider (0 wins) 3 of
+4 in 2:52–3:59 keeping 72–99%; vs Torpedo boat (1 win) 4 of 4 keeping
+79–96%; vs K't'inga (4 wins) 2 of 3 keeping 92–100%, one stalemate; vs
+Shadow (3 wins) 2 of 2; Galaxy vs Siege (6 wins) 2 of 2 keeping 91–98%;
+Brawler vs **Bombard** (3 wins) 1 of 4 with three stalemates: the new
+Ordnance encounter is a wall for a mixed build, as the wheel says. Sniper
+Siege vs strafing Raider (3 wins) 1 of 4.
+
+Honest reading: the wheel is three elements, not five, and it is the
+game's own physics, not the one drawn beforehand (torpedoes kill the light
+fast hull; the wall out-recharges the tubes; speed out-tracks the wall and
+the cannons). Armour and Phaser need a mechanic of their own to earn an
+edge (point-defence phasers against torpedoes would give Phaser over
+Ordnance and close a five-cycle); that is the next measured step, not a
+multiplier.
 
 v0.26.0 (honest contact, learning; `tools/harness.js --variant / --doctrine /
 --escript` force the enemy, `--signature tag --learn` force the learning
@@ -1509,6 +1608,7 @@ than slower (it is nearly untouched, as intended).
 | v0.11.0 (done) | Cloak and ECM fields: a ship cloaks only with every block inside a cloak field (several devices per hull), a partial ECM field steers the jammed enemy's fire onto the uncovered blocks |
 | v0.12.0 (done) | Disruptor cannons (punch, penetration, poor tracking) and pulse phasers (tracking, knife range) as blocks and weapon groups; Klingons mount cannons |
 | v0.13.0 (done) | Crew: systems need hands, the bridge and crew quarters supply them, manning slows weapons and shields, blocks far from quarters repair slowly; every layout re-fitted |
+| v0.27.0 (done) | Elements: five block families with a type chart in the damage path, a build's element in the hangar, the measured three-element wheel and the balanced pair on a Doctrine page, element answers in the enemy's learning, five new layouts, equal-hull duels in the harness |
 | v0.26.0 (done) | Honest loss (contact instead of a cloaked ship's position, for both ships), "why you lost" with damage booked to the standing rules and the measured doctrine table, signatures of wins and an enemy that learns from them (same-weight answers, said in the hangar), the 3-win matrix in §8 |
 | v0.25.0 (done) | Enemy reactions as script rules with callouts (roll when shadowed, reinforce and roll when their emitters are hunted, kite under an alpha, hold off a cloaked ship), new observations (enemy stance, aim, range band off our weapons, afterburner, heat, blind time), opening book per encounter, `tools/harness.js` and `tools/smoke.js` |
 | v0.24.0 (done) | Battle report with the script timeline and never-fired reasons, clean-bridge bonus, refit & retry against the same enemy |

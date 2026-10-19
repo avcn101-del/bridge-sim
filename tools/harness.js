@@ -4,7 +4,9 @@
 //   --enemy <id>        encounter id from campaign.encounters (raider, gunboat, torpedo, variant, jammer, shadow, leech,
 //                       cruiser, siege, warlord); forced by replacing campaign.encounters
 //   --wins <n>          battles won (enemy strength and scan / weak-point rules follow it)
-//   --ship <classId>    player hull (default constitution); --preset <name> one of its presets (e.g. shadowhunter)
+//   --ship <classId>    player hull (default constitution); --preset <name> one of its presets (e.g. shadowhunter);
+//                       --rows variant:<name> flies one of the class's enemy variants (element duels: --ship bird_of_prey)
+//   --equal             a duel of equal hulls (DESIGN §8 wheel): enemy stat, damage and accuracy multipliers 1, the player's reaction delay, no aim re-rolls, no retreat
 //   --script <id|file>  a template id, or a JSON file with an inline script { name, policies, rules }
 //   --side <side>       add "keep to their <side>" to every rule that sets a stance (blind, aft, port, starboard)
 //   --noreact           the enemy flies the 0.24 script (scan, blind roll, doctrine): no reaction rules
@@ -26,7 +28,7 @@ var opts = {
   script: args.script || "brawler", side: args.side || null, noreact: !!args.noreact, runs: parseInt(args.runs || "4", 10),
   max: parseInt(args.max || "600", 10), seed: parseInt(args.seed || "1", 10), eval: args.eval || null, debug: !!args.debug,
   signature: args.signature ? String(args.signature).split(",") : null, learn: !!args.learn,
-  variant: args.variant || null, doctrine: args.doctrine || null, escript: args.escript || null,
+  variant: args.variant || null, doctrine: args.doctrine || null, escript: args.escript || null, rows: args.rows || null, equal: !!args.equal,
 };
 if (fs.existsSync(opts.script)) opts.script = JSON.parse(fs.readFileSync(opts.script, "utf8"));
 
@@ -52,6 +54,8 @@ function fmt(t) { var m = Math.floor(t / 60), s = Math.floor(t % 60); return m +
         save.campaign.battlesWon = o.wins;
         var cls = BS.Data.shipClasses[o.ship];
         if (o.preset) { if (!cls.presets || !cls.presets[o.preset]) throw new Error("no preset " + o.preset); save.layouts[o.ship] = cls.presets[o.preset].rows.slice(); }
+        if (o.rows) { var vn = o.rows.replace(/^variant:/, ""); if (!cls.variants || !cls.variants[vn]) throw new Error("no variant " + vn); save.layouts[o.ship] = cls.variants[vn].rows.slice(); }
+        if (o.equal) { Object.keys(BS.Data.enemyAI).forEach(function (k) { var pr = BS.Data.enemyAI[k]; if (pr && pr.statMult !== undefined) { pr.statMult = 1; pr.damageMult = 1; pr.accuracyMult = 1; pr.reactionDelay = BS.Data.helm.reactionDelay; pr.targetWeights = { none: 1 }; pr.weakPointChance = 0; pr.retreatHull = 0; } }); BS.Data.campaign.enemyScaling.perWin = 0; BS.Data.campaign.encounters.forEach(function (e) { delete e.damageMult; }); }
         var enc = BS.Data.campaign.encounters.filter(function (e) { return e.id === o.enemy; })[0];
         if (!enc) throw new Error("no encounter " + o.enemy);
         enc = Object.assign({}, enc, { minWins: 0, weight: 1 });
@@ -94,7 +98,7 @@ function fmt(t) { var m = Math.floor(t / 60), s = Math.floor(t % 60); return m +
   var wins = results.filter(function (r) { return r.result === "victory"; });
   var kept = wins.map(function (r) { return r.hullPct; }).sort(function (a, b) { return a - b; });
   var times = wins.map(function (r) { return r.time; }).sort(function (a, b) { return a - b; });
-  console.log("\n" + opts.ship + (opts.preset ? " (" + opts.preset + ")" : "") + " · " + (typeof opts.script === "string" ? opts.script : opts.script.name) + (opts.side ? " side " + opts.side : "") + " vs " + opts.enemy + " (" + opts.wins + " wins" + (results[0] ? ", " + results[0].enemy.doctrine + ", script " + results[0].enemy.script + (results[0].enemy.counter ? ", counter: " + results[0].enemy.counter : "") + (results[0].enemy.learned ? ", learned " + results[0].enemy.variant + ": " + results[0].enemy.learned : "") : "") + "): "
+  console.log("\n" + opts.ship + (opts.preset ? " (" + opts.preset + ")" : "") + (opts.rows ? " (" + opts.rows + ")" : "") + (opts.equal ? " [equal]" : "") + " · " + (typeof opts.script === "string" ? opts.script : opts.script.name) + (opts.side ? " side " + opts.side : "") + " vs " + opts.enemy + " (" + opts.wins + " wins" + (results[0] ? ", " + results[0].enemy.doctrine + ", script " + results[0].enemy.script + (results[0].enemy.counter ? ", counter: " + results[0].enemy.counter : "") + (results[0].enemy.learned ? ", learned " + results[0].enemy.variant + ": " + results[0].enemy.learned : "") : "") + "): "
     + wins.length + " of " + results.length + (wins.length ? " in " + fmt(times[0]) + "–" + fmt(times[times.length - 1]) + " keeping " + kept[0] + "–" + kept[kept.length - 1] + "%" : "")
     + (results.length - wins.length ? ", " + results.filter(function (r) { return r.result === "defeat"; }).length + " lost, " + results.filter(function (r) { return r.result !== "victory" && r.result !== "defeat"; }).length + " stalemate" : ""));
   if (errors.length) { console.log("PAGE ERRORS:\n" + errors.join("\n")); process.exitCode = 1; }

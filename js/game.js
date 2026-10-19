@@ -182,6 +182,11 @@ BS.Game = (function () {
   function templateId(def) { var T = BS.Data.script.templates, id = null; Object.keys(T).forEach(function (k) { if (T[k] === def) id = k; }); return id || (def && def.id) || null; }
   // The doctrine table's sentence for a pair of styles: the first row whose winning tag the winner carried and whose
   // losing tag the loser carried.
+  // The wheel's sentence when the winner's element beats the loser's (BS.Data.elements), else null.
+  function elementSentence(winEl, loseEl) {
+    var e = BS.Data.elements.edges.filter(function (x) { return x.beats === winEl && x.loses === loseEl; })[0];
+    return e ? { beats: winEl, loses: loseEl, text: e.how, measured: e.measured } : null;
+  }
   function counterSentence(winnerTags, loserTags) {
     var rows = BS.Data.enemyAI.doctrineTable;
     for (var i = 0; i < rows.length; i++) if (winnerTags.indexOf(rows[i].beats) >= 0 && loserTags.indexOf(rows[i].loses) >= 0) return rows[i];
@@ -237,6 +242,6 @@ BS.Game = (function () {
 
   function openHangar() { BS.UI.hideOverlays(); state.phase = state.player ? "ended" : "start"; BS.Hangar.show(); }
 
-  var api = { styleTags: styleTags, counterSentence: counterSentence, templateId: templateId, init: init, startBattle: startBattle, dryRun: dryRun, cancelDryRun: cancelDryRun, openHangar: openHangar, command: command, bridgeCall: bridgeCall, setSpeed: setSpeed, togglePause: togglePause, setHover: setHover, setZoom: setZoom, state: state, step: step };
+  var api = { styleTags: styleTags, counterSentence: counterSentence, elementSentence: elementSentence, templateId: templateId, init: init, startBattle: startBattle, dryRun: dryRun, cancelDryRun: cancelDryRun, openHangar: openHangar, command: command, bridgeCall: bridgeCall, setSpeed: setSpeed, togglePause: togglePause, setHover: setHover, setZoom: setZoom, state: state, step: step };
   return api;
 })();

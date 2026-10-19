@@ -384,14 +384,16 @@ BS.Grid = (function () {
   // kind "phaser": penetrates up to grid.penetration blocks along the shot line.
   // kind "torpedo": explodes on the entry block and splashes into its neighbours.
   // `first` is the entry block from resolveEntry when the caller already looked it up (so shield cover and the hit agree).
-  function hit(ship, amount, fromX, fromY, aimType, kind, first, pierceBonus) {
+  function hit(ship, amount, fromX, fromY, aimType, kind, first, pierceBonus, wtype) {
     var grid = ship.grid, g = G();
     var res = { hits: [], destroyed: [], cutOff: [], explosions: [], crits: [] };
     if (first === undefined) first = resolveEntry(ship, fromX, fromY, aimType);
     if (!first) return res;
     var toExplode = [], C = g.crits;
+    var ch = wtype && BS.Data.elements ? BS.Data.elements.chart[wtype] : null, armorMult = ch && ch.armor !== undefined ? ch.armor : 1;   // the element chart: beams into plating
     function damage(b, d) {
       if (!b.alive || d <= 0) return 0;
+      if (b.type === "armor" && armorMult !== 1) { var taken0 = Math.min(b.hp, d * armorMult); b.hp -= taken0; res.hits.push({ block: b, dmg: taken0 }); if (b.hp <= 0) { b.alive = false; res.destroyed.push(b); } return taken0 / armorMult; }   // a plate soaks the shot's share at the chart's rate
       var taken = Math.min(b.hp, d);
       b.hp -= taken; res.hits.push({ block: b, dmg: taken });
       if (b.hp <= 0) { b.alive = false; res.destroyed.push(b); if (b.def.explosion) toExplode.push(b); }
@@ -475,6 +477,20 @@ BS.Grid = (function () {
     return rows;
   }
   // Validate a layout against a class: returns { ok, errors: [], counts }
+  // The element of a build (BS.Data.elements): the block family it invests in most against its class default, as
+  // value / default value (a family the default lacks counts as a big emphasis); "mixed" under minEmphasis.
+  // Returns { id, emphasis: { element: ratio } }.
+  function elementOf(cls, rows) {
+    var E = BS.Data.elements, st = derive(build(cls, rows)), base = derive(build(cls, cls.layout)).counts, c = st.counts, emph = {}, best = null;
+    var total = 0; Object.keys(base).forEach(function (t) { total += base[t] * (BS.Data.blocks[t] ? BS.Data.blocks[t].cost : 0); });
+    Object.keys(E.list).forEach(function (e) {
+      var v = 0, b = 0;
+      E.list[e].blocks.forEach(function (t) { var cost = BS.Data.blocks[t] ? BS.Data.blocks[t].cost : 0; v += (c[t] || 0) * cost; b += (base[t] || 0) * cost; });
+      emph[e] = v / Math.max(b, total * E.baselineFloor);
+      if (best === null || emph[e] > emph[best]) best = e;
+    });
+    return { id: best && emph[best] >= E.minEmphasis ? best : "mixed", emphasis: emph };
+  }
   function validateLayout(cls, rows) {
     var errors = [], counts = {}, bridges = 0;
     var mask = cls.mask;
@@ -542,7 +558,7 @@ BS.Grid = (function () {
     return cost;
   }
 
-  return { build: build, derive: derive, facingOf: facingOf, worldToLocal: worldToLocal, localToWorld: localToWorld, cellOfLocal: cellOfLocal,
+  return { elementOf: elementOf, build: build, derive: derive, facingOf: facingOf, worldToLocal: worldToLocal, localToWorld: localToWorld, cellOfLocal: cellOfLocal,
     blockAtWorld: blockAtWorld, blockWorld: blockWorld, entryBlock: entryBlock, entryBlockThrough: entryBlockThrough, resolveEntry: resolveEntry, hit: hit, blockFacing: facingOf, lineOfFireClear: lineOfFireClear, arcCoverage: arcCoverage, weaponFacing: weaponFacingOf, bearingProfile: bearingProfile, fieldCover: fieldCover, weakPoints: weakPoints, repair: repair, pruneDisconnected: pruneDisconnected,
     layoutFromGrid: layoutFromGrid, validateLayout: validateLayout, randomVariant: randomVariant, layoutCost: layoutCost, typeForLetter: typeForLetter };
 })();

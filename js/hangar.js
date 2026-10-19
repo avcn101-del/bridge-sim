@@ -12,7 +12,7 @@ BS.Hangar = (function () {
 
   function init(gameRef) {
     game = gameRef;
-    ["hangar-screen", "hg-credits", "hg-ship", "hg-ships", "hg-editor", "hg-palette", "hg-stats", "hg-skills", "hg-training", "hg-msg", "hg-record", "hg-threat", "hg-intel-view", "hg-intel-info", "hg-plan", "hg-script",
+    ["hangar-screen", "hg-credits", "hg-ship", "hg-ships", "hg-editor", "hg-palette", "hg-stats", "hg-skills", "hg-training", "hg-msg", "hg-record", "hg-threat", "hg-intel-view", "hg-intel-info", "hg-plan", "hg-script", "hg-doctrine",
      "hg-presets", "hg-builds", "btn-mirror", "btn-fill", "btn-clear", "btn-revert", "btn-apply", "btn-savebuild", "hg-buildname", "hg-delta",
      "btn-undock", "btn-export", "btn-import", "hg-import-file", "btn-reset"].forEach(function (id) { el[id] = $(id); });
     el["btn-undock"].addEventListener("click", function () {
@@ -90,7 +90,10 @@ BS.Hangar = (function () {
   }
   // Opening book: what this encounter's bridge has been seen doing (save.book), most often first.
   function bookLine(enc) {
-    var b = C.bookFor(enc), lr = enc.learned ? "<div class='warn hg-learned'>They have watched your last " + enc.learned.fights + " fight" + (enc.learned.fights === 1 ? "" : "s") + " (" + escapeHtml(enc.learned.tags.join(" · ")) + "): " + escapeHtml(enc.learned.reason) + ".</div>" : "";
+    var EL = BS.Data.elements.list, mine = BS.Grid.elementOf(BS.Data.shipClasses[ed.classId], ed.rows).id, theirs = enc.element || "mixed";
+    var edge = BS.Game.elementSentence(mine, theirs) ? "your " + EL[mine].name + " beats their " + EL[theirs].name : BS.Game.elementSentence(theirs, mine) ? "their " + EL[theirs].name + " beats your " + EL[mine].name : "no measured edge between them";
+    var elLine = "<div class='hg-element'>Element: theirs <b style='color:" + (EL[theirs] ? EL[theirs].color : "#999") + "'>" + (EL[theirs] ? EL[theirs].name : "mixed") + "</b> · yours <b style='color:" + (EL[mine] ? EL[mine].color : "#999") + "'>" + (EL[mine] ? EL[mine].name : "mixed") + "</b> · " + edge + "</div>";
+    var b = C.bookFor(enc), lr = elLine + (enc.learned ? "<div class='warn hg-learned'>They have watched your last " + enc.learned.fights + " fight" + (enc.learned.fights === 1 ? "" : "s") + " (" + escapeHtml(enc.learned.tags.join(" · ")) + "): " + escapeHtml(enc.learned.reason) + ".</div>" : "");
     return lr + bookLine0(b);
   }
   function bookLine0(b) {
@@ -110,6 +113,7 @@ BS.Hangar = (function () {
     el["hg-threat"].title = "Sensors report a " + enc.cls.className + (enc.variantName ? " (" + enc.variantName + " layout)" : "") + ". Reward ×" + enc.rewardMult + ". Doctrine: " + enc.doctrine + (enc.counterReason ? ": " + enc.counterReason + ". Change your build and they change their plan." : ".");
     renderIntel(enc);
     renderPlan(enc);
+    renderDoctrine(enc);
     renderScript();
     el["hg-ship"].innerHTML = "<b>" + cls.name + "</b> · " + cls.className + " · " + cls.role +
       "<br><span class='dim'>" + cls.mask[0].length + "×" + cls.mask.length + " cell hull · base speed " + (cls.speed / BS.Data.units.pxPerKm).toFixed(1) + " km/s · signature " + cls.signature + " m</span>";
@@ -249,7 +253,7 @@ BS.Hangar = (function () {
     el["hg-stats"].innerHTML =
       (st.ok ? "" : "<div class='bad'>" + st.errors.join(" ") + "</div>") +
       (st.warnings.length ? "<div class='warn'>" + st.warnings.join(" ") + "</div>" : "") +
-      "<div><label>Build</label><span>" + st.blocks + " blocks · mass " + st.mass + " · value " + st.cost.toLocaleString() + " cr <span class='dim'>(" + counts + ")</span></span></div>" +
+      "<div><label>Build</label><span>" + st.blocks + " blocks · mass " + st.mass + " · value " + st.cost.toLocaleString() + " cr · element <b>" + (function () { var e = BS.Grid.elementOf(BS.Data.shipClasses[ed.classId], ed.rows), EL = BS.Data.elements.list; return EL[e.id] ? EL[e.id].name : "mixed"; })() + "</b> <span class='dim'>(" + counts + ")</span></span></div>" +
       "<div><label>Damage</label><span>" + st.dps + " dps <span class='dim'>(beams " + st.turretDps + " · torpedoes " + st.launcherDps + ")</span></span></div>" +
       "<div><label>Capacitor</label><span>" + st.cap + " · " + capLine + " <span class='dim'>(drain " + st.drain + "/s · peak " + st.peakRecharge + "/s)</span></span></div>" +
       "<div><label>Heat</label><span>cap " + st.heatCap + " · full salvo " + st.salvoHeat + (st.salvoHeat > st.heatCap ? " <span class='bad'>(overloads)</span>" : "") + " · bleeds " + st.heatDissipation + "/s vs " + st.heatPerSec + "/s firing" + (st.heatNeutral < 1 ? " <span class='warn'>(sustained fire " + Math.round(100 * st.heatNeutral) + "%)</span>" : " (sustainable)") + "</span></div>" +
@@ -337,6 +341,19 @@ BS.Hangar = (function () {
       var cell = cellAt(ev); if (cell) { ed.hover = cell; paint(cell, ed.paintType); }
     });
     ["pointerup", "pointercancel"].forEach(function (n) { canvas.addEventListener(n, function (ev) { if (ev.pointerType === "touch") { ed.painting = false; ed.hover = null; renderEditor(); } }); });
+  }
+
+  // ---- doctrine: the public wheel (BS.Data.elements), with the player's and the next enemy's element marked -------
+  function renderDoctrine(enc) {
+    var E = BS.Data.elements, EL = E.list, box = el["hg-doctrine"], mine = BS.Grid.elementOf(BS.Data.shipClasses[ed.classId], ed.rows), theirs = enc ? enc.element : null;
+    function chip(id) { var e = EL[id], tag = (id === mine.id ? " <span class='me'>YOU</span>" : "") + (id === theirs ? " <span class='them'>NEXT</span>" : ""); return "<span class='el' style='border-color:" + e.color + "' title='" + escapeHtml(e.desc + " Blocks: " + e.blocks.map(function (b) { return BS.Data.blocks[b].name.toLowerCase(); }).join(", ") + ".") + "'>" + e.name + tag + "</span>"; }
+    // the wheel: the measured cycle Ordnance → Impulse → Deflector → Ordnance; then every measured edge as a sentence
+    var cycle = ["ordnance", "impulse", "deflector"];
+    var html = "<div class='wheel'>" + cycle.map(function (id, i) { return chip(id) + "<span class='arrow'>beats</span>"; }).join("") + chip(cycle[0]) + "</div>";
+    html += "<div class='wheel'>" + E.order.filter(function (id) { return cycle.indexOf(id) < 0; }).map(chip).join("") + "<span class='arrow'>balanced: no edge that held both ways</span></div>";
+    html += "<div class='dim'>Your build reads as <b>" + (EL[mine.id] ? EL[mine.id].name : "mixed") + "</b> (" + E.order.map(function (id) { return EL[id].name.slice(0, 3) + " ×" + mine.emphasis[id].toFixed(1); }).join(" · ") + " of the class default; under ×" + E.minEmphasis + " is mixed). Cloak, ECM, neutralisers and decoys are abilities outside the wheel. Chart: torpedoes drain shields ×" + E.chart.torpedo.shield + ", cannon bolts ×" + E.chart.disruptor.shield + ", beams into plating ×" + E.chart.phaser.armor + ".</div>";
+    html += E.edges.map(function (e) { return "<div class='edge'><b style='color:" + EL[e.beats].color + "'>" + EL[e.beats].name + "</b> beats <b style='color:" + EL[e.loses].color + "'>" + EL[e.loses].name + "</b>: " + escapeHtml(e.how.split(": ").slice(1).join(": ")) + " <span class='dim'>Measured " + escapeHtml(e.measured) + " (equal hulls, as attacker / as defender).</span></div>"; }).join("");
+    box.innerHTML = html;
   }
 
   // ---- plan: up to script.planTargets targets on the next enemy, in order ------------------------------------

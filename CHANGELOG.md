@@ -2,6 +2,31 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.27.0] — 2026-10-19 (elements: the measured wheel; PR C of the "chess" pillars)
+
+### Added
+- **Elements** (`BS.Data.elements`): Impulse, Ordnance, Deflector, Armour,
+  Phaser as block families; a build's element is read off its layout
+  against the class default (`BS.Grid.elementOf`, shown in the hangar
+  Build line and the Intel box); variants and presets name theirs.
+- **Type chart** in the damage path: torpedoes drain shields ×1.5, cannon
+  bolts ×0.7, beams and pulses into armor plating ×0.75;
+  `balance.torpedoSpeedExponent` 1.0.
+- **Doctrine page** in the hangar: the measured wheel Ordnance → Impulse →
+  Deflector → Ordnance, Impulse over Armour, Armour and Phaser balanced,
+  each edge as a sentence with its numbers (`elements.edges`, equal-hull
+  duels in DESIGN §8). The battle report quotes the edge between the two
+  builds; the enemy's learning answers the player's element first.
+- Layouts: Bird-of-Prey Interceptor, Bombard, Bulwark, Pulser (encounters
+  from 2–3 wins); Constitution presets Courier and Bulwark.
+- Harness: `--rows variant:X`, `--equal` (equal-hull duels).
+
+### Changed
+- The wheel drawn beforehand (five elements in a ring) did not survive the
+  duels; `elements.edges` holds only what held both ways. The first chart
+  (×2.0 / ×0.5 / ×0.5) made Ordnance beat everything and the K't'inga
+  harmless; the moderate chart keeps the campaign where 0.26 left it.
+
 ## [0.26.0] — 2026-10-19 (honest loss, why you lost, the enemy learns; PR B of the "chess" pillars)
 
 ### Added

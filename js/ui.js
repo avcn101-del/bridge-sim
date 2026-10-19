@@ -502,7 +502,10 @@ BS.UI = (function () {
     var sp = state.style ? state.style.player : null, se = state.style ? state.style.enemy : null;
     var pt = sp ? BS.Game.styleTags(sp, p) : [], et = se ? BS.Game.styleTags(se, e) : [];
     var row = won ? BS.Game.counterSentence(pt, et) : BS.Game.counterSentence(et, pt);
+    var EL = BS.Data.elements.list, pe = BS.Grid.elementOf(p.cls, p.layoutRows).id, ee = state.encounter && state.encounter.element ? state.encounter.element : BS.Grid.elementOf(e.cls, e.layoutRows).id;
+    var erow = won ? BS.Game.elementSentence(pe, ee) : BS.Game.elementSentence(ee, pe);
     var html = "<h4>" + (won ? "What carried it" : "Why you lost") + "</h4>";
+    html += "<div class='nf'>Elements: ours <b>" + (EL[pe] ? EL[pe].name : "mixed") + "</b> · theirs <b>" + (EL[ee] ? EL[ee].name : "mixed") + "</b><br><span class='why'>" + (erow ? "Wheel: " + escapeHtml(erow.text) : "no edge on the wheel between these two") + "</span></div>";
     html += "<div class='nf'>" + share + "% of the damage " + (won ? "we dealt landed" : "we took landed") + " while their " + escapeHtml(ruleText(e, parts[0])) + "<br><span class='why'>… and our " + escapeHtml(ruleText(p, parts[1])) + "</span></div>";
     html += "<div class='nf'>Styles: ours " + escapeHtml(pt.join(", ") || "—") + " · theirs " + escapeHtml(et.join(", ") || "—") + "<br><span class='why'>" + (row ? "Table: " + escapeHtml(row.text) : "no pairing of these styles on the doctrine table") + "</span></div>";
     return html;
