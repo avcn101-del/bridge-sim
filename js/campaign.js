@@ -129,8 +129,8 @@ BS.Campaign = (function () {
     var v = BS.Grid.validateLayout(D().shipClasses[classId], rows);
     if (!v.ok) return v.errors[0];
     var delta = layoutDelta(classId, rows, tuning);
-    if (delta.net > save.credits) return "Not enough credits: this build costs " + delta.net.toLocaleString() + " cr more than you have.";
-    save.credits -= delta.net;
+    if (!canAfford(delta.net)) return "Not enough credits: this build costs " + delta.net.toLocaleString() + " cr more than you have.";
+    spend(delta.net);
     save.layouts[classId] = rows.slice();
     if (tuning) save.tuning[classId] = tuning.slice();
     persist();
@@ -149,8 +149,8 @@ BS.Campaign = (function () {
     var cls = D().shipClasses[classId];
     if (!cls || !cls.purchasable) return "Not for sale.";
     if (save.ownedShips.indexOf(classId) >= 0) return "Already owned.";
-    if (save.credits < cls.cost) return "Not enough credits.";
-    save.credits -= cls.cost; save.ownedShips.push(classId); save.shipClass = classId; layoutFor(classId); persist(); return null;
+    if (!canAfford(cls.cost)) return "Not enough credits.";
+    spend(cls.cost); save.ownedShips.push(classId); save.shipClass = classId; layoutFor(classId); persist(); return null;
   }
   function selectShip(classId) { if (save.ownedShips.indexOf(classId) >= 0) { save.shipClass = classId; persist(); } }
   // The hulls that undock together (0.31, campaign.fleetMax): the hangar's ship first, then the rest of save.fleet. One
@@ -199,10 +199,16 @@ BS.Campaign = (function () {
   }
 
   // ---- encounters, rewards and enemy scaling ------------------------------
-  function enemyStatMult(profileId) {
+  // kind (0.45): a fleet encounter takes enemyScaling.fleetFactor of the win bonus
+  function enemyStatMult(profileId, kind) {
     var sc = D().campaign.enemyScaling, prof = D().enemyAI[profileId || "default"] || D().enemyAI.default;
-    return prof.statMult + Math.min(sc.maxBonus, sc.perWin * save.campaign.battlesWon);
+    return prof.statMult + Math.min(sc.maxBonus, sc.perWin * save.campaign.battlesWon) * (kind === "fleet" ? (sc.fleetFactor === undefined ? 1 : sc.fleetFactor) : 1);
   }
+  // dev mode (0.45, save.settings.devMode): nothing costs credits, so a build can be tried
+  function devMode() { return !!(save.settings && save.settings.devMode); }
+  function setDevMode(on) { save.settings = save.settings || {}; save.settings.devMode = !!on; persist(); }
+  function canAfford(cost) { return devMode() || cost <= save.credits; }
+  function spend(cost) { if (!devMode()) save.credits -= cost; }
   // The next enemy, chosen from campaign.encounters by battlesWon. Seeded by the battle record so the
   // hangar threat line and the battle agree, and a reload does not re-roll the enemy.
   function encounter() {
@@ -305,8 +311,8 @@ BS.Campaign = (function () {
 
   function buyIntel(enc) {
     var cost = D().campaign.intelCost;
-    if (save.credits < cost) return "Not enough credits (" + cost + " cr).";
-    save.credits -= cost; recordIntel(enc, "bought"); persist();
+    if (!canAfford(cost)) return "Not enough credits (" + cost + " cr).";
+    spend(cost); recordIntel(enc, "bought"); persist();
     return null;
   }
   function settleBattle(state) {
@@ -356,5 +362,5 @@ BS.Campaign = (function () {
     currentClass: currentClass, layoutFor: layoutFor, setLayout: setLayout, battleLayout: battleLayout, buyShip: buyShip, selectShip: selectShip, fleet: fleet, setFleet: setFleet,
     layoutDelta: layoutDelta, countBlocks: countBlocks, applyLayout: applyLayout, tuningFor: tuningFor, battleTuning: battleTuning, builds: builds, saveBuild: saveBuild, deleteBuild: deleteBuild, intelFor: intelFor, buyIntel: buyIntel, layoutCost: layoutCost, effectiveCost: effectiveCost,
     scriptFor: scriptFor, scriptIdFor: scriptIdFor, setScriptFor: setScriptFor, saveScript: saveScript, deleteScript: deleteScript, planFor: planFor, setPlan: setPlan, setRetry: setRetry, letGo: letGo,
-    layoutStats: layoutStats, enemyStatMult: enemyStatMult, encounter: encounter, settleBattle: settleBattle };
+    layoutStats: layoutStats, enemyStatMult: enemyStatMult, encounter: encounter, settleBattle: settleBattle, devMode: devMode, setDevMode: setDevMode, canAfford: canAfford };
 })();

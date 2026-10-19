@@ -156,7 +156,9 @@ tell the helm how to fly relative to it, and you switch modules on and off.
   percent of block hp lost, plus a streak bonus; a loss pays 120. Enemies
   get 4% stronger with every win, up to +40%.
 - **Saving**: automatic in this browser. **Export save** downloads a JSON
-  file; **Import save** loads one. **Reset progress** starts over.
+  file; **Import save** loads one. **Reset progress** starts over. **Dev
+  mode** makes hulls, blocks, tuning and intel free while it is on, to try
+  builds; your credits are kept.
 
 ## Tweaking balance
 
@@ -191,7 +193,8 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `modules.*` (booster, hardener, afterburner) | Built-in active systems |
 | `shipClasses.*.presets` | Preset builds offered in the editor |
 | `editor.refund / maxSavedBuilds` | Refund on removed blocks, saved builds per hull |
-| `campaign.encounters / enemyScaling / klingonNames` | Which enemy shows up when, which play it runs (`play`), its own damage multiplier (`damageMult`), how it scales, what it pays; `ships` lists the hulls that come with it (a fleet encounter) |
+| `campaign.encounters / enemyScaling / klingonNames` | Which enemy shows up when, its own damage multiplier (`damageMult`), how it scales (`perWin`, `maxBonus`; `fleetFactor` the share of the bonus a fleet encounter takes, 1), what it pays; `ships` lists the hulls that come with it (a fleet encounter) |
+| `saveDefaults.settings.devMode` | Dev mode (0.45): while on, hulls, blocks, tuning and intel cost nothing (the hangar's *Dev mode* button) |
 | `support.*`, `blocks.transfer / repairbeam / beacon`, `modules.shield_transfer / remote_repair / beacon`, `script.allySubjects`, mask letter `r` | Role blocks (0.34): the healer's reach and amounts per emitter and projector, the escort distance, the beacon's signature multiplier, who a support or escort action can be for, and which cells of a hull take role blocks |
 | `shipClasses.borg_cube`, `enemyAI.boss / overdrive`, `blocks.lance` (`weapon.charge`), `campaign.encounters[].kind / reinforcements`, `script.enemyScripts.borg`, `script.templates.cubebreaker` | The first boss (0.33): its hull and layout, its profile (stat, damage and shield multipliers, no retreat) and enrage, the cutting beam's charge time, damage, depth and tracking, which escorts it summons, the rules and callouts of its bridge, and the template that beats it |
 | `shipClasses.dderidex`, `enemyAI.warbird`, `blocks.plasma / tractor`, `modules.tractor`, `ew.tractor` (`rangeKm`, `hold`, `aiMinCap`), `campaign.encounters[].name`, `script.enemyScripts.warbird`, `script.templates.warbreaker`, `save.campaign.bossesBeaten` | The second boss (0.41): the warbird's hull and layout, its profile (it hunts reactors), the plasma bolt, the tractor beam's reach, hold time and the capacitor the AI keeps for it, its name, its bridge rules and callouts, the template that beats it, and the boss order (a boss slot takes the first boss not yet beaten) |

@@ -72,6 +72,7 @@ BS.Game = (function () {
     var save = BS.Campaign.get();
     // the player's side: the hulls of save.fleet (the hangar's ship first), one script each, line abreast at the origin
     var enc = BS.Campaign.encounter();
+    state.encounter = enc;   // before the enemies spawn: their strength reads the encounter's kind (0.45)
     var fleet = enc.roster || BS.Campaign.fleet(), spacing = BS.Ships.px(B.fleetSpacingKm), players = [], enemies = [];
     fleet.forEach(function (classId, i) {
       var off = (i - (fleet.length - 1) / 2) * spacing;
@@ -142,7 +143,7 @@ BS.Game = (function () {
   // One enemy hull from an encounter spec (BS.Campaign.encounter().ships / .reinforcements), not yet fighting.
   function spawnEnemy(sp, pos, heading) {
     var prof = BS.Data.enemyAI[sp.aiProfile] || BS.Data.enemyAI.default;
-    var e = BS.Ships.create(sp.classId, { name: sp.name, team: "enemy", layout: sp.rows, tuning: sp.tuning || null, pos: pos, heading: heading, statMult: BS.Campaign.enemyStatMult(sp.aiProfile), mods: { damageMult: sp.damageMult || prof.damageMult, shieldMaxMult: prof.shieldMult || 1, shieldRegenMult: prof.shieldRegenMult || 1 } });
+    var e = BS.Ships.create(sp.classId, { name: sp.name, team: "enemy", layout: sp.rows, tuning: sp.tuning || null, pos: pos, heading: heading, statMult: BS.Campaign.enemyStatMult(sp.aiProfile, state.encounter ? state.encounter.kind : null), mods: { damageMult: sp.damageMult || prof.damageMult, shieldMaxMult: prof.shieldMult || 1, shieldRegenMult: prof.shieldRegenMult || 1 } });
     e.spec = sp;
     return e;
   }
