@@ -1,10 +1,10 @@
-// js/hangar.js — the hangar between battles: ship, block editor, skills, save.
+// js/hangar.js — the hangar between battles: ship, block editor, roster, scripts, save.
 window.BS = window.BS || {};
 
 BS.Hangar = (function () {
   var U = BS.Util, C = BS.Campaign, Gr = BS.Grid;
   var $ = function (id) { return document.getElementById(id); };
-  var el = {}, game = null, timer = null;
+  var el = {}, game = null;
   // editor state
   var ed = { rows: null, classId: null, brush: "armor", mirror: true, hover: null, painting: false, paintType: null, scale: 1, ox: 0, oy: 0, ship: null, dirty: false };
   // script editor state: the script being edited (a working copy), whether it is a read-only template, the dry run
@@ -12,7 +12,7 @@ BS.Hangar = (function () {
 
   function init(gameRef) {
     game = gameRef;
-    ["hangar-screen", "hg-credits", "hg-ship", "hg-ships", "hg-editor", "hg-palette", "hg-stats", "hg-skills", "hg-training", "hg-msg", "hg-record", "hg-threat", "hg-intel-view", "hg-intel-info", "hg-plan", "hg-script", "hg-doctrine",
+    ["hangar-screen", "hg-credits", "hg-ship", "hg-ships", "hg-editor", "hg-palette", "hg-stats", "hg-msg", "hg-record", "hg-threat", "hg-intel-view", "hg-intel-info", "hg-plan", "hg-script", "hg-doctrine",
      "hg-presets", "hg-builds", "btn-mirror", "btn-tune", "btn-fill", "btn-clear", "btn-revert", "btn-apply", "btn-savebuild", "hg-buildname", "hg-delta",
      "btn-undock", "btn-export", "btn-import", "hg-import-file", "btn-reset"].forEach(function (id) { el[id] = $(id); });
     el["btn-undock"].addEventListener("click", function () {
@@ -23,7 +23,7 @@ BS.Hangar = (function () {
     el["btn-import"].addEventListener("click", function () { el["hg-import-file"].value = ""; el["hg-import-file"].click(); });
     el["hg-import-file"].addEventListener("change", importSave);
     el["btn-reset"].addEventListener("click", function () {
-      if (window.confirm("Reset all progress? Credits, ships, builds and skills will be lost.")) { C.reset(); ed.rows = null; render(); say("Progress reset."); }
+      if (window.confirm("Reset all progress? Credits, ships, builds and scripts will be lost.")) { C.reset(); ed.rows = null; render(); say("Progress reset."); }
     });
     el["btn-mirror"].addEventListener("click", function () { ed.mirror = !ed.mirror; renderEditor(); });
     el["btn-tune"].addEventListener("click", function () { ed.mode = ed.mode === "tune" ? "blocks" : "tune"; if (ed.mode === "tune" && !ed.tuneBrush) ed.tuneBrush = "default"; renderPalette(); renderEditor(); el["btn-tune"].classList.toggle("active", ed.mode === "tune"); });
@@ -44,13 +44,11 @@ BS.Hangar = (function () {
     });
     bindEditorCanvas();
     el["hg-intel-view"].addEventListener("click", planClick);
-    BS.Events.on("skillTrained", function (e) { say(BS.Data.skills[e.skill].name + " trained to level " + e.level + "."); if (isOpen()) render(); });
   }
 
   function isOpen() { return !el["hangar-screen"].classList.contains("hidden"); }
-  function show() { el["hangar-screen"].classList.remove("hidden"); render(); if (!timer) timer = setInterval(tick, 1000); }
-  function hide() { el["hangar-screen"].classList.add("hidden"); if (timer) { clearInterval(timer); timer = null; } if (sc.dry && sc.dry.running) { game.cancelDryRun(); sc.dry = null; } }
-  function tick() { if (C.updateTraining()) render(); else renderTraining(); }
+  function show() { el["hangar-screen"].classList.remove("hidden"); render(); }
+  function hide() { el["hangar-screen"].classList.add("hidden"); if (sc.dry && sc.dry.running) { game.cancelDryRun(); sc.dry = null; } }
   function say(msg, bad) { el["hg-msg"].textContent = msg; el["hg-msg"].classList.toggle("bad", !!bad); }
 
   // ---- render ---------------------------------------------------------------
@@ -111,7 +109,7 @@ BS.Hangar = (function () {
     el["hg-ship"].innerHTML = "<b>" + cls.name + "</b> · " + cls.className + " · " + cls.role +
       "<br><span class='dim'>" + cls.mask[0].length + "×" + cls.mask.length + " cell hull · base speed " + (cls.speed / BS.Data.units.pxPerKm).toFixed(1) + " km/s · signature " + cls.signature + " m</span>" +
       "<br><span class='dim'>Fleet " + roster.length + " of " + BS.Data.campaign.fleetMax + ": " + roster.map(function (id) { return BS.Data.shipClasses[id].className; }).join(", ") + (roster.length < BS.Data.campaign.run.fleetMinHulls ? " · a second hull in the fleet opens fleet fights and the boss" : "") + "</span>";
-    renderShips(s); renderPalette(); renderPresets(cls); renderBuilds(); renderEditor(); renderSkills(s); renderTraining();
+    renderShips(s); renderPalette(); renderPresets(cls); renderBuilds(); renderEditor();
   }
 
   function renderShips(s) {
@@ -241,9 +239,8 @@ BS.Hangar = (function () {
     c.lineWidth = 0.9;
     if (st0.cloakCover.sources) { c.strokeStyle = "rgba(155,140,255,0.9)"; g.blocks.forEach(function (b) { if (b.alive && !b.structural && !b.cloakCovered) c.strokeRect(b.lx - half + 0.6, b.ly - half + 0.6, cp - 1.2, cp - 1.2); }); }
     c.fillStyle = "rgba(255,196,80,0.95)";
-    g.blocks.forEach(function (b) { if (b.alive && b.farCrew) c.fillRect(b.lx - 0.8, b.ly - 0.8, 1.6, 1.6); });
     c.fillStyle = "rgba(0,0,0,0.45)";   // out of reactor range: dimmed
-    g.blocks.forEach(function (b) { if (b.alive && !b.structural && !b.powered && (b.def.crew || 0) > 0) c.fillRect(b.lx - half, b.ly - half, cp, cp); });
+    g.blocks.forEach(function (b) { if (b.alive && !b.powered && Gr.isSystem(b)) c.fillRect(b.lx - half, b.ly - half, cp, cp); });
     if (st0.jamCover.sources) { c.strokeStyle = "rgba(53,224,143,0.9)"; g.blocks.forEach(function (b) { if (b.alive && !b.structural && !b.jamCovered) c.strokeRect(b.lx - half + 1.6, b.ly - half + 1.6, cp - 3.2, cp - 3.2); }); }
     // mirror line
     if (ed.mirror) { c.strokeStyle = "rgba(255,200,120,0.35)"; c.setLineDash([3, 3]); c.lineWidth = 0.6; c.beginPath(); c.moveTo(-g.w * cp / 2, 0); c.lineTo(g.w * cp / 2, 0); c.stroke(); c.setLineDash([]); }
@@ -289,7 +286,6 @@ BS.Hangar = (function () {
       "<div><label>Heat</label><span>cap " + st.heatCap + " · full salvo " + st.salvoHeat + (st.salvoHeat > st.heatCap ? " <span class='bad'>(overloads)</span>" : "") + " · bleeds " + st.heatDissipation + "/s vs " + st.heatPerSec + "/s firing" + (st.heatNeutral < 1 ? " <span class='warn'>(sustained fire " + Math.round(100 * st.heatNeutral) + "%)</span>" : " (sustainable)") + "</span></div>" +
       "<div><label>Power</label><span class='" + (st.powerUsed > st.powerMax ? "bad" : "") + "'>" + st.powerUsed + " / " + st.powerMax + " <span class='dim'>(" + (st.counts.reactor || 0) + " reactors · phaser 5, cannon 5, pulse 4, tube 8, shield 4, sensor 3, engine 1, quarters 0, jammer 6, cloak 5, decoy 2, neutraliser 4)</span></span></div>" +
       "<div><label>Reactors</label><span>" + (st.counts.reactor || 0) + " · range " + BS.Data.grid.powerRadius + " cells · powered " + Math.round(100 * (st.poweredFrac || 0)) + "%" + (st.unpowered ? " <span class='warn'>(" + st.unpowered + " dim cells at " + Math.round(100 * BS.Data.grid.unpoweredFactor) + "%)</span>" : "") + "</span></div>" +
-      "<div><label>Crew</label><span class='" + (st.crew.supply < st.crew.need ? "bad" : "") + "'>" + st.crew.supply + " / " + st.crew.need + " posts · manning " + Math.round(100 * st.crew.manning) + "%" + " · spare " + Math.max(0, st.crew.supply - st.crew.need) + (st.crew.supply - st.crew.need >= BS.Data.grid.boarding.minParty ? " (boarding party " + Math.min(BS.Data.grid.boarding.partyMax, st.crew.supply - st.crew.need) + ")" : " <span class='dim'>(no boarding party: needs " + BS.Data.grid.boarding.minParty + ")</span>") + (st.crew.far ? " <span class='warn'>(" + st.crew.far + " far from quarters: half repair, amber dots)</span>" : "") + " <span class='dim'>(bridge 10 + 8 per quarters)</span></span></div>" +
       "<div><label>Defence</label><span>hull " + st.hull + " · shields " + shields + " · cover " + Math.round(100 * st.coverFrac) + "%" + (st.exposed ? " <span class='" + (st.coverFrac < 0.9 ? "bad" : "warn") + "'>(" + st.exposed + " exposed, red cells)</span>" : "") + " · repair " + st.repair + "/s" + (st.cloakCover && st.cloakCover.sources ? " · cloak field " + Math.round(100 * st.cloakCover.frac) + "%" + (st.cloakCover.exposed ? " <span class='bad'>(" + st.cloakCover.exposed + " outside, purple: cannot cloak)</span>" : "") : "") + (st.jamCover && st.jamCover.sources ? " · ECM field " + Math.round(100 * st.jamCover.frac) + "%" + (st.jamCover.exposed ? " <span class='warn'>(" + st.jamCover.exposed + " outside, green)</span>" : " (breaks locks)") : "") + "</span></div>" +
       "<div><label>Mobility</label><span>" + st.speed + " km/s <span class='dim'>(thrust " + st.thrust + " / mass " + st.mass + " = ×" + st.speedMult + ")</span> · lock " + st.lockTime + " s</span></div>";
     var net = delta.net;
@@ -522,8 +518,8 @@ BS.Hangar = (function () {
     box.appendChild(foot);
     if (sc.dry && sc.dry.out) {
       var o = sc.dry.out, d2 = document.createElement("div"); d2.className = "sc-dry";
-      var res = o.result === "victory" ? "Victory" + (o.how === "captured" ? " (captured)" : o.how === "disabled" ? " (disabled)" : "") : o.result === "defeat" ? "Defeat" : "Stalemate";
-      var fleetLine = (o.ships && o.ships.length > 1) || (o.enemies && o.enemies.length > 1) ? "<br><span class='t'>ours: " + o.ships.map(function (x) { return escapeHtml(x.name) + " " + (x.destroyed ? "lost" : x.disabled ? "disabled" : x.hullPct + "%"); }).join(", ") + " · theirs: " + o.enemies.map(function (x) { return escapeHtml(x.name) + " " + (x.destroyed ? "destroyed" : x.captured ? "captured" : x.disabled ? "disabled" : x.hullPct + "%"); }).join(", ") + "</span>" : "";
+      var res = o.result === "victory" ? "Victory" + (o.how === "disabled" ? " (disabled)" : "") : o.result === "defeat" ? "Defeat" : "Stalemate";
+      var fleetLine = (o.ships && o.ships.length > 1) || (o.enemies && o.enemies.length > 1) ? "<br><span class='t'>ours: " + o.ships.map(function (x) { return escapeHtml(x.name) + " " + (x.destroyed ? "lost" : x.disabled ? "disabled" : x.hullPct + "%"); }).join(", ") + " · theirs: " + o.enemies.map(function (x) { return escapeHtml(x.name) + " " + (x.destroyed ? "destroyed" : x.disabled ? "disabled" : x.hullPct + "%"); }).join(", ") + "</span>" : "";
       d2.innerHTML = "<b>" + res + "</b> in " + U.formatTime(o.time) + " · our blocks " + o.hullPct + "% · their hull " + o.enemyHullPct + "%" + (o.scanned ? " · scanned" : " · never scanned") + fleetLine + "<br>" +
         o.trace.slice(0, 8).map(function (e) { return "<span class='t'>" + U.formatTime(e.t) + "</span> " + (e.rule !== null && e.rule !== undefined ? (e.rule + 1) + ". " : "") + escapeHtml(e.text); }).join("<br>") + (o.trace.length > 8 ? "<br><span class='t'>… " + (o.trace.length - 8) + " more</span>" : "") +
         (o.neverFired && o.neverFired.length ? "<br>" + o.neverFired.slice(0, 3).map(function (e) { return "<span class='nf'>Rule " + (e.rule + 1) + " never fired: " + escapeHtml(e.reason) + "</span>"; }).join("<br>") : "");
@@ -632,7 +628,7 @@ BS.Hangar = (function () {
     if (k.indexOf("modules.") === 0) { obj.modules = obj.modules || {}; obj.modules[k.slice(8)] = true; return; }
     var V = mode === "cond" ? SD().conditions : SD().actions, d = V[k];
     if (mode === "cond") obj[k] = d.kind === "flag" ? true : d.kind === "bool" ? (d.def !== undefined ? d.def : true) : d.def;
-    else obj[k] = { doctrine: "engage", side: "blind", aim: "reactor", weapons: true, governor: true, repair: "shield", reinforce: true, scan: true, board: true, roll: true, remodulate: "shields", target: "focus" }[k];
+    else obj[k] = { doctrine: "engage", side: "blind", aim: "reactor", weapons: true, governor: true, repair: "shield", reinforce: true, scan: true, roll: true, remodulate: "shields", target: "focus" }[k];
   }
   function removeTerm(k, obj, mode) {
     if (k.indexOf("modules.") === 0) { delete obj.modules[k.slice(8)]; if (!Object.keys(obj.modules).length) delete obj.modules; return; }
@@ -677,33 +673,8 @@ BS.Hangar = (function () {
         var cur = obj[k], v = cur === null || cur === undefined ? "hull" : typeof cur === "string" ? cur : cur.weak ? "weak:" + cur.weak : "plan:" + cur.plan;
         return sel(opts, v, function (val) { if (val === "hull") obj[k] = null; else if (val.indexOf("weak:") === 0) obj[k] = { weak: val.slice(5) }; else if (val.indexOf("plan:") === 0) obj[k] = { plan: parseInt(val.slice(5), 10) }; else obj[k] = val; });
       }
-      default: return null;   // flags: reinforce, scan, board
+      default: return null;   // flags: reinforce, scan, roll
     }
-  }
-
-  // ---- skills ----------------------------------------------------------------
-  function renderSkills(s) {
-    var box = el["hg-skills"]; box.innerHTML = "";
-    Object.keys(BS.Data.skills).forEach(function (id) {
-      var sk = BS.Data.skills[id], lvl = s.skills[id] || 0;
-      var row = document.createElement("div"); row.className = "hg-row";
-      var effect = Object.keys(sk.perLevel).map(function (k) { var v = sk.perLevel[k] * 100; return (v > 0 ? "+" : "") + v.toFixed(0) + "% " + ({ turretDamageMult: "beam damage", launcherDamageMult: "torpedo damage", speedMult: "speed", shieldRegenMult: "shield regen", capRechargeMult: "cap recharge", lockMult: "lock time" })[k] + " per level"; }).join(", ");
-      var pips = ""; for (var i = 1; i <= sk.levels; i++) pips += "<i class='" + (i <= lvl ? "on" : "") + "'></i>";
-      row.innerHTML = "<span class='hg-name'>" + sk.name + " <span class='pips'>" + pips + "</span></span><span class='dim'>" + effect + "</span>";
-      var training = s.training && s.training.skill === id;
-      var b = document.createElement("button"); b.className = "lcars-btn " + (training ? "c-blue" : "c-purple");
-      if (lvl >= sk.levels) { b.textContent = "Max"; b.disabled = true; }
-      else if (training) { b.textContent = "Cancel"; b.addEventListener("click", function () { C.cancelTraining(); render(); }); }
-      else { var h = C.skillHours(id, lvl + 1); b.textContent = "Train " + (lvl + 1) + " · " + (h < 1 ? Math.round(h * 60) + " min" : h + " h"); b.disabled = !!s.training; b.addEventListener("click", function () { var err = C.startTraining(id); if (err) say(err, true); else say("Training " + sk.name + " " + (lvl + 1) + "."); render(); }); }
-      row.appendChild(b); box.appendChild(row);
-    });
-  }
-  function renderTraining() {
-    var s = C.get(), t = s.training;
-    if (!t) { el["hg-training"].textContent = "Nothing training. Skills train in real time, even while the game is closed."; return; }
-    var left = Math.max(0, t.finishesAt - Date.now()), total = t.finishesAt - t.startedAt;
-    var pct = Math.round(100 * (1 - left / total)), mins = Math.ceil(left / 60000);
-    el["hg-training"].textContent = "Training " + BS.Data.skills[t.skill].name + " " + t.level + " · " + pct + "% · " + (mins >= 60 ? Math.floor(mins / 60) + " h " + (mins % 60) + " min" : mins + " min") + " left";
   }
 
   // ---- save files -------------------------------------------------------------

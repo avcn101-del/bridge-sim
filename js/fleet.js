@@ -3,7 +3,7 @@
 // hostile it can see, re-chosen when that target is destroyed. Retargeting rebinds everything that was tied to the old
 // target: the script, the doctrine machine (the helm re-enters its doctrine against the new
 // ship), the lock and the selection. A team is beaten when none of its ships can still fight (destroyed, disabled or
-// captured). Nothing here reads the interface; the viewer (state.player) and the primary enemy (state.enemy) the panels
+// disabled). Nothing here reads the interface; the viewer (state.player) and the primary enemy (state.enemy) the panels
 // follow are picked in game.js.
 window.BS = window.BS || {};
 
@@ -11,7 +11,7 @@ BS.Fleet = (function () {
   var S = BS.Ships;
 
   function alive(s) { return !s.flags.destroyed; }
-  function fighting(s) { return !s.flags.destroyed && !s.flags.disabled && !s.flags.captured; }
+  function fighting(s) { return !s.flags.destroyed && !s.flags.disabled; }
   function hostile(a, b) { return a.team !== b.team; }
   function ships() { return (BS.Game && BS.Game.state && BS.Game.state.ships) || []; }
   function hostiles(ship) { return ships().filter(function (o) { return o !== ship && alive(o) && hostile(ship, o); }); }

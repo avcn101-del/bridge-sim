@@ -1,6 +1,6 @@
 // js/campaign.js — progress between battles: save/load (localStorage, export,
 // import), credits, ship and module ownership, fitting rules, fit statistics,
-// real-time skill training, enemy scaling.
+// enemy scaling.
 window.BS = window.BS || {};
 
 BS.Campaign = (function () {
@@ -31,7 +31,6 @@ BS.Campaign = (function () {
   function migrate(s) {
     var base = fresh();
     var out = Object.assign(base, s);
-    out.skills = Object.assign(base.skills, s.skills || {});
     out.campaign = Object.assign(base.campaign, s.campaign || {});
     out.settings = Object.assign(base.settings, s.settings || {});
     out.layouts = {};
@@ -155,43 +154,9 @@ BS.Campaign = (function () {
   }
   function setFleet(ids) { save.fleet = (ids || []).filter(function (id, i, a) { return D().shipClasses[id] && save.ownedShips.indexOf(id) >= 0 && a.indexOf(id) === i; }).slice(0, D().campaign.fleetMax); persist(); }
 
-  // ---- skills (real time) -------------------------------------------------
-  function skillHours(skillId, level) { return D().skills[skillId].hoursPerLevel[level - 1]; }
-  function updateTraining(now) {
-    now = now || Date.now();
-    var t = save.training;
-    if (t && now >= t.finishesAt) {
-      save.skills[t.skill] = Math.max(save.skills[t.skill], t.level);
-      save.training = null; persist();
-      BS.Events.emit("skillTrained", { skill: t.skill, level: t.level });
-      return true;
-    }
-    return false;
-  }
-  function startTraining(skillId) {
-    var sk = D().skills[skillId];
-    if (!sk) return "Unknown skill.";
-    if (save.training) return "Already training " + D().skills[save.training.skill].name + ".";
-    var next = (save.skills[skillId] || 0) + 1;
-    if (next > sk.levels) return sk.name + " is at maximum level.";
-    var ms = skillHours(skillId, next) * 3600 * 1000;
-    save.training = { skill: skillId, level: next, startedAt: Date.now(), finishesAt: Date.now() + ms };
-    persist(); return null;
-  }
-  function cancelTraining() { save.training = null; persist(); }
-  // Ship mods from trained skills (applied at ship creation).
-  function skillMods() {
-    var mods = { turretDamageMult: 1, launcherDamageMult: 1, speedMult: 1, shieldRegenMult: 1, capRechargeMult: 1, lockMult: 1 };
-    Object.keys(D().skills).forEach(function (id) {
-      var lvl = save.skills[id] || 0, per = D().skills[id].perLevel;
-      Object.keys(per).forEach(function (k) { mods[k] = (mods[k] || 1) * (1 + per[k] * lvl); });
-    });
-    return mods;
-  }
-
   // ---- layout statistics for the hangar -------------------------------------
   function layoutStats(classId, rows) {
-    var cls = D().shipClasses[classId], mods = skillMods(), B = D().balance, g = D().grid;
+    var cls = D().shipClasses[classId], mods = { turretDamageMult: 1, launcherDamageMult: 1, speedMult: 1, shieldRegenMult: 1, capRechargeMult: 1, lockMult: 1 }, B = D().balance, g = D().grid;
     var v = BS.Grid.validateLayout(cls, rows), st = v.stats, blocks = D().blocks;
     var turretDps = 0, launcherDps = 0, drain = 0;
     st.weapons.forEach(function (b) {
@@ -219,7 +184,7 @@ BS.Campaign = (function () {
       ok: v.ok, errors: v.errors, warnings: v.warnings || [], masked: v.masked || 0, counts: v.counts,
       dps: Math.round(turretDps + launcherDps), turretDps: Math.round(turretDps), launcherDps: Math.round(launcherDps),
       cap: capMax, drain: drain.toFixed(1), peakRecharge: peak.toFixed(1), stableAt: stableAt, lasts: lasts,
-      powerUsed: st.powerUsed, powerMax: st.powerMax, coverFrac: st.coverFrac, exposed: st.exposed, cloakCover: st.cloakCover, jamCover: st.jamCover, crew: st.crew, poweredFrac: st.poweredFrac, unpowered: st.unpowered,
+      powerUsed: st.powerUsed, powerMax: st.powerMax, coverFrac: st.coverFrac, exposed: st.exposed, cloakCover: st.cloakCover, jamCover: st.jamCover, poweredFrac: st.poweredFrac, unpowered: st.unpowered,
       heatCap: Math.round(st.heatCap), heatDissipation: st.heatDissipation.toFixed(1), salvoHeat: salvoHeat, heatPerSec: heatPerSec.toFixed(1),
       heatNeutral: Math.min(1, heatPerSec > 0 ? st.heatDissipation / heatPerSec : 1),
       speed: (cls.speed * st.speedMult * mods.speedMult / D().units.pxPerKm).toFixed(1), speedMult: st.speedMult.toFixed(2), mass: st.mass, thrust: st.thrust,
@@ -348,10 +313,9 @@ BS.Campaign = (function () {
       earned = cr.win * mult - hullLostPct * cr.hullLostPenaltyPerPct + Math.min(5, save.campaign.streak - 1) * cr.winStreakBonus;
       // a clean bridge (no bridge call spent) pays script.bridgeCall.noCallBonus on the win credits, before salvage
       if (clean) { cleanBonus = Math.round(Math.max(50, earned) * (D().script.bridgeCall.noCallBonus - 1)); save.campaign.cleanWins = (save.campaign.cleanWins || 0) + 1; }
-      // salvage: whatever of the enemy is still in one piece has value; a disabled ship is captured nearly intact
-      // every enemy hull still in one piece pays by how it ended: a captured or disabled hull is worth more than a wreck
+      // every enemy hull still in one piece pays by how it ended: a disabled hull is worth more than a wreck
       eteam.forEach(function (e) {
-        var how = e.flags.captured ? "captured" : e.flags.disabled && !e.flags.destroyed ? "disabled" : "destroyed", frac = D().campaign.salvage[how];
+        var how = e.flags.disabled && !e.flags.destroyed ? "disabled" : "destroyed", frac = D().campaign.salvage[how];
         salvage += Math.round(e.grid.blocks.reduce(function (a, b) { return a + (b.alive && !b.structural ? b.def.cost : 0); }, 0) * frac);
       });
     } else {
@@ -381,6 +345,5 @@ BS.Campaign = (function () {
     currentClass: currentClass, layoutFor: layoutFor, setLayout: setLayout, battleLayout: battleLayout, buyShip: buyShip, selectShip: selectShip, fleet: fleet, setFleet: setFleet,
     layoutDelta: layoutDelta, countBlocks: countBlocks, applyLayout: applyLayout, tuningFor: tuningFor, battleTuning: battleTuning, builds: builds, saveBuild: saveBuild, deleteBuild: deleteBuild, intelFor: intelFor, buyIntel: buyIntel, layoutCost: layoutCost, effectiveCost: effectiveCost,
     scriptFor: scriptFor, setScriptFor: setScriptFor, saveScript: saveScript, deleteScript: deleteScript, planFor: planFor, setPlan: setPlan, setRetry: setRetry, letGo: letGo,
-    updateTraining: updateTraining, startTraining: startTraining, cancelTraining: cancelTraining, skillMods: skillMods, skillHours: skillHours,
     layoutStats: layoutStats, enemyStatMult: enemyStatMult, encounter: encounter, settleBattle: settleBattle };
 })();

@@ -22,11 +22,10 @@ BS.Game = (function () {
   }
 
   function subscribe() {
-    // A side loses when none of its ships can still fight (BS.Fleet.teamFighting): destroyed, disabled or captured.
+    // A side loses when none of its ships can still fight (BS.Fleet.teamFighting): destroyed or disabled.
     // `how` is what happened to the last of them, for the report and the salvage rate.
     function shipOut(ship, how) {
       if (state.phase !== "battle") return;
-      if (how === "captured") ship.flags.captured = true;
       var lost = ship.team === "player" ? !BS.Fleet.teamFighting("player") : !BS.Fleet.teamFighting("enemy");
       if (!lost) { syncRoles(); return; }
       state.result = ship.team === "player" ? "defeat" : "victory";
@@ -37,7 +36,6 @@ BS.Game = (function () {
     }
     BS.Events.on("shipDestroyed", function (e) { shipOut(e.ship, "destroyed"); });
     BS.Events.on("shipDisabled", function (e) { shipOut(e.ship, "disabled"); });
-    BS.Events.on("shipCaptured", function (e) { shipOut(e.ship, "captured"); });
   }
   // The viewer (state.player: the hull the panels, the module bar and the crew voices follow) and the primary enemy
   // (state.enemy: the scan panel, the overlays and the report's "their bridge"). With one ship a side they never change;
@@ -77,7 +75,7 @@ BS.Game = (function () {
     var fleet = enc.roster || BS.Campaign.fleet(), spacing = BS.Ships.px(B.fleetSpacingKm), players = [], enemies = [];
     fleet.forEach(function (classId, i) {
       var off = (i - (fleet.length - 1) / 2) * spacing;
-      players.push(BS.Ships.create(classId, { isPlayer: true, team: "player", pos: { x: off, y: 0 }, heading: -Math.PI / 2, layout: BS.Campaign.battleLayout(classId), tuning: BS.Campaign.battleTuning(classId), mods: BS.Campaign.skillMods() }));
+      players.push(BS.Ships.create(classId, { isPlayer: true, team: "player", pos: { x: off, y: 0 }, heading: -Math.PI / 2, layout: BS.Campaign.battleLayout(classId), tuning: BS.Campaign.battleTuning(classId) }));
     });
     var player = players[0];
     // the enemy's side: every ship of the encounter (enc.ships; one for a classic 1v1), spread across their bearing
@@ -131,7 +129,7 @@ BS.Game = (function () {
       state.teams.enemy.forEach(function (s) { eHullMax += s.hullMax; eHull += s.hull; });   // hull left at the end, destroyed or not (as the single-enemy report read it)
       var out = { result: state.result || "stalemate", how: state.resultHow, time: state.time, hullPct: Math.round(100 * blockNow / Math.max(1, blockMax)), enemyHullPct: Math.round(100 * eHull / Math.max(1, eHullMax)), trace: (p.scriptTrace || []).slice(), scanned: !!p.scanned, neverFired: BS.Script.explain(p),
         ships: state.teams.player.map(function (s) { var mx = 0, now = 0; s.grid.blocks.forEach(function (b) { if (!b.structural) { mx += b.maxHp; if (b.alive) now += b.hp; } }); return { name: s.name, classId: s.classId, hullPct: Math.round(100 * now / Math.max(1, mx)), destroyed: s.flags.destroyed, disabled: s.flags.disabled }; }),
-        enemies: state.teams.enemy.map(function (s) { return { name: s.name, classId: s.classId, hullPct: Math.round(100 * s.hull / s.hullMax), destroyed: s.flags.destroyed, disabled: s.flags.disabled, captured: !!s.flags.captured }; }) };
+        enemies: state.teams.enemy.map(function (s) { return { name: s.name, classId: s.classId, hullPct: Math.round(100 * s.hull / s.hullMax), destroyed: s.flags.destroyed, disabled: s.flags.disabled, }; }) };
       state.phase = "ended"; state.dry = false; state.paused = false;
       if (onDone) onDone(out);
     }
@@ -223,7 +221,6 @@ BS.Game = (function () {
     for (i = 0; i < order.length; i++) BS.Script.update(order[i], dt);
     for (i = 0; i < order.length; i++) { s = order[i]; BS.EnemyAI.update(s, BS.Fleet.targetOf(s), dt); }
     for (i = 0; i < ships.length; i++) BS.Ships.update(ships[i], dt);
-    for (i = 0; i < ships.length; i++) BS.Boarding.update(ships[i], dt);
     BS.Weapons.update(dt);
     BS.Effects.update(dt, state.ships, BS.Weapons.torpedoes);
     if (state.phase === "battle") { state.time += dt; if (p && p.lock.target && p.lock.target.team !== p.team && p.lock.locked) state.lockTime += dt; }   // lock time feeds intel

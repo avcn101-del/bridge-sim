@@ -29,9 +29,9 @@ BS.Ships = (function () {
       grid: grid, stats: st, statMult: statMult, mods: mods, layoutRows: (options.layout || cls.layout).slice(), tuningRows: options.tuning ? options.tuning.slice() : null,
       hullMax: st.hullTotal, hull: st.hullAlive,
       shieldMax: {}, shields: {}, shieldRegen: {},
-      capMax: 0, capacitor: 0, heat: 0, overload: 0, heatGovernor: true, governorHold: false, jammed: 0, partialJam: 0, partialJamBy: null, neuted: 0, boarding: null, shieldDelay: { fore: 0, aft: 0, port: 0, starboard: 0 }, attackSide: "auto", tumble: 0, tumbleDir: 1, breach: 0, hadReactors: false, aimBlock: null, cloak: { state: "off", t: 0, surge: 0, strike: 0 },
+      capMax: 0, capacitor: 0, heat: 0, overload: 0, heatGovernor: true, governorHold: false, jammed: 0, partialJam: 0, partialJamBy: null, neuted: 0, shieldDelay: { fore: 0, aft: 0, port: 0, starboard: 0 }, attackSide: "auto", tumble: 0, tumbleDir: 1, breach: 0, hadReactors: false, aimBlock: null, cloak: { state: "off", t: 0, surge: 0, strike: 0 },
       signature: cls.signature,
-      flags: { alert: "none", destroyed: false, disabled: false, captured: false, armed: false },
+      flags: { alert: "none", destroyed: false, disabled: false, armed: false },
       selected: null, lock: { target: null, progress: 0, locked: false, time: 0 }, aimType: null,
       cmd: { type: "idle", target: null, range: 0, point: null, orbitDir: Math.random() < 0.5 ? 1 : -1, facing: null, bearing: 0 },
       desiredHeading: options.heading || 0, desiredSpeed: 0,
@@ -48,7 +48,7 @@ BS.Ships = (function () {
     return ship;
   }
 
-  // No weapons and no engines left: dead in space. The battle ends; the enemy is captured for salvage.
+  // No weapons and no engines left: dead in space. The battle ends; a disabled enemy pays more salvage.
   function checkDisabled(ship, by) {
     var st = ship.stats;
     if (ship.flags.disabled || ship.flags.destroyed || st.weapons.length || st.thrust > 0) return false;
@@ -155,7 +155,7 @@ BS.Ships = (function () {
     return k.ghost;
   }
   function contactKm(viewer, target) { var c = contact(viewer, target); return c ? km(U.dist(viewer.pos.x, viewer.pos.y, c.pos.x, c.pos.y)) : 999; }
-  function detectRangeKm(viewer) { return BS.Data.science.cloakDetectRangeKm + BS.Data.ew.detectPerSensor * ((viewer.stats.alive && viewer.stats.alive.sensor) || 0); }
+  function detectRangeKm(viewer) { return BS.Data.ew.cloakDetectRangeKm + BS.Data.ew.detectPerSensor * ((viewer.stats.alive && viewer.stats.alive.sensor) || 0); }
   // A ship can cloak only while every alive block lies inside a cloak field (stats.cloakCover, ew.cloakRadius).
   function cloakFieldComplete(ship) { var cc = ship.stats.cloakCover; return !!cc && cc.sources > 0 && cc.frac >= 1; }
   function setCloak(ship, on) {
@@ -286,7 +286,7 @@ BS.Ships = (function () {
   // Drifting debris (a severed section) hits a ship: plain hull damage from its direction, no aim.
   function debrisHit(ship, amount, fromX, fromY) { return applyDamage(ship, amount, fromX, fromY, null, null, "debris"); }
 
-  // ---- critical hits (grid.crits): the ship-level consequences; reactors and quarters were already lost in Grid.hit ----
+  // ---- critical hits (grid.crits): the ship-level consequences; reactors were already lost in Grid.hit ----
   function applyCrit(ship, block, kind, attacker) {
     var C = BS.Data.grid.crits, facing = null;
     switch (kind) {
@@ -457,7 +457,7 @@ BS.Ships = (function () {
     ship.capacitor = Math.min(ship.capMax, ship.capacitor + rate * dt);
     FACINGS.forEach(function (fc) {   // the pools recharge whether or not they are projected (cloaked: at the condition-green rate)
       if (ship.shieldDelay[fc] > 0) { ship.shieldDelay[fc] -= dt; return; }   // recharge delay after a hit (grid.shieldRechargeDelay)
-      var regen = ship.shieldRegen[fc] * shieldsMult(ship) * (ship.stats.powerFactor || 1) * (ship.stats.crew ? ship.stats.crew.manning : 1) * (shieldsUp(ship) ? 1 : BS.Data.balance.noAlertShieldRegenMult) * dt;
+      var regen = ship.shieldRegen[fc] * shieldsMult(ship) * (ship.stats.powerFactor || 1) * (shieldsUp(ship) ? 1 : BS.Data.balance.noAlertShieldRegenMult) * dt;
       if (ship.shields[fc] < ship.shieldMax[fc]) ship.shields[fc] = Math.min(ship.shieldMax[fc], ship.shields[fc] + regen);
     });
     if (ship.jammed > 0) ship.jammed -= dt;

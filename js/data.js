@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.37.0",
+  version: "0.38.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -83,10 +83,6 @@ BS.Data = {
     powerPerReactor: 15,          // power grid per alive reactor, on top of the class powerBase; blocks.*.power is what each system draws
     brownoutMin: 0.4,             // when reactors die and draw exceeds supply, weapons cycle and shields regen at supply/draw (never below this)
     repairBase: 0.6, repairAdd: 0.5,   // hp/s restored to damaged (not destroyed) blocks
-    // crew: every system block needs hands (blocks.*.crew); the bridge supplies `bridge`, each crew quarters `perQuarters`.
-    // Short of crew, weapons cycle and shields regenerate at supply / need (never below minManning), like a brownout.
-    // A system block farther than `radius` cells from the nearest quarters or the bridge is repaired at farRepairMult.
-    crew: { bridge: 10, perQuarters: 8, radius: 6, farRepairMult: 0.5, minManning: 0.4 },
     // critical hits: a hit that leaves a system block under `below` of its hp rolls `chance` for a critical effect by type:
     // reactor breaches (explodes), engine tumbles the ship (tumbleTime s, tumbleSpin °/s, no helm), sensor blinds it
     // (lock lost, sensorBlind s), shield emitter bleeds emitterDrain of its facing, a weapon mount jams for weaponJam
@@ -101,15 +97,6 @@ BS.Data = {
     breach: { time: 8, radiusKm: 2.0, damage: 900 },
     // weak-point analysis (BS.Grid.weakPoints): what the scan panel offers to click and what a cunning enemy aims at
     weakPoints: { neckMinBlocks: 8, maxPoints: 5, cutHpWeight: 60, neckPairs: true },   // neckPairs: also look for two-block necks
-    // boarding (BS.Boarding, command `board`, key T): with a lock, inside rangeKm, and the target's shield facing toward us
-    // down (under gapStart of its maximum, or not projected: cloak surge), the transporter sends min(partyMax, spare crew) of our crew (supply − need,
-    // at least minParty) across in transportTime s. Those hands are gone for the rest of the battle (manning drops).
-    // Aboard, the party fights the defenders (bridgeGuard + defenderPerQuarters per alive crew quarters: shoot their crew
-    // decks first and there are fewer of them) by Lanchester's square
-    // law at `rate` per second each; under `floor` on either side ends it: captured (victory, salvage `captured`) or
-    // repelled (the party is lost). The transport aborts, party home, if that facing comes back above gapAbort of its
-    // maximum (a booster pulse does it: their counter) or they open the range past rangeKm × abortRangeMult meanwhile.
-    boarding: { rangeKm: 3, minParty: 4, partyMax: 12, transportTime: 3, bridgeGuard: 2, defenderPerQuarters: 3, gapStart: 0.02, gapAbort: 0.15, abortRangeMult: 2, rate: 0.08, floor: 0.5 },
     // heat: every shot adds its weapon's heat; capacity grows with hull size, dissipation with hull surface (rim cells)
     heat: { base: 80, perBlock: 2, dissipationBase: 6, dissipationPerRimCell: 0.25, overloadTime: 6, aiFireBelow: 0.85,
             governorHigh: 0.85, governorLow: 0.6 },   // heat governor (H): holds fire above governorHigh until heat falls below governorLow
@@ -137,40 +124,40 @@ BS.Data = {
   // ---------------------------------------------------------------- blocks
   blocks: {
     armor:    { letter: "A", name: "Armor plating",   short: "AR", hp: 60, mass: 2, cost: 20,  color: "#a3aabb", glyph: "plate", pierceCost: 2, desc: "Cheap and tough. Stops a beam dead: nothing behind a plate is hit until the plate is gone." },
-    phaser:   { letter: "P", name: "Phaser emitter",  short: "PH", hp: 50, mass: 2, cost: 120, power: 5, crew: 2, color: "#ff8a3d", glyph: "lens", desc: "Beam weapon. Fires into the 180° arc facing away from the ship's centre.",
+    phaser:   { letter: "P", name: "Phaser emitter",  short: "PH", hp: 50, mass: 2, cost: 120, power: 5, color: "#ff8a3d", glyph: "lens", desc: "Beam weapon. Fires into the 180° arc facing away from the ship's centre.",
                 weapon: { kind: "turret", damage: 28, cycle: 2.6, cap: 2.5, heat: 6, optimalKm: 8, falloffKm: 7, tracking: 0.9, accuracy: 0.95, arc: 180, color: "#ff8a3d", coreColor: "#fff3e0", beamLife: 0.4 } },
     // Beam trade-offs (EVE style): phaser = range and tracking at a middling punch; disruptor cannon = the hardest hit,
     // one extra penetration point (through a plate of armor), short optimal, poor tracking; pulse phaser = a stream of
     // light hits with the best tracking and the shortest reach. All turrets: damage × accuracy × tracking × falloff.
-    disruptor: { letter: "D", name: "Disruptor cannon", short: "DC", hp: 50, mass: 2, cost: 130, power: 5, crew: 2, color: "#8cff6a", glyph: "bolt", desc: "Bolt: 32 damage every 2.5 s with an extra penetration point, so it punches through a plate of armor into the block behind. Optimal 5 km, falloff 6 km, tracking 0.75 rad/s: misses fast orbiters. Klingon standard.",
+    disruptor: { letter: "D", name: "Disruptor cannon", short: "DC", hp: 50, mass: 2, cost: 130, power: 5, color: "#8cff6a", glyph: "bolt", desc: "Bolt: 32 damage every 2.5 s with an extra penetration point, so it punches through a plate of armor into the block behind. Optimal 5 km, falloff 6 km, tracking 0.75 rad/s: misses fast orbiters. Klingon standard.",
                 weapon: { kind: "turret", damage: 32, cycle: 2.5, cap: 2.6, heat: 7, optimalKm: 5, falloffKm: 6, tracking: 0.75, accuracy: 0.95, arc: 160, pierceBonus: 1, bolt: true, color: "#8cff6a", coreColor: "#eaffdd", beamLife: 0.3 } },
-    pulse:    { letter: "U", name: "Pulse phaser",     short: "PP", hp: 45, mass: 2, cost: 110, power: 4, crew: 1, color: "#ffd36a", glyph: "burst", desc: "Rapid pulses: 9.5 damage every second with tracking 1.6 rad/s, the gun that still hits a Bird-of-Prey on the afterburner. Optimal 4 km, falloff 3 km: a knife-range weapon.",
+    pulse:    { letter: "U", name: "Pulse phaser",     short: "PP", hp: 45, mass: 2, cost: 110, power: 4, color: "#ffd36a", glyph: "burst", desc: "Rapid pulses: 9.5 damage every second with tracking 1.6 rad/s, the gun that still hits a Bird-of-Prey on the afterburner. Optimal 4 km, falloff 3 km: a knife-range weapon.",
                 weapon: { kind: "turret", damage: 9.5, cycle: 1.0, cap: 1.0, heat: 2.2, optimalKm: 4, falloffKm: 3, tracking: 1.6, accuracy: 0.95, arc: 180, color: "#ffd36a", coreColor: "#fffbe8", beamLife: 0.18 } },
-    torpedo:  { letter: "T", name: "Torpedo tube",    short: "TT", hp: 50, mass: 3, cost: 180, power: 8, crew: 3, color: "#ff4d6d", glyph: "warhead", desc: "Heavy warhead, slow reload. Fires into the 220° arc facing away from the ship's centre: mount tubes where you want to shoot.",
+    torpedo:  { letter: "T", name: "Torpedo tube",    short: "TT", hp: 50, mass: 3, cost: 180, power: 8, color: "#ff4d6d", glyph: "warhead", desc: "Heavy warhead, slow reload. Fires into the 220° arc facing away from the ship's centre: mount tubes where you want to shoot.",
                 weapon: { kind: "launcher", damage: 170, cycle: 11, cap: 14, heat: 30, rangeKm: 30, speedKmS: 4, explosionRadius: 280, explosionVelocity: 1.5, turnRate: 160, arc: 220, color: "#ff4d6d", coreColor: "#ffffff" } },
-    shield:   { letter: "S", name: "Shield emitter",  short: "SH", hp: 40, mass: 2, cost: 90,  power: 4, crew: 1,  color: "#3f8cff", glyph: "shield", desc: "+70 shield and +0.4/s regen on its facing; covers blocks within 4 cells. Hull outside every bubble takes hits unshielded." },
-    reactor:  { letter: "R", name: "Reactor",         short: "RE", hp: 40, mass: 3, cost: 100, crew: 2, color: "#ffd23f", glyph: "core", explosion: { damage: 80, radius: 1 }, desc: "+80 capacitor and +15 power for the grid. Explodes when destroyed: 80 damage to every block around it, and a reactor next to it goes up too. Keep them apart and armored." },
-    engine:   { letter: "E", name: "Impulse engine",  short: "EN", hp: 45, mass: 2, cost: 80,  power: 1, crew: 1,  color: "#5fe9ff", glyph: "thrust", desc: "Thrust. Counts double inside nacelles. Speed = thrust / mass." },
-    sensor:   { letter: "N", name: "Sensor array",    short: "SE", hp: 35, mass: 1, cost: 110, power: 3, crew: 1, color: "#d26bff", glyph: "dish", desc: "Faster locks and better tracking." },
+    shield:   { letter: "S", name: "Shield emitter",  short: "SH", hp: 40, mass: 2, cost: 90,  power: 4,  color: "#3f8cff", glyph: "shield", desc: "+70 shield and +0.4/s regen on its facing; covers blocks within 4 cells. Hull outside every bubble takes hits unshielded." },
+    reactor:  { letter: "R", name: "Reactor",         short: "RE", hp: 40, mass: 3, cost: 100, color: "#ffd23f", glyph: "core", explosion: { damage: 80, radius: 1 }, desc: "+80 capacitor and +15 power for the grid. Explodes when destroyed: 80 damage to every block around it, and a reactor next to it goes up too. Keep them apart and armored." },
+    engine:   { letter: "E", name: "Impulse engine",  short: "EN", hp: 45, mass: 2, cost: 80,  power: 1,  color: "#5fe9ff", glyph: "thrust", desc: "Thrust. Counts double inside nacelles. Speed = thrust / mass." },
+    sensor:   { letter: "N", name: "Sensor array",    short: "SE", hp: 35, mass: 1, cost: 110, power: 3, color: "#d26bff", glyph: "dish", desc: "Faster locks and better tracking." },
     bridge:   { letter: "B", name: "Bridge",          short: "BR", hp: 200, mass: 2, cost: 0,   color: "#ffffff", glyph: "star", unique: true, desc: "Exactly one. If it dies, the ship is lost. Blocks cut off from it break away." },
-    jammer:   { letter: "J", name: "ECM jammer",      short: "JM", hp: 35, mass: 2, cost: 110, power: 6, crew: 1, color: "#35e08f", glyph: "wave", desc: "Electronic warfare with a 7-cell field. Each 5 s cycle (10 cap) rolls jam strength 3 against the enemy's sensors. On a hit, if every block sits inside a jammer's field their lock drops for 4 s and their torpedoes go blind; otherwise they keep the lock but can only hit the blocks outside the field." },
-    cloak:    { letter: "C", name: "Cloaking device", short: "CL", hp: 40, mass: 3, cost: 250, power: 5, crew: 2, color: "#9b8cff", glyph: "eye", desc: "Projects a cloak field 10 cells around it; the ship can cloak only while every block sits inside a field, and losing one collapses the cloak. Cloaked you cannot be locked or seen beyond sensor range, but shields are down (the pools keep, recharging slowly), weapons are cold and the capacitor drains 8/s. Decloaking takes 2 s and shields stay down 5 s more; for 10 s after decloaking your hits deal double and most of it goes straight through their shields." },
-    quarters: { letter: "Q", name: "Crew quarters",   short: "CQ", hp: 35, mass: 1, cost: 40,  power: 0,  color: "#c9a97a", glyph: "windows", desc: "Houses 8 crew for the systems (phaser 2, cannon 2, pulse 1, tube 3, reactor 2, shield 1, engine 1, sensor 1, jammer 1, cloak 2, decoy 1, neutraliser 1; the bridge adds 10). Short of crew, weapons and shields slow down. Spare crew (beyond the posts) is who you can send as a boarding party. +0.5 hp/s damage-control repair; blocks more than 6 cells from quarters or the bridge repair at half speed." },
+    jammer:   { letter: "J", name: "ECM jammer",      short: "JM", hp: 35, mass: 2, cost: 110, power: 6, color: "#35e08f", glyph: "wave", desc: "Electronic warfare with a 7-cell field. Each 5 s cycle (10 cap) rolls jam strength 3 against the enemy's sensors. On a hit, if every block sits inside a jammer's field their lock drops for 4 s and their torpedoes go blind; otherwise they keep the lock but can only hit the blocks outside the field." },
+    cloak:    { letter: "C", name: "Cloaking device", short: "CL", hp: 40, mass: 3, cost: 250, power: 5, color: "#9b8cff", glyph: "eye", desc: "Projects a cloak field 10 cells around it; the ship can cloak only while every block sits inside a field, and losing one collapses the cloak. Cloaked you cannot be locked or seen beyond sensor range, but shields are down (the pools keep, recharging slowly), weapons are cold and the capacitor drains 8/s. Decloaking takes 2 s and shields stay down 5 s more; for 10 s after decloaking your hits deal double and most of it goes straight through their shields." },
+    quarters: { letter: "Q", name: "Crew quarters",   short: "CQ", hp: 35, mass: 1, cost: 40,  power: 0,  color: "#c9a97a", glyph: "windows", desc: "Damage control teams: each adds repair (hp per second restored to damaged blocks). Draws no power." },
     // electronic warfare, second generation: a decoy lures torpedoes away for a few seconds; an energy neutraliser drains
     // the locked target's capacitor at short range, so its booster, hardener, afterburner and cloak starve
-    decoy:    { letter: "Y", name: "Decoy launcher",  short: "DY", hp: 40, mass: 1, cost: 90,  power: 2, crew: 1, color: "#ffc96b", glyph: "flare", desc: "Module (F-key, 20 s cycle, 15 cap): drops a decoy astern that burns for 8 s. Every torpedo within 3 km of it that was hunting you turns on the decoy instead and blows up on it. Fire it when the volley is 2–4 km out: too early and the decoy burns out before they arrive, too late and they are already on you. One decoy per launcher block per cycle." },
+    decoy:    { letter: "Y", name: "Decoy launcher",  short: "DY", hp: 40, mass: 1, cost: 90,  power: 2, color: "#ffc96b", glyph: "flare", desc: "Module (F-key, 20 s cycle, 15 cap): drops a decoy astern that burns for 8 s. Every torpedo within 3 km of it that was hunting you turns on the decoy instead and blows up on it. Fire it when the volley is 2–4 km out: too early and the decoy burns out before they arrive, too late and they are already on you. One decoy per launcher block per cycle." },
     // role blocks (0.34, DESIGN §10): they fit only the hull's role cells (mask `r`), and hulls differ in how many they have.
     // The healer's transfer is a transfer, not creation: it comes out of its own shield pool. Remote repair restores hp to
     // damaged blocks only. The beacon makes the ship the loudest contact so a boss that turns on the loudest turns on it.
-    transfer: { letter: "W", name: "Shield transfer emitter", short: "ST", hp: 40, mass: 2, cost: 220, power: 6, crew: 2, color: "#6ad5ff", glyph: "shield", roleOnly: true, desc: "Role cell only. Module (5 s cycle, 24 cap): moves 100 shield per emitter from our strongest facing to the supported ally's weakest facing, within 4 km. Our own shields pay for it; it cannot support ourselves." },
-    repairbeam: { letter: "H", name: "Remote repair projector", short: "RR", hp: 40, mass: 2, cost: 200, power: 5, crew: 2, color: "#ffb86a", glyph: "windows", roleOnly: true, desc: "Role cell only. Module (6 s cycle, 18 cap): repairs 45 hp per projector on the supported ally's damaged blocks, within 4 km. Destroyed blocks stay gone." },
-    beacon:   { letter: "K", name: "Signature beacon", short: "BC", hp: 40, mass: 1, cost: 160, power: 3, crew: 1, color: "#ff7a7a", glyph: "dish", roleOnly: true, desc: "Role cell only. Module (4 s cycle, 6 cap): while it runs our signature is ×2.5: we are the loudest contact (a boss turns on us), we are locked faster and torpedoes hit us for full damage." },
+    transfer: { letter: "W", name: "Shield transfer emitter", short: "ST", hp: 40, mass: 2, cost: 220, power: 6, color: "#6ad5ff", glyph: "shield", roleOnly: true, desc: "Role cell only. Module (5 s cycle, 24 cap): moves 100 shield per emitter from our strongest facing to the supported ally's weakest facing, within 4 km. Our own shields pay for it; it cannot support ourselves." },
+    repairbeam: { letter: "H", name: "Remote repair projector", short: "RR", hp: 40, mass: 2, cost: 200, power: 5, color: "#ffb86a", glyph: "windows", roleOnly: true, desc: "Role cell only. Module (6 s cycle, 18 cap): repairs 45 hp per projector on the supported ally's damaged blocks, within 4 km. Destroyed blocks stay gone." },
+    beacon:   { letter: "K", name: "Signature beacon", short: "BC", hp: 40, mass: 1, cost: 160, power: 3, color: "#ff7a7a", glyph: "dish", roleOnly: true, desc: "Role cell only. Module (4 s cycle, 6 cap): while it runs our signature is ×2.5: we are the loudest contact (a boss turns on us), we are locked faster and torpedoes hit us for full damage." },
     // boss weapon (0.33, enemy only): a cutting beam that charges for `charge` seconds (event weaponCharging, the tell)
     // before it fires at the ship it was charging on, and cuts `pierceBonus` blocks deep. Low tracking: an orbit on the
     // afterburner is nearly immune, a ship holding station or closing is not.
-    lance:    { letter: "L", name: "Cutting beam",    short: "CB", hp: 90, mass: 4, cost: 600, power: 10, crew: 3, color: "#7dff9e", glyph: "lens", enemyOnly: true, desc: "Boss weapon: charges for 6 s, then a beam with 4 extra penetration points (through two plates of armor) into the ship it charged on, every 22 s. Tracking 0.35 rad/s: outrun it on the afterburner, or be the ship built to take it.",
+    lance:    { letter: "L", name: "Cutting beam",    short: "CB", hp: 90, mass: 4, cost: 600, power: 10, color: "#7dff9e", glyph: "lens", enemyOnly: true, desc: "Boss weapon: charges for 6 s, then a beam with 4 extra penetration points (through two plates of armor) into the ship it charged on, every 22 s. Tracking 0.35 rad/s: outrun it on the afterburner, or be the ship built to take it.",
                 weapon: { kind: "turret", damage: 600, cycle: 22, cap: 30, heat: 20, optimalKm: 7, falloffKm: 2.5, tracking: 0.35, accuracy: 1, arc: 100, pierceBonus: 4, charge: 6, color: "#9dffb0", coreColor: "#ffffff", beamLife: 0.9 } },
-    neut:     { letter: "X", name: "Energy neutraliser", short: "NT", hp: 40, mass: 2, cost: 110, power: 4, crew: 1, color: "#ff6ad5", glyph: "drain", desc: "Module (F-key, 6 s cycle, 20 cap, needs a lock inside 4 km): drains 30 capacitor per neutraliser block from the target each cycle. A ship with no capacitor loses its booster, hardener, afterburner and cloak and fires nothing. It drains your own capacitor too: fit reactors." },
+    neut:     { letter: "X", name: "Energy neutraliser", short: "NT", hp: 40, mass: 2, cost: 110, power: 4, color: "#ff6ad5", glyph: "drain", desc: "Module (F-key, 6 s cycle, 20 cap, needs a lock inside 4 km): drains 30 capacitor per neutraliser block from the target each cycle. A ship with no capacitor loses its booster, hardener, afterburner and cloak and fires nothing. It drains your own capacitor too: fit reactors." },
   },
 
   // ---------------------------------------------------------------- modules
@@ -1126,7 +1113,6 @@ BS.Data = {
       crit_sensor: "Sensors knocked out! Lock lost, re-acquiring.",
       crit_shield: "Emitter feedback! The {facing} shield is bleeding off!",
       crit_weapon: "Weapon mount jammed by that hit, Captain.",
-      crit_quarters: "Direct hit on the crew decks. Heavy casualties.",
       crit_cloak: "Cloak generator hit! Cloak is down!",
       breachOwn: "Warp core breach! Containment failing, {t} seconds! Get us clear or we go with it!",
       breachOwnTick: "Core breach in {t}!",
@@ -1136,7 +1122,6 @@ BS.Data = {
       enemyCrit_sensor: "We knocked out their sensors. They've lost their lock on us!",
       enemyCrit_shield: "Their emitter is feeding back, that shield is draining!",
       enemyCrit_weapon: "Jammed one of their mounts, Captain.",
-      enemyCrit_quarters: "Their crew decks are venting. They'll be short-handed.",
       enemyCrit_cloak: "We hit their cloak generator!",
       autoFlip: "Coming about, bringing the other battery to bear.",
       autoFlipShield: "Reversing our orbit, showing them a fresh shield.",
@@ -1215,16 +1200,6 @@ BS.Data = {
       neutDry: "Their capacitor is dry, Captain! Their systems are starving.",
       neutOnUs: "They're draining our capacitor, Captain! Energy neutraliser, {amount} gone!",
       neutRange: "Neutraliser can't reach, Captain. We need to be inside {range} kilometres.",
-      board_nolock: "No lock, Captain. The transporter needs a target fix.",
-      board_range: "Too far for the transporter, Captain. Inside {range} kilometres.",
-      board_shields: "Their shields are up on that side, Captain. We can't beam through them.",
-      board_crew: "We can't spare a boarding party, Captain: {spare} hands free, we need {min}.",
-      board_busy: "The party is already across, Captain.",
-      board_transport: "Energising. Security party of {party} beaming across!",
-      board_aborted: "Transport aborted, Captain, the window closed. Party is back aboard.",
-      board_fight: "We're aboard! {party} of ours against about {defenders} of theirs.",
-      board_captured: "Their bridge is ours, Captain! The ship is taken!",
-      board_repelled: "We've lost the boarding party, Captain. They held the corridors.",
     },
     events: {
       battleStart: [
@@ -1372,7 +1347,7 @@ BS.Data = {
       orbitRangeKm: 6, retreatRangeKm: 22,
       boosterBelow: 0.45, boosterMinCap: 0.35, afterburnerMinCap: 0.25, weakPointChance: 0.25,   // chance each re-roll to aim at your top weak point instead
       drainedBelow: 0.08, drainedUntil: 0.35, drainedTime: 20,   // neutralised under drainedBelow cap: open the range past the neutraliser until drainedUntil cap or drainedTime s
-      weakPointKinds: ["frequency", "emitter", "chain", "blackout", "crew"],   // a raider neither cuts necks nor finishes wounded systems: measured, both turned Engage into a coin flip
+      weakPointKinds: ["frequency", "emitter", "chain", "blackout"],   // a raider neither cuts necks nor finishes wounded systems: measured, both turned Engage into a coin flip
       targetWeights: { none: 0.3, exposed: 0.1, phaser: 0.15, reactor: 0.15, engine: 0.12, shield: 0.13, bridge: 0.05 },   // none = spray the hull, no −15% aim penalty; exposed = hull outside shield cover
     },
     // The boss (0.33): never retreats, never hunts weak points, sprays; its answers are in its script (script.enemyScripts.borg)
@@ -1399,28 +1374,16 @@ BS.Data = {
       orbitRangeKm: 7, retreatRangeKm: 18,
       boosterBelow: 0.5, boosterMinCap: 0.3, afterburnerMinCap: 0.35, weakPointChance: 0.6,
       drainedBelow: 0.06, drainedUntil: 0.3, drainedTime: 25,
-      weakPointKinds: ["frequency", "emitter", "chain", "blackout", "neck", "crew", "wounded"],   // the cruiser cuts necks
+      weakPointKinds: ["frequency", "emitter", "chain", "blackout", "neck", "wounded"],   // the cruiser cuts necks
       targetWeights: { none: 0.2, exposed: 0.1, phaser: 0.18, reactor: 0.17, engine: 0.12, shield: 0.13, bridge: 0.1 },
     },
-  },
-
-  // ------------------------------------------------------------- PR B/C data
-  // Shapes are defined now so logic never changes when the features arrive.
-  // Skills train in real time (EVE style) once PR B lands.
-  skills: {
-    gunnery:    { name: "Gunnery",    levels: 5, hoursPerLevel: [0.5, 2, 6, 16, 40], perLevel: { turretDamageMult: 0.03 } },
-    missiles:   { name: "Torpedoes",  levels: 5, hoursPerLevel: [0.5, 2, 6, 16, 40], perLevel: { launcherDamageMult: 0.03 } },
-    navigation: { name: "Navigation", levels: 5, hoursPerLevel: [0.5, 2, 6, 16, 40], perLevel: { speedMult: 0.03 } },
-    shields:    { name: "Shield ops", levels: 5, hoursPerLevel: [0.5, 2, 6, 16, 40], perLevel: { shieldRegenMult: 0.04 } },
-    capacitor:  { name: "Capacitor",  levels: 5, hoursPerLevel: [0.5, 2, 6, 16, 40], perLevel: { capRechargeMult: 0.04 } },
-    targeting:  { name: "Targeting",  levels: 5, hoursPerLevel: [0.5, 2, 6, 16, 40], perLevel: { lockMult: -0.05 } },
   },
 
   campaign: {
     startingCredits: 600,
     credits: { win: 500, loss: 120, hullLostPenaltyPerPct: 3, winStreakBonus: 50 },   // per battle
-    // salvage: credits for the enemy's surviving block value after a win; a ship disabled (no weapons, no engines) is captured intact
-    salvage: { destroyed: 0.1, disabled: 0.25, captured: 0.3 },   // captured: taken by a boarding party, nearly intact
+    // salvage: credits for the enemy's surviving block value after a win; a ship disabled (no weapons, no engines) pays more than a wreck
+    salvage: { destroyed: 0.1, disabled: 0.25 },
     // intel: a layout you held a lock on for intelMinLockSeconds is remembered (save.intel[encounterId]) and drawn in the
     // hangar before the next fight of that kind; intelCost buys it for the next encounter sight unseen
     intelMinLockSeconds: 10, intelCost: 150,
@@ -1471,11 +1434,11 @@ BS.Data = {
     klingonNames: ["IKS Rotarran", "IKS Hegh'ta", "IKS Pagh", "IKS Koraga", "IKS Vorn", "IKS Amar", "IKS Gr'oth", "IKS Bortas", "IKS Ch'Tang", "IKS Maht-H'a"],
   },
 
-  science: { scanDuration: 4, weaknessBonus: 1.25, cloakDetectRangeKm: 10 },
   // electronic warfare: ECM rolls jam / (jam + target sensors); cloak timings in seconds; detection grows with sensor arrays
   // support (0.34): the healer's reach, what each emitter and projector moves per cycle, and how close an escort keeps
   support: { rangeKm: 4, transferPerBlock: 100, repairPerBlock: 45, escortKm: 2.5 },
-  ew: { jamPerBlock: 3, jamDuration: 4, cloakTime: 3, decloakTime: 2, surgeTime: 5, cloakDrain: 8, cloakMinCap: 5, detectPerSensor: 1, ghostAlpha: 0.25, ownCloakAlpha: 0.35,
+  ew: {
+    cloakDetectRangeKm: 10,   // a cloaked ship inside this range (plus detectPerSensor per sensor) is a contact jamPerBlock: 3, jamDuration: 4, cloakTime: 3, decloakTime: 2, surgeTime: 5, cloakDrain: 8, cloakMinCap: 5, detectPerSensor: 1, ghostAlpha: 0.25, ownCloakAlpha: 0.35,
         // fields (cells from the block): a ship cloaks only with every block inside a cloak field; a jam breaks the lock only
         // with every block inside an ECM field, otherwise it just forces their fire onto the blocks outside it
         cloakRadius: 10, jamRadius: 7,
@@ -1497,7 +1460,7 @@ BS.Data = {
   // The bridge fights by a script: ordered "when → do" rules (js/script.js). Every condition and action has a sentence
   // here ({v} is the value) so the editor, the trace and the battle report read as orders, never as data.
   script: {
-    tickSeconds: 0.5,              // how often the rules are read
+    tickSeconds: 0.5, scanSeconds: 4,   // scanSeconds: the scan action (beams hold fire meanwhile)              // how often the rules are read
     chargingKmS: 1.0,              // "they are charging": closing faster than this while running in
     traceMax: 60,                  // trace entries kept per ship
     planTargets: 3,                // targets a plan may name, in order
@@ -1531,7 +1494,6 @@ BS.Data = {
       time:             { label: "more than {v} have passed", kind: "sec", def: 60 },
       scanned:          { label: "we have scanned them", kind: "bool", def: true, negLabel: "we have not scanned them yet" },
       incomingTorpedoes:{ label: "{v} or more torpedoes are coming at us", kind: "count", def: 1 },
-      boardable:        { label: "the transporter has a window", kind: "flag" },
       overloaded:       { label: "we are overloaded", kind: "flag" },
       cloaked:          { label: "we are cloaked", kind: "flag" },
       cloakOff:         { label: "our cloak is off", kind: "flag" },
@@ -1586,7 +1548,6 @@ BS.Data = {
       repair:    { label: "damage control to the {v}", kind: "type" },
       reinforce: { label: "reinforce the weakest shield", kind: "flag" },
       scan:      { label: "scan them (4 s, beams hold fire)", kind: "flag" },
-      board:     { label: "send the boarding party", kind: "flag" },
       roll:      { label: "come about to bring guns round", kind: "flag" },   // BS.EnemyAI.roll: a reposition toward the side with the most fire
       remodulate:{ label: "remodulate our {v}", kind: "remod" },   // "shields" (frequency that beats their ammo, deflector down meanwhile) or "ammo" (ammo that beats their frequency, weapons cold meanwhile)
       target:    { label: "switch our fire to {v}", kind: "subject" },   // 0.32: script.subjects; the helm, lock and aim follow (BS.Fleet.retarget)
@@ -1745,8 +1706,6 @@ BS.Data = {
     fleet: [],                         // owned class ids that undock with the hangar's ship (0.31, campaign.fleetMax in all); empty = alone
     layouts: {},                       // classId → array of layout rows; missing = class default layout
     builds: {},                        // classId → [{ name, rows, tuning }] named builds (up to editor.maxSavedBuilds)
-    skills: { gunnery: 0, missiles: 0, navigation: 0, shields: 0, capacitor: 0, targeting: 0 },
-    training: null,                    // { skill, level, startedAt, finishesAt } (ms timestamps)
     campaign: { missionIndex: 0, battlesWon: 0, battlesLost: 0, streak: 0, cleanWins: 0, retry: null },   // retry: { encounterId, seed, battlesWon } pins the last enemy for the next fight
     intel: {},                         // encounterId → { rows, classId, layoutName, seed } layouts scanned in battle or bought
     scripts: [],                       // [{ id, name, policies, rules }] the player's bridge scripts (BS.Script); templates live in script.templates

@@ -34,13 +34,12 @@ These rules apply to every session working in this repository.
   - `js/modules.js` — weapon groups built from blocks plus the built-in active systems (booster, hardener, afterburner); capacitor use
   - `js/ships.js` — ship model: block grid, hull from blocks, shield facings from emitters, capacitor, lock, movement commands
   - `js/weapons.js` — turret blocks (tracking/falloff) and launcher blocks (signature/velocity), hit resolution, decoys
-  - `js/boarding.js` — boarding parties: transporter window, party vs defenders, capture
   - `js/crew.js` — crew voices: instant commands with reports, warnings
   - `js/enemyai.js` — the doctrine machine for every ship (one doctrine list, build-derived ranges for the labelled ones, auto-flip)
   - `js/fleet.js` — teams, target selection and retargeting, team elimination
   - `js/script.js` — bridge scripts: ordered when → do rules with policies and call-outs, run by both bridges; sentences from `script.conditions/actions`
-  - `js/campaign.js` — progress between battles: save/load/export/import, credits, ownership, fitting rules, fit stats, real-time skills, enemy scaling
-  - `js/hangar.js` — hangar screen DOM: ship, fitting, market, skills, save buttons
+  - `js/campaign.js` — progress between battles: save/load/export/import, credits, ownership, fitting rules, fit stats, enemy scaling
+  - `js/hangar.js` — hangar screen DOM: ship, editor, roster, scripts, intel, save buttons
   - `js/ui.js` — DOM panels, order buttons, comms log, alert states
   - `js/renderer.js` — canvas drawing (space, ships, weapons, shields)
   - `js/effects.js` — particles, explosions, sparks, screen shake
@@ -86,7 +85,7 @@ These rules apply to every session working in this repository.
   and effects use them.
 - **Progress lives in `BS.Campaign`** (localStorage key `bridgesim.save`,
   shape in `BS.Data.saveDefaults`). Battle code never reads localStorage;
-  `BS.Game.startBattle` asks Campaign for the layout, skill mods and enemy
+  `BS.Game.startBattle` asks Campaign for the layout and enemy
   scaling, and `settleBattle` awards credits and bills repairs (`campaign.repair`).
   Encounters carry a `kind` (solo / fleet / boss): `encounter()` applies
   the run (`campaign.run`, boss slots) and lists who undocks in `enc.roster`. A layout that fails

@@ -8,12 +8,12 @@
 //     such as "vent until heat is under 30%" are written. A rule with no conditions is the default: it stands when
 //     nothing above it does.
 //   - a CALL-OUT (`once: true` or `every: N`) fires its actions whenever its conditions hold, once ever or at most
-//     every N seconds, without disturbing the standing orders: scan, reinforce, a boarding party.
+//     every N seconds, without disturbing the standing orders: scan, reinforce, remodulate.
 //   - POLICIES run every tick: lock the target, pulse the booster when a shield is low, reinforce when it is very
 //     low, drop a decoy when torpedoes close, run the neutraliser in range (helm.policy numbers).
 // Conditions and actions are named in BS.Data.script.conditions / .actions with a sentence each, and
 // BS.Script.describe(rule) turns a rule into one, so the trace, the editor and the battle report never show data.
-// Aiming at a scanned weak point or a planned target needs a scan first (action `scan`: science.scanDuration
+// Aiming at a scanned weak point or a planned target needs a scan first (action `scan`: script.scanSeconds
 // seconds with the beam turrets holding fire; sets ship.scanned). Every firing is appended to ship.scriptTrace and
 // emitted as `scriptRule`.
 window.BS = window.BS || {};
@@ -101,7 +101,6 @@ BS.Script = (function () {
         case "noPhasers": return !st.weapons.some(function (b) { return b.alive && b.def.weapon.kind === "turret"; });
         case "scanned": return !!ship.scanned === !!v;
         case "incomingTorpedoes": return BS.Weapons.incoming(ship, 99) >= v;
-        case "boardable": return BS.Boarding.canBoard(ship, target) === "ok";
         case "enemyReactorsGone": return !(ealive.reactor > 0);
         case "enemyShieldsDown": return S.shieldFrac(target, S.facingToward(target, ship.pos.x, ship.pos.y)) <= 0.02;
         case "enemyFacingBelow": return S.shieldFrac(target, S.facingToward(target, ship.pos.x, ship.pos.y)) < v;
@@ -200,8 +199,7 @@ BS.Script = (function () {
     if (act.governor !== undefined) ship.heatGovernor = !!act.governor;
     if (act.repair !== undefined) ship.repairPriority = act.repair || null;
     if (act.reinforce) S.startReinforce(ship);
-    if (act.scan) { if (!ship.scanned && !ship.scanning) { ship.scanning = BS.Data.science.scanDuration; ship.scanTarget = target; BS.Events.emit("scanStarted", { ship: ship, target: target, time: ship.scanning }); } }
-    if (act.board) { var br = BS.Boarding.start(ship, target); if (br !== "ok") note = "boarding: " + br; }
+    if (act.scan) { if (!ship.scanned && !ship.scanning) { ship.scanning = D().scanSeconds; ship.scanTarget = target; BS.Events.emit("scanStarted", { ship: ship, target: target, time: ship.scanning }); } }
     if (act.roll) { if (!BS.EnemyAI.roll(ship, target)) note = "cannot come about"; }
     if (act.remodulate) { var rn = S.remodulate(ship, act.remodulate, target); if (rn) note = "remodulate: " + rn; }
     if (act.support !== undefined) { var sa = BS.Fleet.ally(ship, act.support); if (sa) ship.support = sa; else note = "no " + allyLabel(act.support); }
@@ -344,7 +342,7 @@ BS.Script = (function () {
     x.allyHullMin = Math.min(x.allyHullMin === undefined ? 1 : x.allyHullMin, al.length ? Math.min.apply(null, al.map(function (a) { return a.hull / a.hullMax; })) : 1);
     x.enemiesMin = Math.min(x.enemiesMin === undefined ? 99 : x.enemiesMin, hs.length);
     x.enemiesMax = Math.max(x.enemiesMax === undefined ? 0 : x.enemiesMax, hs.length);
-    ["scanned", "boardable", "overloaded", "cloaked", "cloakOff", "noCloak", "noTubes", "noPhasers", "enemyReactorsGone", "enemyShieldsDown", "enemyCharging", "enemyCloaking", "enemyCloaked", "enemyRolling", "enemyBreaching", "enemyKiting", "enemyAfterburner", "enemyAmmoBeatsOurShields", "ourAmmoBeaten", "remodulating", "allyUnderFire", "outnumbered", "unfocused", "lanceCharging", "allyLanced"].forEach(function (k) {
+    ["scanned", "overloaded", "cloaked", "cloakOff", "noCloak", "noTubes", "noPhasers", "enemyReactorsGone", "enemyShieldsDown", "enemyCharging", "enemyCloaking", "enemyCloaked", "enemyRolling", "enemyBreaching", "enemyKiting", "enemyAfterburner", "enemyAmmoBeatsOurShields", "ourAmmoBeaten", "remodulating", "allyUnderFire", "outnumbered", "unfocused", "lanceCharging", "allyLanced"].forEach(function (k) {
       if (!x.ever[k]) { var w = {}; w[k] = true; if (conditions(ship, target, w, sc.t)) x.ever[k] = sc.t; }
     });
     // per rule: whether all its conditions ever held together, and each condition on its own (for the report)

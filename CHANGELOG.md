@@ -2,6 +2,30 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.38.0] — 2026-10-19 (boarding, crew manning, skills and science out; 0.38 of DESIGN §10 "Streamline")
+
+### Removed
+- **Boarding** (`js/boarding.js`, `grid.boarding`, the `boardable`
+  condition and `board` action, the Ship panel's Boarding row, the scan
+  panel's Boarding line, Security's transport lines, the "captured"
+  result and `salvage.captured`).
+- **Crew manning** (`grid.crew`, `blocks.*.crew`, `stats.crew`): weapons
+  and shields no longer slow with casualties, no "Undermanned" check, no
+  far-from-quarters repair penalty, no crew weak point, no critical hit
+  on quarters. A crew quarters block is a damage-control block: it adds
+  repair and nothing else, so no layout changes.
+- **Real-time skills** (`BS.Data.skills`, `save.skills / training`, the
+  hangar's Skills section) and the `science` block (`scanSeconds` moved
+  to `script`, `cloakDetectRangeKm` to `ew`).
+
+### Changed
+- `BS.Grid.isSystem(block)`: what crits, power dimming and weak points
+  read as a system block (not armor, structure or the bridge).
+
+### Measured (DESIGN §8)
+- See §8 v0.38: 1v1 and the cube identical in outcome; the 4v4 pack fight
+  swings more without casualties slowing a hull (still won).
+
 ## [0.37.0] — 2026-10-19 (plays and the hand-flown bridge out, one doctrine list; 0.37 of DESIGN §10 "Streamline")
 
 ### Changed

@@ -73,7 +73,7 @@ tell the helm how to fly relative to it, and you switch modules on and off.
   real size, so you can see the blocks).
 - The bottom row is the **scan panel**: once you hold a lock it shows the
   enemy's blocks and damage, shields and bare hull, cloak and ECM field
-  gaps, crew, power, heat, how many of its weapons bear on you and what its
+  gaps, power, heat, how many of its weapons bear on you and what its
   torpedoes would do to you. The bridge log is the two-line ticker at the
   top of the display; LOG (G) opens the full log.
 - Switch on systems in the bar at the bottom of the display (click or
@@ -124,16 +124,9 @@ tell the helm how to fly relative to it, and you switch modules on and off.
   capacitor per block from the enemy every 6 s until its booster,
   hardener, afterburner, cloak and guns starve; a drained enemy runs out to
   8 km to recharge, so stay on it. The Leech raider does it to you.
-- **Boarding** (T): with a lock, inside 3 km and their shield facing you
-  at zero, the transporter beams your spare crew across (crew on hand minus
-  posts, at least 4; they are gone for the rest of the battle). Aboard
-  they fight 2 guards plus 3 per enemy crew deck: shoot the crew decks
-  first, watch the scan panel's Boarding line, then press T. Win and the
-  ship is **captured** (victory, 30% salvage); lose and the party is lost.
 - A ship with no weapons and no engines left is **disabled** and the battle
   ends. Disabling the enemy instead of destroying it pays 25% of its
-  remaining block value as **salvage** (10% for a wreck, 30% for a prize
-  taken by boarding).
+  remaining block value as **salvage** (10% for a wreck).
 - Enemies: Bird-of-Prey raiders in several layouts (and random variants
   from the third battle), then the heavier K't'inga battlecruiser from the
   fifth battle onward. Every win makes them 4% stronger; bigger enemies pay
@@ -154,7 +147,7 @@ tell the helm how to fly relative to it, and you switch modules on and off.
 - Destroy the enemy to win. The result screen shows the credits you earned;
   **Return to hangar** to spend them.
 
-## Hangar, build, skills, saving
+## Hangar, build, roster, saving
 
 - **Build**: pick a block type in the palette and click or drag on the hull
   to paint it; right-click erases. Faint cells are the hull you can fill,
@@ -181,8 +174,6 @@ tell the helm how to fly relative to it, and you switch modules on and off.
 - **Credits**: a win pays 500 (× up to 1.9 for a bigger enemy) minus 3 per
   percent of block hp lost, plus a streak bonus; a loss pays 120. Enemies
   get 4% stronger with every win, up to +40%.
-- **Skills**: train one at a time; they take real time (30 minutes for level
-  1, up to 40 hours for level 5) and keep training while the game is closed.
 - **Saving**: automatic in this browser. **Export save** downloads a JSON
   file; **Import save** loads one. **Reset progress** starts over.
 
@@ -202,7 +193,6 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `helm` | The default doctrine, auto-flip interval and shield thresholds, keep geometry (`bearingStep / keepBand / keepRunBelow / holdSpeed / keepFireFraction / kiteMinBearing`), the standing script policies (`policy`: booster and reinforce thresholds) |
 | `balance.zoom` | Auto-fit camera limits and margin (`autoMinShort / shortPx` for short phone views), manual zoom bias range |
 | `grid.capBase / capAdd / capRechargeTime` | Capacitor from reactors |
-| `grid.crew`, `blocks.*.crew` | Crew posts per system, bridge and quarters supply, manning floor, far-from-quarters radius and repair penalty |
 | `grid.thrustPerPoint / nacelleThrustMult / speedMultMin / speedMultMax` | Speed from engines and mass |
 | `grid.hitScatter / penetration / torpedoSplash / aimRadius / aimScatter / deadFraction / structureHp / torpedoStructureMult` | Where shots land, how damage travels through the hull, when a ship is lost, how tough necks are and what torpedoes do to them |
 | `campaign.intelMinLockSeconds / intelCost` | How long a lock must hold to record an enemy layout; the price of buying it |
@@ -210,9 +200,8 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `blocks.reactor.explosion`, `grid.lineOfFire` | Reactor breach damage and radius; whether the own hull masks weapons |
 | `blocks.*.power`, `shipClasses.*.powerBase`, `grid.powerPerReactor / brownoutMin` | Power grid: what each system draws, what a hull and its reactors supply, how a brownout bites |
 | `grid.heat`, `blocks.*.weapon.heat` | Heat capacity and dissipation, overload time, heat per shot |
-| `ew.*`, `science.cloakDetectRangeKm` | Jam strength and duration, cloak timings, surge and drain, decloak strike (`ew.strike`: window, shield bypass, damage), field radii (`cloakRadius`, `jamRadius`), detection range |
+| `ew.*` (`ew.cloakDetectRangeKm`) | Jam strength and duration, cloak timings, surge and drain, decloak strike (`ew.strike`: window, shield bypass, damage), field radii (`cloakRadius`, `jamRadius`), detection range |
 | `ew.decoy`, `ew.neut`, `enemyAI.*.drainedBelow / drainedUntil / drainedTime` | Decoy life, lure radius, speed; neutraliser range, drain per block, the enemy's flee range and when a drained enemy opens the range |
-| `grid.boarding` | Transporter range, party size, transport time, shield window thresholds, defenders per crew deck and bridge guard, fight rate |
 | `script.*` | Rule tick, charging speed, trace length, plan targets, default template, rules per script, own scripts per save (`maxScripts`), range bands (`rangeBands`), subjects a rule can be about and the `target` action switches to (`subjects`), dry-run length, bridge calls (`bridgeCall`: tokens, hold and focus seconds, confirm window), the sentence for every condition / action / policy, the templates (Wolf pack for a fleet) and the enemy scripts with their reaction rules and callouts |
 | `enemyAI.stanceLabels`, `enemyAI.aimLabels` | The words the conditions `enemyStance` / `enemyAimingAt` read as |
 | `tuning.order`, `tuning.bonus / malus`, `tuning.list`, `tuning.factionDefault`, `tuning.offFactionCost`, `tuning.tunable`, `tuning.remodulate`, `tuning.measured` | The modulation ring (each beats the next), the one multiplier (×1.5 for ammo that beats the frequency or alloy it hits, ×0.5 when beaten), each modulation's digit, colour and sentence, the faction defaults, the surcharge for off-faction tuning, which block types carry a modulation, how long a remodulation takes (shields down / weapons cold), the measured numbers |
@@ -230,7 +219,7 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `campaign.fleetMax`, `balance.fleetSpacingKm`, `save.fleet` | Hulls a side, how far apart they spawn, which owned hulls undock with the flagship on fleet and boss fights (the shipyard's "Add to fleet" buttons; the harness sets it with `--fleet`) |
 | `campaign.run.bossEvery / bossFromWins / fleetMinHulls`, `campaign.encounters[].kind` | Runs (0.35): every n-th battle is a boss fight once the roster has the hulls and the wins; which encounters are solo (the flagship alone), fleet (the roster undocks, two hulls needed) or boss |
 | `campaign.repair.destroyedBlock / lostHull` | Repair bills (0.35): the share of a destroyed block's price and of a lost hull's block value paid after a fight, capped at the credits in hand |
-| `campaign.*`, `skills.*` | Economy, training |
+| `campaign.*` | Economy |
 | `balance.capCurve / lockBase / zoom` | Capacitor curve, lock time, zoom |
 | `enemyAI.doctrines` | How each doctrine flies (one list for both sides since 0.37; the labelled ones are the player's set and take their `ranges` from the fitted weapons): strafe pass range and timing, brawl orbit and flip timer, standoff hold and kite ranges, broadside band and roll timer, evade range, the reaction doctrines `kite` (9 km) and `watch` (5 km) |
 | `enemyAI.default / ktinga` | Enemy accuracy, damage and stat multipliers, retreat thresholds, aim weights (`none` = spray), `weakPointChance` and `weakPointKinds` |
@@ -246,7 +235,7 @@ shapes defined in the same file where they exist. See `DESIGN.md`.
 ```
 index.html      entry point
 css/            LCARS interface styles
-js/             data, grid, game loop, ships, modules, weapons, boarding, crew, enemy AI (the doctrine machine), fleet, scripts, campaign, hangar, UI, renderer, effects
+js/             data, grid, game loop, ships, modules, weapons, crew voices, enemy AI (the doctrine machine), fleet, scripts, campaign, hangar, UI, renderer, effects
 assets/         optional sprites / sounds (empty in MVP)
 tools/          harness.js (accelerated balance runs, DESIGN.md §8: forced encounter, enemy variant, equal-hull duels, tuning per side, fleets on both sides, --perf cost) and smoke.js (headless interface check, desktop, phone and a fleet of four); plain Node + Playwright, not needed to play
 DESIGN.md       full game design and data structures
