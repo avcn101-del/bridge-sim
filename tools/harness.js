@@ -10,7 +10,7 @@
 //   --tune "ammo=graviton,frequency=nadion,alloy=nadion"   the player's tuning (BS.Data.tuning; "a:b" splits port / starboard halves)
 //   --etune "..."       the enemy's tuning, same form (unset kinds keep the faction default)
 //   --script <id|file>  a template id, or a JSON file with an inline script { name, policies, rules }
-//   --side <side>       add "keep to their <side>" to every rule that sets a stance (blind, aft, port, starboard)
+//   --side <side>       add "keep to their <side>" to every rule that sets a doctrine (blind, aft, port, starboard)
 //   --noreact           the enemy flies the 0.24 script (scan, blind roll, doctrine): no reaction rules
 //   --runs <n>          how many fights (default 4); --max <s> stalemate after this many simulated seconds (600)
 //   --seed <n>          first seed (Math.random is seeded per run: seed + run index), so runs repeat (since 0.31 the
@@ -97,7 +97,7 @@ function fmt(t) { var m = Math.floor(t / 60), s = Math.floor(t % 60); return m +
         BS.Data.script.dryRun.maxSeconds = o.max;
         var script = typeof o.script === "string" ? JSON.parse(JSON.stringify(BS.Data.script.templates[o.script] || BS.Data.script.retiredTemplates[o.script] || null)) : o.script;
         if (!script) throw new Error("no script " + o.script);
-        if (o.side) script.rules.forEach(function (r) { if (r.do && (r.do.stance || r.do.doctrine)) r.do.side = o.side; });
+        if (o.side) script.rules.forEach(function (r) { if (r.do && r.do.doctrine) r.do.side = o.side; });
         var encInfo = BS.Campaign.encounter();
         if (o.perf) {
           BS.Game.startBattle({ dry: true, script: script });

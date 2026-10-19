@@ -92,13 +92,13 @@ BS.Game = (function () {
     state.player = player; state.enemy = enemy; state.enemyFlag = enemy;
     state.teams = { player: players, enemy: enemies }; state.ships = players.concat(enemies);
     // every ship fights its nearest hostile to begin with (BS.Fleet); both bridges fight by a script (BS.Script): the
-    // enemy's names its doctrine ("encounter") and plays; the player's is the one assigned to each hull in the hangar,
+    // enemy's names its doctrine ("encounter"); the player's is the one assigned to each hull in the hangar,
     // a template by default (opts.script overrides the flagship's)
     enemies.forEach(function (e) { bindEnemy(e, BS.Fleet.nearestHostile(e) || player); });
     players.forEach(function (pl, i) {
       var t = BS.Fleet.nearestHostile(pl) || enemy;
       pl.target = t; pl.selected = t;
-      BS.EnemyAI.setStance(pl, t, BS.Data.helm.defaultStance);   // the helm flies the default stance from the start
+      BS.EnemyAI.setDoctrine(pl, t, BS.Data.helm.defaultDoctrine);   // the helm flies the default doctrine from the start
       BS.Script.start(pl, t, (i === 0 && opts.script) || BS.Campaign.scriptFor(pl.classId));
     });
     BS.Crew.reset(player, enemy);
@@ -221,7 +221,7 @@ BS.Game = (function () {
     // every ship's bridge, helm and hull, enemies first as before (the order only decides who moves first in a step)
     var order = state.teams.enemy.concat(state.teams.player);
     for (i = 0; i < order.length; i++) BS.Script.update(order[i], dt);
-    for (i = 0; i < order.length; i++) { s = order[i]; BS.Plays.update(s, dt); BS.EnemyAI.update(s, BS.Fleet.targetOf(s), dt); }
+    for (i = 0; i < order.length; i++) { s = order[i]; BS.EnemyAI.update(s, BS.Fleet.targetOf(s), dt); }
     for (i = 0; i < ships.length; i++) BS.Ships.update(ships[i], dt);
     for (i = 0; i < ships.length; i++) BS.Boarding.update(ships[i], dt);
     BS.Weapons.update(dt);

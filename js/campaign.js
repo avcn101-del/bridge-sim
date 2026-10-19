@@ -43,6 +43,15 @@ BS.Campaign = (function () {
     out.intel = {};
     Object.keys(s.intel || {}).forEach(function (id) { var it = s.intel[id]; if (it && Array.isArray(it.rows) && D().shipClasses[it.classId]) out.intel[id] = it; });
     out.scripts = (s.scripts || []).filter(function (sc) { return sc && sc.id && sc.name && Array.isArray(sc.rules); });
+    // 0.37: the `stance` action became `doctrine` (same ids); plays are gone, a rule that only ran one is dropped
+    out.scripts.forEach(function (sc) {
+      sc.rules = sc.rules.filter(function (r) {
+        if (!r || !r.do) return true;
+        if (r.do.stance !== undefined) { if (r.do.doctrine === undefined) r.do.doctrine = r.do.stance; delete r.do.stance; }
+        if (r.do.play !== undefined) { delete r.do.play; if (!Object.keys(r.do).length) return false; }
+        return true;
+      });
+    });
     out.scriptByBuild = {}; Object.keys(s.scriptByBuild || {}).forEach(function (id) { if (D().shipClasses[id]) out.scriptByBuild[id] = s.scriptByBuild[id]; });
     out.plans = {}; Object.keys(s.plans || {}).forEach(function (id) { var pl = s.plans[id]; if (pl && Array.isArray(pl.targets)) out.plans[id] = pl; });
     out.tuning = {}; Object.keys(s.tuning || {}).forEach(function (id) { if (D().shipClasses[id] && Array.isArray(s.tuning[id])) out.tuning[id] = s.tuning[id]; });
@@ -257,7 +266,7 @@ BS.Campaign = (function () {
     var counterWeak = wonAt === 0 && D().campaign.firstFight ? D().campaign.firstFight.weakPointChance : null;
     var variant = null; if (cls.variants) Object.keys(cls.variants).forEach(function (k) { if (cls.variants[k].rows === rows) variant = cls.variants[k]; });
     var tuningRows = variant && variant.tuning ? variant.tuning : null;
-    var enc = { id: pick.id, classId: pick.enemyClass, cls: cls, rows: rows, name: name, variantName: variantName, tuning: tuningRows, seed: seed, battlesWon: wonAt, retry: !!rt, rewardMult: pick.rewardMult, play: pick.play || null, script: script, damageMult: pick.damageMult || null, weakPointChance: counterWeak, aiProfile: cls.aiProfile || "default",
+    var enc = { id: pick.id, classId: pick.enemyClass, cls: cls, rows: rows, name: name, variantName: variantName, tuning: tuningRows, seed: seed, battlesWon: wonAt, retry: !!rt, rewardMult: pick.rewardMult, script: script, damageMult: pick.damageMult || null, weakPointChance: counterWeak, aiProfile: cls.aiProfile || "default",
       doctrine: doc || D().enemyAI[cls.aiProfile || "default"].doctrine, label: cls.className + (variantName ? " · " + variantName : "") };
     // the enemy side (0.31): the ship above, then every entry of pick.ships (a fleet encounter), each rolled from the
     // same seeded stream so the hangar and the battle agree

@@ -32,7 +32,7 @@ BS.Ships = (function () {
       capMax: 0, capacitor: 0, heat: 0, overload: 0, heatGovernor: true, governorHold: false, jammed: 0, partialJam: 0, partialJamBy: null, neuted: 0, boarding: null, shieldDelay: { fore: 0, aft: 0, port: 0, starboard: 0 }, attackSide: "auto", tumble: 0, tumbleDir: 1, breach: 0, hadReactors: false, aimBlock: null, cloak: { state: "off", t: 0, surge: 0, strike: 0 },
       signature: cls.signature,
       flags: { alert: "none", destroyed: false, disabled: false, captured: false, armed: false },
-      selected: null, lock: { target: null, progress: 0, locked: false, time: 0 }, aimType: null, stance: null, play: null,
+      selected: null, lock: { target: null, progress: 0, locked: false, time: 0 }, aimType: null,
       cmd: { type: "idle", target: null, range: 0, point: null, orbitDir: Math.random() < 0.5 ? 1 : -1, facing: null, bearing: 0 },
       desiredHeading: options.heading || 0, desiredSpeed: 0,
       repairPriority: null, reinforce: null, reinforceCooldown: 0,

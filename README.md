@@ -199,7 +199,7 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `grid.crits` | Critical hits: hp threshold, chance, tumble time and spin, sensor blind time, emitter drain, weapon jam cycles |
 | `grid.powerRadius / unpoweredFactor`, `grid.breach` | Reactor power range and the penalty outside it; core breach countdown, radius and damage |
 | `helm.sides`, `helm.shadow`, `helm.repositionDuration` | Attack sides (bearings from the target's heading, blind-sector hysteresis, station radius) and how long a player come about (script action `roll`) holds; how long an enemy tolerates nothing bearing is its script's `blindFor` |
-| `helm` | Stances (doctrine, ranges from fitted weapons, keys), auto-flip interval and shield thresholds, keep geometry (`bearingStep / keepBand / keepRunBelow / holdSpeed / keepFireFraction / kiteMinBearing`), plays (phases, module policies, exit conditions) |
+| `helm` | The default doctrine, auto-flip interval and shield thresholds, keep geometry (`bearingStep / keepBand / keepRunBelow / holdSpeed / keepFireFraction / kiteMinBearing`), the standing script policies (`policy`: booster and reinforce thresholds) |
 | `balance.zoom` | Auto-fit camera limits and margin (`autoMinShort / shortPx` for short phone views), manual zoom bias range |
 | `grid.capBase / capAdd / capRechargeTime` | Capacitor from reactors |
 | `grid.crew`, `blocks.*.crew` | Crew posts per system, bridge and quarters supply, manning floor, far-from-quarters radius and repair penalty |
@@ -232,7 +232,7 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `campaign.repair.destroyedBlock / lostHull` | Repair bills (0.35): the share of a destroyed block's price and of a lost hull's block value paid after a fight, capped at the credits in hand |
 | `campaign.*`, `skills.*` | Economy, training |
 | `balance.capCurve / lockBase / zoom` | Capacitor curve, lock time, zoom |
-| `enemyAI.doctrines` | How each doctrine flies (enemy encounters and player stances): strafe pass range and timing, brawl orbit and flip timer, standoff hold and kite ranges, broadside band and roll timer, evade range, the reaction doctrines `kite` (9 km) and `watch` (5 km) |
+| `enemyAI.doctrines` | How each doctrine flies (one list for both sides since 0.37; the labelled ones are the player's set and take their `ranges` from the fitted weapons): strafe pass range and timing, brawl orbit and flip timer, standoff hold and kite ranges, broadside band and roll timer, evade range, the reaction doctrines `kite` (9 km) and `watch` (5 km) |
 | `enemyAI.default / ktinga` | Enemy accuracy, damage and stat multipliers, retreat thresholds, aim weights (`none` = spray), `weakPointChance` and `weakPointKinds` |
 | `grid.weakPoints` | Weak-point analysis thresholds |
 | `visuals.fragments` | Section break-off and ship shatter: piece count, speed, spin, lifetime, inertia, engine burn, reactor fuse and blast, debris damage per cell |
@@ -246,7 +246,7 @@ shapes defined in the same file where they exist. See `DESIGN.md`.
 ```
 index.html      entry point
 css/            LCARS interface styles
-js/             data, grid, game loop, ships, modules, weapons, boarding, crew, enemy AI, plays, scripts, campaign, hangar, UI, renderer, effects
+js/             data, grid, game loop, ships, modules, weapons, boarding, crew, enemy AI (the doctrine machine), fleet, scripts, campaign, hangar, UI, renderer, effects
 assets/         optional sprites / sounds (empty in MVP)
 tools/          harness.js (accelerated balance runs, DESIGN.md §8: forced encounter, enemy variant, equal-hull duels, tuning per side, fleets on both sides, --perf cost) and smoke.js (headless interface check, desktop, phone and a fleet of four); plain Node + Playwright, not needed to play
 DESIGN.md       full game design and data structures

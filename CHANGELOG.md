@@ -2,6 +2,34 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.37.0] — 2026-10-19 (plays and the hand-flown bridge out, one doctrine list; 0.37 of DESIGN §10 "Streamline")
+
+### Changed
+- **One doctrine list**: the four helm stances (Engage, Skirmish,
+  Standoff, Disengage) are labelled entries of `enemyAI.doctrines` with
+  `ranges` taken from the ship's fitted weapons; the script action is
+  `doctrine` for both bridges (saved scripts' `stance` rules are
+  migrated, same ids). The fixed enemy doctrines that shared those names
+  are `dogfight` (Interceptor) and `bombard` (Torpedo boat), same numbers.
+- The bridge call *Change play* is *Fly* (a labelled doctrine for 45 s).
+- The Torpedo boat's Siege play is three rules in its script.
+- Script policies read `helm.policy` (was `helm.playPolicy`).
+
+### Removed
+- **Plays** (`js/plays.js`, `helm.plays`, the `play` action, keys 5–0):
+  a second scripting layer under the script; every play was already a
+  template of rules or retired.
+- **The hand-flown bridge**: the manual helm column (lock, stances,
+  sides, stop, transporter button), the top-bar Reinforce, aim chips,
+  repair-priority clicks, module clicks, canvas steering, the overview's
+  select and lock, the keys (F1–F8, 1–0, L, H, B, S, T, R) and
+  `settings.manualBridge`. A click or tap on an enemy block only
+  nominates it for the Focus call. Hail, Red alert and the governor stay.
+
+### Measured (DESIGN §8)
+- See §8 v0.37: the references and the two encounters whose doctrine ids
+  changed, before and after.
+
 ## [0.36.0] — 2026-10-19 (the vision and the first cut; DESIGN §10 "Streamline")
 
 ### Changed
