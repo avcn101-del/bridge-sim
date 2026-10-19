@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.35.0",
+  version: "0.36.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -1460,45 +1460,6 @@ BS.Data = {
       weakPointKinds: ["frequency", "emitter", "chain", "blackout", "neck", "crew", "wounded"],   // the cruiser cuts necks
       targetWeights: { none: 0.2, exposed: 0.1, phaser: 0.18, reactor: 0.17, engine: 0.12, shield: 0.13, bridge: 0.1 },
     },
-    // The public doctrine table (0.26): who beats whom, measured (DESIGN §8, Constitution templates vs Bird-of-Prey
-    // variants at 3 wins, 4 fights each; `measured` is the player's wins). The report's "why you lost" quotes the first
-    // row whose winning tag the winner's fight carried and whose losing tag the loser's did (BS.Game.styleTags); the
-    // hangar's doctrine page reads it. Tags: brawl, standoff, alpha, shadow, turtle, roll, strafe, hitfade, kite,
-    // ambush, cloak, emitter, long, close. Rows the theory expects but the harness did not confirm are not here.
-    doctrineTable: [
-      { beats: "strafe",   loses: "standoff", measured: "0 of 4", text: "strafing beats standoff: torpedoes lose most of their damage to a fast pass, and each pass arrives on a fresh bearing inside the tubes' arc" },
-      { beats: "strafe",   loses: "turtle",   measured: "0 of 4", text: "strafing beats turtle: the broadside rolls its best shield toward a ship that is already on another bearing" },
-      { beats: "strafe",   loses: "hitfade",  measured: "1 of 4", text: "strafing beats hit & fade: the fade on the afterburner meets a run-in on the afterburner, and the pass lands on the shield that was fading" },
-      { beats: "brawl",    loses: "ambush",   measured: "1 of 4", text: "a close brawl beats ambush: a brawler that sticks inside 3 km is never where the decloak strike was aimed, and its guns are on the cloak generators the moment the field drops" },
-      { beats: "brawl",    loses: "cloak",    measured: "1 of 4", text: "a close brawl beats a cloak: the field drops on the first hit, and a brawler is never far enough to lose" },
-      { beats: "standoff", loses: "ambush",   measured: "0 of 4, stalemates", text: "standoff beats ambush: a torpedo boat holding 14 km never comes to the knife range the decloak strike needs" },
-      { beats: "standoff", loses: "alpha",    measured: "0 of 4, stalemates", text: "standoff beats alpha: the strike has to cross the whole torpedo band before its guns reach, and the boat kites when it does" },
-      { beats: "strafe",   loses: "alpha",    measured: "2 of 4", text: "strafing holds its own against alpha: the strike lands on one pass and the next pass comes from behind" },
-    ],
-    // Signature counters (0.26, campaign.learn): the dominant tag of the player's last wins → the build and bridge the
-    // next encounter answers with, per hull (null keeps the encounter's own). Only measured answers (DESIGN §8): the
-    // Raider's strafing passes beat standoff, turtle and hit & fade outright; a close brawler beats a cloaked ambusher.
-    // Nothing at the Bird-of-Prey weight beats a Brawler or an emitter hunter yet, and the K't'inga rows are unmeasured,
-    // so those learn nothing. `reason` is what the hangar says.
-    signatureCounters: [
-      { tag: "standoff", bop: { layout: "default", doctrine: "strafe", script: "raider" }, ktinga: null, reason: "expect fast passes: torpedoes lose their damage to speed" },
-      { tag: "long",     bop: { layout: "default", doctrine: "strafe", script: "raider" }, ktinga: null, reason: "expect fast passes: torpedoes lose their damage to speed" },
-      { tag: "turtle",   bop: { layout: "default", doctrine: "strafe", script: "raider" }, ktinga: null, reason: "expect fast passes from a new bearing each time: your best shield is never the right one" },
-      { tag: "hitfade",  bop: { layout: "default", doctrine: "strafe", script: "raider" }, ktinga: null, reason: "expect fast passes that follow you into the fade" },
-      { tag: "cloak",    bop: { layout: "gunboat", doctrine: "brawl", script: "raider" },  ktinga: null, reason: "expect a brawler that sticks inside 3 km: the strike lands on nothing, and its cannons find the cloak generators" },
-      { tag: "ambush",   bop: { layout: "gunboat", doctrine: "brawl", script: "raider" },  ktinga: null, reason: "expect a brawler that sticks inside 3 km: the strike lands on nothing, and its cannons find the cloak generators" },
-    ],
-    // Counter-doctrine: an encounter flagged `counter` reads your build before the fight (BS.Campaign.encounter) and takes
-    // the first rule whose condition your battle layout meets: tubes, pulse / beam counts, a cloak, or a shield facing
-    // much weaker than the strongest. `bop` / `ktinga` name the doctrine per hull (null keeps the encounter's own);
-    // `weakPointChance` overrides the profile's for that fight; `reason` is what the hangar tells you.
-    counters: [
-      { when: { tubesMin: 4 },                bop: "strafe",   ktinga: "broadside", reason: "they expect torpedoes and will keep moving" },
-      { when: { pulseMin: 4, beamsMax: 2 },   bop: "standoff", ktinga: "siege",     reason: "they will stay out of your pulse range" },
-      { when: { neutMin: 2 },                 bop: "standoff", ktinga: "siege",     reason: "they will stay out of your neutraliser range" },
-      { when: { cloak: true },                bop: "brawl",    ktinga: "brawl",     reason: "they will stick close so you cannot slip away" },
-      { when: { weakFacingBelow: 0.6 },       bop: null,       ktinga: "broadside", weakPointChance: 0.6, reason: "they have seen your weak shield facing and will pick on it" },   // doctrine unchanged for a Bird-of-Prey (a brawling raider made the stock fight a coin flip), but it hunts weak points twice as often
-    ],
   },
 
   // ------------------------------------------------------------- PR B/C data
@@ -1539,10 +1500,10 @@ BS.Data = {
     encounters: [
     // `script` names the bridge script (script.enemyScripts) the enemy runs on top of its doctrine: the same rule engine,
     // conditions and actions as the player's (BS.Script). The doctrine stays the movement layer the script's rules pick.
-      { id: "raider",   enemyClass: "bird_of_prey", layout: "default", doctrine: "strafe",    script: "raider",  minWins: 0, weight: 3, rewardMult: 1.0, counter: true },
+      { id: "raider",   enemyClass: "bird_of_prey", layout: "default", doctrine: "strafe",    script: "raider",  minWins: 0, weight: 3, rewardMult: 1.0 },
       { id: "gunboat",  enemyClass: "bird_of_prey", layout: "gunboat", doctrine: "brawl",     script: "raider",   minWins: 1, weight: 2, rewardMult: 1.1 },
       { id: "torpedo",  enemyClass: "bird_of_prey", layout: "torpedo", doctrine: "standoff",  script: "torpedoBoat", minWins: 1, weight: 2, rewardMult: 1.1, damageMult: 1.0 },   // holds station and fires every tube; with the recharge delay its stream keeps a facing down
-      { id: "variant",  enemyClass: "bird_of_prey", layout: "random",  doctrine: ["strafe", "brawl"], script: "raider",   minWins: 2, weight: 3, rewardMult: 1.1, counter: true },
+      { id: "variant",  enemyClass: "bird_of_prey", layout: "random",  doctrine: ["strafe", "brawl"], script: "raider",   minWins: 2, weight: 3, rewardMult: 1.1 },
       { id: "interceptor", enemyClass: "bird_of_prey", layout: "interceptor", doctrine: "skirmish", script: "raider", minWins: 2, weight: 1, rewardMult: 1.1 },   // the Impulse answer
       { id: "bombard",  enemyClass: "bird_of_prey", layout: "bombard", doctrine: "standoff", script: "torpedoBoat", minWins: 3, weight: 1, rewardMult: 1.2 },   // the Ordnance answer
       { id: "bulwark",  enemyClass: "bird_of_prey", layout: "bulwark", doctrine: "broadside", script: "cruiser", minWins: 2, weight: 1, rewardMult: 1.1 },   // the Deflector answer
@@ -1552,7 +1513,7 @@ BS.Data = {
       { id: "leech",    enemyClass: "bird_of_prey", layout: "leech",   doctrine: "brawl",     script: "raider",   minWins: 3, weight: 2, rewardMult: 1.2 },   // two neutralisers: a close brawl becomes a capacitor war
       { id: "cruiser",  enemyClass: "ktinga",       layout: "default", doctrine: "broadside", script: "cruiser", minWins: 4, weight: 2, rewardMult: 1.8 },
       { id: "siege",    enemyClass: "ktinga",       layout: "siege",   doctrine: "siege",     script: "siegeCruiser", minWins: 6, weight: 2, rewardMult: 1.9 },
-      { id: "warlord",  enemyClass: "ktinga",       layout: "random",  doctrine: ["broadside", "brawl"], script: "cruiser", minWins: 8, weight: 2, rewardMult: 1.9, counter: true },
+      { id: "warlord",  enemyClass: "ktinga",       layout: "random",  doctrine: ["broadside", "brawl"], script: "cruiser", minWins: 8, weight: 2, rewardMult: 1.9 },
       // fleet encounters (0.31, in the pool since 0.35 once the roster has two hulls): `ships` lists the hulls that come
       // with the first one, each { enemyClass, layout, doctrine, script, damageMult }.
       { id: "pair",     kind: "fleet", enemyClass: "bird_of_prey", layout: "default", doctrine: "strafe",    script: "raider",  minWins: 2, weight: 2, rewardMult: 1.8,
@@ -1566,15 +1527,6 @@ BS.Data = {
     ],
     // the very first fight: the raider does not hunt weak points yet (enemyAI profile override while battlesWon is 0)
     firstFight: { weakPointChance: 0 },
-    // They learn (0.26): the campaign keeps the signature of the last `remember` wins (save.signatures: style tags, average
-    // range, side, aim, script). From `fromWins` wins on, with `chance` (seeded) the next encounter takes the first
-    // enemyAI.signatureCounters row matching the dominant tag of those wins: its layout, doctrine and script, provided the
-    // counter layout's effective cost (block cost × the enemy's stat multiplier) is within costBand of the player's build
-    // cost, so the answer is a ship of the same weight. The hangar says so. Fights 0–2 stay naive.
-    // 0.31 (DESIGN §10): the learning line is closed; chance and tuneChance are 0, so every encounter is a skirmish at
-    // its own tuning. The machinery stays for the harness (--learn) and for bosses.
-    learn: { fromWins: 3, chance: 0, remember: 3, costBand: 0.25, tagFraction: 0.3, cloakFraction: 0.1, longRangeKm: 9, closeRangeKm: 4,
-             tuneChance: 0 },   // tuneChance: from fromWins on, the enemy's shields take the frequency that beats the ammo of the remembered wins and its ammo the modulation that beats their shields
     klingonNames: ["IKS Rotarran", "IKS Hegh'ta", "IKS Pagh", "IKS Koraga", "IKS Vorn", "IKS Amar", "IKS Gr'oth", "IKS Bortas", "IKS Ch'Tang", "IKS Maht-H'a"],
   },
 
@@ -1858,8 +1810,6 @@ BS.Data = {
     scripts: [],                       // [{ id, name, policies, rules }] the player's bridge scripts (BS.Script); templates live in script.templates
     scriptByBuild: {},                 // classId → script id or template id the ship undocks with (missing: script.defaultTemplate)
     plans: {},                         // encounterId → { targets: [{ x, y } | { type }], rows } up to script.planTargets targets in order
-    book: {},                          // encounterId → { fights, rules: { "<script>:<rule>": { text, n } } } the enemy rules seen firing (opening book)
-    signatures: [],                    // the last campaign.learn.remember wins: { tags, rangeKm, side, aim, script, classId, cost, tuning, at } (BS.Game.styleTags); the enemy learns from them
     tuning: {},                        // classId → rows of digits in the layout's shape (BS.Data.tuning): shield frequencies, armor alloys, ammo per block
     settings: { sound: true, screenShake: true, manualBridge: false },   // manualBridge: show the hand-flown helm controls (debug)
   },
