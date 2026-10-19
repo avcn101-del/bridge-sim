@@ -31,6 +31,7 @@ BS.Ships = (function () {
       shieldMax: {}, shields: {}, shieldRegen: {},
       capMax: 0, capacitor: 0, jammed: 0, partialJam: 0, partialJamBy: null, neuted: 0, shieldDelay: { fore: 0, aft: 0, port: 0, starboard: 0 }, attackSide: "auto", tumble: 0, tumbleDir: 1, breach: 0, hadReactors: false, aimBlock: null, cloak: { state: "off", t: 0, surge: 0, strike: 0 },
       signature: cls.signature,
+      tractored: 0, tractoredBy: null, tractorBlock: null,   // held in a tractor beam (0.41): seconds left, the holder and its emitter
       flags: { alert: "none", destroyed: false, disabled: false, armed: false },
       selected: null, lock: { target: null, progress: 0, locked: false, time: 0 }, aimType: null,
       cmd: { type: "idle", target: null, range: 0, point: null, orbitDir: Math.random() < 0.5 ? 1 : -1, facing: null, bearing: 0 },
@@ -183,6 +184,16 @@ BS.Ships = (function () {
   // Shields are projected only with the cloak off and the decloak surge over; cloaked or surging, the pools are kept but
   // absorb nothing, so an ambusher comes out of cloak with the shields it went in with.
   function shieldsUp(ship) { return ship.cloak.state === "off" && ship.cloak.surge <= 0 && !(ship.remod && ship.remod.kind === "shields"); }
+  // ---- tractor beam (0.41, ew.tractor): `holder` holds `target` for ew.tractor.hold seconds; the helm's speed is zero
+  // meanwhile (updateCommand), so every turret on it hits (angular velocity 0). The hold ends with the time, or at once
+  // when the holder is gone or has no live tractor emitter left (updateSystems, event tractorReleased).
+  function tractor(holder, target, block) {
+    var T = BS.Data.ew.tractor;
+    target.tractored = T.hold; target.tractoredBy = holder; target.tractorBlock = block || null;
+    BS.Events.emit("tractored", { ship: holder, target: target, time: T.hold, block: block || null });
+  }
+  function holdsTractor(ship) { return !ship.flags.destroyed && !ship.flags.disabled && ship.grid.blocks.some(function (b) { return b.alive && b.type === "tractor"; }); }
+  function heldBy(holder) { return (BS.Game.state.ships || []).filter(function (s) { return s.tractored > 0 && s.tractoredBy === holder; }); }
   // ---- overdrive (0.33, enemyAI.overdrive): a boss reroutes everything to its weapons for the rest of the fight ----------
   function overdrive(ship) {
     var O = BS.Data.enemyAI.overdrive;
@@ -430,7 +441,7 @@ BS.Ships = (function () {
       default: out = { heading: ship.heading, speed: 0 };
     }
     ship.desiredHeading = out.heading;
-    ship.desiredSpeed = out.speed * maxSpeed(ship);
+    ship.desiredSpeed = ship.tractored > 0 ? 0 : out.speed * maxSpeed(ship);   // held in a tractor beam (0.41): no way
   }
   function updateMovement(ship, dt) {
     ship.prevPos.x = ship.pos.x; ship.prevPos.y = ship.pos.y; ship.prevHeading = ship.heading;
@@ -462,6 +473,11 @@ BS.Ships = (function () {
     });
     if (ship.jammed > 0) ship.jammed -= dt;
     if (ship.neuted > 0) ship.neuted -= dt;
+    if (ship.tractored > 0) {
+      var holding = ship.tractoredBy && holdsTractor(ship.tractoredBy);
+      ship.tractored = holding ? ship.tractored - dt : 0;
+      if (ship.tractored <= 0) { var by = ship.tractoredBy; ship.tractored = 0; ship.tractoredBy = null; ship.tractorBlock = null; BS.Events.emit("tractorReleased", { ship: ship, by: by, broken: !holding }); }
+    }
     if (ship.breach > 0) { ship.breach -= dt; if (ship.breach <= 0) coreBlast(ship); }
     if (ship.partialJam > 0) { ship.partialJam -= dt; if (ship.partialJam <= 0) ship.partialJamBy = null; }
     updateCloak(ship, dt);
@@ -494,6 +510,6 @@ BS.Ships = (function () {
     distanceTo: distanceTo, distanceKm: distanceKm, bearingTo: bearingTo, angularVelocity: angularVelocity, speedKmS: speedKmS,
     setCommand: setCommand, setAlert: setAlert, startReinforce: startReinforce, startLock: startLock, clearLock: clearLock, lockTime: lockTime,
     trackingMult: trackingMult, maxSpeed: maxSpeed, firingBearings: firingBearings, shieldsUp: shieldsUp, effectiveAim: effectiveAim, setAimBlock: setAimBlock, cloakFieldComplete: cloakFieldComplete, debrisHit: debrisHit, capRechargeMult: capRechargeMult, blockTypes: blockTypes,
-    isCloaked: isCloaked, visibility: visibility, detectRangeKm: detectRangeKm, setCloak: setCloak, contact: contact, contactKm: contactKm, remodulate: remodulate, beats: beats, overdrive: overdrive, FACINGS_: FACINGS,
+    isCloaked: isCloaked, visibility: visibility, detectRangeKm: detectRangeKm, setCloak: setCloak, contact: contact, contactKm: contactKm, remodulate: remodulate, beats: beats, overdrive: overdrive, tractor: tractor, heldBy: heldBy, FACINGS_: FACINGS,
   };
 })();

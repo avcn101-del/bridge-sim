@@ -110,6 +110,9 @@ BS.Script = (function () {
         case "notTargeting": { var nt = BS.Fleet.subject(ship, v); return !!nt && nt !== BS.Fleet.targetOf(ship); }
         case "enemiesAtLeast": return BS.Fleet.hostiles(ship).filter(BS.Fleet.fighting).length >= v;
         case "lanceCharging": return BS.Fleet.hostiles(ship).some(function (o) { return M.chargingOn(o, ship).length > 0; });
+        // 0.41: the warbird's tractor beam
+        case "tractored": return ship.tractored > 0;
+        case "allyTractored": return BS.Fleet.fightingAllies(ship).some(function (a) { return a.tractored > 0; });
         case "allyLanced": { var al2 = BS.Fleet.fightingAllies(ship); return BS.Fleet.hostiles(ship).some(function (o) { return o.grid.blocks.some(function (b) { return b.alive && b.charging > 0 && b.chargeTarget && al2.indexOf(b.chargeTarget) >= 0; }); }); }
         default: return false;
       }
@@ -279,7 +282,7 @@ BS.Script = (function () {
     x.allyHullMin = Math.min(x.allyHullMin === undefined ? 1 : x.allyHullMin, al.length ? Math.min.apply(null, al.map(function (a) { return a.hull / a.hullMax; })) : 1);
     x.enemiesMin = Math.min(x.enemiesMin === undefined ? 99 : x.enemiesMin, hs.length);
     x.enemiesMax = Math.max(x.enemiesMax === undefined ? 0 : x.enemiesMax, hs.length);
-    ["scanned", "cloaked", "noCloak", "noTubes", "enemyReactorsGone", "enemyShieldsDown", "enemyCloaked", "enemyAmmoBeatsOurShields", "ourAmmoBeaten", "remodulating", "allyUnderFire", "outnumbered", "unfocused", "lanceCharging", "allyLanced"].forEach(function (k) {
+    ["scanned", "cloaked", "noCloak", "noTubes", "enemyReactorsGone", "enemyShieldsDown", "enemyCloaked", "enemyAmmoBeatsOurShields", "ourAmmoBeaten", "remodulating", "allyUnderFire", "outnumbered", "unfocused", "lanceCharging", "allyLanced", "tractored", "allyTractored"].forEach(function (k) {
       if (!x.ever[k]) { var w = {}; w[k] = true; if (conditions(ship, target, w, sc.t)) x.ever[k] = sc.t; }
     });
     // per rule: whether all its conditions ever held together, and each condition on its own (for the report)

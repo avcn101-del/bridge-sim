@@ -1072,9 +1072,10 @@ The role layer of §10: roles are what a hull carries on its **role cells**.
     within `support.rangeKm` 4. A transfer, not creation: the healer's own
     pool pays, and it cannot support itself.
   - *Remote repair projector* (`repairbeam`) and module `remote_repair`
-    (6 s, 18 cap): `support.repairPerBlock` 45 hp per projector to the
-    supported ally's damaged blocks (`BS.Grid.repair`, destroyed blocks stay
-    gone).
+    (6 s, 18 cap): `support.repairPerBlock` 300 hp per projector (45 until
+    0.41: a healer moving 7 hp/s never held a tank under a boss, §8 v0.41)
+    to the supported ally's damaged blocks (`BS.Grid.repair`, destroyed
+    blocks stay gone).
   - *Signature beacon* (`beacon`) and module `beacon` (4 s, 6 cap): while
     it runs the ship's signature is ×2.5 (`effect.sigMult`, written to
     `ship.signature` every module tick): the loudest contact, locked faster,
@@ -1112,6 +1113,55 @@ The role layer of §10: roles are what a hull carries on its **role cells**.
   about 14k damage; the healer moved 3.8k shield and 1.4k hull). The
   lever for 0.35+ is numbers, not rules: tank durability and healer
   throughput against the beam, or a boss whose damage cannot be spread.
+
+### Bosses: the warbird (0.41, `shipClasses.dderidex`, `enemyAI.warbird`, `script.enemyScripts.warbird`, encounter `warbird`)
+The second boss of §10: damage one afterburner burst cannot dodge. A
+Romulan D'deridex, `kind: "boss"`, the second boss slot of a run once the
+cube is beaten (`save.campaign.bossesBeaten`: a boss slot takes the first
+boss encounter not in it, in list order; all beaten, the slot rolls among
+them by weight).
+- **The hull**: 44×26 cells, a ring of a hull around a frame of structure
+  cells (`p`: not hull, beams never pass, torpedoes cut; it is what keeps
+  the ring in one piece, the first measured hull without it lost 269
+  blocks to two holes in a wing), a neck of structure to the head.
+  436 blocks: 18 plasma cannons and 6 disruptors along the outside of
+  both wings, 4 torpedo tubes in the beak, 4 tractor emitters at the
+  centre of the head, 21 shield emitters over the ring and the head, 17
+  reactors inside the wings, 33 engines in the nacelles, the bridge at
+  the tail. Faction `romulan` (default modulation Tetryon), signature
+  1100, speed 220 (1.3 km/s), turn 30°/s.
+- **Tractor beam** (block `tractor`, `enemyOnly`; module `tractor`,
+  `ew.tractor { rangeKm 9, hold 20, aiMinCap 0.2 }`): with a lock inside
+  9 km the AI runs the module (enemyai.js, like the neutraliser); each
+  30 s cycle holds the target for 20 s (`BS.Ships.tractor`: `ship.tractored`
+  seconds left, `tractoredBy`, `tractorBlock`; the helm's speed is zero
+  while held, so every turret on it hits at angular velocity 0, and the
+  afterburner moves nothing). The hold ends with its time, or at once when
+  the holder is gone or its last emitter dies (event `tractorReleased`).
+  Event `tractored` is the tell: Helm calls "Tractor beam has us",
+  Tactical "The {name} is caught in their tractor beam", the scan panel
+  lists who it holds, the renderer draws the beam (`drawTractors`).
+  Conditions `tractored` (us) and `allyTractored`; ally subject
+  `heldAlly`.
+- **Plasma cannons** (block `plasma`, `enemyOnly`): 30-damage bolts every
+  2 s, one extra penetration point, optimal 7 km, tracking 0.6 rad/s:
+  chip damage that a held ship takes in full.
+- **The script** (`enemyScripts.warbird`): scan inside 20 km; every 30 s
+  turn on the **loudest** ship (the beacon's rule, as the cube); remodulate
+  shields when our ammo beats them; at 480 s **overdrive**; roll when blind.
+  No escorts: measured with a raider and a gunboat at half hull, the role
+  fleet (a minute slower than four breakers) was eaten by them in every
+  run and the fight was about the escorts, not the hold (§8 v0.41).
+- **Profile `warbird`**: never retreats, `statMult` 1.6, `damageMult`
+  2.4, `shieldMult` 3, `shieldRegenMult` 2, and it **hunts reactors**
+  (`targetWeights` reactor 0.45): a rim reactor under a plasma bolt goes
+  up with its neighbours, the Anchor's inboard reactors do not.
+- **The intended answer**: the Anchor (beacon lit: it is held and shot),
+  the Lifeline (`allyTractored` → escort and support `heldAlly`: the
+  transfer and the repair projector on the held ship), two **Warbird
+  breakers** (`allyTractored` → target the biggest, aim at the plasma
+  cannons: disarm it while the tank is held; escorts first otherwise;
+  retune the ammo; then the reactors). Measured in §8 v0.41.
 
 ### Runs, roster and repair bills (0.35, `campaign.run`, `campaign.repair`, `enc.kind / roster`)
 The skirmish-then-boss run of §10 and the fleet hangar's roster.
@@ -1236,6 +1286,7 @@ campaign.firstFight: { weakPointChance }; campaign.encounters[].script; tuning (
 campaign.salvage: { destroyed, disabled, captured }; enemyAI.*: drainedBelow, drainedUntil, drainedTime
 0.31: balance.fleetSpacingKm; campaign.fleetMax; campaign.encounters[].ships: [{ enemyClass, layout, doctrine, script, damageMult }]; save.fleet: [classId]; ship: team, target, contacts{}, flags.captured; state: teams { player: [], enemy: [] }, enemyFlag
 0.32: script.subjects; rule.about; action target; conditions allyShieldBelow / allyHullBelow / allyUnderFire / outnumbered / enemiesAtMost / unfocused; templates.wolfpack; ship: scannedOf{}, scanTarget
+0.41: blocks plasma / tractor (enemyOnly); modules plasma_group / tractor (effect.tractor); ew.tractor { rangeKm, hold, aiMinCap }; shipClasses.dderidex; enemyAI.warbird; tuning.factionDefault.romulan; campaign.encounters[].name, encounter warbird; save.campaign.bossesBeaten; ship.tractored / tractoredBy / tractorBlock, BS.Ships.tractor / heldBy; conditions tractored / allyTractored; allySubjects.heldAlly; templates.warbreaker; enemyScripts.warbird; support.repairPerBlock 45 → 300; the Anchor preset's armoured nacelle rows
 0.40: grid.heat, blocks.*.weapon.heat, ship.heat / overload / heatGovernor / governorHold, stats.heatCap / heatDissipation, conditions heatAbove / enemyHeatAbove / enemyHeatBelow, action governor, doctrine kite, the retired templates, event overload: all gone; tools/campaign.js
 0.39: script.conditions 53 → 33 (the 1v1 micro conditions gone; a save's rule naming one is dropped and save.notice says so); enemyAI.stanceLabels / aimLabels, script.rangeBands / chargingKmS gone; campaign.encounters[].minHulls; encounters variant, interceptor, bombard, bulwark, pulser, warlord and the Bird-of-Prey variants interceptor, bulwark, pulser, bombard gone; the hangar's tuning dropdowns (rows unchanged)
 0.38: grid.crew, blocks.*.crew, stats.crew, grid.boarding, ship.boarding, skills, save.skills / training, science (scanSeconds → script, cloakDetectRangeKm → ew), salvage.captured, flags.captured, condition boardable, action board, weak point kind crew, crit on quarters: all gone; BS.Grid.isSystem
@@ -1270,7 +1321,7 @@ torpedoExpired, shieldHit, hullHit, blockDestroyed, sectionLost,
 blockExploded, shipDisabled, shipDestroyed, jammed, cloakChanged,
 alertChanged, stateChanged, orbitFlipped, stanceChanged (a doctrine set), enemyRolled, commandGiven,
 decoyLaunched, decoyExpired, torpedoLured, torpedoDecoyed, neutralised, scriptRule, scriptSuspended, scriptAim, scanStarted, scanned, bridgeCall, bridgeCallRefused, speedChanged,
-log, battleStarted, battleEnded, skillTrained`.
+log, battleStarted, battleEnded, skillTrained, tractored, tractorReleased (0.41)`.
 
 ## 8. Measured balance (accelerated simulation, scripted captains, default builds)
 
@@ -1283,6 +1334,83 @@ harness is in the repository: `tools/harness.js` (Playwright, one
 `campaign.encounters`, seeded `Math.random`, `--noreact` for the 0.24 enemy
 bridge, `--eval` for a data tweak, `--debug` for what each bridge saw) and
 `tools/smoke.js` (the headless interface check).
+
+v0.41.0 (the second boss. `--enemy warbird --wins 4`, the fleet Constitution +
+Galaxy + Excelsior + Defiant, "four breakers" = the Cube breaker on every
+hull with default layouts, "mixed" = the Galaxy on the Anchor preset and
+template, the Excelsior on the Lifeline preset and template, Constitution
+and Defiant on the Warbird breaker; seeds 1–2, `--max 660`; the warbird's
+`damageMult` (×) and `statMult`, the healer's `support.repairPerBlock`
+(repair) and the escorts as in the row, the rest as shipped. "disabled" =
+every weapon and engine gone, the hull still there):
+
+| Warbird | Four breakers | Mixed |
+|---|---|---|
+| First hull (a hollow ring, 442 blocks), 40-damage bolts every 3 s, ×1.0 | 2 of 2 in 1:28–1:33: two holes in a wing cut 269 blocks off the ring | — |
+| Ring braced with structure cells; ×1.0, repair 45, two escorts at half hull | 2 of 2 in 3:48–3:59 keeping 77–80%, the Galaxy at 51–59% | 2 of 2 in 5:11–10:40 keeping 58–93%, the Galaxy disabled once |
+| ×2.0, stat 2.0, repair 45, escorts | 2 of 2 in 5:55–6:32 keeping 56–59%, the Galaxy lost both times | 0 of 2 (7:51, 9:13): the Galaxy disabled, both breakers lost, the warbird at 51% |
+| 30-damage bolts every 2 s (chip damage) from here. ×1.6, repair 300, escorts | 2 of 2 in 4:32–4:34 keeping 72–77% | 2 of 2 in 5:48–8:10 keeping 78–88%, the Galaxy at 75–82% |
+| ×1.8, repair 300, escorts (Warbird breaker flipping between the boss and the escorts every hold) | 1 of 2 (3:47 keeping 79%; a loss at 5:26 with every hull disabled or lost) | 2 of 2 in 7:32–8:59 keeping 69–75%; the two breakers dealt a third of a Cube breaker's damage |
+| ×1.8, repair 300, raider + gunboat escorts, escorts-first rule, plated nacelles | 2 of 2 in 4:28–5:21 keeping 61–74%, the Galaxy disabled both times | 0 of 2 (7:25, 10:32): every hull disabled, the gunboat untouched |
+| the same with Cube breakers on the mixed fleet's two DPS hulls | — | 0 of 2 (4:54, 6:56): the escorts, not the template |
+| **×2.4, stat 1.6, repair 300, no escorts** | 2 of 2 in 2:21–2:23 keeping 71%, **the Galaxy lost both times** (hull 6.9k of 23k) | 2 of 2 in 4:18–4:42 keeping 77–86%, the Galaxy at 65% once and disabled once |
+| ×2.4, stat 2.0, repair 300, no escorts | 1 of 2 (4:22 keeping 68%, the Galaxy and the Excelsior disabled; a loss at 4:59 with two hulls lost) | not measured: two attempts (two seeds, then one) did not finish in 31 and 9 minutes of wall-clock time, where every other row took under 6; a long mixed fight against the 54k-hull warbird runs far slower than the rest, a performance question noted for 0.42 |
+
+Per-ship damage in the ×1.8 rows (one fight each): four breakers dealt
+15.7k + 2.1k (the held Galaxy) + 18.4k + 8.5k in 4:28; the mixed fleet
+12.2k + 3.6k + 21.1k (the Lifeline, next to the boss the whole fight) +
+4.5k in 10:32. The warbird's bolts hit 70–78% of the time in every row;
+with the beacon lit every hold of a mixed fight landed on the Galaxy (10–13
+holds a fight).
+
+Honest reading. The lever of 0.35 ("damage one afterburner burst cannot
+dodge") is in and does what it says: the hold lands on the loudest ship and
+every bolt hits it. It did **not** make the tank and healer pair the
+better fleet on its own, for three measured reasons. (1) In a breaker fleet
+the loudest ship is already the biggest hull (the Galaxy, 23k of block hp,
+twice a Constitution), so the "wrong" fleet carries a tank by accident.
+(2) Healing was a rounding error: the repair projector moved 7 hp/s against
+a boss that deals 60–130; at 300 per cycle (50 hp/s) the Anchor absorbs
+15–31k over a fight and keeps 60–80% of its hull, which is what the rows
+from "repair 300" onward show. (3) Escorts decide a long fight: a role
+fleet is a minute or two slower than four breakers, and in that time two
+Birds-of-Prey disabled every hull of ours in six of six runs, with the
+breaker templates as much as with the Warbird breaker. So the warbird has
+no escorts, its bolts are chip damage (30, so a plate or a phaser survives
+one and the healer can refill it) at ×2.4, and the fight is decided by who
+is held: four breakers kill it in 2:21 and lose the Galaxy every time
+(a repair bill of 30% of a Galaxy plus its blocks), the mixed fleet takes
+twice as long and keeps its hulls. That is a real differential the
+campaign economy sees, not yet the §10 target "the naive fleet loses"; at
+stat 2.0 the breakers do lose half their fights, but the mixed row there
+never finished (last row), so the warbird ships at stat 1.6. Next lever, recorded for 0.42: the breakers' Galaxy dies because
+its rim reactors chain (the warbird hunts reactors); a boss rule that
+punishes the biggest hull without the beacon (turn on the biggest, not the
+loudest) would make the beacon a choice rather than a default.
+
+The references, re-measured with the healer's repair at 300 and the
+Anchor's plated nacelle rows (both only reach fleets that carry them):
+
+| Matchup | 0.40 | 0.41 |
+|---|---|---|
+| Constitution vs Raider (0 wins), Brawler, seeds 1–4 | 3 of 4 in 2:35–2:59 keeping 73–92% | identical |
+| Constitution + Miranda + Defiant + Excelsior vs `pack` (0 wins), Wolf pack on all, seeds 1–4 | 4 of 4 in 3:57–6:56 keeping 42–73% | identical (the Galaxy fleet, not measured before: 4 of 4 in 2:31–3:59 keeping 71–85%, the same on main) |
+| Four Cube breakers vs `cube` (0 wins) | 2 of 2 in 3:50–5:27 keeping 84–91% | identical |
+| Mixed (Anchor + Lifeline + two Cube breakers) vs `cube` (0 wins) | 0.35: 8 of 8 over both tiers, 5:38–7:35 | 2 of 2 in 5:29–6:22 keeping 83–84% |
+
+A whole run (`tools/campaign.js --battles 12`, seed 1, the mixed fleet
+with the Warbird breaker on the Constitution and the Defiant): 9 of 12,
+the cube in the first boss slot (battle 6, won in 7:43 keeping 89%) and
+the warbird in the second (battle 12, won in 4:36 keeping 77%, a 1,562 cr
+repair bill against a 5,604 cr payout), 600 → 9,838 cr (earned 20,549,
+repairs 8,084, one hull lost). The two losses and the stalemate are solo
+fights flown with a boss template (the Warbird breaker has no 1v1 rules);
+the boss order holds (`bossesBeaten`).
+
+The smoke test's new warbird pass (Constitution + Miranda + Defiant +
+Excelsior on default layouts, Warbird breaker on all, 0 wins): a defeat
+at 2:27 with every hull destroyed. Without a hull built to be held, the
+hold is a death sentence, which is the point.
 
 v0.40.0 (the campaign harness; heat measured and removed. Harness rows
 with every hull's script set, seeds 1–4 for the 1v1, the pack and the
@@ -1630,6 +1758,26 @@ Oberth jams better while any hull can still be built freely.
 4. **Remodulation**: the cube retunes its shields when our ammo beats them.
 5. **Overdrive** at 7 minutes: damage ×1.5, speed ×1.25, the enrage.
 
+### The second boss (done in 0.41: the warbird, §4 "Bosses: the warbird")
+
+Damage one afterburner burst cannot dodge, so the tank and the healer have
+a job the Brawler's helm cannot do:
+
+1. **Tractor beam**: every 30 s the loudest ship is held for 20 s; held,
+   it cannot move, so every bolt lands. The tell is a callout; the hold
+   breaks only when every emitter is gone (four, inside the head).
+2. **Plasma cannons**: chip damage, 30 a bolt every 2 s from every cannon
+   that bears, through a plate; it hunts reactors, so a rim reactor goes
+   up with its neighbours. The Anchor's reactors are inboard and its
+   nacelle rims are plate.
+3. **Remodulation** as the cube.
+4. **Overdrive** at 8 minutes. No escorts (§8 v0.41: with them the fight
+   was about the escorts).
+
+The answers: the beacon (so the hold lands on the hull built for it), the
+healer on the held ship (`heldAlly`), the breakers disarming the cannons
+while an ally is held (`aim: plasma`). Measured in §8 v0.41.
+
 ### Templates: why only the Brawler wins, and the rule for new ones
 
 The seven 0.21 templates never touched the vocabulary added in 0.25–0.30
@@ -1705,7 +1853,8 @@ script; learning off since 0.31; plays shadowed by the script since 0.21):
 | 0.38 (done) | Boarding, crew manning, real-time skills and science out: no step of the loop read them (no role boards, no boss tests manning, training is idle time). Quarters stay as damage-control blocks so no layout changes. Measured in §8 v0.38 |
 | 0.39 (done) | 20 micro conditions cut (53 → 33), saves migrated with a notice; tuning per ship; the solo tier eight entries with `minHulls` on fleet fights (the `pair` wall of 0.35 closed); the hangar in the loop's order; §8 history in Appendix A. Measured in §8 v0.39 |
 | 0.40 (done) | `tools/campaign.js` (a whole run headless) and the heat cut, both measured in §8 v0.40 |
-| next | The second boss (damage one afterburner burst cannot dodge, so the pair pays off) |
+| 0.41 (done) | The second boss: the warbird, its tractor beam and plasma cannons, the Warbird breaker; the healer's repair 45 → 300, the Anchor's nacelle rims plated; boss progression (`bossesBeaten`). Measured in §8 v0.41 |
+| next | The beacon as a choice: a boss rule that turns on the biggest hull (not the loudest), so a breaker fleet's Galaxy is held without being built for it; economy after two bosses (repair bills vs boss payouts, §8 v0.40 / v0.41 runs); a solo-tier template with a cloak answer |
 
 Known risks: the pivot touches nearly every file; 8 grids measured in 0.31
 (12 ms a frame headless without a GPU, the simulation negligible); the §8

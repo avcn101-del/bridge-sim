@@ -81,8 +81,15 @@ BS.Modules = (function () {
       if (!target) { m.state = "nolock"; return false; }
       if (BS.Ships.distanceKm(ship, target) > BS.Data.ew.neut.rangeKm) { m.state = "range"; return false; }
     }
+    // the tractor beam (0.41, ew.tractor) needs a lock inside its reach too; the hold itself is BS.Ships.tractor
+    if (def.effect && def.effect.tractor) {
+      target = ship.lock.locked && ship.lock.target && !ship.lock.target.flags.destroyed ? ship.lock.target : null;
+      if (!target) { m.state = "nolock"; return false; }
+      if (BS.Ships.distanceKm(ship, target) > BS.Data.ew.tractor.rangeKm) { m.state = "range"; return false; }
+    }
     if (ship.capacitor < def.cap) { m.state = "nocap"; return false; }
     ship.capacitor -= def.cap;
+    if (def.effect && def.effect.tractor) BS.Ships.tractor(ship, target, weaponBlocks(ship, m)[0]);
     if (def.effect && def.effect.neut) {
       var amount = weaponBlocks(ship, m).length * BS.Data.ew.neut.perBlock, before = target.capacitor;
       target.capacitor = Math.max(0, target.capacitor - amount);
