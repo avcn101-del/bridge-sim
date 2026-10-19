@@ -2,6 +2,14 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [Unreleased] — direction from 0.31
+
+- DESIGN §10 records the decided direction: a PvE fleet game (admiral,
+  up to four hulls, roles from blocks on role cells, 1v1 / 4v4 / 4 vs
+  boss, skirmish-then-boss runs). The 1v1 "chess" line (counter table,
+  learning, learned tuning) is closed; tuning and `remodulate` stay as
+  boss material. No code change.
+
 ## [0.30.0] — 2026-10-19 (remodulating; PR E of the "chess" pillars)
 
 ### Added
