@@ -164,8 +164,11 @@ The left column of the hangar carries the pre-battle thinking:
   layout rows it was made on). Rules with `aim: plan target n` read it.
 - **Script**: a dropdown of the seven templates (read-only) and the player's
   own scripts; *Copy as new* makes an editable copy, *Rename*, *Save*,
-  *Delete*, *Assign to this build* (`save.scriptByBuild[classId]`, "✓ This
-  ship flies it"). Each rule is a card: number, kind (Standing orders /
+  *Delete*, and two assign buttons (0.43): *Fleet & boss: assign*
+  (`save.scriptByBuild[classId]`, "✓ Flies it in a fleet") and *Alone:
+  assign* (`save.soloScriptByBuild[classId]`, "✓ Flies it alone"; unset,
+  the hull flies its fleet script alone too), so a boss script with no 1v1
+  rules never has to fight a solo encounter. Each rule is a card: number, kind (Standing orders /
   Once / Every N s), ▲ ▼ ✕, a WHEN line of terms, a DO line of terms, and
   for standing rules an UNTIL line and "At most N s" (`holdMax`). Terms
   are built from dropdowns whose labels are the sentences in
@@ -803,7 +806,9 @@ intel, script); in the fight the bridge runs the script. A script is
   Hit & fade were retired in 0.31 and deleted in 0.40 with the heat they
   were written around. A hull undocks with
   `save.scriptByBuild[classId]` (an own script by id, PR B's editor, or a
-  template), else `script.defaultTemplate`.
+  template), else `script.defaultTemplate`; alone (encounter kind `solo`)
+  with `save.soloScriptByBuild[classId]` first, if set (0.43,
+  `BS.Campaign.scriptFor(classId, kind)`).
 - **Enemy scripts** (`script.enemyScripts`, `campaign.encounters[].script`):
   `doctrine: "encounter"` flies the doctrine the encounter rolled; the
   Torpedo boat's rules replace its Siege play; the Raider, K't'inga and
@@ -1181,7 +1186,8 @@ The skirmish-then-boss run of §10 and the fleet hangar's roster.
 - **Roster** (`save.fleet`, at most `campaign.fleetMax` 4 with the
   flagship): owned hulls in the shipyard get "Add to fleet" / "In fleet ✓"
   buttons and the ship line reads "Fleet n of 4: …". Each hull undocks
-  with its own layout, tuning and script (`scriptByBuild`).
+  with its own layout, tuning and script (`scriptByBuild`; alone,
+  `soloScriptByBuild` first, 0.43).
 - **Repair bills** (`campaign.repair`): after a fight every destroyed
   block of ours costs `destroyedBlock` 20% of its price and a hull that was
   lost costs `lostHull` 30% of its block value; the bill is capped at the
@@ -1291,6 +1297,7 @@ campaign.firstFight: { weakPointChance }; campaign.encounters[].script; tuning (
 campaign.salvage: { destroyed, disabled, captured }; enemyAI.*: drainedBelow, drainedUntil, drainedTime
 0.31: balance.fleetSpacingKm; campaign.fleetMax; campaign.encounters[].ships: [{ enemyClass, layout, doctrine, script, damageMult }]; save.fleet: [classId]; ship: team, target, contacts{}, flags.captured; state: teams { player: [], enemy: [] }, enemyFlag
 0.32: script.subjects; rule.about; action target; conditions allyShieldBelow / allyHullBelow / allyUnderFire / outnumbered / enemiesAtMost / unfocused; templates.wolfpack; ship: scannedOf{}, scanTarget
+0.43: save.soloScriptByBuild (BS.Campaign.scriptFor(classId, kind), scriptIdFor, setScriptFor(classId, id, kind)); tools/campaign.js --soloscript; templates.warbreaker answers the cube too (the beam rule, the aft side)
 0.42: campaign.credits.hullLostScalesWithReward; tools/campaign.js --eval; the tools exit on a page error instead of waiting for a dry run that never ends
 0.41: blocks plasma / tractor (enemyOnly); modules plasma_group / tractor (effect.tractor); ew.tractor { rangeKm, hold, aiMinCap }; shipClasses.dderidex; enemyAI.warbird; tuning.factionDefault.romulan; campaign.encounters[].name, encounter warbird; save.campaign.bossesBeaten; ship.tractored / tractoredBy / tractorBlock, BS.Ships.tractor / heldBy; conditions tractored / allyTractored; allySubjects.heldAlly; templates.warbreaker; enemyScripts.warbird; support.repairPerBlock 45 → 300; the Anchor preset's armoured nacelle rows
 0.40: grid.heat, blocks.*.weapon.heat, ship.heat / overload / heatGovernor / governorHold, stats.heatCap / heatDissipation, conditions heatAbove / enemyHeatAbove / enemyHeatBelow, action governor, doctrine kite, the retired templates, event overload: all gone; tools/campaign.js
@@ -1340,6 +1347,37 @@ harness is in the repository: `tools/harness.js` (Playwright, one
 `campaign.encounters`, seeded `Math.random`, `--noreact` for the 0.24 enemy
 bridge, `--eval` for a data tweak, `--debug` for what each bridge saw) and
 `tools/smoke.js` (the headless interface check).
+
+v0.43.0 (a script per fight kind. `tools/campaign.js --battles 12`, seed 1,
+`--soloscript brawler` on both fleets, the fleets as in v0.41; the Warbird
+breaker now carries the cube's two answers, the beam rule and the aft side):
+
+| Run | Solo | Fleet | Bosses | Credits |
+|---|---|---|---|---|
+| Four Cube breakers, Brawler alone | 9 of 9 won (the Shadow in 5:50, the K't'inga in 9:30) | the pack at 9: **lost** 5:30, three hulls lost, −8,525 → 0 cr | cube at 6 won 5:00 keeping 93%; warbird at 12 won 3:21 keeping 61%, the Galaxy lost, −5,090 | 600 → **631** (earned 21,034, repairs 17,583; 4 hulls lost) |
+| Mixed, Brawler alone | 9 of 9 | the pack at 9: won 5:15 keeping 61%, one hull lost | cube at 6 won 7:33 keeping 79%; warbird at 12 won 3:17 keeping 82% | 600 → **11,503** (earned 25,313, repairs 10,520; 1 hull lost) |
+| Mixed, Brawler alone, the Warbird breaker without the beam rule and the aft side | 9 of 9 | — | cube at 6: **stalemate** 11:00 keeping 53%; the cube again at 12, won 7:59 | 600 → 7,196 |
+| v0.42 for comparison: the same fleets flying their boss script alone too | breakers 8 of 9; mixed 6 of 9 (a boss script has no 1v1 rules) | | | breakers 9,648, mixed 9,050 |
+
+Harness rows for the template change (seeds 1–2): the mixed fleet with the
+new Warbird breaker vs the warbird 2 of 2 in **2:38–2:56** keeping 73–76%
+(4:18–4:42 with the old one: the aft side is where the warbird's bridge
+and engines are; the Galaxy ended disabled once and at 42% once), vs the
+cube 2 of 2 in 5:29–6:22 keeping 83–84% (the Cube breaker's numbers to the
+second). Brawler alone vs the Shadow (3 wins, seeds 1–4) 4 of 4 in
+3:46–6:22 keeping 100%; the Warbird breaker alone vs the Shadow 4 of 4 in
+6:26–8:25.
+
+Honest reading: with the solo fights on the Brawler and one boss script
+for the run, the role fleet finishes the run with eighteen times the
+credits of the breaker fleet, which is the economic differential 0.42
+set out to make and 0.42 alone did not (both fleets flew a boss script
+alone and both ran about even). The breaker fleet's run is decided by two
+fights, the pack and the warbird, and in both it loses hulls; neither
+fleet has a pack template that is not a boss script (§10 "next"). The
+warbird fight is now short for both fleets (2:21 against 2:38–2:56): the
+tank's margin is the hull kept, not the time. Smoke test: zero console
+errors in four passes.
 
 v0.42.0 (the frozen fight, the warbird at a bigger hull, the hull-lost
 penalty. Same fleets and commands as v0.41, `--max 660`; the warbird at
@@ -1908,7 +1946,8 @@ script; learning off since 0.31; plays shadowed by the script since 0.21):
 | 0.40 (done) | `tools/campaign.js` (a whole run headless) and the heat cut, both measured in §8 v0.40 |
 | 0.41 (done) | The second boss: the warbird, its tractor beam and plasma cannons, the Warbird breaker; the healer's repair 45 → 300, the Anchor's nacelle rims plated; boss progression (`bossesBeaten`). Measured in §8 v0.41 |
 | 0.42 (done) | The frozen fight (an escort whose last ally died called a stance setter removed in 0.37; the tools now exit on a page error); the warbird measured at stat 1.8 and 2.0 with the fix (the tank dies too: it stays at 1.6); the hull-lost penalty scaled by the reward multiple, measured over two 12-battle runs (§8 v0.42) |
-| next | A solo-tier template with a cloak answer (the Shadow stalemates a boss template); the healer's ceiling: a longer boss fight kills the tank through 50 hp/s of repair, so a third boss needs damage the healer can race (phases, not a bigger hull); skirmish modifiers (§10 "Skirmishes") |
+| 0.43 (done) | A script per fight kind: a hull flies one script in fleet and boss fights and may fly another alone (`soloScriptByBuild`, two assign buttons, `--soloscript`); the Warbird breaker answers the cube too, so one boss script serves a run. Measured over 12-battle runs in §8 v0.43 (the Brawler alone wins the solo fights a boss script lost) |
+| next | The healer's ceiling: a longer boss fight kills the tank through 50 hp/s of repair, so a third boss needs damage the healer can race (phases, not a bigger hull); skirmish modifiers (§10 "Skirmishes"); a fleet template for the pack that is not the Cube breaker (the breaker fleet lost the pack with three hulls, §8 v0.43) |
 
 Known risks: the pivot touches nearly every file; 8 grids measured in 0.31
 (12 ms a frame headless without a GPU, the simulation negligible); the §8

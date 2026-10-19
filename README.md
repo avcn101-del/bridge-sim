@@ -217,7 +217,7 @@ index.html      entry point
 css/            LCARS interface styles
 js/             data, grid, game loop, ships, modules, weapons, crew voices, enemy AI (the doctrine machine), fleet, scripts, campaign, hangar, UI, renderer, effects
 assets/         optional sprites / sounds (empty in MVP)
-tools/          harness.js (accelerated balance runs, DESIGN.md §8: forced encounter, equal-hull duels, tuning per side, fleets on both sides, --perf cost; exits on a page error), campaign.js (a whole run headless: encounters as the game picks them, credits and repairs settled between fights) and smoke.js (headless interface check, desktop, phone and a fleet of four); plain Node + Playwright, not needed to play
+tools/          harness.js (accelerated balance runs, DESIGN.md §8: forced encounter, equal-hull duels, tuning per side, fleets on both sides, --perf cost; exits on a page error), campaign.js (a whole run headless: encounters as the game picks them, credits and repairs settled between fights; --soloscript for the flagship's solo fights, --eval for a data tweak) and smoke.js (headless interface check, desktop, phone and a fleet of four); plain Node + Playwright, not needed to play
 DESIGN.md       full game design and data structures
 CHANGELOG.md    version history
 CLAUDE.md       rules for AI-assisted development sessions

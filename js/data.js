@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.42.0",
+  version: "0.43.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -1570,13 +1570,16 @@ BS.Data = {
       // 0.41: the intended answer to the second boss (DESIGN §4 "Bosses: the warbird"): the escorts first (a breaker that
       // flipped between the boss and the escorts every hold dealt a third of its damage), disarm the cannons while an
       // ally is held, the ammo retuned, then the reactors inside the wings.
-      warbreaker: { name: "Warbird breaker", desc: "Boss: finish the escorts first; while an ally is held in the tractor beam, shoot the plasma cannons; retune the ammo; then engage the biggest enemy and shoot the reactors.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto", neut: "auto" },
+      // 0.43: it answers the cube's beam too (skirmish while one charges on us, the aft side), so one boss script serves a
+      // whole run: a fleet flying it against the cube stalemated at 11:00 without the dodge rule (DESIGN §8 v0.43)
+      warbreaker: { name: "Warbird breaker", desc: "Boss: skirmish on the afterburner while a cutting beam charges on us; finish the escorts first; while an ally is held in the tractor beam, shoot the plasma cannons; retune the ammo; then engage the biggest enemy from the aft and shoot the reactors.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto", neut: "auto" },
         rules: [
+          { when: { lanceCharging: true }, do: { doctrine: "skirmish", modules: { afterburner: true } }, until: { lanceCharging: false }, holdMax: 9 },
           { when: { enemiesAtLeast: 2 }, about: "smallest", do: { target: "smallest", doctrine: "engage", weapons: true, modules: { shield_hardener: true } } },
           { when: { allyTractored: true }, do: { target: "biggest", doctrine: "engage", aim: "plasma", weapons: true, modules: { shield_hardener: true } } },
           { when: { scanned: false, dKmBelow: 15 }, do: { scan: true }, once: true },
           { when: { scanned: true, ourAmmoBeaten: true, remodulating: false }, do: { remodulate: "ammo" }, every: 45 },
-          { when: {}, do: { target: "biggest", doctrine: "engage", aim: "reactor", weapons: true, modules: { shield_hardener: true } } },
+          { when: {}, do: { target: "biggest", doctrine: "engage", side: "aft", aim: "reactor", weapons: true, modules: { shield_hardener: true } } },
         ] },
       siege: { name: "Siege", desc: "Hold at torpedo range with everything that reaches; fight close only when they come inside 5 km.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto" },
         rules: [
@@ -1671,7 +1674,8 @@ BS.Data = {
     campaign: { missionIndex: 0, battlesWon: 0, battlesLost: 0, streak: 0, cleanWins: 0, retry: null, bossesBeaten: [] },   // bossesBeaten (0.41): encounter ids of the bosses won, the boss slot takes the first not in it   // retry: { encounterId, seed, battlesWon } pins the last enemy for the next fight
     intel: {},                         // encounterId → { rows, classId, layoutName, seed } layouts scanned in battle or bought
     scripts: [],                       // [{ id, name, policies, rules }] the player's bridge scripts (BS.Script); templates live in script.templates
-    scriptByBuild: {},                 // classId → script id or template id the ship undocks with (missing: script.defaultTemplate)
+    scriptByBuild: {},                 // classId → script id or template id the ship undocks with on fleet and boss fights (missing: script.defaultTemplate)
+    soloScriptByBuild: {},             // classId → the script it flies when it undocks alone (0.43; missing: the fleet one), so a boss script need not fight 1v1
     plans: {},                         // encounterId → { targets: [{ x, y } | { type }], rows } up to script.planTargets targets in order
     tuning: {},                        // classId → rows of digits in the layout's shape (BS.Data.tuning): shield frequencies, armor alloys, ammo per block
     settings: { sound: true, screenShake: true },

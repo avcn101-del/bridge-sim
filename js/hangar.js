@@ -436,7 +436,7 @@ BS.Hangar = (function () {
   // ---- script editor: when → do rules as sentences built from dropdowns ---------------------------------------
   function SD() { return BS.Data.script; }
   function copyDef(d) { return JSON.parse(JSON.stringify(d)); }
-  function currentScriptId() { var s = C.get(); return s.scriptByBuild[ed.classId] || SD().defaultTemplate; }
+  function currentScriptId(kind) { return C.scriptIdFor(ed.classId, kind || "fleet"); }   // 0.43: "solo" = alone, else the fleet and boss script
   function loadScript(id) {
     var own = C.get().scripts.filter(function (x) { return x.id === id; })[0];
     if (own) { sc.id = id; sc.def = copyDef(own); sc.template = false; }
@@ -470,8 +470,13 @@ BS.Hangar = (function () {
       head.appendChild(btn(sc.dirty ? "Save" : "Saved", sc.dirty ? "c-orange" : "c-peach", null, function () { if (!sc.dirty) return; C.saveScript(copyDef(def)); sc.dirty = false; renderScript(); say("Script saved."); }));
       head.appendChild(btn("Delete", "c-red", null, function () { if (!window.confirm("Delete script \"" + def.name + "\"?")) return; C.deleteScript(sc.id); loadScript(currentScriptId()); renderScript(); }));
     }
-    var assigned = currentScriptId() === sc.id;
-    head.appendChild(btn(assigned ? "✓ This ship flies it" : "Assign to this build", assigned ? "c-peach" : "c-purple", "The script the " + BS.Data.shipClasses[ed.classId].className + " undocks with", function () { if (!assigned) { if (sc.dirty) { C.saveScript(copyDef(def)); sc.dirty = false; } C.setScriptFor(ed.classId, sc.id); renderScript(); say("The ship will fly \"" + def.name + "\"."); } }));
+    // 0.43: a hull flies one script in a fleet or boss fight and may fly another alone (a boss script has no 1v1 rules)
+    var cn = BS.Data.shipClasses[ed.classId].className;
+    [["fleet", "✓ Flies it in a fleet", "Fleet & boss: assign", "The script the " + cn + " undocks with on fleet and boss fights", "in a fleet"],
+     ["solo", "✓ Flies it alone", "Alone: assign", "The script the " + cn + " undocks with alone (unset: the fleet one)", "alone"]].forEach(function (k) {
+      var assigned = currentScriptId(k[0]) === sc.id;
+      head.appendChild(btn(assigned ? k[1] : k[2], assigned ? "c-peach" : "c-purple", k[3], function () { if (!assigned) { if (sc.dirty) { C.saveScript(copyDef(def)); sc.dirty = false; } C.setScriptFor(ed.classId, sc.id, k[0]); renderScript(); say("The ship will fly \"" + def.name + "\" " + k[4] + "."); } }));
+    });
     box.appendChild(head);
     if (def.desc || ro) { var ds = document.createElement("div"); ds.className = "sc-desc"; ds.textContent = (def.desc || "") + (ro ? " Templates are read-only: Copy as new to edit." : ""); box.appendChild(ds); }
     // rules
