@@ -29,8 +29,8 @@ button { font-family: inherit; }
   display: grid;
   height: 100vh;
   grid-template-columns: 272px minmax(360px, 1fr) 300px;
-  grid-template-rows: 48px minmax(200px, 1fr) 120px;
-  grid-template-areas: "top top top" "status tactical orders" "comms comms comms";
+  grid-template-rows: 48px minmax(200px, 1fr) 176px;
+  grid-template-areas: "top top top" "status tactical orders" "scan scan scan";
   gap: 8px;
   padding: 8px;
 }
@@ -65,11 +65,13 @@ body.alert-red #alert-label { animation: blink 1s steps(2) infinite; }
 
 #status { grid-area: status; }
 #orders { grid-area: orders; }
-#comms { grid-area: comms; }
+#scan { grid-area: scan; }
 #tactical { grid-area: tactical; position: relative; border-radius: var(--radius); overflow: hidden; background: #03040a; box-shadow: 0 0 0 2px #222 inset, 0 0 40px var(--glow); transition: box-shadow 0.5s; }
 body.alert-red #tactical { animation: redpulse 1.6s ease-in-out infinite; }
 @keyframes redpulse { 0%, 100% { box-shadow: 0 0 0 2px #5a1a1a inset, 0 0 30px var(--glow); } 50% { box-shadow: 0 0 0 3px #b03030 inset, 0 0 70px var(--glow); } }
-#view { display: block; width: 100%; height: 100%; }
+#view { display: block; width: 100%; height: 100%; touch-action: none; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
+#drawer-tabs { display: none; }
+#rotate-hint { display: none; }
 #view.can-target { cursor: crosshair; }
 #view.on-hardpoint { cursor: pointer; }
 #tactical .corner { position: absolute; width: 26px; height: 26px; border: 2px solid var(--c-accent); opacity: 0.6; pointer-events: none; }
@@ -120,6 +122,7 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
 .chips { display: flex; gap: 3px; margin: 4px 0 2px; }
 .chip { flex: 1; text-align: center; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; padding: 2px 0; border-radius: 4px; background: #15162a; color: #000; transition: background-color 0.3s; cursor: pointer; }
 .chip:hover { filter: brightness(1.2); }
+.chip.exposed { background-color: #5a2d2d; color: #ffd0c0; }
 .chip.targeted { box-shadow: 0 0 0 2px #fff inset; }
 
 /* ------------------------------------------------------------ buttons */
@@ -129,7 +132,7 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
 .lcars-btn:active { transform: scale(0.97); filter: brightness(0.9); }
 .lcars-btn.active { box-shadow: 0 0 0 2px #fff inset, 0 0 12px currentColor; filter: brightness(1.2); }
 .lcars-btn.active::before { background: #fff; }
-.lcars-btn:disabled { filter: grayscale(0.6) brightness(0.5); cursor: default; }
+.lcars-btn:disabled, .lcars-btn.off { filter: grayscale(0.6) brightness(0.5); cursor: default; }
 .lcars-btn.big { font-size: 20px; padding: 12px 24px; border-radius: 24px; margin-top: 18px; width: 100%; text-align: center; }
 .lcars-btn.big::before { display: none; }
 .lcars-btn.sq { min-width: 38px; border-radius: 6px; font-size: 18px; padding: 0 8px; text-align: center; } .lcars-btn.sq::before { display: none; }
@@ -138,9 +141,9 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
 #btn-redalert { min-width: 100px; border-radius: 6px; }
 #topbar [data-cmd] { border-radius: 6px; min-width: 90px; }
 .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 4px; }
-.btn-grid.three { grid-template-columns: 1fr 1fr 1fr; } .btn-grid.four { grid-template-columns: repeat(4, 1fr); }
-.btn-grid.three .lcars-btn, .btn-grid.four .lcars-btn { padding: 4px 5px 4px 9px; font-size: 11px; letter-spacing: 0; }
-.btn-grid.three .lcars-btn::before, .btn-grid.four .lcars-btn::before { left: 3px; width: 3px; }
+.btn-grid.three { grid-template-columns: 1fr 1fr 1fr; } .btn-grid.four { grid-template-columns: repeat(4, 1fr); } .btn-grid.five { grid-template-columns: repeat(5, 1fr); }
+.btn-grid.three .lcars-btn, .btn-grid.four .lcars-btn, .btn-grid.five .lcars-btn { padding: 4px 5px 4px 9px; font-size: 11px; letter-spacing: 0; }
+.btn-grid.three .lcars-btn::before, .btn-grid.four .lcars-btn::before, .btn-grid.five .lcars-btn::before { left: 3px; width: 3px; }
 .lcars-btn.wide { grid-column: 1 / -1; }
 
 /* ----------------------------------------------------------- overview */
@@ -164,6 +167,24 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
 
 /* --------------------------------------------------------- HUD */
 #hud { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; align-items: center; gap: 14px; }
+#hud-right { display: flex; flex-direction: column; align-items: stretch; gap: 4px; }
+#heat-bar { display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: 10px; background: rgba(8, 9, 22, 0.75); border: 1px solid #2a2a40; font-size: 11px; letter-spacing: 0.08em; }
+#heat-bar .hb-label { color: #ff8a3d; font-weight: 700; }
+#heat-bar .hb-track { position: relative; flex: 1; height: 10px; border-radius: 5px; background: #141530; overflow: hidden; }
+#heat-bar .hb-zone { position: absolute; top: 0; bottom: 0; }
+#heat-bar .hb-zone.warn { left: 60%; width: 25%; background: rgba(255, 170, 60, 0.18); }
+#heat-bar .hb-zone.danger { left: 85%; width: 15%; background: rgba(255, 70, 60, 0.28); }
+#heat-bar .hb-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: #f2c14e; border-radius: 5px; transition: width 0.1s linear, background-color 0.3s; }
+#heat-bar .hb-salvo { position: absolute; top: 0; bottom: 0; width: 2px; background: rgba(255, 255, 255, 0.7); display: none; }
+#heat-bar .hb-gov { position: absolute; top: 0; bottom: 0; left: 85%; width: 1px; background: rgba(255, 255, 255, 0.35); }
+#heat-bar .hb-num { min-width: 70px; text-align: right; color: var(--c-text); font-variant-numeric: tabular-nums; }
+#heat-bar.hot .hb-fill { background: #ff8a3d; }
+#heat-bar.overload .hb-fill { background: #ff4040; animation: blink 0.4s steps(2) infinite; }
+#heat-bar.overload .hb-label { color: #ff4040; animation: blink 0.4s steps(2) infinite; }
+#heat-bar.holding .hb-num { color: #ffd23f; }
+.hb-gov-btn { font-family: inherit; font-size: 10px; letter-spacing: 0.08em; padding: 2px 7px; border-radius: 6px; border: 1px solid #555; background: #1b1c33; color: #888; cursor: pointer; }
+.hb-gov-btn.active { background: #2a4a35; border-color: #35e08f; color: #35e08f; }
+@keyframes blink { 50% { opacity: 0.35; } }
 #gauge { width: 118px; height: 118px; }
 #gauge svg { width: 100%; height: 100%; overflow: visible; }
 #gauge .bg { fill: none; stroke: rgba(40, 42, 70, 0.9); }
@@ -189,15 +210,58 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
 .module:hover { border-color: var(--c-peach); }
 
 /* --------------------------------------------------------------- log */
-#comms .panel-body { padding: 6px 12px; }
-#log { list-style: none; margin: 0; padding: 0; font-size: 14px; }
+/* the bridge log is a two-line ticker over the tactical view; LOG expands it */
+#comms { position: absolute; left: 12px; top: 10px; width: min(640px, 62%); z-index: 3; pointer-events: none; display: flex; align-items: flex-start; gap: 6px; }
+#comms #log { flex: 1; min-width: 0; background: rgba(4,5,14,0.55); border-radius: 8px; padding: 2px 8px; max-height: 44px; overflow: hidden; transition: max-height 0.2s; }
+#comms.expanded #log { max-height: 320px; overflow-y: auto; pointer-events: auto; background: rgba(4,5,14,0.9); }
+#comms #log li:nth-child(n+3) { display: none; }
+#comms.expanded #log li:nth-child(n+3) { display: flex; }
+#comms .log-btn { pointer-events: auto; font-family: inherit; font-size: 11px; letter-spacing: 0.12em; padding: 3px 8px; border-radius: 10px; border: 1px solid var(--c-peach); background: rgba(4,5,14,0.7); color: var(--c-peach); cursor: pointer; }
+#comms.expanded .log-btn, #comms .log-btn:hover { background: var(--c-peach); color: #111; }
+#log { list-style: none; margin: 0; padding: 0; font-size: 13px; }
 #log li { padding: 2px 0; overflow: hidden; border-bottom: 1px solid #141428; display: flex; gap: 8px; animation: login 0.25s ease-out; }
 @keyframes login { from { opacity: 0; transform: translateX(-6px); } }
 #log .t { color: var(--c-dim); width: 44px; flex-shrink: 0; font-size: 12px; }
 #log .who { font-weight: 700; width: 112px; flex-shrink: 0; text-transform: uppercase; letter-spacing: 0.08em; }
 #log .who.helm { color: var(--c-blue); } #log .who.tactical { color: var(--c-orange); } #log .who.engineering { color: var(--c-purple); }
-#log .who.comms { color: var(--c-peach); } #log .who.enemy { color: #7cff8a; } #log .who.computer { color: #ddd; }
-#log .msg { flex: 1; min-width: 0; }
+#log .who.comms { color: var(--c-peach); } #log .who.security { color: var(--c-red); } #log .who.enemy { color: #7cff8a; } #log .who.computer { color: #ddd; }
+#log .msg { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#comms.expanded #log .msg { white-space: normal; }
+
+/* ------------------------------------------------------------- intel */
+.hg-intel { display: flex; gap: 10px; align-items: flex-start; margin: 4px 0 8px; }
+#hg-intel-view { width: 250px; height: 140px; flex-shrink: 0; background: radial-gradient(ellipse at center, #0a0c1c 0%, #03040a 100%); border-radius: 8px; box-shadow: 0 0 0 1px #222 inset; }
+.hg-intel-info { flex: 1; font-size: 12.5px; line-height: 1.35; min-width: 0; }
+.hg-intel-info .wp { padding: 2px 6px; margin: 2px 0; border-radius: 6px; border: 1px solid #2a2a40; background: #0b0c1c; font-size: 12px; }
+.hg-book { margin-top: 4px; line-height: 1.3; }
+.hg-learned { color: var(--c-yellow); margin: 4px 0; }
+.hg-element { margin: 4px 0; font-size: 12.5px; }
+.hg-palette .pal.tune i { display: inline-block; width: 18px; height: 18px; border-radius: 50%; margin-right: 6px; border: 1px solid #0b0c1c; vertical-align: middle; }
+.hg-palette .tune-all { width: 100%; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; align-items: center; padding: 4px 2px; }
+.hg-tools #btn-tune.active { box-shadow: 0 0 0 2px var(--c-orange) inset; }
+.hg-doctrine { font-size: 12px; line-height: 1.35; margin-bottom: 6px; }
+.hg-doctrine .wheel { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 4px; margin: 2px 0 4px; }
+.hg-doctrine .el { padding: 1px 8px; border-radius: 10px; border: 1px solid; background: #0b0c1c; font-weight: bold; letter-spacing: 0.04em; }
+.hg-doctrine .el .me { color: var(--c-orange); font-size: 10px; } .hg-doctrine .el .them { color: var(--c-red); font-size: 10px; }
+.hg-doctrine .arrow { color: #6a6a90; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; }
+.hg-doctrine .edge { padding: 2px 0 2px 8px; border-left: 2px solid #2a2a40; margin: 2px 0; color: #cfcfe0; }
+.hg-intel-info .lcars-btn { margin-top: 6px; }
+
+/* -------------------------------------------------------------- scan */
+#scan .panel-body { display: flex; gap: 12px; padding: 4px 12px; align-items: stretch; }
+#scan-view { width: 250px; height: 160px; flex-shrink: 0; background: radial-gradient(ellipse at center, #0a0c1c 0%, #03040a 100%); border-radius: 8px; box-shadow: 0 0 0 1px #222 inset; }
+.scan-info { flex: 1; display: grid; grid-template-columns: 1fr 0.8fr 1.2fr 1.5fr; gap: 0 12px; font-size: 12.5px; align-content: start; }
+.scan-info .wp { padding: 2px 6px; margin: 1px 0; border-radius: 6px; border: 1px solid #2a2a40; background: #0b0c1c; cursor: pointer; font-size: 12px; line-height: 1.2; }
+.scan-info .wp:hover { border-color: var(--c-peach); }
+.scan-info .wp.on { border-color: var(--c-yellow); color: var(--c-yellow); }
+#scan-view { cursor: crosshair; }
+.scan-info h4 { margin: 2px 0 2px; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--c-peach); }
+.scan-info .sl { display: flex; align-items: center; gap: 6px; padding: 1px 0; white-space: nowrap; }
+.scan-info .sl label { color: var(--c-dim); width: 64px; flex-shrink: 0; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
+.scan-info .sl .bar { flex: 1; height: 7px; }
+.scan-info .sl .num { width: 34px; text-align: right; font-size: 12px; }
+.scan-info .v { color: var(--c-text); }
+.scan-info .warn { color: var(--c-yellow); } .scan-info .bad { color: var(--c-red); } .scan-info .good { color: #7fd8a0; }
 #log li.warn .msg { color: #ff8f7a; }
 #log li.enemy .msg { color: #9cff9c; }
 #log li.system .msg { color: #fff; font-weight: 700; }
@@ -222,10 +286,14 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
 .hangar-card .head { justify-content: space-between; padding: 8px 20px; border-radius: 20px 20px 0 0; }
 .hg-head-right { font-weight: 400; font-size: 14px; } .hg-head-right b { font-size: 17px; }
 .hangar-grid { display: grid; grid-template-columns: 1fr 1.7fr; gap: 14px; padding: 10px 16px 16px; overflow: auto; min-height: 0; }
-.hg-editor { width: 100%; height: auto; background: radial-gradient(ellipse at center, #0e1026, #05060f); border-radius: 12px; border: 1px solid #1f2040; cursor: crosshair; display: block; }
+.hg-editor { width: 100%; height: auto; touch-action: none; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; background: radial-gradient(ellipse at center, #0e1026, #05060f); border-radius: 12px; border: 1px solid #1f2040; cursor: crosshair; display: block; }
 .hg-palette { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin: 6px 0; }
-.pal { display: grid; grid-template-columns: 12px 1fr; grid-template-rows: auto auto; column-gap: 6px; align-items: center; text-align: left; padding: 3px 6px; border-radius: 8px; border: 1px solid #2a2a40; background: #0b0c1c; color: var(--c-text); cursor: pointer; font-family: inherit; }
-.pal i { grid-row: 1 / span 2; width: 12px; height: 12px; border-radius: 3px; background: #333; }
+.pal { display: grid; grid-template-columns: 22px 1fr; grid-template-rows: auto auto; column-gap: 6px; align-items: center; text-align: left; padding: 3px 6px; border-radius: 8px; border: 1px solid #2a2a40; background: #0b0c1c; color: var(--c-text); cursor: pointer; font-family: inherit; }
+.pal i, .pal canvas { grid-row: 1 / span 2; width: 22px; height: 22px; border-radius: 3px; }
+.pal i.erase-icon { background: repeating-linear-gradient(45deg, #333 0 3px, #111 3px 6px); border: 1px solid #555; }
+.blk-icon { vertical-align: middle; margin-right: 4px; }
+.chip .blk-icon { margin-right: 3px; }
+.sub-grid .row label { display: inline-flex; align-items: center; gap: 3px; }
 .pal.erase i { background: transparent; border: 1px dashed #777; }
 .pal b { font-size: 11px; letter-spacing: 0.03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pal small { font-size: 9.5px; color: var(--c-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -269,12 +337,17 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
 .hg-msg { min-height: 18px; font-size: 12px; color: var(--c-peach); margin: 4px 0; }
 .hg-msg.bad { color: #ff8f7a; }
 .bad { color: #ff8f7a; }
+#gauge svg path.heat { fill: none; stroke-linecap: round; }
+#module-bar .module.heat .short { color: #ff8a3d; }
+#module-bar .module.overload { box-shadow: 0 0 10px #ff4040; }
+#module-bar .module.overload .short { color: #ff4040; }
+.warn { color: #f2c14e; }
 .hg-fit .lcars-btn.big { margin-top: 6px; font-size: 17px; padding: 9px 20px; }
 @media (max-width: 1000px) { .hangar-grid { grid-template-columns: 1fr; } }
 
 /* ------------------------------------------------------ short screens */
 @media (max-height: 760px) {
-  #app { grid-template-rows: 44px minmax(200px, 1fr) 115px; gap: 6px; padding: 6px; }
+  #app { grid-template-rows: 44px minmax(200px, 1fr) 150px; gap: 6px; padding: 6px; }
   .lcars-btn { min-height: 26px; font-size: 12px; }
   h3 { margin: 5px 0 3px; font-size: 12px; }
   .module { width: 50px; height: 50px; font-size: 11px; }
@@ -286,6 +359,141 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
   .row label { width: 56px; }
 }
 @media (max-width: 900px) {
-  #app { grid-template-columns: 1fr 1fr; grid-template-rows: 48px 46vh auto 140px; grid-template-areas: "top top" "tactical tactical" "status orders" "comms comms"; }
+  #app { grid-template-columns: 1fr 1fr; grid-template-rows: 48px 46vh auto 150px; grid-template-areas: "top top" "tactical tactical" "status orders" "scan scan"; }
   html, body { overflow: auto; }
+}
+
+/* ------------------------------------------------------ bridge calls, trace, speed */
+#manual-helm, .manual-only { display: none; }
+body.manual-bridge #manual-helm { display: block; } body.manual-bridge .manual-only { display: block; }
+body:not(.manual-bridge) #module-bar .module { cursor: default; } body:not(.manual-bridge) #module-bar .module:hover { border-color: #3a3a55; }
+#bridge-calls { display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; }
+#bridge-calls .call-row { display: grid; grid-template-columns: 1fr auto; gap: 4px; align-items: stretch; }
+#bridge-calls .call-row .lcars-select { max-width: none; min-width: 0; }
+#bridge-calls .lcars-btn.armed { background: var(--c-orange); box-shadow: 0 0 0 2px #fff inset; animation: blink 0.5s steps(2) infinite; }
+#bridge-calls .call-hint { font-size: 10.5px; line-height: 1.3; }
+#call-tokens { color: var(--c-orange); font-size: 14px; letter-spacing: 0.2em; }
+#call-tokens.none { color: var(--c-dim); }
+#trace { position: absolute; left: 12px; top: 58px; width: min(640px, 62%); z-index: 2; pointer-events: none; font-size: 11.5px; line-height: 1.35; color: #cfcfe0; }
+#trace .tr { display: flex; gap: 6px; background: rgba(4,5,14,0.5); border-radius: 6px; padding: 1px 8px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#trace .tr .t { color: var(--c-dim); width: 40px; flex-shrink: 0; } #trace .tr .r { color: var(--c-peach); width: 34px; flex-shrink: 0; font-weight: 700; }
+#trace .tr.call .r { color: var(--c-orange); } #trace .tr.manual .r { color: var(--c-yellow); }
+#trace .tr .m { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#speed-buttons { display: flex; gap: 2px; }
+#speed-buttons .lcars-btn { border-radius: 6px; min-width: 40px; padding: 0 8px; }
+#speed-buttons .lcars-btn.active { background: var(--c-orange); }
+.hg-manual { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; cursor: pointer; }
+
+/* -------------------------------------------------------- battle report: script timeline */
+.rs-script { margin-top: 10px; font-size: 12.5px; text-align: left; }
+.rs-script h4 { margin: 8px 0 3px; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--c-peach); border-bottom: 1px solid #1a1a30; padding-bottom: 2px; }
+.rs-script .tl { max-height: 150px; overflow-y: auto; scrollbar-width: thin; }
+.rs-script .tr { display: flex; gap: 6px; padding: 1px 0; color: #cfcfe0; line-height: 1.3; }
+.rs-script .tr .t { color: var(--c-dim); width: 42px; flex-shrink: 0; } .rs-script .tr .r { color: var(--c-peach); width: 36px; flex-shrink: 0; font-weight: 700; }
+.rs-script .tr.call .r { color: var(--c-orange); } .rs-script .tr.manual .r { color: var(--c-yellow); } .rs-script .tr.end .r { color: #9cff9c; }
+.rs-script .nf { padding: 2px 0 2px 8px; border-left: 2px solid #3a3a60; margin: 3px 0; color: #cfcfe0; line-height: 1.3; }
+.rs-script .nf b { color: var(--c-peach); } .rs-script .nf .why { color: var(--c-yellow); }
+.overlay-card .btn-grid .lcars-btn.big { margin-top: 10px; font-size: 16px; }
+.sc-dry .nf { color: var(--c-yellow); }
+
+/* -------------------------------------------------------- script editor */
+.hg-plan { font-size: 12px; margin: 2px 0 6px; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+.hg-plan .pt { padding: 2px 8px; border-radius: 10px; border: 1px solid #2a2a40; background: #0b0c1c; color: var(--c-peach); cursor: pointer; }
+.hg-plan .pt b { color: var(--c-orange); margin-right: 4px; }
+.hg-plan .pt.empty { color: var(--c-dim); border-style: dashed; cursor: default; }
+.hg-plan select { max-width: 150px; }
+.hg-script { display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+.hg-script .sc-head { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.hg-script .sc-head .lcars-select { max-width: 210px; }
+.hg-script .sc-desc { color: var(--c-dim); font-size: 11.5px; line-height: 1.35; }
+.rule { border: 1px solid #2a2a40; border-radius: 10px; background: #0b0c1c; padding: 5px 8px 6px; display: flex; flex-direction: column; gap: 4px; }
+.rule.otherwise { border-color: #3a3a60; }
+.rule .r-top { display: flex; align-items: center; gap: 6px; }
+.rule .r-top .n { font-weight: 700; color: var(--c-orange); width: 18px; }
+.rule .r-top .kind { margin-left: auto; }
+.rule .r-top .lcars-btn.sq { min-width: 24px; min-height: 22px; font-size: 13px; padding: 0 5px; }
+.rule .r-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding-left: 4px; }
+.rule .r-line > b { width: 46px; color: var(--c-peach); letter-spacing: 0.1em; font-size: 10.5px; text-transform: uppercase; }
+.rule .term { display: inline-flex; align-items: center; gap: 3px; background: #15162a; border-radius: 6px; padding: 2px 4px; }
+.rule .term select, .rule .term input[type=number] { font-family: inherit; font-size: 12px; background: #05060f; color: var(--c-text); border: 1px solid #2a2a40; border-radius: 4px; padding: 2px 4px; max-width: 200px; }
+.rule .term input[type=number] { width: 58px; }
+.rule .term input[type=range] { width: 80px; accent-color: var(--c-orange); }
+.rule .term .pv { width: 36px; color: var(--c-peach); font-size: 11px; text-align: right; }
+.rule .term .x { cursor: pointer; color: var(--c-dim); padding: 0 3px; } .rule .term .x:hover { color: #fff; }
+.rule .add { font-family: inherit; font-size: 11px; border: 1px dashed #3a3a55; background: transparent; color: var(--c-dim); border-radius: 6px; padding: 1px 6px; cursor: pointer; }
+.rule .add:hover { color: var(--c-peach); border-color: var(--c-peach); }
+.rule .r-say { color: #cfcfe0; font-style: italic; font-size: 12px; padding-left: 4px; line-height: 1.3; }
+.rule .r-warn { color: var(--c-yellow); font-size: 11px; padding-left: 4px; }
+.sc-policies { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 11.5px; color: #cfcfe0; }
+.sc-policies label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.sc-foot { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.sc-dry { font-size: 12px; color: #cfcfe0; line-height: 1.35; border-left: 2px solid var(--c-purple); padding-left: 8px; }
+.sc-dry b { color: var(--c-peach); }
+.sc-dry .t { color: var(--c-dim); }
+
+/* ------------------------------------------------- compact: phone landscape */
+/* Under 540 CSS px of height the tactical view takes the whole screen; the Ship / Target panel, the Orders panel and
+   the Scan panel become drawers opened from the top bar (body.drawer-status / drawer-orders / drawer-scan). Hit targets
+   grow, the HUD shrinks, overlays scroll. Touch input lives in ui.js (tap, long-press, double-tap, pinch). */
+@media (max-height: 540px) {
+  html, body { overflow: hidden; font-size: 13px; }
+  #app { display: block; height: 100vh; height: 100dvh; padding: 0; }
+  #topbar { position: fixed; left: 0; right: 0; top: 0; height: 36px; z-index: 6; gap: 4px; padding: 3px 4px 0 4px; background: #000; }
+  #topbar .lcars-cap { width: 18px; }
+  #topbar .lcars-bar { min-width: 0; font-size: 12px; padding: 0 8px; }
+  #topbar .lcars-bar.c-orange, #topbar .lcars-bar.c-peach.short, #btn-zoom-in, #btn-zoom-out, #topbar [data-cmd="hail"] { display: none; }
+  #topbar .lcars-btn { min-height: 0; font-size: 11px; padding: 0 8px; min-width: 0 !important; letter-spacing: 0.02em; }
+  #topbar .lcars-btn.sq { min-width: 32px !important; font-size: 15px; }
+  #drawer-tabs { display: flex; gap: 3px; }
+  #drawer-tabs .lcars-btn { border-radius: 6px; min-width: 56px !important; }
+  #tactical { position: fixed; left: 0; right: 0; top: 36px; bottom: 0; border-radius: 0; }
+  #tactical .corner { display: none; }
+  .panel { position: fixed; top: 36px; bottom: 0; z-index: 5; transition: transform 0.22s ease-out; box-shadow: 0 0 24px rgba(0, 0, 0, 0.8); border-radius: 0; }
+  #status { left: 0; width: min(272px, 50vw); transform: translateX(-105%); }
+  #orders { right: 0; width: min(300px, 55vw); transform: translateX(105%); }
+  #scan { left: 0; right: 0; top: auto; height: min(200px, 60vh); transform: translateY(105%); }
+  body.drawer-status #status, body.drawer-orders #orders, body.drawer-scan #scan { transform: none; }
+  .panel-side { width: 26px; } .side-seg { font-size: 9px; }
+  .panel-body { padding: 4px 8px 12px; -webkit-overflow-scrolling: touch; }
+  .lcars-btn { min-height: 34px; }
+  .btn-grid { gap: 5px; margin-bottom: 5px; }
+  .sub-grid .row, .chip { min-height: 22px; }
+  #overview td { padding: 5px 3px; }
+  #hud { bottom: 6px; gap: 8px; }
+  #gauge { width: 84px; height: 84px; }
+  #module-bar { gap: 6px; padding: 5px 8px; }
+  .module { width: 46px; height: 46px; font-size: 11px; }
+  .module .capcost { display: none; }
+  #heat-bar { padding: 2px 8px; font-size: 10px; }
+  #heat-bar .hb-num { min-width: 56px; }
+  #comms { top: 4px; left: 8px; width: min(520px, 58%); }
+  #trace { top: 46px; left: 8px; width: min(520px, 58%); font-size: 10.5px; }
+  #speed-buttons .lcars-btn { min-width: 30px !important; padding: 0 5px; }
+  #comms #log { max-height: 38px; }
+  #log { font-size: 11px; } #log .who { width: 84px; } #log .t { width: 36px; font-size: 10px; }
+  #pause-overlay span { font-size: 26px; }
+  .overlay { align-items: flex-start; overflow-y: auto; padding: 8px 0; }
+  .overlay-card { max-width: 96vw; padding: 0 16px 16px; }
+  .overlay-card .head { margin: 0 -16px 8px; }
+  .overlay-card h1 { font-size: 26px; margin: 4px 0 2px; }
+  .overlay-card p, .tips { font-size: 13px; line-height: 1.35; }
+  .stats { font-size: 14px; }
+  .lcars-btn.big { font-size: 16px; padding: 10px 18px; margin-top: 10px; }
+  .hangar-card { width: 100vw; max-height: 100vh; max-height: 100dvh; border-radius: 0; border: 0; }
+  .hangar-card .head { padding: 6px 12px; border-radius: 0; font-size: 13px; }
+  .hg-head-right { font-size: 11px; } .hg-head-right b { font-size: 13px; }
+  .hangar-grid { grid-template-columns: 1fr; gap: 10px; padding: 8px 10px 16px; }
+  .hg-fit { order: -1; }
+  .hg-editor { width: auto; max-width: 100%; max-height: 62vh; margin: 0 auto; }
+  .hg-palette { grid-template-columns: repeat(4, 1fr); }
+  .pal { min-height: 40px; }
+  .hg-tools .lcars-btn, .hg-row .lcars-btn { min-height: 34px; }
+  .lcars-select, .lcars-input { min-height: 34px; }
+  .hg-stats { font-size: 12px; }
+  .hg-stats div { flex-wrap: wrap; }
+}
+/* phones held upright: the game is landscape only */
+@media (orientation: portrait) and (max-width: 760px) {
+  #rotate-hint { display: flex; position: fixed; inset: 0; z-index: 50; align-items: center; justify-content: center; text-align: center; background: #000; color: var(--c-peach); font-size: 20px; line-height: 1.5; padding: 24px; }
+  #rotate-hint b { color: var(--c-orange); font-size: 24px; letter-spacing: 0.08em; text-transform: uppercase; }
 }

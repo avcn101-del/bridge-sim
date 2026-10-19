@@ -31,9 +31,12 @@ These rules apply to every session working in this repository.
   - `js/grid.js` — hull grids: masks, block layouts, derived stats, entry/penetration/splash hit lookup, per-block damage, connectivity, layout validation
   - `js/modules.js` — weapon groups built from blocks plus the built-in active systems (booster, hardener, afterburner); capacitor use
   - `js/ships.js` — ship model: block grid, hull from blocks, shield facings from emitters, capacitor, lock, movement commands
-  - `js/weapons.js` — turret blocks (tracking/falloff) and launcher blocks (signature/velocity), hit resolution
+  - `js/weapons.js` — turret blocks (tracking/falloff) and launcher blocks (signature/velocity), hit resolution, decoys
+  - `js/boarding.js` — boarding parties: transporter window, party vs defenders, capture
   - `js/crew.js` — crew voices: instant commands with reports, warnings
-  - `js/enemyai.js` — enemy behaviour
+  - `js/enemyai.js` — doctrine machine for both ships (enemy doctrines, player stances, auto-flip)
+  - `js/plays.js` — plays: scripted phase sequences (stance/doctrine, module policy, governor, aim, exit conditions) from `helm.plays`
+  - `js/script.js` — bridge scripts: ordered when → do rules with policies and call-outs, run by both bridges; sentences from `script.conditions/actions`
   - `js/campaign.js` — progress between battles: save/load/export/import, credits, ownership, fitting rules, fit stats, real-time skills, enemy scaling
   - `js/hangar.js` — hangar screen DOM: ship, fitting, market, skills, save buttons
   - `js/ui.js` — DOM panels, order buttons, comms log, alert states
@@ -45,11 +48,18 @@ These rules apply to every session working in this repository.
   (`"vector"` or `"sprite"`). Game logic never touches the canvas. Swapping
   vector silhouettes for image sprites in `assets/` must not require changes
   outside `renderer.js` and `data.js`.
-- **Controls are EVE-style commands.** The player never steers directly:
-  `BS.Game.command(id, args)` → `BS.Crew.command` executes instantly on the
-  player ship (select, lock, approach, orbit, keep, flyTo, comeAbout, module,
-  targetSubsystem, repair, reinforce, redAlert, hail) and the officer reports.
-  The enemy AI uses the same `BS.Ships.setCommand` / `BS.Modules.setActive`.
+- **The script has the conn.** Since 0.21 the contest is decided before
+  the fight: build, intel, plan and a bridge script (`BS.Script`, when → do
+  rules written in the hangar). In battle both bridges run their scripts;
+  the player watches and has `script.bridgeCall.tokens` (2) **bridge
+  calls** (`BS.Game.bridgeCall`: play, side, disengage, reinforce, focus
+  block), overrides that stand for a while and hand back. The hand-flown
+  controls (`BS.Game.command(id, args)` → `BS.Crew.command`: stance, play,
+  side, aim, modules, keys) still exist behind `settings.manualBridge` for
+  debugging and the harness; a manual order pauses the script. Movement is
+  always the helm's: a stance or doctrine is flown by `BS.EnemyAI` with the
+  same doctrine machine and the same `BS.Ships.setCommand` /
+  `BS.Modules.setActive` the enemy uses.
 - **Ships are block grids.** A class gives a hull `mask` (`.` empty, `#`
   fillable, `n` nacelle, `p` fixed structure) and a default `layout`
   (letters from `grid.layoutLegend`). `BS.Grid.build` turns them into
@@ -60,7 +70,9 @@ These rules apply to every session working in this repository.
   Blocks cut off from the bridge break away. Never hard-code block effects
   outside `grid.js`; every number is in `BS.Data.grid` and `BS.Data.blocks`.
 - **Interface shows km and km/s**; the world is pixels (`units.pxPerKm`,
-  50; `grid.cellPx` 6, so a Constitution is 156 px long). Keep
+  150; `grid.cellPx` 6, so a Constitution is 156 px ≈ 1 km long, three
+  times its real size so blocks stay readable). The camera auto-fits both
+  ships; manual zoom is a bias on top. Keep
   `visual.length/width` equal to the grid size because shields, hit radius
   and effects use them.
 - **Progress lives in `BS.Campaign`** (localStorage key `bridgesim.save`,
