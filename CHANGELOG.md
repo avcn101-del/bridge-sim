@@ -2,6 +2,96 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.29.0] — 2026-10-19 (tuning: shield frequencies, alloys, ammo; PR D of the "chess" pillars)
+
+### Added
+- **Tuning** (`BS.Data.tuning`, `save.tuning[classId]`): five modulations
+  (Graviton, Nadion, Tetryon, Polaron, Antiproton) in a ring; every
+  shield emitter has a frequency, every armor plate an alloy, every
+  weapon block an ammo modulation, so hulls and batteries can be hybrid.
+  One rule: ammo that beats the frequency of the emitter it hits is ×1.5
+  for the whole shot while that shield is up, ammo the frequency beats
+  ×0.5; the same against a plate's alloy; systems ×1.
+- Faction defaults (Federation Nadion, Klingon Polaron) and a 15%
+  surcharge for off-faction tuning; retuning pays only the surcharge.
+- Editor **Tune** mode: a modulation palette, "set all weapons / shields /
+  armor", painting per block with Mirror, dots in each block's colour.
+  Build stats Tuning line; Doctrine page redrawn for the ring; Intel
+  "Tuning: theirs … · yours …".
+- The enemy's tuning shows on the scan panel only once scanned; intel,
+  the Book and the signature of a win keep it; the report opens with the
+  ammo-vs-shields multipliers.
+- Harness `--tune` / `--etune`.
+
+### Removed
+- The build-family element ring of 0.27–0.28 (`elements`, `elementOf`,
+  the Build line's element, the element answers in learning).
+
+## [0.28.0] — 2026-10-19 (the element ring; PR C of the "chess" pillars, second cut)
+
+### Changed
+- **One rule instead of a chart**: five Trek elements named for their
+  science (Graviton / Deflector, Nadion / Phaser, Photon / Ordnance,
+  Plasma / Impulse, Duranium / Armour), each beats the next in a ring; a
+  ship's hits do ×1.35 into the element it beats and ×0.65 into the one
+  that beats it, a mixed ship gives and takes ×1 (`BS.Ships.elementMult`).
+  The 0.27 weapon-type chart and the torpedo exponent change are removed.
+- Every edge measured in both directions on equal hulls (DESIGN §8): ±25%
+  held four edges and stalemated Nadion vs Photon; ±35% holds all five.
+- Doctrine page redrawn as the ring with "Your ship: … +35% vs … · −35% vs
+  …"; Intel and the battle report show the multipliers in force; the
+  enemy's learning answers the player's element with the one that beats it.
+
+## [0.27.0] — 2026-10-19 (elements: the measured wheel; PR C of the "chess" pillars)
+
+### Added
+- **Elements** (`BS.Data.elements`): Impulse, Ordnance, Deflector, Armour,
+  Phaser as block families; a build's element is read off its layout
+  against the class default (`BS.Grid.elementOf`, shown in the hangar
+  Build line and the Intel box); variants and presets name theirs.
+- **Type chart** in the damage path: torpedoes drain shields ×1.5, cannon
+  bolts ×0.7, beams and pulses into armor plating ×0.75;
+  `balance.torpedoSpeedExponent` 1.0.
+- **Doctrine page** in the hangar: the measured wheel Ordnance → Impulse →
+  Deflector → Ordnance, Impulse over Armour, Armour and Phaser balanced,
+  each edge as a sentence with its numbers (`elements.edges`, equal-hull
+  duels in DESIGN §8). The battle report quotes the edge between the two
+  builds; the enemy's learning answers the player's element first.
+- Layouts: Bird-of-Prey Interceptor, Bombard, Bulwark, Pulser (encounters
+  from 2–3 wins); Constitution presets Courier and Bulwark.
+- Harness: `--rows variant:X`, `--equal` (equal-hull duels).
+
+### Changed
+- The wheel drawn beforehand (five elements in a ring) did not survive the
+  duels; `elements.edges` holds only what held both ways. The first chart
+  (×2.0 / ×0.5 / ×0.5) made Ordnance beat everything and the K't'inga
+  harmless; the moderate chart keeps the campaign where 0.26 left it.
+
+## [0.26.0] — 2026-10-19 (honest loss, why you lost, the enemy learns; PR B of the "chess" pillars)
+
+### Added
+- **Why you lost / What carried it** in the battle report: the pair of
+  standing rules (theirs | ours) under which most of the damage landed,
+  both fights' style tags and the doctrine table's sentence for the pair
+  (`enemyAI.doctrineTable`, measured rows only).
+- **Signatures and learning**: a win records its style (tags, range, side,
+  aim, script, cost; `save.signatures`, last 3). From 3 wins on, with a
+  60% seeded chance, the next encounter answers the dominant tag with a
+  measured counter of the same weight (`enemyAI.signatureCounters`,
+  `campaign.learn`); the hangar says "They have watched your last 3
+  fights (…): expect …".
+- `tools/harness.js`: `--variant / --doctrine / --escript` force the enemy,
+  `--signature tag --learn` force the learning path.
+
+### Changed
+- **Honest contact**: a cloaked ship beyond the viewer's sensors is known
+  only by its last contact (`BS.Ships.contact`); the doctrine machine, the
+  helm and the script conditions read ranges and bearings from it, for
+  both ships. The helm now flies against the last contact instead of
+  holding course.
+- DESIGN §8 carries the 3-win matrix (7 player styles × 6 Bird-of-Prey
+  variants); the theory counters that failed it were dropped from data.
+
 ## [0.25.0] — 2026-10-19 (enemy reactions, opening book, PR A of the "chess" pillars)
 
 ### Added

@@ -14,7 +14,56 @@ BS.Grid = (function () {
 
   // ---- building ------------------------------------------------------------
   // Returns { w, h, mask: [rows], blocks: [], at: {"x,y": block}, cellPx }
-  function build(cls, layoutRows, statMult) {
+  // The modulation of a block (BS.Data.tuning): its digit in the tuning rows, else the faction's default; null for a
+  // block that is not tunable.
+  function tuneOf(cls, type, tuningRows, x, y) {
+    var T = BS.Data.tuning; if (!T || !T.tunable[type]) return null;
+    var ch = tuningRows && tuningRows[y] ? tuningRows[y][x] : "0", id = null;
+    Object.keys(T.list).forEach(function (k) { if (T.list[k].digit === ch) id = k; });
+    return id || T.factionDefault[cls.faction] || T.order[0];
+  }
+  // Damage multiplier of an ammo modulation against a frequency or alloy: ×bonus when it beats it, ×malus when beaten.
+  function tuneMult(ammo, def) {
+    var T = BS.Data.tuning; if (!T || !ammo || !def || ammo === def) return 1;
+    var o = T.order, a = o.indexOf(ammo), d = o.indexOf(def);
+    if (a < 0 || d < 0) return 1;
+    if ((a + 1) % o.length === d) return T.bonus;
+    if ((d + 1) % o.length === a) return T.malus;
+    return 1;
+  }
+  // Tuning rows of a class in the layout's shape, all faction default ("0").
+  function blankTuning(cls) { return cls.mask.map(function (r) { return r.replace(/./g, "0"); }); }
+  // Tuning rows from a spec { ammo, shield, armor } of modulation ids ("a:b" splits port / starboard halves), applied on
+  // top of `base` rows (or blank) for the cells of those kinds in `rows`.
+  function tuningRowsFor(cls, rows, spec, base) {
+    var T = BS.Data.tuning, out = (base || blankTuning(cls)).slice(), h = cls.mask.length;
+    function digit(id) { return id && T.list[id] ? T.list[id].digit : "0"; }
+    for (var y = 0; y < h; y++) {
+      var line = out[y].split("");
+      for (var x = 0; x < line.length; x++) {
+        var type = typeForLetter(rows[y] ? rows[y][x] : "."), kind = type ? T.tunable[type] : null;
+        if (!kind) { line[x] = "0"; continue; }
+        var want = spec[kind]; if (want === undefined) continue;
+        if (want && want.indexOf(":") >= 0) { var pair = want.split(":"); want = y < h / 2 ? pair[0] : pair[1]; }
+        line[x] = digit(want);
+      }
+      out[y] = line.join("");
+    }
+    return out;
+  }
+  // What a grid is tuned to, per kind: { ammo: { nadion: 8 }, frequency: {...}, alloy: {...} }, alive blocks only.
+  function tuningSummary(grid, all) {
+    var T = BS.Data.tuning, out = { ammo: {}, frequency: {}, alloy: {} };
+    grid.blocks.forEach(function (b) { if ((!b.alive && !all) || !b.tune) return; var k = T.tunable[b.type]; if (k) out[k][b.tune] = (out[k][b.tune] || 0) + 1; });
+    return out;
+  }
+  function dominantTune(counts) { var best = null; Object.keys(counts).forEach(function (k) { if (best === null || counts[k] > counts[best]) best = k; }); return best; }
+  function tuningText(grid) {
+    var T = BS.Data.tuning, s = tuningSummary(grid);
+    function part(label, m) { var ks = Object.keys(m); if (!ks.length) return null; ks.sort(function (a, b) { return m[b] - m[a]; }); return label + " " + ks.map(function (k) { return T.list[k].name + (ks.length > 1 ? " " + m[k] : ""); }).join(" / "); }
+    return [part("ammo", s.ammo), part("shields", s.frequency), part("armor", s.alloy)].filter(Boolean).join(" · ") || "untuned";
+  }
+  function build(cls, layoutRows, statMult, tuningRows) {
     statMult = statMult || 1;
     var mask = cls.mask, h = mask.length, w = mask[0].length, cellPx = G().cellPx;
     var grid = { w: w, h: h, mask: mask, blocks: [], at: {}, cellPx: cellPx, dirty: true, bridge: null, cls: cls };
@@ -30,7 +79,7 @@ BS.Grid = (function () {
         var def = structural ? { hp: G().structureHp, mass: 1, color: "#8a90a0", name: "Structure", pierceCost: G().structurePierceCost } : BS.Data.blocks[type];
         var hp = Math.round(def.hp * statMult);
         var b = { x: x, y: y, type: type, def: def, hp: hp, maxHp: hp, alive: true, structural: structural, nacelle: m === "n",
-                  lx: (x + 0.5 - w / 2) * cellPx, ly: (y + 0.5 - h / 2) * cellPx, cycleLeft: 0, id: y * w + x };
+                  lx: (x + 0.5 - w / 2) * cellPx, ly: (y + 0.5 - h / 2) * cellPx, cycleLeft: 0, id: y * w + x, tune: structural ? null : tuneOf(cls, type, tuningRows, x, y) };
         b.outward = Math.atan2(b.ly, b.lx);
         grid.blocks.push(b); grid.at[x + "," + y] = b;
         if (type === "bridge") grid.bridge = b;
@@ -384,7 +433,7 @@ BS.Grid = (function () {
   // kind "phaser": penetrates up to grid.penetration blocks along the shot line.
   // kind "torpedo": explodes on the entry block and splashes into its neighbours.
   // `first` is the entry block from resolveEntry when the caller already looked it up (so shield cover and the hit agree).
-  function hit(ship, amount, fromX, fromY, aimType, kind, first, pierceBonus) {
+  function hit(ship, amount, fromX, fromY, aimType, kind, first, pierceBonus, ammo) {
     var grid = ship.grid, g = G();
     var res = { hits: [], destroyed: [], cutOff: [], explosions: [], crits: [] };
     if (first === undefined) first = resolveEntry(ship, fromX, fromY, aimType);
@@ -392,6 +441,10 @@ BS.Grid = (function () {
     var toExplode = [], C = g.crits;
     function damage(b, d) {
       if (!b.alive || d <= 0) return 0;
+      // the ring: ammo against a plate's alloy. The plate soaks the shot's share at the tuned rate (a beaten plate
+      // takes more per point and stops less of the beam)
+      var am = ammo && b.type === "armor" ? tuneMult(ammo, b.tune) : 1;
+      if (am !== 1) { var taken0 = Math.min(b.hp, d * am); b.hp -= taken0; res.hits.push({ block: b, dmg: taken0 }); if (b.hp <= 0) { b.alive = false; res.destroyed.push(b); } return taken0 / am; }
       var taken = Math.min(b.hp, d);
       b.hp -= taken; res.hits.push({ block: b, dmg: taken });
       if (b.hp <= 0) { b.alive = false; res.destroyed.push(b); if (b.def.explosion) toExplode.push(b); }
@@ -542,7 +595,7 @@ BS.Grid = (function () {
     return cost;
   }
 
-  return { build: build, derive: derive, facingOf: facingOf, worldToLocal: worldToLocal, localToWorld: localToWorld, cellOfLocal: cellOfLocal,
+  return { tuneOf: tuneOf, tuneMult: tuneMult, blankTuning: blankTuning, tuningRowsFor: tuningRowsFor, tuningSummary: tuningSummary, dominantTune: dominantTune, tuningText: tuningText, build: build, derive: derive, facingOf: facingOf, worldToLocal: worldToLocal, localToWorld: localToWorld, cellOfLocal: cellOfLocal,
     blockAtWorld: blockAtWorld, blockWorld: blockWorld, entryBlock: entryBlock, entryBlockThrough: entryBlockThrough, resolveEntry: resolveEntry, hit: hit, blockFacing: facingOf, lineOfFireClear: lineOfFireClear, arcCoverage: arcCoverage, weaponFacing: weaponFacingOf, bearingProfile: bearingProfile, fieldCover: fieldCover, weakPoints: weakPoints, repair: repair, pruneDisconnected: pruneDisconnected,
     layoutFromGrid: layoutFromGrid, validateLayout: validateLayout, randomVariant: randomVariant, layoutCost: layoutCost, typeForLetter: typeForLetter };
 })();

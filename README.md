@@ -215,6 +215,8 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `grid.boarding` | Transporter range, party size, transport time, shield window thresholds, defenders per crew deck and bridge guard, fight rate |
 | `script.*` | Rule tick, charging speed, trace length, plan targets, default template, rules per script, own scripts per save (`maxScripts`), range bands (`rangeBands`), dry-run length, bridge calls (`bridgeCall`: tokens, hold and focus seconds, confirm window), the sentence for every condition / action / policy, the templates and the enemy scripts with their reaction rules and callouts |
 | `enemyAI.stanceLabels`, `enemyAI.aimLabels` | The words the conditions `enemyStance` / `enemyAimingAt` read as |
+| `tuning.order`, `tuning.bonus / malus`, `tuning.list`, `tuning.factionDefault`, `tuning.offFactionCost`, `tuning.tunable`, `tuning.measured` | The modulation ring (each beats the next), the one multiplier (×1.5 for ammo that beats the frequency or alloy it hits, ×0.5 when beaten), each modulation's digit, colour and sentence, the faction defaults, the surcharge for off-faction tuning, which block types carry a modulation, the measured numbers |
+| `enemyAI.doctrineTable`, `enemyAI.signatureCounters`, `campaign.learn` | The measured who-beats-whom table the battle report quotes; which style tag of your last wins the enemy answers with which layout, doctrine and script; from which win, with what chance, how many wins are remembered, the same-weight cost band and the style-tag thresholds |
 | `balance.speeds / maxStepsPerFrame` | Battle speed buttons and the fixed steps a frame may run |
 | `campaign.firstFight`, `campaign.encounters[].script` | The first fight's enemy overrides; which script each encounter runs |
 | `campaign.salvage` | Share of the enemy's surviving block value paid after a win (destroyed / disabled / captured) |
@@ -242,7 +244,7 @@ index.html      entry point
 css/            LCARS interface styles
 js/             data, grid, game loop, ships, modules, weapons, boarding, crew, enemy AI, plays, scripts, campaign, hangar, UI, renderer, effects
 assets/         optional sprites / sounds (empty in MVP)
-tools/          harness.js (accelerated balance runs, DESIGN.md §8) and smoke.js (headless interface check); plain Node + Playwright, not needed to play
+tools/          harness.js (accelerated balance runs, DESIGN.md §8: forced encounter, enemy variant, learning path, equal-hull duels, tuning per side) and smoke.js (headless interface check); plain Node + Playwright, not needed to play
 DESIGN.md       full game design and data structures
 CHANGELOG.md    version history
 CLAUDE.md       rules for AI-assisted development sessions

@@ -8,6 +8,9 @@ BS.Game = (function () {
   var subscribed = false;
 
   function init() {
+    BS.Events.on("shieldHit", function (r) { attribute(r.ship, r.absorbed); });
+    BS.Events.on("hullHit", function (r) { attribute(r.ship, r.hullDamage); });
+    BS.Events.on("enemyRolled", function (r) { if (state.style) { if (r.ship === state.player) state.style.player.roll = true; else if (r.ship === state.enemy) state.style.enemy.roll = true; } });
     state.zoom = BS.Data.balance.zoom.start;
     BS.Renderer.init(document.getElementById("view"));
     BS.Campaign.load();
@@ -45,13 +48,18 @@ BS.Game = (function () {
     state.dry = dry;
     state.time = 0; state.paused = false; state.result = null; state.resultHow = null; state.endTimer = 0; state.hover = null; state.reward = null; state.lockTime = 0; state.boardingLog = null;
     state.speed = 1; state.calls = BS.Data.script.bridgeCall.tokens; state.callsUsed = 0; state.callLog = [];
+    // what the fight looked like (0.26): damage landed per pair of standing rules (their rule | our rule), and each
+    // ship's style (time per doctrine, side and aim, average range, cloaked and governor-off time) for the report's
+    // "why you lost" and the campaign's signature of a win
+    state.attrib = { taken: {}, dealt: {} };
+    state.style = { player: newStyle(), enemy: newStyle() };
     state.zoom = BS.Data.balance.zoom.start; state.zoomBias = 1;
     var save = BS.Campaign.get();
-    var player = BS.Ships.create(save.shipClass, { isPlayer: true, pos: { x: 0, y: 0 }, heading: -Math.PI / 2, layout: BS.Campaign.battleLayout(save.shipClass), mods: BS.Campaign.skillMods() });
+    var player = BS.Ships.create(save.shipClass, { isPlayer: true, pos: { x: 0, y: 0 }, heading: -Math.PI / 2, layout: BS.Campaign.battleLayout(save.shipClass), tuning: BS.Campaign.battleTuning(save.shipClass), mods: BS.Campaign.skillMods() });
     var ang = U.rand(-0.6, 0.6) - Math.PI / 2;
     var dist = BS.Ships.px(B.arenaStartDistanceKm);
     var enc = BS.Campaign.encounter();
-    var enemy = BS.Ships.create(enc.classId, { name: enc.name, layout: enc.rows, pos: { x: Math.cos(ang) * dist, y: Math.sin(ang) * dist }, heading: ang + Math.PI, statMult: BS.Campaign.enemyStatMult(enc.aiProfile), mods: { damageMult: enc.damageMult || BS.Data.enemyAI[enc.aiProfile].damageMult } });
+    var enemy = BS.Ships.create(enc.classId, { name: enc.name, layout: enc.rows, tuning: enc.tuning || null, pos: { x: Math.cos(ang) * dist, y: Math.sin(ang) * dist }, heading: ang + Math.PI, statMult: BS.Campaign.enemyStatMult(enc.aiProfile), mods: { damageMult: enc.damageMult || BS.Data.enemyAI[enc.aiProfile].damageMult } });
     var overrides = {};
     if (enc.weakPointChance !== null && enc.weakPointChance !== undefined) overrides.weakPointChance = enc.weakPointChance;
     BS.EnemyAI.attach(enemy, player, enc.aiProfile, enc.doctrine, Object.keys(overrides).length ? overrides : null);
@@ -133,8 +141,56 @@ BS.Game = (function () {
     BS.UI.addLog("computer", state.paused ? "Simulation paused." : "Simulation resumed.", "system");
   }
 
+  function newStyle() { return { t: 0, doctrine: {}, side: {}, aim: {}, aimType: {}, rangeSum: 0, cloakT: 0, alphaT: 0, roll: false }; }
+  function ruleKey(ship) { var sc = ship.script; if (!sc) return "none"; if (sc.override) return "call"; return sc.active >= 0 ? String(sc.active) : "none"; }
+  // Damage landed on `victim` is booked to the pair of rules standing at that moment (theirs | ours).
+  function attribute(victim, amount) {
+    if (!state.attrib || !state.enemy || !state.player || !(amount > 0)) return;
+    var map = victim === state.player ? state.attrib.taken : state.attrib.dealt, key = ruleKey(state.enemy) + "|" + ruleKey(state.player);
+    map[key] = (map[key] || 0) + amount;
+  }
+  function recordStyle(ship, other, st, dt) {
+    st.t += dt;
+    var d = ship.doctrineId || "none"; st.doctrine[d] = (st.doctrine[d] || 0) + dt;
+    var sd = ship.attackSide || "auto"; st.side[sd] = (st.side[sd] || 0) + dt;
+    var a = BS.Script.aimingAt(ship); st.aim[a] = (st.aim[a] || 0) + dt;
+    if (a === "type") st.aimType[ship.aimType] = (st.aimType[ship.aimType] || 0) + dt;
+    st.rangeSum += BS.Ships.distanceKm(ship, other) * dt;
+    if (BS.Ships.isCloaked(ship)) st.cloakT += dt;
+    if (!ship.heatGovernor && BS.Modules.weapons(ship).some(function (m) { return m.active; })) st.alphaT += dt;
+  }
+  // The style of a fight as tags the doctrine table (enemyAI.doctrineTable) and the signature counters read:
+  // the dominant doctrine, a shadowed side, an alpha (governor off), a cloak, weak-point or emitter hunting, rolls.
+  function styleTags(st, ship) {
+    var L = BS.Data.campaign.learn, tags = [], t = Math.max(1e-6, st.t);
+    var best = null; Object.keys(st.doctrine).forEach(function (k) { if (!best || st.doctrine[k] > st.doctrine[best]) best = k; });
+    var map = { brawl: "brawl", skirmish: "hitfade", standoff: "standoff", siege: "standoff", strafe: "strafe", broadside: "turtle", ambush: "ambush", evade: "kite", kite: "kite", watch: "kite", closein: "alpha" };
+    if (best && map[best]) tags.push(map[best]);
+    var shadowT = 0; Object.keys(st.side).forEach(function (k) { if (k !== "auto") shadowT += st.side[k]; });
+    if (shadowT / t > L.tagFraction) tags.push("shadow");
+    if (st.alphaT / t > L.tagFraction) tags.push("alpha");
+    if (st.cloakT / t > L.cloakFraction) tags.push("cloak");
+    if (((st.aim.weak || 0) + (st.aimType.shield || 0)) / t > L.tagFraction) tags.push("emitter");
+    if (st.roll) tags.push("roll");
+    var tpl = ship && ship.script ? templateId(ship.script.def) : null;
+    if (tpl === "turtle" && tags.indexOf("turtle") < 0) tags.push("turtle");
+    if (tpl === "hitfade" && tags.indexOf("hitfade") < 0) tags.push("hitfade");
+    if (tpl === "alpha" && tags.indexOf("alpha") < 0) tags.push("alpha");
+    var avg = st.rangeSum / t; if (avg > L.longRangeKm) tags.push("long"); else if (avg < L.closeRangeKm) tags.push("close");
+    return tags;
+  }
+  function templateId(def) { var T = BS.Data.script.templates, id = null; Object.keys(T).forEach(function (k) { if (T[k] === def) id = k; }); return id || (def && def.id) || null; }
+  // The doctrine table's sentence for a pair of styles: the first row whose winning tag the winner carried and whose
+  // losing tag the loser carried.
+  function counterSentence(winnerTags, loserTags) {
+    var rows = BS.Data.enemyAI.doctrineTable;
+    for (var i = 0; i < rows.length; i++) if (winnerTags.indexOf(rows[i].beats) >= 0 && loserTags.indexOf(rows[i].loses) >= 0) return rows[i];
+    return null;
+  }
+
   function step(dt) {
     var p = state.player, e = state.enemy;
+    if (state.phase === "battle" && state.style) { recordStyle(p, e, state.style.player, dt); recordStyle(e, p, state.style.enemy, dt); }
     BS.Crew.update(dt);
     BS.Script.update(e, dt);
     BS.Script.update(p, dt);
@@ -181,6 +237,6 @@ BS.Game = (function () {
 
   function openHangar() { BS.UI.hideOverlays(); state.phase = state.player ? "ended" : "start"; BS.Hangar.show(); }
 
-  var api = { init: init, startBattle: startBattle, dryRun: dryRun, cancelDryRun: cancelDryRun, openHangar: openHangar, command: command, bridgeCall: bridgeCall, setSpeed: setSpeed, togglePause: togglePause, setHover: setHover, setZoom: setZoom, state: state, step: step };
+  var api = { styleTags: styleTags, counterSentence: counterSentence, templateId: templateId, init: init, startBattle: startBattle, dryRun: dryRun, cancelDryRun: cancelDryRun, openHangar: openHangar, command: command, bridgeCall: bridgeCall, setSpeed: setSpeed, togglePause: togglePause, setHover: setHover, setZoom: setZoom, state: state, step: step };
   return api;
 })();

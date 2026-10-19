@@ -4,7 +4,11 @@
 //   --enemy <id>        encounter id from campaign.encounters (raider, gunboat, torpedo, variant, jammer, shadow, leech,
 //                       cruiser, siege, warlord); forced by replacing campaign.encounters
 //   --wins <n>          battles won (enemy strength and scan / weak-point rules follow it)
-//   --ship <classId>    player hull (default constitution); --preset <name> one of its presets (e.g. shadowhunter)
+//   --ship <classId>    player hull (default constitution); --preset <name> one of its presets (e.g. shadowhunter);
+//                       --rows variant:<name> flies one of the class's enemy variants (element duels: --ship bird_of_prey)
+//   --equal             a duel of equal hulls (DESIGN §8 wheel): enemy stat, damage and accuracy multipliers 1, the player's reaction delay, no aim re-rolls, no retreat
+//   --tune "ammo=graviton,frequency=nadion,alloy=nadion"   the player's tuning (BS.Data.tuning; "a:b" splits port / starboard halves)
+//   --etune "..."       the enemy's tuning, same form (unset kinds keep the faction default)
 //   --script <id|file>  a template id, or a JSON file with an inline script { name, policies, rules }
 //   --side <side>       add "keep to their <side>" to every rule that sets a stance (blind, aft, port, starboard)
 //   --noreact           the enemy flies the 0.24 script (scan, blind roll, doctrine): no reaction rules
@@ -12,6 +16,10 @@
 //   --seed <n>          first seed (Math.random is seeded per run: seed + run index), so runs repeat
 //   --eval "<js>"       run this in the page before each fight (try a data tweak: "BS.Data.enemyAI.doctrines.watch.holdKm = 8")
 //   --debug             print the enemy's measured extremes (their heat peak, our blind time) after each run
+//   --signature a,b     pretend the last wins carried these style tags (campaign.learn): the enemy may answer them
+//   --learn             force the learning roll (campaign.learn.chance = 1) so the signature counter is always taken
+//   --variant <layout> --doctrine <id> --escript <id>   force the enemy's layout (a class variant or "default"), doctrine
+//                       and script regardless of the encounter (the matrix runs of DESIGN §8)
 // Each run is BS.Game.dryRun: the battle set up exactly as Undock would, stepped at 1/60 s with no interface.
 var fs = require("fs"), path = require("path");
 var pw = require("playwright");
@@ -21,6 +29,9 @@ var opts = {
   enemy: args.enemy || "raider", wins: parseInt(args.wins || "0", 10), ship: args.ship || "constitution", preset: args.preset || null,
   script: args.script || "brawler", side: args.side || null, noreact: !!args.noreact, runs: parseInt(args.runs || "4", 10),
   max: parseInt(args.max || "600", 10), seed: parseInt(args.seed || "1", 10), eval: args.eval || null, debug: !!args.debug,
+  signature: args.signature ? String(args.signature).split(",") : null, learn: !!args.learn,
+  variant: args.variant || null, doctrine: args.doctrine || null, escript: args.escript || null, rows: args.rows || null, equal: !!args.equal,
+  tune: args.tune || null, etune: args.etune || null,
 };
 if (fs.existsSync(opts.script)) opts.script = JSON.parse(fs.readFileSync(opts.script, "utf8"));
 
@@ -46,9 +57,14 @@ function fmt(t) { var m = Math.floor(t / 60), s = Math.floor(t % 60); return m +
         save.campaign.battlesWon = o.wins;
         var cls = BS.Data.shipClasses[o.ship];
         if (o.preset) { if (!cls.presets || !cls.presets[o.preset]) throw new Error("no preset " + o.preset); save.layouts[o.ship] = cls.presets[o.preset].rows.slice(); }
+        if (o.rows) { var vn = o.rows.replace(/^variant:/, ""); if (!cls.variants || !cls.variants[vn]) throw new Error("no variant " + vn); save.layouts[o.ship] = cls.variants[vn].rows.slice(); }
+        if (o.equal) { Object.keys(BS.Data.enemyAI).forEach(function (k) { var pr = BS.Data.enemyAI[k]; if (pr && pr.statMult !== undefined) { pr.statMult = 1; pr.damageMult = 1; pr.accuracyMult = 1; pr.reactionDelay = BS.Data.helm.reactionDelay; pr.targetWeights = { none: 1 }; pr.weakPointChance = 0; pr.retreatHull = 0; } }); BS.Data.campaign.enemyScaling.perWin = 0; BS.Data.campaign.encounters.forEach(function (e) { delete e.damageMult; }); }
         var enc = BS.Data.campaign.encounters.filter(function (e) { return e.id === o.enemy; })[0];
         if (!enc) throw new Error("no encounter " + o.enemy);
         enc = Object.assign({}, enc, { minWins: 0, weight: 1 });
+        if (o.variant) { enc.layout = o.variant; enc.counter = false; }
+        if (o.doctrine) enc.doctrine = o.doctrine;
+        if (o.escript) enc.script = o.escript;
         if (o.noreact) {
           // the 0.24 enemy bridge: a scan rule where the encounter had one, the blind-sector roll that enemyai.js used to
           // hard-code (blindTolerance 3 / 2.5), then the doctrine
@@ -58,7 +74,12 @@ function fmt(t) { var m = Math.floor(t / 60), s = Math.floor(t % 60); return m +
             old.rules[old.rules.length - 1] ]) };
           enc.script = "noreact";
         }
+        function spec(str) { var o = {}; String(str).split(",").forEach(function (kv) { var p = kv.split("="); if (p[0]) o[p[0].trim()] = p[1].trim(); }); return o; }
+        if (o.tune) save.tuning[o.ship] = BS.Grid.tuningRowsFor(cls, save.layouts[o.ship] || cls.layout, spec(o.tune));
+        if (o.etune) { var ecls = BS.Data.shipClasses[enc.enemyClass], erows = enc.layout === "default" ? ecls.layout : ecls.variants[enc.layout].rows; var tr = BS.Grid.tuningRowsFor(ecls, erows, spec(o.etune)); ecls.variants = ecls.variants || {}; ecls.variants.__tuned = { name: (ecls.variants[enc.layout] ? ecls.variants[enc.layout].name : "default") + " tuned", rows: erows, tuning: tr }; enc.layout = "__tuned"; }
         BS.Data.campaign.encounters = [enc];
+        if (o.signature) { save.signatures = [0, 1, 2].map(function () { return { tags: o.signature.slice(), rangeKm: 0, side: "auto", aim: "hull", script: null, classId: o.ship, cost: 0, at: 0 }; }); }
+        if (o.learn) BS.Data.campaign.learn.chance = 1;
         if (o.eval) (new Function(o.eval))();
         BS.Data.script.dryRun.maxSeconds = o.max;
         var script = typeof o.script === "string" ? JSON.parse(JSON.stringify(BS.Data.script.templates[o.script])) : o.script;
@@ -67,7 +88,7 @@ function fmt(t) { var m = Math.floor(t / 60), s = Math.floor(t % 60); return m +
         var encInfo = BS.Campaign.encounter();
         BS.Game.dryRun(script, null, function (out) {
           var st = BS.Game.state, e = st.enemy;
-          out.enemy = { name: e.name, doctrine: encInfo.doctrine, script: encInfo.script, counter: encInfo.counterReason || null, trace: (e.scriptTrace || []).map(function (en) { var r = e.script.def.rules[en.rule]; return { t: en.t, rule: en.rule, kind: en.kind, text: r && r.callout ? r.callout : en.text }; }) };
+          out.enemy = { name: e.name, doctrine: encInfo.doctrine, script: encInfo.script, counter: encInfo.counterReason || null, learned: encInfo.learned ? encInfo.learned.reason : null, variant: encInfo.variantName || "default", trace: (e.scriptTrace || []).map(function (en) { var r = e.script.def.rules[en.rule]; return { t: en.t, rule: en.rule, kind: en.kind, text: r && r.callout ? r.callout : en.text }; }) };
           out.calls = st.callsUsed;
           out.extremes = st.player.script.extremes; out.enemy.extremes = e.script.extremes; out.enemy.neverFired = BS.Script.explain(e);
           resolve(out);
@@ -83,7 +104,7 @@ function fmt(t) { var m = Math.floor(t / 60), s = Math.floor(t % 60); return m +
   var wins = results.filter(function (r) { return r.result === "victory"; });
   var kept = wins.map(function (r) { return r.hullPct; }).sort(function (a, b) { return a - b; });
   var times = wins.map(function (r) { return r.time; }).sort(function (a, b) { return a - b; });
-  console.log("\n" + opts.ship + (opts.preset ? " (" + opts.preset + ")" : "") + " · " + (typeof opts.script === "string" ? opts.script : opts.script.name) + (opts.side ? " side " + opts.side : "") + " vs " + opts.enemy + " (" + opts.wins + " wins" + (results[0] ? ", " + results[0].enemy.doctrine + ", script " + results[0].enemy.script + (results[0].enemy.counter ? ", counter: " + results[0].enemy.counter : "") : "") + "): "
+  console.log("\n" + opts.ship + (opts.preset ? " (" + opts.preset + ")" : "") + (opts.rows ? " (" + opts.rows + ")" : "") + (opts.equal ? " [equal]" : "") + (opts.tune ? " tune " + opts.tune : "") + (opts.etune ? " vs tune " + opts.etune : "") + " · " + (typeof opts.script === "string" ? opts.script : opts.script.name) + (opts.side ? " side " + opts.side : "") + " vs " + opts.enemy + " (" + opts.wins + " wins" + (results[0] ? ", " + results[0].enemy.doctrine + ", script " + results[0].enemy.script + (results[0].enemy.counter ? ", counter: " + results[0].enemy.counter : "") + (results[0].enemy.learned ? ", learned " + results[0].enemy.variant + ": " + results[0].enemy.learned : "") : "") + "): "
     + wins.length + " of " + results.length + (wins.length ? " in " + fmt(times[0]) + "–" + fmt(times[times.length - 1]) + " keeping " + kept[0] + "–" + kept[kept.length - 1] + "%" : "")
     + (results.length - wins.length ? ", " + results.filter(function (r) { return r.result === "defeat"; }).length + " lost, " + results.filter(function (r) { return r.result !== "victory" && r.result !== "defeat"; }).length + " stalemate" : ""));
   if (errors.length) { console.log("PAGE ERRORS:\n" + errors.join("\n")); process.exitCode = 1; }

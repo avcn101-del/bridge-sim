@@ -45,6 +45,8 @@ BS.Campaign = (function () {
     out.scripts = (s.scripts || []).filter(function (sc) { return sc && sc.id && sc.name && Array.isArray(sc.rules); });
     out.scriptByBuild = {}; Object.keys(s.scriptByBuild || {}).forEach(function (id) { if (D().shipClasses[id]) out.scriptByBuild[id] = s.scriptByBuild[id]; });
     out.plans = {}; Object.keys(s.plans || {}).forEach(function (id) { var pl = s.plans[id]; if (pl && Array.isArray(pl.targets)) out.plans[id] = pl; });
+    out.signatures = (s.signatures || []).filter(function (g) { return g && Array.isArray(g.tags); }).slice(-D().campaign.learn.remember);
+    out.tuning = {}; Object.keys(s.tuning || {}).forEach(function (id) { if (D().shipClasses[id] && Array.isArray(s.tuning[id])) out.tuning[id] = s.tuning[id]; });
     out.book = {}; Object.keys(s.book || {}).forEach(function (id) { var bk = s.book[id]; if (bk && typeof bk.fights === "number" && bk.rules && typeof bk.rules === "object") out.book[id] = bk; });
     out.version = 2;
     return out;
@@ -65,40 +67,65 @@ BS.Campaign = (function () {
     return save.layouts[classId];
   }
   function setLayout(classId, rows) { save.layouts[classId] = rows.slice(); persist(); }
+  // Tuning rows of a hull (BS.Data.tuning): shield frequencies, armor alloys and ammo per block; blank = faction default.
+  function tuningFor(classId) {
+    var cls = D().shipClasses[classId];
+    if (!save.tuning[classId] || save.tuning[classId].length !== cls.mask.length) save.tuning[classId] = BS.Grid.blankTuning(cls);
+    return save.tuning[classId];
+  }
+  function battleTuning(classId) { return tuningFor(classId).slice(); }
+  // Per-cell block prices: a block tuned off its faction's default costs tuning.offFactionCost more.
+  function cellCounts(classId, rows, tuning) {
+    var cls = D().shipClasses[classId], T = D().tuning, counts = {}, dflt = T.factionDefault[cls.faction];
+    for (var y = 0; y < rows.length; y++) for (var x = 0; x < rows[y].length; x++) {
+      var t = BS.Grid.typeForLetter(rows[y][x]); if (!t) continue;
+      var tune = BS.Grid.tuneOf(cls, t, tuning, x, y), key = t + (tune && tune !== dflt ? "|tuned" : "");
+      counts[key] = (counts[key] || 0) + 1;
+    }
+    return counts;
+  }
   function battleLayout(classId) {
     var rows = layoutFor(classId), v = BS.Grid.validateLayout(D().shipClasses[classId], rows);
     return v.ok ? rows : D().shipClasses[classId].layout;   // never undock an invalid build
   }
   // Cost of changing the hull's current layout to `rows`: added blocks are bought, removed blocks refunded.
-  function layoutDelta(classId, rows) {
-    var cur = countBlocks(layoutFor(classId)), nxt = countBlocks(rows), cost = 0, refund = 0;
+  // Blocks are bought and refunded at their price; retuning a block only pays or refunds the off-faction surcharge.
+  function layoutDelta(classId, rows, tuning) {
+    var cur = cellCounts(classId, layoutFor(classId), tuningFor(classId)), nxt = cellCounts(classId, rows, tuning || tuningFor(classId)), cost = 0, refund = 0, T = D().tuning, R = D().editor.refund;
     Object.keys(D().blocks).forEach(function (t) {
-      var price = D().blocks[t].cost, d = (nxt[t] || 0) - (cur[t] || 0);
-      if (d > 0) cost += d * price; else if (d < 0) refund += -d * price * D().editor.refund;
+      var price = D().blocks[t].cost, dAll = ((nxt[t] || 0) + (nxt[t + "|tuned"] || 0)) - ((cur[t] || 0) + (cur[t + "|tuned"] || 0)), dTuned = (nxt[t + "|tuned"] || 0) - (cur[t + "|tuned"] || 0);
+      if (dAll > 0) cost += dAll * price; else if (dAll < 0) refund += -dAll * price * R;
+      var sur = price * T.offFactionCost;
+      if (dTuned > 0) cost += dTuned * sur; else if (dTuned < 0) refund += -dTuned * sur * R;
     });
-    return { cost: cost, refund: Math.round(refund), net: Math.round(cost - refund) };
+    return { cost: Math.round(cost), refund: Math.round(refund), net: Math.round(cost - refund) };
   }
+  // Block cost of a layout, and the effective cost of an enemy layout: its blocks times the stat multiplier it fights
+  // with (a Bird-of-Prey at ×1.4 weighs about what a stock Constitution does).
+  function layoutCost(rows) { var c = countBlocks(rows), cost = 0; Object.keys(c).forEach(function (t) { cost += c[t] * (D().blocks[t] ? D().blocks[t].cost : 0); }); return cost; }
+  function effectiveCost(rows, profileId) { return layoutCost(rows) * enemyStatMult(profileId); }
   function countBlocks(rows) {
     var counts = {};
     rows.forEach(function (r) { for (var i = 0; i < r.length; i++) { var t = BS.Grid.typeForLetter(r[i]); if (t) counts[t] = (counts[t] || 0) + 1; } });
     return counts;
   }
   // Validate, charge the difference and store the layout. Returns null or an error string.
-  function applyLayout(classId, rows) {
+  function applyLayout(classId, rows, tuning) {
     var v = BS.Grid.validateLayout(D().shipClasses[classId], rows);
     if (!v.ok) return v.errors[0];
-    var delta = layoutDelta(classId, rows);
+    var delta = layoutDelta(classId, rows, tuning);
     if (delta.net > save.credits) return "Not enough credits: this build costs " + delta.net.toLocaleString() + " cr more than you have.";
     save.credits -= delta.net;
     save.layouts[classId] = rows.slice();
+    if (tuning) save.tuning[classId] = tuning.slice();
     persist();
     return null;
   }
   function builds(classId) { if (!save.builds[classId]) save.builds[classId] = []; return save.builds[classId]; }
-  function saveBuild(classId, name, rows) {
+  function saveBuild(classId, name, rows, tuning) {
     var list = builds(classId), existing = list.filter(function (b) { return b.name === name; })[0];
-    if (existing) existing.rows = rows.slice();
-    else { if (list.length >= D().editor.maxSavedBuilds) return "Only " + D().editor.maxSavedBuilds + " saved builds per hull. Delete one first."; list.push({ name: name, rows: rows.slice() }); }
+    if (existing) { existing.rows = rows.slice(); existing.tuning = tuning ? tuning.slice() : null; }
+    else { if (list.length >= D().editor.maxSavedBuilds) return "Only " + D().editor.maxSavedBuilds + " saved builds per hull. Delete one first."; list.push({ name: name, rows: rows.slice(), tuning: tuning ? tuning.slice() : null }); }
     persist(); return null;
   }
   function deleteBuild(classId, name) { save.builds[classId] = builds(classId).filter(function (b) { return b.name !== name; }); persist(); }
@@ -207,6 +234,22 @@ BS.Campaign = (function () {
     else rows = cls.layout;
     var names = D().campaign.klingonNames, name = names.length ? names[Math.floor(rng() * names.length)] : cls.name;
     var doc = pick.doctrine; if (Array.isArray(doc)) doc = doc[Math.floor(rng() * doc.length)];
+    var script = pick.script || "doctrine";
+    // they learn (campaign.learn): from fromWins on, with `chance`, the dominant tag of the remembered wins picks a
+    // signature counter: that hull's layout, doctrine and script, if the counter layout weighs about what your build does
+    var learned = null, L = D().campaign.learn, learnRoll = rng();
+    if (wonAt >= L.fromWins && (save.signatures || []).length && learnRoll < L.chance) {
+      var tag = dominantTag(), hk = pick.enemyClass === "ktinga" ? "ktinga" : "bop";
+      var row = D().enemyAI.signatureCounters.filter(function (r) { return r.tag === tag && r[hk]; })[0];
+      if (row) {
+        var ans = row[hk], arows = ans.layout === "default" ? cls.layout : cls.variants && cls.variants[ans.layout] ? cls.variants[ans.layout].rows : null;
+        var myCost = layoutCost(battleLayout(save.shipClass)), theirs = arows ? effectiveCost(arows, cls.aiProfile || "default") : 0;
+        if (arows && Math.abs(theirs - myCost) <= L.costBand * myCost) {
+          rows = arows; variantName = ans.layout === "default" ? null : cls.variants[ans.layout].name; doc = ans.doctrine; script = ans.script;
+          learned = { tag: tag, reason: row.reason, fights: (save.signatures || []).length, tags: (save.signatures || []).map(function (g) { return g.tags[0] || "?"; }) };
+        }
+      }
+    }
     // counter-doctrine: a flagged encounter reads the player's battle layout and answers it (enemyAI.counters)
     var counterReason = null, counterWeak = null;
     if (pick.counter) {
@@ -222,11 +265,12 @@ BS.Campaign = (function () {
         if (w.cloak !== undefined && hasCloak !== w.cloak) ok = false;
         if (w.neutMin !== undefined && neuts < w.neutMin) ok = false;
         if (w.weakFacingBelow !== undefined && weakRatio >= w.weakFacingBelow) ok = false;
-        if (ok) { if (ru[hullKey] && D().enemyAI.doctrines[ru[hullKey]]) doc = ru[hullKey]; counterReason = ru.reason; counterWeak = ru.weakPointChance || null; break; }
+        if (ok) { if (!learned && ru[hullKey] && D().enemyAI.doctrines[ru[hullKey]]) doc = ru[hullKey]; counterReason = ru.reason; counterWeak = ru.weakPointChance || null; break; }   // a learned answer keeps its doctrine
       }
     }
     if (wonAt === 0 && D().campaign.firstFight && counterWeak === null) counterWeak = D().campaign.firstFight.weakPointChance;   // the first fight: no weak-point hunting
-    return { id: pick.id, classId: pick.enemyClass, cls: cls, rows: rows, name: name, variantName: variantName, seed: seed, battlesWon: wonAt, retry: !!rt, rewardMult: pick.rewardMult, play: pick.play || null, script: pick.script || "doctrine", damageMult: pick.damageMult || null, counterReason: counterReason, weakPointChance: counterWeak, aiProfile: cls.aiProfile || "default",
+    var variant = null; if (cls.variants) Object.keys(cls.variants).forEach(function (k) { if (cls.variants[k].rows === rows) variant = cls.variants[k]; });
+    return { id: pick.id, classId: pick.enemyClass, cls: cls, rows: rows, name: name, variantName: variantName, tuning: variant && variant.tuning ? variant.tuning : null, seed: seed, battlesWon: wonAt, retry: !!rt, rewardMult: pick.rewardMult, play: pick.play || null, script: script, damageMult: pick.damageMult || null, counterReason: counterReason, weakPointChance: counterWeak, aiProfile: cls.aiProfile || "default", learned: learned,
       doctrine: doc || D().enemyAI[cls.aiProfile || "default"].doctrine, label: cls.className + (variantName ? " · " + variantName : "") };
   }
   // Refit & retry: pin the last enemy for the next fight (cleared when that fight is settled, or by letGo).
@@ -236,7 +280,7 @@ BS.Campaign = (function () {
   // Intel: a layout held under lock long enough is remembered for that encounter id (random variants by seed).
   function recordIntel(enc, how) {
     if (!enc) return;
-    save.intel[enc.id] = { rows: enc.rows.slice(), classId: enc.classId, layoutName: enc.variantName || "default", seed: enc.seed || null, how: how, at: Date.now() };
+    save.intel[enc.id] = { rows: enc.rows.slice(), classId: enc.classId, layoutName: enc.variantName || "default", seed: enc.seed || null, tuning: enc.tuning || null, how: how, at: Date.now() };
   }
   function intelFor(enc) {
     var it = save.intel[enc.id];
@@ -267,7 +311,7 @@ BS.Campaign = (function () {
   function recordBook(enc, enemyShip) {
     if (!enc || !enemyShip || !enemyShip.script) return;
     var b = save.book[enc.id] || (save.book[enc.id] = { fights: 0, rules: {} }), def = enemyShip.script.def, seen = {};
-    b.fights++;
+    b.fights++; b.tuning = BS.Grid.tuningText(enemyShip.grid);
     (enemyShip.scriptTrace || []).forEach(function (en) { if (en.rule !== null && en.rule !== undefined && (en.kind === "standing" || en.kind === "callout")) seen[en.rule] = true; });
     Object.keys(seen).forEach(function (i) {
       var r = def.rules[i]; if (!r) return;
@@ -276,6 +320,21 @@ BS.Campaign = (function () {
     });
   }
   function bookFor(enc) { return enc && save.book ? save.book[enc.id] || null : null; }
+  // Signature of a won fight (campaign.learn.remember kept): style tags, average range, side, aim, script, build cost.
+  function recordSignature(state) {
+    var st = state.style ? state.style.player : null, p = state.player; if (!st || !st.t) return;
+    var pick = function (m) { var b = null; Object.keys(m).forEach(function (k) { if (b === null || m[k] > m[b]) b = k; }); return b; };
+    var ts = BS.Grid.tuningSummary(p.grid);
+    var sig = { tuning: { ammo: BS.Grid.dominantTune(ts.ammo), shield: BS.Grid.dominantTune(ts.frequency), armor: BS.Grid.dominantTune(ts.alloy) }, tags: BS.Game.styleTags(st, p), rangeKm: Math.round(10 * st.rangeSum / st.t) / 10, side: pick(st.side) || "auto", aim: pick(st.aim) || "hull", script: BS.Game.templateId(p.script ? p.script.def : null), classId: save.shipClass, cost: layoutCost(battleLayout(save.shipClass)), at: Date.now() };
+    save.signatures = (save.signatures || []).concat([sig]).slice(-D().campaign.learn.remember);
+  }
+  // The tag the enemy learns from: the most frequent over the remembered wins, the latest win breaking ties.
+  function dominantTag() {
+    var sigs = save.signatures || [], count = {}, best = null;
+    sigs.forEach(function (g, i) { g.tags.forEach(function (t) { count[t] = (count[t] || 0) + 1 + i * 0.01; }); });
+    Object.keys(count).forEach(function (t) { if (best === null || count[t] > count[best]) best = t; });
+    return best;
+  }
 
   function buyIntel(enc) {
     var cost = D().campaign.intelCost;
@@ -287,6 +346,7 @@ BS.Campaign = (function () {
     var cr = D().campaign.credits, p = state.player, won = state.result === "victory";
     if (state.encounter && ((state.lockTime || 0) >= D().campaign.intelMinLockSeconds || p.scanned)) recordIntel(state.encounter, "scanned");
     recordBook(state.encounter, state.enemy);
+    if (won) recordSignature(state);
     var hullLostPct = Math.round(100 * (1 - p.hull / p.hullMax));
     var earned, salvage = 0, cleanBonus = 0, clean = won && !(state.callsUsed > 0);
     if (won) {
@@ -313,7 +373,7 @@ BS.Campaign = (function () {
 
   return { load: load, persist: persist, reset: reset, exportJSON: exportJSON, importJSON: importJSON, hasSave: hasSave, get: get,
     currentClass: currentClass, layoutFor: layoutFor, setLayout: setLayout, battleLayout: battleLayout, buyShip: buyShip, selectShip: selectShip,
-    layoutDelta: layoutDelta, countBlocks: countBlocks, applyLayout: applyLayout, builds: builds, saveBuild: saveBuild, deleteBuild: deleteBuild, intelFor: intelFor, buyIntel: buyIntel, bookFor: bookFor,
+    layoutDelta: layoutDelta, countBlocks: countBlocks, applyLayout: applyLayout, tuningFor: tuningFor, battleTuning: battleTuning, builds: builds, saveBuild: saveBuild, deleteBuild: deleteBuild, intelFor: intelFor, buyIntel: buyIntel, bookFor: bookFor, layoutCost: layoutCost, effectiveCost: effectiveCost, dominantTag: dominantTag,
     scriptFor: scriptFor, setScriptFor: setScriptFor, saveScript: saveScript, deleteScript: deleteScript, planFor: planFor, setPlan: setPlan, setRetry: setRetry, letGo: letGo,
     updateTraining: updateTraining, startTraining: startTraining, cancelTraining: cancelTraining, skillMods: skillMods, skillHours: skillHours,
     layoutStats: layoutStats, enemyStatMult: enemyStatMult, encounter: encounter, settleBattle: settleBattle };

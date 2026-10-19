@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.25.0",
+  version: "0.29.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -11,6 +11,7 @@ BS.Data = {
 
   // ---------------------------------------------------------------- balance
   balance: {
+    torpedoSpeedExponent: 0.6,   // torpedo damage vs a target faster than the warhead's explosion velocity: (sig × v_expl / v_target) ^ this
     simStep: 1 / 60,
     maxFrameTime: 0.1,
     maxStepsPerFrame: 32,         // fixed steps a frame may run (speed 4× at 60 fps needs 4)
@@ -237,6 +238,42 @@ BS.Data = {
           ".......SA.....AAARAAQAAAA.",
           "..............AAAAASAAAAA.",
           "...............SQAAAQASA..",
+          ".EEEEEQAAA......PAAQAAP...",
+          ".EEEEESAAA.........P......",
+          ".........................."
+        ] },
+        courier: { name: "Courier", desc: "Twelve more engines in the nacelle roots, the stock phasers and tubes: fast enough to pick the range.", rows: [
+          "..........................",
+          ".EEEEESEEE.........P......",
+          ".EEEEEQEEE......PAAQAAP...",
+          "...............SAAAAAASA..",
+          "..............AAAAASAAAAP.",
+          ".......SA.....AAARAAQAAAA.",
+          "...AA..AAAAA.AARAAQARAANAT",
+          "..AAAAAAAAAA...AAAAQAAAAAA",
+          "..AAAAAAAAAA...AAABAAAAAAA",
+          "...AA..AAAAA.AARAAQARAANAT",
+          ".......SA.....AAARAAQAAAA.",
+          "..............AAAAASAAAAP.",
+          "...............SAAAAAASA..",
+          ".EEEEEQEEE......PAAQAAP...",
+          ".EEEEESEEE.........P......",
+          ".........................."
+        ] },
+        bulwark: { name: "Bulwark", desc: "Sixteen shield emitters and a seventh reactor: the saucer and the engineering hull each sit under a double wall.", rows: [
+          "..........................",
+          ".EEEEESAAA.........P......",
+          ".EEEEEQAAA......PAAQAAP...",
+          "...............SAAAAAASA..",
+          "..............ASAAASAAASP.",
+          ".......SA.....AAARAAQAAAA.",
+          "...AA..AASAA.AARAAQARAANAT",
+          "..AAAAARAAAA...AAAAAAAAAAA",
+          "..AAAAAAAAAA...AAABAAAAAAA",
+          "...AA..AASAA.AARAAQARAANAT",
+          ".......SA.....AAARAAQAAAA.",
+          "..............ASAAASAAASP.",
+          "...............SAAAAAASA..",
           ".EEEEEQAAA......PAAQAAP...",
           ".EEEEESAAA.........P......",
           ".........................."
@@ -751,6 +788,102 @@ BS.Data = {
           "EEED....................",
           "EEE....................."
         ] },
+        interceptor: { name: "Interceptor", desc: "Thirty engines down the wings, six pulse phasers: a tight afterburner orbit nothing can track.", rows: [
+          "EEE.....................",
+          "EEEU....................",
+          "..SQU...................",
+          "...EEE..................",
+          "....EEE.................",
+          ".....EEE................",
+          "......SAA...............",
+          ".......AAA..............",
+          ".....AAAARA.......AAA...",
+          "....ARAAQAAU....AAQAAAA.",
+          "...AQAAAAAAAQAAAAASAANAA",
+          "...AQAAABAAAARAAAASAAAAT",
+          "....ARAAQAAU....AAQAAAA.",
+          ".....AAAARA.......AAA...",
+          ".......AAA..............",
+          "......SAA...............",
+          ".....EEE................",
+          "....EEE.................",
+          "...EEE..................",
+          "..SQU...................",
+          "EEEU....................",
+          "EEE....................."
+        ] },
+        bulwark: { name: "Bulwark", desc: "Twelve shield emitters and five reactors behind six disruptors: a wall that holds a broadside.", rows: [
+          "EEE.....................",
+          "EEED....................",
+          "..SQD...................",
+          "...AAA..................",
+          "....ASA.................",
+          ".....AAA................",
+          "......SAA...............",
+          ".......AAA..............",
+          ".....AAAARA.......AAA...",
+          "....ARAAQAAD....AAQAAAA.",
+          "...AAASAAAAAAASAAASAANAA",
+          "...AAASABAAAARASAASAAAAT",
+          "....ARAAQAAD....AAQAAAA.",
+          ".....AAAARA.......AAA...",
+          ".......AAA..............",
+          "......SAA...............",
+          ".....AAA................",
+          "....ASA.................",
+          "...AAA..................",
+          "..SQD...................",
+          "EEED....................",
+          "EEE....................."
+        ] },
+        pulser: { name: "Pulser", desc: "Ten pulse phasers in place of the cannons: light, fast, and they track anything.", rows: [
+          "EEE.....................",
+          "EEEU....................",
+          "..SQU...................",
+          "...AAA..................",
+          "....AAA.................",
+          ".....AAA................",
+          "......SAA...............",
+          ".......AAA..............",
+          ".....AAAARA.......AAU...",
+          "....ARAAQAAU....AAQAAAA.",
+          "...AAAAAAAAAAAAAAASAANUA",
+          "...AAAAABAAAAAAAAASAAUAT",
+          "....ARAAQAAU....AAQAAAA.",
+          ".....AAAARA.......AAU...",
+          ".......AAA..............",
+          "......SAA...............",
+          ".....AAA................",
+          "....AAA.................",
+          "...AAA..................",
+          "..SQU...................",
+          "EEEU....................",
+          "EEE....................."
+        ] },
+        bombard: { name: "Bombard", desc: "Four torpedo tubes on six reactors, two disruptors: it holds station and fires every tube.", rows: [
+          "EEE.....................",
+          "EEED....................",
+          "..SQA...................",
+          "...AAA..................",
+          "....AAA.................",
+          ".....AAA................",
+          "......SAA...............",
+          ".......ASA..............",
+          ".....AAARAR.......AAA...",
+          "....ARAAQAAA....AAQAAAT.",
+          "...AAAAAAAAAAAAAAASNAAAT",
+          "...AAAAABAAAAAAAAASAAAAT",
+          "....ARAAQAAA....AAQAAAT.",
+          ".....AAARAR.......AAA...",
+          ".......ASA..............",
+          "......SAA...............",
+          ".....AAA................",
+          "....AAA.................",
+          "...AAA..................",
+          "..SQA...................",
+          "EEED....................",
+          "EEE....................."
+        ] },
         torpedo: { name: "Torpedo boat", desc: "Two forward tubes, six reactors, four disruptors.", rows: [
           "EEE.....................",
           "EEED....................",
@@ -1105,6 +1238,29 @@ BS.Data = {
   },
 
   // --------------------------------------------------------------- enemy AI
+  // ------------------------------------------------------------- tuning (0.29)
+  // Five modulations, the Trek "shield frequency" made a rule. Every shield emitter has a frequency, every armor plate
+  // an alloy, every weapon block an ammo modulation (save.tuning[classId]: rows of digits in the layout's shape, 0 = the
+  // faction's default, 1–5 = `list[].digit`). Each modulation beats the next in `order` (a ring, the last beats the
+  // first): a hit whose ammo beats the frequency of the emitter covering the struck block drains that shield ×bonus,
+  // one the frequency beats ×malus; the same against the alloy of a plate it lands on; system blocks take ×1. Tuning a
+  // block off its faction's default costs offFactionCost of its price. EW blocks are outside the ring.
+  tuning: {
+    bonus: 1.5, malus: 0.5,   // measured (DESIGN §8 v0.29): ×1.35 / ×0.65 left the beaten-ammo side at 2 of 4; ×0.5 makes it a loss
+    order: ["graviton", "nadion", "tetryon", "polaron", "antiproton"],
+    list: {
+      graviton:   { digit: "1", name: "Graviton",   short: "GR", color: "#6ab4ff", how: "Graviton beats Nadion: a graviton lattice scatters nadion particles before they couple to the field." },
+      nadion:     { digit: "2", name: "Nadion",     short: "NA", color: "#ff8a5c", how: "Nadion beats Tetryon: rapid nadion emissions collapse a tetryon field's coherence." },
+      tetryon:    { digit: "3", name: "Tetryon",    short: "TE", color: "#c9a0ff", how: "Tetryon beats Polaron: tetryon bleed disrupts the polaron bias a field or a bolt is built on." },
+      polaron:    { digit: "4", name: "Polaron",    short: "PO", color: "#7fd8a0", how: "Polaron beats Antiproton: a polaron charge cancels an antiproton stream before it annihilates on the target." },
+      antiproton: { digit: "5", name: "Antiproton", short: "AP", color: "#ffd166", how: "Antiproton beats Graviton: antiproton annihilation overloads a graviton lattice faster than it can re-form." },
+    },
+    factionDefault: { federation: "nadion", klingon: "polaron" },
+    offFactionCost: 0.15,
+    tunable: { shield: "frequency", armor: "alloy", phaser: "ammo", pulse: "ammo", disruptor: "ammo", torpedo: "ammo" },
+    measured: { ring: "equal hulls, ×1.5 / ×0.5: ammo that beats the defence 4 of 4, a beaten defence 1 of 4, beaten ammo 0 of 4, a hybrid hull against ammo beating one half 0 of 4 (DESIGN §8 v0.29)" },
+  },
+
   enemyAI: {
     // How an enemy fights (enemyAI.doctrines[id]); the encounter names one. All in km / seconds.
     doctrines: {
@@ -1150,6 +1306,34 @@ BS.Data = {
       weakPointKinds: ["emitter", "chain", "blackout", "neck", "crew", "wounded"],   // the cruiser cuts necks
       targetWeights: { none: 0.2, exposed: 0.1, phaser: 0.18, reactor: 0.17, engine: 0.12, shield: 0.13, bridge: 0.1 },
     },
+    // The public doctrine table (0.26): who beats whom, measured (DESIGN §8, Constitution templates vs Bird-of-Prey
+    // variants at 3 wins, 4 fights each; `measured` is the player's wins). The report's "why you lost" quotes the first
+    // row whose winning tag the winner's fight carried and whose losing tag the loser's did (BS.Game.styleTags); the
+    // hangar's doctrine page reads it. Tags: brawl, standoff, alpha, shadow, turtle, roll, strafe, hitfade, kite,
+    // ambush, cloak, emitter, long, close. Rows the theory expects but the harness did not confirm are not here.
+    doctrineTable: [
+      { beats: "strafe",   loses: "standoff", measured: "0 of 4", text: "strafing beats standoff: torpedoes lose most of their damage to a fast pass, and each pass arrives on a fresh bearing inside the tubes' arc" },
+      { beats: "strafe",   loses: "turtle",   measured: "0 of 4", text: "strafing beats turtle: the broadside rolls its best shield toward a ship that is already on another bearing" },
+      { beats: "strafe",   loses: "hitfade",  measured: "1 of 4", text: "strafing beats hit & fade: the fade on the afterburner meets a run-in on the afterburner, and the pass lands on the shield that was fading" },
+      { beats: "brawl",    loses: "ambush",   measured: "1 of 4", text: "a close brawl beats ambush: a brawler that sticks inside 3 km is never where the decloak strike was aimed, and its guns are on the cloak generators the moment the field drops" },
+      { beats: "brawl",    loses: "cloak",    measured: "1 of 4", text: "a close brawl beats a cloak: the field drops on the first hit, and a brawler is never far enough to lose" },
+      { beats: "standoff", loses: "ambush",   measured: "0 of 4, stalemates", text: "standoff beats ambush: a torpedo boat holding 14 km never comes to the knife range the decloak strike needs" },
+      { beats: "standoff", loses: "alpha",    measured: "0 of 4, stalemates", text: "standoff beats alpha: the strike has to cross the whole torpedo band before its guns reach, and the boat kites when it does" },
+      { beats: "strafe",   loses: "alpha",    measured: "2 of 4", text: "strafing holds its own against alpha: the strike lands on one pass and the next pass comes from behind" },
+    ],
+    // Signature counters (0.26, campaign.learn): the dominant tag of the player's last wins → the build and bridge the
+    // next encounter answers with, per hull (null keeps the encounter's own). Only measured answers (DESIGN §8): the
+    // Raider's strafing passes beat standoff, turtle and hit & fade outright; a close brawler beats a cloaked ambusher.
+    // Nothing at the Bird-of-Prey weight beats a Brawler or an emitter hunter yet, and the K't'inga rows are unmeasured,
+    // so those learn nothing. `reason` is what the hangar says.
+    signatureCounters: [
+      { tag: "standoff", bop: { layout: "default", doctrine: "strafe", script: "raider" }, ktinga: null, reason: "expect fast passes: torpedoes lose their damage to speed" },
+      { tag: "long",     bop: { layout: "default", doctrine: "strafe", script: "raider" }, ktinga: null, reason: "expect fast passes: torpedoes lose their damage to speed" },
+      { tag: "turtle",   bop: { layout: "default", doctrine: "strafe", script: "raider" }, ktinga: null, reason: "expect fast passes from a new bearing each time: your best shield is never the right one" },
+      { tag: "hitfade",  bop: { layout: "default", doctrine: "strafe", script: "raider" }, ktinga: null, reason: "expect fast passes that follow you into the fade" },
+      { tag: "cloak",    bop: { layout: "gunboat", doctrine: "brawl", script: "raider" },  ktinga: null, reason: "expect a brawler that sticks inside 3 km: the strike lands on nothing, and its cannons find the cloak generators" },
+      { tag: "ambush",   bop: { layout: "gunboat", doctrine: "brawl", script: "raider" },  ktinga: null, reason: "expect a brawler that sticks inside 3 km: the strike lands on nothing, and its cannons find the cloak generators" },
+    ],
     // Counter-doctrine: an encounter flagged `counter` reads your build before the fight (BS.Campaign.encounter) and takes
     // the first rule whose condition your battle layout meets: tubes, pulse / beam counts, a cloak, or a shield facing
     // much weaker than the strongest. `bop` / `ktinga` name the doctrine per hull (null keeps the encounter's own);
@@ -1197,6 +1381,10 @@ BS.Data = {
       { id: "gunboat",  enemyClass: "bird_of_prey", layout: "gunboat", doctrine: "brawl",     script: "raider",   minWins: 1, weight: 2, rewardMult: 1.1 },
       { id: "torpedo",  enemyClass: "bird_of_prey", layout: "torpedo", doctrine: "standoff",  script: "torpedoBoat", minWins: 1, weight: 2, rewardMult: 1.1, damageMult: 1.0 },   // holds station and fires every tube; with the recharge delay its stream keeps a facing down
       { id: "variant",  enemyClass: "bird_of_prey", layout: "random",  doctrine: ["strafe", "brawl"], script: "raider",   minWins: 2, weight: 3, rewardMult: 1.1, counter: true },
+      { id: "interceptor", enemyClass: "bird_of_prey", layout: "interceptor", doctrine: "skirmish", script: "raider", minWins: 2, weight: 1, rewardMult: 1.1 },   // the Impulse answer
+      { id: "bombard",  enemyClass: "bird_of_prey", layout: "bombard", doctrine: "standoff", script: "torpedoBoat", minWins: 3, weight: 1, rewardMult: 1.2 },   // the Ordnance answer
+      { id: "bulwark",  enemyClass: "bird_of_prey", layout: "bulwark", doctrine: "broadside", script: "cruiser", minWins: 2, weight: 1, rewardMult: 1.1 },   // the Deflector answer
+      { id: "pulser",   enemyClass: "bird_of_prey", layout: "pulser",  doctrine: "brawl",     script: "raider",  minWins: 2, weight: 1, rewardMult: 1.1 },   // the Phaser answer
       { id: "jammer",   enemyClass: "bird_of_prey", layout: "jammer",  doctrine: "brawl",     script: "raider",   minWins: 3, weight: 2, rewardMult: 1.2 },
       { id: "shadow",   enemyClass: "bird_of_prey", layout: "shadow",  doctrine: "ambush",    script: "doctrine", minWins: 3, weight: 2, rewardMult: 1.3, damageMult: 1.2 },   // its decloak strikes already double
       { id: "leech",    enemyClass: "bird_of_prey", layout: "leech",   doctrine: "brawl",     script: "raider",   minWins: 3, weight: 2, rewardMult: 1.2 },   // two neutralisers: a close brawl becomes a capacitor war
@@ -1206,6 +1394,12 @@ BS.Data = {
     ],
     // the very first fight: the raider does not hunt weak points yet (enemyAI profile override while battlesWon is 0)
     firstFight: { weakPointChance: 0 },
+    // They learn (0.26): the campaign keeps the signature of the last `remember` wins (save.signatures: style tags, average
+    // range, side, aim, script). From `fromWins` wins on, with `chance` (seeded) the next encounter takes the first
+    // enemyAI.signatureCounters row matching the dominant tag of those wins: its layout, doctrine and script, provided the
+    // counter layout's effective cost (block cost × the enemy's stat multiplier) is within costBand of the player's build
+    // cost, so the answer is a ship of the same weight. The hangar says so. Fights 0–2 stay naive.
+    learn: { fromWins: 3, chance: 0.6, remember: 3, costBand: 0.25, tagFraction: 0.3, cloakFraction: 0.1, longRangeKm: 9, closeRangeKm: 4 },
     klingonNames: ["IKS Rotarran", "IKS Hegh'ta", "IKS Pagh", "IKS Koraga", "IKS Vorn", "IKS Amar", "IKS Gr'oth", "IKS Bortas", "IKS Ch'Tang", "IKS Maht-H'a"],
   },
 
@@ -1398,7 +1592,7 @@ BS.Data = {
   saveDefaults: {
     version: 2, credits: 600, shipClass: "constitution", ownedShips: ["constitution"],
     layouts: {},                       // classId → array of layout rows; missing = class default layout
-    builds: {},                        // classId → [{ name, rows }] named builds (up to editor.maxSavedBuilds)
+    builds: {},                        // classId → [{ name, rows, tuning }] named builds (up to editor.maxSavedBuilds)
     skills: { gunnery: 0, missiles: 0, navigation: 0, shields: 0, capacitor: 0, targeting: 0 },
     training: null,                    // { skill, level, startedAt, finishesAt } (ms timestamps)
     campaign: { missionIndex: 0, battlesWon: 0, battlesLost: 0, streak: 0, cleanWins: 0, retry: null },   // retry: { encounterId, seed, battlesWon } pins the last enemy for the next fight
@@ -1407,6 +1601,8 @@ BS.Data = {
     scriptByBuild: {},                 // classId → script id or template id the ship undocks with (missing: script.defaultTemplate)
     plans: {},                         // encounterId → { targets: [{ x, y } | { type }], rows } up to script.planTargets targets in order
     book: {},                          // encounterId → { fights, rules: { "<script>:<rule>": { text, n } } } the enemy rules seen firing (opening book)
+    signatures: [],                    // the last campaign.learn.remember wins: { tags, rangeKm, side, aim, script, classId, cost, tuning, at } (BS.Game.styleTags); the enemy learns from them
+    tuning: {},                        // classId → rows of digits in the layout's shape (BS.Data.tuning): shield frequencies, armor alloys, ammo per block
     settings: { sound: true, screenShake: true, manualBridge: false },   // manualBridge: show the hand-flown helm controls (debug)
   },
 

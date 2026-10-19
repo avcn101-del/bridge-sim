@@ -96,6 +96,21 @@ name, while the counter-doctrine is read off the new build. A lost fight
 still counts (loss credits, streak reset). The pin clears when that fight
 is settled, or with *Let it go* in the Intel box.
 
+**Why you lost / What carried it** (0.26): before *Never fired*, the pair
+of standing rules (theirs | ours) under which the largest share of the
+damage landed ("61% of the damage we took landed while their r4 stood:
+'The cruiser is opening the range under our strike' … and our r2 stood:
+'When our heat is over 90%: weapons off'"), then both fights' style tags
+(`BS.Game.styleTags`) and the doctrine table's sentence for the pair
+(`enemyAI.doctrineTable`, `BS.Game.counterSentence`), or "no pairing of
+these styles on the doctrine table". Every shield or hull hit is booked
+to the rules standing at that moment (`state.attrib`, events `shieldHit`
+/ `hullHit`), so the sentence names what actually hurt, not a guess.
+
+**Tuning** (0.29): the *Why you lost* block opens with "Our Graviton
+ammo vs their shields Polaron ×1.00 · armor Polaron ×1.00" and the same
+from their side (`BS.Grid.tuningSummary`, dead blocks counted).
+
 **Their bridge** (0.25): under *Never fired*, every rule of the enemy's
 script that fired, with the time and, for a reaction, the callout Tactical
 read out ("The cruiser is coming about to bring its batteries round").
@@ -151,6 +166,19 @@ The left column of the hangar carries the pre-battle thinking:
   say when an aim needs a scan rule, when an Otherwise rule sits above
   other standing rules, or when a rule does nothing. At most
   `script.maxRules` (12) rules. Policies are checkboxes.
+- **Doctrine** (0.29, `#hg-doctrine`): the tuning ring as chips
+  (Graviton → Nadion → Tetryon → Polaron → Antiproton → Graviton), the one
+  rule, the factions and the surcharge, "Your Graviton ammo vs their
+  Polaron shields: ×1.00 · their Polaron ammo vs your Nadion shields:
+  ×1.00" (from intel, else the faction default), and each modulation's
+  sentence with its measured numbers. The Intel box adds "Tuning: theirs
+  … · yours …"; the Build stats carry a Tuning line; the editor's *Tune*
+  button opens the modulation palette.
+- **They have watched you** (0.26): when the next encounter learned from
+  your signatures (below), a yellow line under the Intel drawing and the
+  "Next:" header say so: "They have watched your last 3 fights (standoff ·
+  standoff · brawl): expect fast passes: torpedoes lose their damage to
+  speed."
 - **Book** (0.25) under the Intel text: "Book · 3 fights: scanned us
   inside 12 km (3) · They're coming about to bring their guns round on us
   (2)": the enemy rules seen firing against this encounter, most often
@@ -874,6 +902,94 @@ intel, script); in the fight the bridge runs the script. A script is
   3, `{ x, y }` on the intel layout or `{ type }`): read by `aim: { plan: n }`;
   the hangar side arrives with PR B.
 
+### Tuning: shield frequencies, alloys and ammo (0.29, `BS.Data.tuning`, `save.tuning`)
+Pillar 2 in its final form, the Trek "remodulate" made a rule. Five
+modulations, all canon particles, in a ring where each beats the next:
+**Graviton → Nadion → Tetryon → Polaron → Antiproton → Graviton** (each
+with a one-line science, `list[].how`). The ring is a public convention,
+like a type chart, not a claim about physics.
+
+- **Every block carries a modulation.** A shield emitter has a
+  *frequency*, an armor plate an *alloy*, every weapon block (phaser,
+  pulse, disruptor, torpedo tube) an *ammo* modulation (`tuning.tunable`).
+  `save.tuning[classId]` holds rows of digits in the layout's shape: `0`
+  = the faction's default (`factionDefault`: Federation Nadion, Klingon
+  Polaron), `1–5` = `list[].digit`. `BS.Grid.build` resolves each block's
+  `tune`; saved builds and presets may carry `tuning` rows.
+- **One rule** (`BS.Grid.tuneMult`, in `applyDamage` and `Grid.hit`): a
+  hit whose ammo beats the frequency of the emitter covering the struck
+  block is ×`bonus` 1.5 for the whole shot while that shield is up, one
+  the frequency beats ×`malus` 0.5; on bare hull the alloy of the plate it
+  lands on does the same for that plate; system blocks take ×1. Because
+  it is per emitter and per plate, a hull can be Graviton at the bow and
+  Nadion astern, and a battery can mix ammo: hybrids hedge, specialists
+  gamble. Tuning a block off its faction's default costs `offFactionCost`
+  15% of its price (`layoutDelta`: retuning pays or refunds only the
+  surcharge).
+- **Hangar.** *Tune* in the editor switches the palette to the five
+  modulations plus "faction default" and "set all weapons / shields /
+  armor" dropdowns; painting a tunable block (Mirror applies) sets its
+  digit; every tuned block shows a dot in its modulation's colour. The
+  Build stats carry a Tuning line; the Doctrine page shows the ring, the
+  rule, the factions, "Your Graviton ammo vs their Polaron shields: ×1.00"
+  from intel or the faction default, and each modulation's sentence with
+  its measured numbers.
+- **Hidden until seen.** The enemy's tuning shows on the scan panel
+  (dots on the drawing and a Tuning line) only once scanned; intel stores
+  the tuning it saw (`save.intel[].tuning`), the Book keeps the last
+  tuning text (`save.book[].tuning`), the signature of a win keeps the
+  dominant ammo, frequency and alloy (`signatures[].tuning`). The
+  report's *Why you lost* opens with "Our Graviton ammo vs their shields
+  Polaron ×1.00 · armor Polaron ×1.00" and the same from their side.
+- Enemy variants carry no tuning yet (all Klingon Polaron): the enemy's
+  answer to the player's ammo and frequencies (remodulating in battle, a
+  *Remodulate* bridge call, learning) is the next PR.
+
+### Honest loss (0.26)
+A loss is meant to be accepted and answered with a new build or script,
+so the enemy may never win by information the player cannot have:
+- The enemy's conditions are the player's conditions (`script.conditions`,
+  one engine). Its strength is the shown percentage (`enemyStatMult`).
+- **Contact, not position**: `BS.Ships.contact(viewer, target)` gives the
+  target itself while it is visible (not cloaked, or cloaked inside the
+  viewer's detect range `science.cloakDetectRangeKm` + `ew.detectPerSensor`
+  per sensor) and otherwise a ghost standing at the last contact. The
+  doctrine machine (`BS.EnemyAI.update`: range, facing, blind time), the
+  helm (`updateCommand`: approach / orbit / keep / shadow fly against the
+  ghost instead of holding course as before) and the script conditions
+  (`dKm*`, `rangeBand`, `enemyCharging`) all read ranges and bearings from
+  it, for both ships. A cloaked ship beyond sensors is hunted at its last
+  known point, not followed.
+- Every reaction carries a callout, read out when the rule takes over,
+  before its effect lands; the report shows which rule hurt.
+- The enemy learns only from fights the player won (signatures below),
+  and the hangar says what it learned before the undock.
+
+### Signatures and learning (0.26, `campaign.learn`, `save.signatures`, `enemyAI.signatureCounters`)
+Pillar 4. `settleBattle` records the signature of a win: the fight's
+style tags (`BS.Game.styleTags`: the dominant doctrine as brawl /
+standoff / strafe / turtle / hitfade / ambush / kite / alpha, plus
+`shadow` when a side was held over `learn.tagFraction` 30% of the time,
+`alpha` for governor-off fire, `cloak` over `cloakFraction` 10%, `emitter`
+for weak-point or emitter aim, `roll`, `long` / `close` by average range
+against `longRangeKm` 9 / `closeRangeKm` 4), the average range, side,
+aim, script and build cost; the last `remember` (3) are kept. From
+`fromWins` (3) wins on, `BS.Campaign.encounter()` rolls `chance` (0.6,
+seeded with the encounter so a reload or a retry agrees) and, when it
+hits, takes the first `signatureCounters` row for the dominant tag over
+the remembered wins (ties to the latest) whose answer exists for the
+rolled hull: that layout, doctrine and script replace the encounter's,
+provided the answer's **effective cost** (block cost × the enemy's stat
+multiplier: a Bird-of-Prey at ×1.52 weighs about a stock Constitution)
+is within `costBand` 25% of the player's build cost, so the answer is a
+ship of the same weight. A learned answer keeps its doctrine against the
+build counter (`enemyAI.counters`); the first-fight and weak-point rules
+still apply. Rows are measured only (DESIGN §8 v0.26): standoff / long /
+turtle / hitfade → the Raider's strafing passes; cloak / ambush → the
+Gunboat brawling. Nothing of Bird-of-Prey weight beats a Brawler or an
+emitter hunter yet and the K't'inga rows are unmeasured, so those tags
+learn nothing and the hangar says nothing. Fights 0–2 stay naive.
+
 ### Enemy reactions and the opening book (0.25, `script.enemyScripts`, `save.book`)
 Pillar 3 of the "build & fight" direction: the enemy answers in the fight
 with rules on the same engine, not with code in `enemyai.js`. The Raider
@@ -992,7 +1108,7 @@ ew: { jamPerBlock, jamDuration, cloakTime, decloakTime, surgeTime, cloakDrain, c
 grid.boarding: { rangeKm, minParty, partyMax, transportTime, bridgeGuard, defenderPerQuarters, gapStart, gapAbort, abortRangeMult, rate, floor }
 script: { tickSeconds, chargingKmS, traceMax, planTargets, defaultTemplate, maxRules, dryRun: { maxSeconds, stepsPerChunk }, bridgeCall: { tokens, holdSeconds, focusSeconds, confirmSeconds, disengageUntil, noCallBonus }, conditions: { id: { label, kind, def, negLabel? } }, actions: { id: { label, kind } }, policies: { id: { label } }, weakKinds,
           templates: { id: { name, desc, requires?, policies, rules: [{ when, do, until?, holdMax?, once?, every? }] } }, enemyScripts: { id: { name, rules } } }
-campaign.firstFight: { weakPointChance }; campaign.encounters[].script; save: scripts[], scriptByBuild{}, plans{}, book{}, settings.manualBridge, campaign.cleanWins, campaign.retry
+campaign.firstFight: { weakPointChance }; campaign.encounters[].script; campaign.learn; tuning (order, list, factionDefault, offFactionCost, tunable, measured, bonus / malus); save.tuning{}, builds[].tuning, intel[].tuning, book[].tuning, signatures[].tuning; shipClasses.*.variants / presets[].element; enemyAI.doctrineTable / signatureCounters; save: scripts[], scriptByBuild{}, plans{}, book{}, signatures[], settings.manualBridge, campaign.cleanWins, campaign.retry
 campaign.salvage: { destroyed, disabled, captured }; enemyAI.*: drainedBelow, drainedUntil, drainedTime; enemyAI.counters[].when.neutMin
 shipClasses: { id: { name, className, role, faction, cost, purchasable, speed, turnRate, signature, lockRangeKm, powerBase,
                      mask: [rows], layout: [rows], presets: { id: { name, desc, rows } }, variants: { id: { name, desc, rows } } (enemies),
@@ -1035,6 +1151,158 @@ harness is in the repository: `tools/harness.js` (Playwright, one
 `campaign.encounters`, seeded `Math.random`, `--noreact` for the 0.24 enemy
 bridge, `--eval` for a data tweak, `--debug` for what each bridge saw) and
 `tools/smoke.js` (the headless interface check).
+
+v0.29.0 (tuning per block; equal-hull Bird-of-Prey duels, stock layout
+both sides, Brawler template vs brawl doctrine, `--tune` / `--etune`,
+4 fights each; cells are the player's wins):
+
+| Player tuning | Enemy tuning | ×1.35 / ×0.65 | ×1.5 / ×0.5 |
+|---|---|---|---|
+| faction default (Polaron) | faction default | 4 of 4 keeping 84–98% | |
+| ammo Graviton | shields + armor Nadion | 4 of 4 keeping 91–100% | **4 of 4** keeping 95–100% |
+| shields + armor Nadion | ammo Graviton | 1 of 4 (3 lost) | **1 of 4** (3 lost) |
+| ammo Nadion | shields + armor Graviton | 2 of 4 (2 lost) | **0 of 4** (3 lost, 1 st; malus 0.5) |
+| shields + armor Graviton port / Nadion starboard (hybrid) | ammo Graviton | 2 of 4 (1 lost, 1 st) | 0 of 4 (3 lost, 1 st) |
+
+Before the multiplier was applied to the whole shot (0.29 first cut: the
+shield pool alone drained at the tuned rate, the hull behind untouched),
+beaten defences still won 3 of 4: too weak to decide a fight. Campaign
+regression at faction defaults (Federation Nadion ammo against Klingon
+Polaron shields is a neutral pair, so nothing changes): Brawler vs Raider
+(0 wins) 3 of 4 keeping 74–91%; vs K't'inga (4 wins) 2 of 3; Galaxy vs
+Siege (6 wins) 2 of 2 keeping 91–96%. A stock Constitution (Nadion ammo)
+against a 0-win Raider whose shields and plates are tuned Graviton:
+**0 of 4** (the campaign enemy does not tune yet; this is what its
+learned answer will do).
+
+Honest reading: the rule decides a fight in both directions at ×1.5 /
+×0.5 (beaten defence 1 of 4, beaten ammo 0 of 4). A hybrid hull does
+**not** hedge at that strength: 0 of 4 against ammo that beats one half
+(2 of 4 at ×1.35 / ×0.65), because the beaten half is where the brawl
+flips to and where the plates go first. Not measured: mixed ammo
+batteries. The enemy never retunes yet, so in the campaign the player
+holds every edge until the next PR gives the enemy its answer; the 0 of 4
+above says that answer will bite.
+
+v0.28.0 (the element ring, one multiplier; the 0.27 weapon chart and
+exponent removed; equal-hull duels as in 0.27, the beating element flown
+by the player as attacker, then the beaten element flown by the player as
+defender; 4 fights each):
+
+| Edge | ±25%: attacker / defender | ±35% |
+|---|---|---|
+| Graviton (Bulwark, Turtle / broadside) beats Nadion (Pulser, Brawler / brawl) | **4 of 4** / 1 of 4 (2 st) | |
+| Nadion beats Photon (Bombard, Siege / standoff) | 2 of 4 (2 st) / 1 of 4 (3 st): **stalemates** | **4 of 4** / 0 of 4 (4 st) |
+| Photon beats Plasma (Interceptor, Brawler / skirmish) | **4 of 4** / 0 of 4 | |
+| Plasma beats Duranium (Gunboat, Brawler / brawl) | **4 of 4** / 0 of 4 (1 st) | |
+| Duranium beats Graviton | **3 of 4** / 0 of 4 | |
+
+±50% on Nadion vs Photon gave the same as ±35% (4 of 4 / 0 of 4), so
+the smaller step is the one shipped; the four edges that held at ±25% hold
+at ±35% a fortiori. Campaign regression at ±35% (stock hulls are mixed, so
+only the named variants and presets feel the ring): Brawler vs Raider (0
+wins) 4 of 4 in 2:21–6:57 keeping 44–91%; vs Torpedo boat (1 win) 4 of 4
+keeping 97–99%; vs K't'inga (4 wins) 2 of 3 keeping 65–83%; vs Shadow (3
+wins) 2 of 2; Galaxy vs Siege (6 wins) 2 of 2 keeping 91–96%; Brawler vs
+Bombard (3 wins) 1 of 4 (two losses, one stalemate). The ring in the
+campaign: the Brawler preset (Duranium) on the Brawler template vs the
+Interceptor (Plasma, 3 wins) **0 of 4**, as the ring says.
+
+Honest reading: the ring is one number and it holds on every edge, both
+ways, at ±35%. What it does not do yet: a mixed stock hull never feels
+it, and the Nadion-Photon edge is a wall (the Photon ship cannot win, it
+also does not die: four stalemates) rather than a kill.
+
+v0.27.0 (elements; `tools/harness.js --ship bird_of_prey --rows variant:X
+--equal`: both ships a Bird-of-Prey, the enemy's stat, damage and accuracy
+multipliers 1, the player's reaction delay, no aim re-rolls, no retreat;
+the player flies the variant with the natural template, the enemy the
+variant with its doctrine: Interceptor / Brawler vs skirmish, Bombard /
+Siege vs standoff + Siege play, Bulwark / Turtle vs broadside, Gunboat /
+Brawler vs brawl, Pulser / Brawler vs brawl; 4 fights per cell, cells are
+the player's wins, "st" stalemates; chart ×1.5 / ×0.7 / ×0.75, exponent
+1.0):
+
+| Player \ enemy | Impulse | Ordnance | Deflector | Armour | Phaser |
+|---|---|---|---|---|---|
+| **Impulse** | — | 1 (3 st) | **4** | **4** | 4 |
+| **Ordnance** | **4** | — | 1 | 4* | 3* |
+| **Deflector** | 0 | **4** | — | 4 | 4* |
+| **Armour** | 0 | 1* | 3 | — | 4 |
+| **Phaser** | 4* | 1* | 3* | 3 | — |
+
+(* measured under the earlier chart ×2.0 / ×0.5 / ×0.5 or the 8-pulse
+Pulser; the bold cells are the edges that held in both directions and are
+published in `elements.edges`.) Reading: a three-element wheel Ordnance →
+Impulse → Deflector → Ordnance, Impulse over Armour, and the rest even:
+the player side wins both ways where no mechanic separates the builds.
+
+What the chart did on the way: at ×2.0 / ×0.5 / ×0.5 Ordnance beat every
+element (4 of 4 against all four) and the campaign broke (Brawler vs
+K't'inga 3 of 3 keeping 100%, Brawler vs Bombard 0 of 4, Galaxy vs Siege
+1 of 2); torpedoes at ×1.5 against the Bulwark stalemated both ways until
+the Bombard got its fourth tube; the cannon-armed Interceptor stalemated
+against the Bombard and lost to it as a strafer (passes with the
+afterburner off eat torpedoes), the pulse-armed Interceptor on a skirmish
+orbit is the Impulse that beats Deflector and Armour. The exponent alone
+(0.6 → 1.0, 1.5) did not give Impulse the edge over Ordnance: 2 of 4 and
+stalemates.
+
+Campaign regression under the final chart: Brawler vs Raider (0 wins) 3 of
+4 in 2:52–3:59 keeping 72–99%; vs Torpedo boat (1 win) 4 of 4 keeping
+79–96%; vs K't'inga (4 wins) 2 of 3 keeping 92–100%, one stalemate; vs
+Shadow (3 wins) 2 of 2; Galaxy vs Siege (6 wins) 2 of 2 keeping 91–98%;
+Brawler vs **Bombard** (3 wins) 1 of 4 with three stalemates: the new
+Ordnance encounter is a wall for a mixed build, as the wheel says. Sniper
+Siege vs strafing Raider (3 wins) 1 of 4.
+
+Honest reading: the wheel is three elements, not five, and it is the
+game's own physics, not the one drawn beforehand (torpedoes kill the light
+fast hull; the wall out-recharges the tubes; speed out-tracks the wall and
+the cannons). Armour and Phaser need a mechanic of their own to earn an
+edge (point-defence phasers against torpedoes would give Phaser over
+Ordnance and close a five-cycle); that is the next measured step, not a
+multiplier.
+
+v0.26.0 (honest contact, learning; `tools/harness.js --variant / --doctrine /
+--escript` force the enemy, `--signature tag --learn` force the learning
+path; Constitution templates (presets where named) vs every Bird-of-Prey
+variant at **3 wins** (strength 152%), 4 fights each, seeds fixed per row;
+cells are the player's wins of 4, "st" stalemates at 10 min):
+
+| Player \ enemy | Raider strafe | Gunboat brawl | Torpedo boat standoff | Jammer brawl | Leech brawl | Shadow ambush |
+|---|---|---|---|---|---|---|
+| **Brawler** | 3 | 3 | 4 (another seed: 2 + 2 st) | 3 | 4 | 4 |
+| **Siege** on the Sniper preset (4 tubes) | **0** | 2 | **0** (3 lost, 1 st) | 2 | 2 | 0 (4 st) |
+| **Ambush** on the Shadow hunter preset | 2 + 2 st | **1** (2 lost, 1 st) | 0 (4 st) | 3 | 3 | 2 + 2 st |
+| **Emitter hunter** (§4 example script) | 3 | 4 | 4 | 4 | 4 | 4 |
+| **Hit & fade** | **1** (3 lost) | 4 | 3 | 4 | 2 (1 lost, 1 st) | 3 |
+| **Alpha strike** | 2 (2 lost) | 4 | 0 (4 st) | — | — | — |
+| **Turtle** | **0** (4 lost) | 2 | 4 | — | — | — |
+
+Learning path (`--signature … --learn`, the enemy answers the dominant
+tag): standoff → Raider strafe 0 of 4; turtle → Raider strafe 0 of 4;
+cloak → Gunboat brawl 0 of 4 (2 lost, 2 st); hit & fade → Raider strafe
+1 of 4. Before the rows were measured the theory rows (standoff → Gunboat
+2 of 4, brawl → Torpedo boat 4 of 4, cloak → Leech 3 of 4, emitter →
+Jammer 4 of 4, shadow → Gunboat 4 of 4 keeping 99% / Siege cruiser 4 of 4)
+all failed the 65/35 target and were dropped from the data.
+
+Honest contact: Brawler vs Shadow (3 wins) 4 of 4 in 1:48–3:23 keeping
+79–93% (0.25: 2 of 2); Shadow hunter Ambush vs Raider 2 of 4 + 2 st
+(0.25: 3 of 4 + 1 st): the raider now hunts the last contact instead of
+following the cloaked ship, and the ambusher gains nothing from it
+because its own strike needs knife range anyway. Brawler vs Raider at 0
+wins 4 of 4 in 2:21–6:57 keeping 44–91%; Galaxy vs Siege 2 of 2.
+
+Honest reading: at Bird-of-Prey weight the game has **four measured
+counters** (strafe beats standoff, turtle and hit & fade; a close brawl
+beats a cloaked ambusher) and **two styles with no counter**: the Brawler
+template and an emitter hunter win 3–4 of 4 against every variant. The
+enemy can now learn and say so, but against those two it has nothing to
+learn; the next lever is pillar 6 (the player's own winning build as the
+opponent) or a counter-build at the same weight, not a rule. The 65/35
+target is met by the four rows in the data and by nothing else.
 
 v0.25.0 (enemy reactions, the blind roll moved into the scripts and counted
 only in firing states; `--seed` fixed per pair so "react" and "no react"
@@ -1408,6 +1676,10 @@ than slower (it is nearly untouched, as intended).
 | v0.11.0 (done) | Cloak and ECM fields: a ship cloaks only with every block inside a cloak field (several devices per hull), a partial ECM field steers the jammed enemy's fire onto the uncovered blocks |
 | v0.12.0 (done) | Disruptor cannons (punch, penetration, poor tracking) and pulse phasers (tracking, knife range) as blocks and weapon groups; Klingons mount cannons |
 | v0.13.0 (done) | Crew: systems need hands, the bridge and crew quarters supply them, manning slows weapons and shields, blocks far from quarters repair slowly; every layout re-fitted |
+| v0.29.0 (done) | Tuning: five modulations on every shield emitter, armor plate and weapon block (shield frequency, alloy, ammo), one ring and one multiplier, faction defaults with an off-faction surcharge, Tune mode in the editor, tuning on scan / intel / Book / report, equal-hull measurements |
+| v0.28.0 (done) | The element ring: five Trek elements (Graviton, Nadion, Photon, Plasma, Duranium) as block families, one rule (×1.35 into the element you beat, ×0.65 into the one that beats you), measured in both directions on every edge; Doctrine page, element answers in the enemy's learning |
+| v0.27.0 (done) | Elements: five block families with a type chart in the damage path, a build's element in the hangar, the measured three-element wheel and the balanced pair on a Doctrine page, element answers in the enemy's learning, five new layouts, equal-hull duels in the harness |
+| v0.26.0 (done) | Honest loss (contact instead of a cloaked ship's position, for both ships), "why you lost" with damage booked to the standing rules and the measured doctrine table, signatures of wins and an enemy that learns from them (same-weight answers, said in the hangar), the 3-win matrix in §8 |
 | v0.25.0 (done) | Enemy reactions as script rules with callouts (roll when shadowed, reinforce and roll when their emitters are hunted, kite under an alpha, hold off a cloaked ship), new observations (enemy stance, aim, range band off our weapons, afterburner, heat, blind time), opening book per encounter, `tools/harness.js` and `tools/smoke.js` |
 | v0.24.0 (done) | Battle report with the script timeline and never-fired reasons, clean-bridge bonus, refit & retry against the same enemy |
 | v0.23.0 (done) | Battle screen: bridge calls (2 a battle, confirm by pressing twice, overrides that hand back), trace band, speed 1× / 2× / 4×, manual bridge behind a debug setting |
