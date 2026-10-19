@@ -70,7 +70,7 @@ BS.Script = (function () {
     if (!when) return true;
     var keys = Object.keys(when);
     if (!keys.length) return true;
-    var dKm = S.distanceKm(ship, target), st = ship.stats, est = target.stats;
+    var dKm = S.contactKm(ship, target), st = ship.stats, est = target.stats;   // ranges off our contact, not a cloaked ship's true position
     var heat = st.heatCap ? ship.heat / st.heatCap : 0;
     var facing = S.shieldFrac(ship, S.facingToward(ship, target.pos.x, target.pos.y)), weakest = S.shieldFrac(ship, S.weakestFacing(ship));
     var cap = ship.capMax ? ship.capacitor / ship.capMax : 0, ecap = target.capMax ? target.capacitor / target.capMax : 0;
@@ -128,6 +128,7 @@ BS.Script = (function () {
     return true;
   }
   function closingKmS(ship, target) {
+    var ct = S.contact(ship, target); if (ct.ghost) return 0;
     var dx = target.pos.x - ship.pos.x, dy = target.pos.y - ship.pos.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
     var rvx = target.vel.x - ship.vel.x, rvy = target.vel.y - ship.vel.y;
     return -S.km(rvx * dx / d + rvy * dy / d);   // positive when the range is closing
@@ -299,7 +300,7 @@ BS.Script = (function () {
   // ---- what the battle looked like, for the report: extremes of every measured quantity and which rules ever held ----
   function record(ship, target, sc) {
     var x = sc.extremes || (sc.extremes = { dKmMin: Infinity, dKmMax: 0, weakestMin: 1, facingMin: 1, heatMax: 0, capMin: 1, capMax: 0, hullMin: 1, efacingMin: 1, ecapMin: 1, ehullMin: 1, incomingMax: 0, ever: {} });
-    var dKm = S.distanceKm(ship, target), st = ship.stats, est = target.stats;
+    var dKm = S.contactKm(ship, target), st = ship.stats, est = target.stats;
     x.dKmMin = Math.min(x.dKmMin, dKm); x.dKmMax = Math.max(x.dKmMax, dKm);
     x.weakestMin = Math.min(x.weakestMin, S.shieldFrac(ship, S.weakestFacing(ship)));
     x.facingMin = Math.min(x.facingMin, S.shieldFrac(ship, S.facingToward(ship, target.pos.x, target.pos.y)));

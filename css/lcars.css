@@ -234,6 +234,7 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
 .hg-intel-info { flex: 1; font-size: 12.5px; line-height: 1.35; min-width: 0; }
 .hg-intel-info .wp { padding: 2px 6px; margin: 2px 0; border-radius: 6px; border: 1px solid #2a2a40; background: #0b0c1c; font-size: 12px; }
 .hg-book { margin-top: 4px; line-height: 1.3; }
+.hg-learned { color: var(--c-yellow); margin: 4px 0; }
 .hg-intel-info .lcars-btn { margin-top: 6px; }
 
 /* -------------------------------------------------------------- scan */

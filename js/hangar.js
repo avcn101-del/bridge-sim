@@ -90,7 +90,10 @@ BS.Hangar = (function () {
   }
   // Opening book: what this encounter's bridge has been seen doing (save.book), most often first.
   function bookLine(enc) {
-    var b = C.bookFor(enc);
+    var b = C.bookFor(enc), lr = enc.learned ? "<div class='warn hg-learned'>They have watched your last " + enc.learned.fights + " fight" + (enc.learned.fights === 1 ? "" : "s") + " (" + escapeHtml(enc.learned.tags.join(" · ")) + "): " + escapeHtml(enc.learned.reason) + ".</div>" : "";
+    return lr + bookLine0(b);
+  }
+  function bookLine0(b) {
     if (!b || !b.fights) return "<div class='dim hg-book'>Book · no fights on record: their bridge is a closed book.</div>";
     var rules = Object.keys(b.rules).map(function (k) { return b.rules[k]; }).sort(function (a, c) { return c.n - a.n; });
     return "<div class='dim hg-book'>Book · " + b.fights + " fight" + (b.fights === 1 ? "" : "s") + ": " + rules.map(function (r) { return escapeHtml(r.text) + " (" + r.n + ")"; }).join(" · ") + "</div>";
@@ -103,7 +106,7 @@ BS.Hangar = (function () {
     el["hg-record"].textContent = s.campaign.battlesWon + " won · " + s.campaign.battlesLost + " lost" + (s.campaign.cleanWins ? " · " + s.campaign.cleanWins + " clean" : "") + (s.campaign.streak > 1 ? " · streak " + s.campaign.streak : "");
     var enc = C.encounter();
     var docLabel = BS.Data.enemyAI.stateLabels[enc.doctrine] || enc.doctrine;
-    el["hg-threat"].textContent = (enc.retry ? "Retry: " : "Next: ") + enc.label + " · strength " + Math.round(C.enemyStatMult(enc.aiProfile) * 100) + "% · " + enc.doctrine + (enc.counterReason ? " (" + enc.counterReason + ")" : "");
+    el["hg-threat"].textContent = (enc.retry ? "Retry: " : "Next: ") + enc.label + " · strength " + Math.round(C.enemyStatMult(enc.aiProfile) * 100) + "% · " + enc.doctrine + (enc.learned ? " (they have watched you: " + enc.learned.reason + ")" : enc.counterReason ? " (" + enc.counterReason + ")" : "");
     el["hg-threat"].title = "Sensors report a " + enc.cls.className + (enc.variantName ? " (" + enc.variantName + " layout)" : "") + ". Reward ×" + enc.rewardMult + ". Doctrine: " + enc.doctrine + (enc.counterReason ? ": " + enc.counterReason + ". Change your build and they change their plan." : ".");
     renderIntel(enc);
     renderPlan(enc);

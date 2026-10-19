@@ -170,10 +170,11 @@ BS.EnemyAI = (function () {
     if (!ship.lock.target && (enemy || ai.relock) && ship.jammed <= 0 && !S.isCloaked(target) && S.distanceKm(ship, target) <= ship.cls.lockRangeKm) S.startLock(ship, target);
 
     var hullPct = ship.hull / ship.hullMax;
-    var facing = S.facingToward(ship, target.pos.x, target.pos.y);
+    var ct = S.contact(ship, target), live = !ct.ghost;   // a cloaked target beyond our sensors: the last contact, not its true position
+    var facing = S.facingToward(ship, ct.pos.x, ct.pos.y);
     var facingPct = S.shieldFrac(ship, facing);
     var capPct = ship.capacitor / ship.capMax;
-    var dKm = S.distanceKm(ship, target);
+    var dKm = S.km(BS.Util.dist(ship.pos.x, ship.pos.y, ct.pos.x, ct.pos.y));
     var engaged = ai.state !== "approach" && ai.state !== "retreat" && ai.state !== "stalk";
 
     // the target's core is going critical: everybody with a working helm clears the blast radius
@@ -215,7 +216,7 @@ BS.EnemyAI = (function () {
     // Counted only in the states that mean to fire (brawl, pass, broadside, standoff): a ship breaking off or kiting
     // shows its tail on purpose.
     var firing = ai.state === "brawl" || ai.state === "pass" || ai.state === "broadside" || ai.state === "standoff";
-    if (firing) { if (bearingCount(ship, target, false) === 0) ai.blindTimer += (enemy ? p.reactionDelay : H.reactionDelay); else ai.blindTimer = 0; } else ai.blindTimer = 0;
+    if (firing && live) { if (bearingCount(ship, target, false) === 0) ai.blindTimer += (enemy ? p.reactionDelay : H.reactionDelay); else ai.blindTimer = 0; } else ai.blindTimer = 0;
     // auto-flip while orbiting: bring the other battery round, or show a fresh shield
     if ((ai.state === "brawl" || ai.state === "pass") && ship.cmd.type === "orbit" && ai.flipTimer > H.flipMinInterval) {
       var why = flipReason(ship, target, facing, facingPct);

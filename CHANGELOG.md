@@ -2,6 +2,31 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.26.0] — 2026-10-19 (honest loss, why you lost, the enemy learns; PR B of the "chess" pillars)
+
+### Added
+- **Why you lost / What carried it** in the battle report: the pair of
+  standing rules (theirs | ours) under which most of the damage landed,
+  both fights' style tags and the doctrine table's sentence for the pair
+  (`enemyAI.doctrineTable`, measured rows only).
+- **Signatures and learning**: a win records its style (tags, range, side,
+  aim, script, cost; `save.signatures`, last 3). From 3 wins on, with a
+  60% seeded chance, the next encounter answers the dominant tag with a
+  measured counter of the same weight (`enemyAI.signatureCounters`,
+  `campaign.learn`); the hangar says "They have watched your last 3
+  fights (…): expect …".
+- `tools/harness.js`: `--variant / --doctrine / --escript` force the enemy,
+  `--signature tag --learn` force the learning path.
+
+### Changed
+- **Honest contact**: a cloaked ship beyond the viewer's sensors is known
+  only by its last contact (`BS.Ships.contact`); the doctrine machine, the
+  helm and the script conditions read ranges and bearings from it, for
+  both ships. The helm now flies against the last contact instead of
+  holding course.
+- DESIGN §8 carries the 3-win matrix (7 player styles × 6 Bird-of-Prey
+  variants); the theory counters that failed it were dropped from data.
+
 ## [0.25.0] — 2026-10-19 (enemy reactions, opening book, PR A of the "chess" pillars)
 
 ### Added

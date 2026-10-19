@@ -45,6 +45,7 @@ BS.Campaign = (function () {
     out.scripts = (s.scripts || []).filter(function (sc) { return sc && sc.id && sc.name && Array.isArray(sc.rules); });
     out.scriptByBuild = {}; Object.keys(s.scriptByBuild || {}).forEach(function (id) { if (D().shipClasses[id]) out.scriptByBuild[id] = s.scriptByBuild[id]; });
     out.plans = {}; Object.keys(s.plans || {}).forEach(function (id) { var pl = s.plans[id]; if (pl && Array.isArray(pl.targets)) out.plans[id] = pl; });
+    out.signatures = (s.signatures || []).filter(function (g) { return g && Array.isArray(g.tags); }).slice(-D().campaign.learn.remember);
     out.book = {}; Object.keys(s.book || {}).forEach(function (id) { var bk = s.book[id]; if (bk && typeof bk.fights === "number" && bk.rules && typeof bk.rules === "object") out.book[id] = bk; });
     out.version = 2;
     return out;
@@ -78,6 +79,10 @@ BS.Campaign = (function () {
     });
     return { cost: cost, refund: Math.round(refund), net: Math.round(cost - refund) };
   }
+  // Block cost of a layout, and the effective cost of an enemy layout: its blocks times the stat multiplier it fights
+  // with (a Bird-of-Prey at ×1.4 weighs about what a stock Constitution does).
+  function layoutCost(rows) { var c = countBlocks(rows), cost = 0; Object.keys(c).forEach(function (t) { cost += c[t] * (D().blocks[t] ? D().blocks[t].cost : 0); }); return cost; }
+  function effectiveCost(rows, profileId) { return layoutCost(rows) * enemyStatMult(profileId); }
   function countBlocks(rows) {
     var counts = {};
     rows.forEach(function (r) { for (var i = 0; i < r.length; i++) { var t = BS.Grid.typeForLetter(r[i]); if (t) counts[t] = (counts[t] || 0) + 1; } });
@@ -207,6 +212,22 @@ BS.Campaign = (function () {
     else rows = cls.layout;
     var names = D().campaign.klingonNames, name = names.length ? names[Math.floor(rng() * names.length)] : cls.name;
     var doc = pick.doctrine; if (Array.isArray(doc)) doc = doc[Math.floor(rng() * doc.length)];
+    var script = pick.script || "doctrine";
+    // they learn (campaign.learn): from fromWins on, with `chance`, the dominant tag of the remembered wins picks a
+    // signature counter: that hull's layout, doctrine and script, if the counter layout weighs about what your build does
+    var learned = null, L = D().campaign.learn, learnRoll = rng();
+    if (wonAt >= L.fromWins && (save.signatures || []).length && learnRoll < L.chance) {
+      var tag = dominantTag(), hk = pick.enemyClass === "ktinga" ? "ktinga" : "bop";
+      var row = D().enemyAI.signatureCounters.filter(function (r) { return r.tag === tag && r[hk]; })[0];
+      if (row) {
+        var ans = row[hk], arows = ans.layout === "default" ? cls.layout : cls.variants && cls.variants[ans.layout] ? cls.variants[ans.layout].rows : null;
+        var myCost = layoutCost(battleLayout(save.shipClass)), theirs = arows ? effectiveCost(arows, cls.aiProfile || "default") : 0;
+        if (arows && Math.abs(theirs - myCost) <= L.costBand * myCost) {
+          rows = arows; variantName = ans.layout === "default" ? null : cls.variants[ans.layout].name; doc = ans.doctrine; script = ans.script;
+          learned = { tag: tag, reason: row.reason, fights: (save.signatures || []).length, tags: (save.signatures || []).map(function (g) { return g.tags[0] || "?"; }) };
+        }
+      }
+    }
     // counter-doctrine: a flagged encounter reads the player's battle layout and answers it (enemyAI.counters)
     var counterReason = null, counterWeak = null;
     if (pick.counter) {
@@ -222,11 +243,11 @@ BS.Campaign = (function () {
         if (w.cloak !== undefined && hasCloak !== w.cloak) ok = false;
         if (w.neutMin !== undefined && neuts < w.neutMin) ok = false;
         if (w.weakFacingBelow !== undefined && weakRatio >= w.weakFacingBelow) ok = false;
-        if (ok) { if (ru[hullKey] && D().enemyAI.doctrines[ru[hullKey]]) doc = ru[hullKey]; counterReason = ru.reason; counterWeak = ru.weakPointChance || null; break; }
+        if (ok) { if (!learned && ru[hullKey] && D().enemyAI.doctrines[ru[hullKey]]) doc = ru[hullKey]; counterReason = ru.reason; counterWeak = ru.weakPointChance || null; break; }   // a learned answer keeps its doctrine
       }
     }
     if (wonAt === 0 && D().campaign.firstFight && counterWeak === null) counterWeak = D().campaign.firstFight.weakPointChance;   // the first fight: no weak-point hunting
-    return { id: pick.id, classId: pick.enemyClass, cls: cls, rows: rows, name: name, variantName: variantName, seed: seed, battlesWon: wonAt, retry: !!rt, rewardMult: pick.rewardMult, play: pick.play || null, script: pick.script || "doctrine", damageMult: pick.damageMult || null, counterReason: counterReason, weakPointChance: counterWeak, aiProfile: cls.aiProfile || "default",
+    return { id: pick.id, classId: pick.enemyClass, cls: cls, rows: rows, name: name, variantName: variantName, seed: seed, battlesWon: wonAt, retry: !!rt, rewardMult: pick.rewardMult, play: pick.play || null, script: script, damageMult: pick.damageMult || null, counterReason: counterReason, weakPointChance: counterWeak, aiProfile: cls.aiProfile || "default", learned: learned,
       doctrine: doc || D().enemyAI[cls.aiProfile || "default"].doctrine, label: cls.className + (variantName ? " · " + variantName : "") };
   }
   // Refit & retry: pin the last enemy for the next fight (cleared when that fight is settled, or by letGo).
@@ -276,6 +297,20 @@ BS.Campaign = (function () {
     });
   }
   function bookFor(enc) { return enc && save.book ? save.book[enc.id] || null : null; }
+  // Signature of a won fight (campaign.learn.remember kept): style tags, average range, side, aim, script, build cost.
+  function recordSignature(state) {
+    var st = state.style ? state.style.player : null, p = state.player; if (!st || !st.t) return;
+    var pick = function (m) { var b = null; Object.keys(m).forEach(function (k) { if (b === null || m[k] > m[b]) b = k; }); return b; };
+    var sig = { tags: BS.Game.styleTags(st, p), rangeKm: Math.round(10 * st.rangeSum / st.t) / 10, side: pick(st.side) || "auto", aim: pick(st.aim) || "hull", script: BS.Game.templateId(p.script ? p.script.def : null), classId: save.shipClass, cost: layoutCost(battleLayout(save.shipClass)), at: Date.now() };
+    save.signatures = (save.signatures || []).concat([sig]).slice(-D().campaign.learn.remember);
+  }
+  // The tag the enemy learns from: the most frequent over the remembered wins, the latest win breaking ties.
+  function dominantTag() {
+    var sigs = save.signatures || [], count = {}, best = null;
+    sigs.forEach(function (g, i) { g.tags.forEach(function (t) { count[t] = (count[t] || 0) + 1 + i * 0.01; }); });
+    Object.keys(count).forEach(function (t) { if (best === null || count[t] > count[best]) best = t; });
+    return best;
+  }
 
   function buyIntel(enc) {
     var cost = D().campaign.intelCost;
@@ -287,6 +322,7 @@ BS.Campaign = (function () {
     var cr = D().campaign.credits, p = state.player, won = state.result === "victory";
     if (state.encounter && ((state.lockTime || 0) >= D().campaign.intelMinLockSeconds || p.scanned)) recordIntel(state.encounter, "scanned");
     recordBook(state.encounter, state.enemy);
+    if (won) recordSignature(state);
     var hullLostPct = Math.round(100 * (1 - p.hull / p.hullMax));
     var earned, salvage = 0, cleanBonus = 0, clean = won && !(state.callsUsed > 0);
     if (won) {
@@ -313,7 +349,7 @@ BS.Campaign = (function () {
 
   return { load: load, persist: persist, reset: reset, exportJSON: exportJSON, importJSON: importJSON, hasSave: hasSave, get: get,
     currentClass: currentClass, layoutFor: layoutFor, setLayout: setLayout, battleLayout: battleLayout, buyShip: buyShip, selectShip: selectShip,
-    layoutDelta: layoutDelta, countBlocks: countBlocks, applyLayout: applyLayout, builds: builds, saveBuild: saveBuild, deleteBuild: deleteBuild, intelFor: intelFor, buyIntel: buyIntel, bookFor: bookFor,
+    layoutDelta: layoutDelta, countBlocks: countBlocks, applyLayout: applyLayout, builds: builds, saveBuild: saveBuild, deleteBuild: deleteBuild, intelFor: intelFor, buyIntel: buyIntel, bookFor: bookFor, layoutCost: layoutCost, effectiveCost: effectiveCost, dominantTag: dominantTag,
     scriptFor: scriptFor, setScriptFor: setScriptFor, saveScript: saveScript, deleteScript: deleteScript, planFor: planFor, setPlan: setPlan, setRetry: setRetry, letGo: letGo,
     updateTraining: updateTraining, startTraining: startTraining, cancelTraining: cancelTraining, skillMods: skillMods, skillHours: skillHours,
     layoutStats: layoutStats, enemyStatMult: enemyStatMult, encounter: encounter, settleBattle: settleBattle };
