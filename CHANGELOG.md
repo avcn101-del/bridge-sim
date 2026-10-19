@@ -2,6 +2,44 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.25.0] — 2026-10-19 (enemy reactions, opening book, PR A of the "chess" pillars)
+
+### Added
+- **Enemy reactions** as script rules with callouts (`script.enemyScripts`,
+  same engine, nothing new in `enemyai.js`): roll when shadowed, reinforce
+  and roll when their emitters are hunted, kite under an alpha strike, hold
+  off a cloaked ship then scan. Tactical reads each reaction out; the
+  Gunboat, random variant, Jammer boat and Leech fly the Raider script.
+- **Conditions**: `enemyStance` (orbiting / holding / shadowing / kiting /
+  closing / rolling), `enemyAimingAt` (hull / a type / a weak point /
+  structure), `rangeBand` measured off our own weapons (beam optimal,
+  torpedo range, beyond), `enemyAfterburner`, `enemyHeatAbove / Below`,
+  `blindFor`. **Action** `roll` (come about to the side with the most fire)
+  and rule field `callout`.
+- **Opening book**: the battle report lists *Their bridge* (the enemy rules
+  that fired, in their words); the hangar Intel box shows the book for the
+  next encounter ("Book · 3 fights: …", `save.book`).
+- `script.maxScripts` (12): Copy as new refuses beyond it.
+- `tools/harness.js` (balance runs per DESIGN §8: forced encounter, seeded
+  rolls, `--noreact`, `--eval`, `--debug`) and `tools/smoke.js` (headless
+  interface check, desktop and phone landscape).
+
+### Changed
+- The blind-sector roll left `enemyai.js` (`blindTolerance` removed): it is
+  a rule in every enemy script, and the blind time counts only in the
+  firing states (brawl, pass, broadside, standoff), so a strafer breaking
+  off no longer "rolls".
+- Reaction doctrines `kite` (keep 9 km) and `watch` (hold 5 km) in
+  `enemyAI.doctrines`; `helm.repositionDuration` for a player roll.
+- Battle report reasons: "they never shot at our shield emitters", "they
+  were never rolling a fresh side", "our guns never lost them for 3 s".
+
+### Measured (DESIGN §8)
+- Nothing regressed (Brawler vs Raider 6 of 6; cruiser, torpedo boat,
+  Shadow, Siege as before). No reaction yet costs the player anything
+  measurable; the cloak reaction even helps the ambusher. Left for the
+  counter table (pillar 2).
+
 ## [0.24.0] — 2026-10-18 (battle report, refit & retry, PR D of "build & fight")
 
 ### Added

@@ -198,7 +198,7 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `grid.shieldBase / shieldAdd / regenBase / regenAdd / shieldRadius / shieldRechargeDelay` | Shield facings from emitters; bubble radius in cells; seconds a hit facing waits before regenerating |
 | `grid.crits` | Critical hits: hp threshold, chance, tumble time and spin, sensor blind time, emitter drain, weapon jam cycles |
 | `grid.powerRadius / unpoweredFactor`, `grid.breach` | Reactor power range and the penalty outside it; core breach countdown, radius and damage |
-| `helm.sides`, `helm.shadow`, `enemyAI.*.blindTolerance` | Attack sides (bearings from the target's heading, blind-sector hysteresis, station radius) and how long an enemy tolerates nothing bearing before it comes about |
+| `helm.sides`, `helm.shadow`, `helm.repositionDuration` | Attack sides (bearings from the target's heading, blind-sector hysteresis, station radius) and how long a player come about (script action `roll`) holds; how long an enemy tolerates nothing bearing is its script's `blindFor` |
 | `helm` | Stances (doctrine, ranges from fitted weapons, keys), auto-flip interval and shield thresholds, keep geometry (`bearingStep / keepBand / keepRunBelow / holdSpeed / keepFireFraction / kiteMinBearing`), plays (phases, module policies, exit conditions) |
 | `balance.zoom` | Auto-fit camera limits and margin (`autoMinShort / shortPx` for short phone views), manual zoom bias range |
 | `grid.capBase / capAdd / capRechargeTime` | Capacitor from reactors |
@@ -213,7 +213,8 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `ew.*`, `science.cloakDetectRangeKm` | Jam strength and duration, cloak timings, surge and drain, decloak strike (`ew.strike`: window, shield bypass, damage), field radii (`cloakRadius`, `jamRadius`), detection range |
 | `ew.decoy`, `ew.neut`, `enemyAI.*.drainedBelow / drainedUntil / drainedTime` | Decoy life, lure radius, speed; neutraliser range, drain per block, the enemy's flee range and when a drained enemy opens the range |
 | `grid.boarding` | Transporter range, party size, transport time, shield window thresholds, defenders per crew deck and bridge guard, fight rate |
-| `script.*` | Rule tick, charging speed, trace length, plan targets, default template, rules per script, dry-run length, bridge calls (`bridgeCall`: tokens, hold and focus seconds, confirm window), the sentence for every condition / action / policy, the templates and the enemy scripts |
+| `script.*` | Rule tick, charging speed, trace length, plan targets, default template, rules per script, own scripts per save (`maxScripts`), range bands (`rangeBands`), dry-run length, bridge calls (`bridgeCall`: tokens, hold and focus seconds, confirm window), the sentence for every condition / action / policy, the templates and the enemy scripts with their reaction rules and callouts |
+| `enemyAI.stanceLabels`, `enemyAI.aimLabels` | The words the conditions `enemyStance` / `enemyAimingAt` read as |
 | `balance.speeds / maxStepsPerFrame` | Battle speed buttons and the fixed steps a frame may run |
 | `campaign.firstFight`, `campaign.encounters[].script` | The first fight's enemy overrides; which script each encounter runs |
 | `campaign.salvage` | Share of the enemy's surviving block value paid after a win (destroyed / disabled / captured) |
@@ -225,7 +226,7 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `campaign.encounters / enemyScaling / klingonNames` | Which enemy shows up when, which play it runs (`play`), its own damage multiplier (`damageMult`), how it scales, what it pays |
 | `campaign.*`, `skills.*` | Economy, training |
 | `balance.capCurve / lockBase / zoom` | Capacitor curve, lock time, zoom |
-| `enemyAI.doctrines` | How each doctrine flies (enemy encounters and player stances): strafe pass range and timing, brawl orbit and flip timer, standoff hold and kite ranges, broadside band and roll timer, evade range |
+| `enemyAI.doctrines` | How each doctrine flies (enemy encounters and player stances): strafe pass range and timing, brawl orbit and flip timer, standoff hold and kite ranges, broadside band and roll timer, evade range, the reaction doctrines `kite` (9 km) and `watch` (5 km) |
 | `enemyAI.default / ktinga` | Enemy accuracy, damage and stat multipliers, retreat thresholds, aim weights (`none` = spray), `weakPointChance` and `weakPointKinds` |
 | `enemyAI.counters`, `campaign.encounters[].counter`, `grid.weakPoints` | Which builds trigger which enemy doctrine and what the hangar says; weak-point analysis thresholds |
 | `visuals.fragments` | Section break-off and ship shatter: piece count, speed, spin, lifetime, inertia, engine burn, reactor fuse and blast, debris damage per cell |
@@ -241,6 +242,7 @@ index.html      entry point
 css/            LCARS interface styles
 js/             data, grid, game loop, ships, modules, weapons, boarding, crew, enemy AI, plays, scripts, campaign, hangar, UI, renderer, effects
 assets/         optional sprites / sounds (empty in MVP)
+tools/          harness.js (accelerated balance runs, DESIGN.md §8) and smoke.js (headless interface check); plain Node + Playwright, not needed to play
 DESIGN.md       full game design and data structures
 CHANGELOG.md    version history
 CLAUDE.md       rules for AI-assisted development sessions

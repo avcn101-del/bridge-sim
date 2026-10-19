@@ -66,6 +66,7 @@ BS.Hangar = (function () {
       info.innerHTML = (enc.retry ? "<div class='warn'>Retry of the last fight: " + enc.name + " waits for you. <button id='btn-letgo' class='lcars-btn c-lilac'>Let it go</button></div>" : "") +
         "<div class='dim'>" + enc.cls.className + (enc.variantName ? " · " + enc.variantName : "") + " · " + enc.doctrine + (enc.counterReason ? " (" + enc.counterReason + ")" : "") + ".<br>Hold a lock for " + BS.Data.campaign.intelMinLockSeconds + " s in battle to record its layout, or buy it now.</div>" +
         "<button id='btn-intel' class='lcars-btn c-purple'>Buy intel · " + BS.Data.campaign.intelCost + " cr</button>";
+      info.innerHTML += bookLine(enc);
       var btn = document.getElementById("btn-intel");
       btn.addEventListener("click", function () { var err = C.buyIntel(enc); if (err) el["hg-msg"].textContent = err; render(); });
       var lg0 = document.getElementById("btn-letgo"); if (lg0) lg0.addEventListener("click", function () { C.letGo(); render(); say("Let it go. The sector sends what it sends."); });
@@ -83,8 +84,16 @@ BS.Hangar = (function () {
       "<div><b>" + enc.cls.className + (enc.variantName ? " · " + enc.variantName : "") + "</b> <span class='dim'>(" + it.how + ")</span> · " + enc.doctrine + (enc.counterReason ? " <span class='dim'>(" + enc.counterReason + ")</span>" : "") + "</div>" +
       "<div>Weapons " + (Object.keys(weapons).map(function (k) { return k + " " + weapons[k]; }).join(" · ") || "none") + " · shields " + facings + " · hull " + st.hullTotal + "</div>" +
       "<div>Reactors " + (st.counts.reactor || 0) + " · quarters " + (st.counts.quarters || 0) + " · cover " + Math.round(100 * st.coverFrac) + "%" + (st.cloakCover.sources ? " · cloak" : "") + (st.jamCover.sources ? " · ECM" : "") + "</div>" +
-      (wps.length ? "<div class='hg-wps'>" + wps.slice(0, 3).map(function (w) { return "<div class='wp'>" + w.label + "</div>"; }).join("") + "</div>" : "");
+      (wps.length ? "<div class='hg-wps'>" + wps.slice(0, 3).map(function (w) { return "<div class='wp'>" + w.label + "</div>"; }).join("") + "</div>" : "") +
+      bookLine(enc);
     var lg = document.getElementById("btn-letgo"); if (lg) lg.addEventListener("click", function () { C.letGo(); render(); say("Let it go. The sector sends what it sends."); });
+  }
+  // Opening book: what this encounter's bridge has been seen doing (save.book), most often first.
+  function bookLine(enc) {
+    var b = C.bookFor(enc);
+    if (!b || !b.fights) return "<div class='dim hg-book'>Book · no fights on record: their bridge is a closed book.</div>";
+    var rules = Object.keys(b.rules).map(function (k) { return b.rules[k]; }).sort(function (a, c) { return c.n - a.n; });
+    return "<div class='dim hg-book'>Book · " + b.fights + " fight" + (b.fights === 1 ? "" : "s") + ": " + rules.map(function (r) { return escapeHtml(r.text) + " (" + r.n + ")"; }).join(" · ") + "</div>";
   }
   function render() {
     var s = C.get(), cls = C.currentClass();
@@ -407,6 +416,7 @@ BS.Hangar = (function () {
     head.appendChild(sel);
     function btn(label, cls, title, fn) { var b = document.createElement("button"); b.className = "lcars-btn " + cls; b.textContent = label; if (title) b.title = title; b.addEventListener("click", fn); return b; }
     head.appendChild(btn("Copy as new", "c-blue", "Make an editable copy of this script", function () {
+      if (save.scripts.length >= SD().maxScripts) { say(SD().maxScripts + " scripts saved: delete one first.", true); return; }
       var name = window.prompt("Name for the new script", def.name + " (copy)"); if (!name) return;
       var d = copyDef(def); d.name = name.trim().slice(0, 24); d.id = "s" + Date.now().toString(36); delete d.desc; delete d.requires;
       C.saveScript(d); loadScript(d.id); renderScript(); say("Script \"" + d.name + "\" created. Edit the rules, then Save.");
@@ -544,7 +554,7 @@ BS.Hangar = (function () {
     if (k.indexOf("modules.") === 0) { obj.modules = obj.modules || {}; obj.modules[k.slice(8)] = true; return; }
     var V = mode === "cond" ? SD().conditions : SD().actions, d = V[k];
     if (mode === "cond") obj[k] = d.kind === "flag" ? true : d.kind === "bool" ? (d.def !== undefined ? d.def : true) : d.def;
-    else obj[k] = { stance: "engage", play: "alpha", side: "blind", aim: "reactor", weapons: true, governor: true, repair: "shield", reinforce: true, scan: true, board: true }[k];
+    else obj[k] = { stance: "engage", play: "alpha", side: "blind", aim: "reactor", weapons: true, governor: true, repair: "shield", reinforce: true, scan: true, board: true, roll: true }[k];
   }
   function removeTerm(k, obj, mode) {
     if (k.indexOf("modules.") === 0) { delete obj.modules[k.slice(8)]; if (!Object.keys(obj.modules).length) delete obj.modules; return; }
@@ -567,6 +577,9 @@ BS.Hangar = (function () {
         case "bool": return sel([["1", d.label], ["0", d.negLabel || ("not: " + d.label)]], obj[k] ? "1" : "0", function (v) { obj[k] = v === "1"; });
         case "type": return sel(Object.keys(BS.Data.blocks).map(function (b) { return [b, BS.Data.blocks[b].name.toLowerCase() + "s"]; }), obj[k], function (v) { obj[k] = v; });
         case "state": return sel(Object.keys(BS.Data.enemyAI.stateLabels).map(function (st) { return [st, BS.Data.enemyAI.stateLabels[st]]; }), obj[k], function (v) { obj[k] = v; });
+        case "stance": return sel(Object.keys(BS.Data.enemyAI.stanceLabels).map(function (st) { return [st, BS.Data.enemyAI.stanceLabels[st]]; }), obj[k], function (v) { obj[k] = v; });
+        case "aiming": return sel(Object.keys(BS.Data.enemyAI.aimLabels).map(function (st) { return [st, BS.Data.enemyAI.aimLabels[st]]; }), obj[k], function (v) { obj[k] = v; });
+        case "band": return sel(Object.keys(SD().rangeBands).map(function (st) { return [st, SD().rangeBands[st]]; }), obj[k], function (v) { obj[k] = v; });
         default: return null;
       }
     }

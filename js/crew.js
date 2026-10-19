@@ -198,6 +198,8 @@ BS.Crew = (function () {
     BS.Events.on("scanStarted", function (e) { if (e.ship === ship) report("tactical", "scanStart", { t: Math.round(e.time) }); else if (e.ship === enemy) report("tactical", "enemyScanning"); });
     BS.Events.on("scanned", function (e) { if (e.ship === ship) report("tactical", "scanDone"); });
     BS.Events.on("scriptAim", function (e) { if (e.ship === ship) report("tactical", "aimWeak", { label: e.label }); });
+    // an enemy reaction rule with a callout: Tactical reads it out (the enemy's script stays hidden, its moves do not)
+    BS.Events.on("scriptCallout", function (e) { if (e.ship === enemy) say("tactical", e.text, "warn"); });
     // second-generation EW and boarding
     BS.Events.on("decoyLaunched", function (e) { if (e.ship === ship) report("tactical", e.incoming > 0 ? "decoyLaunched" : "decoyNoTorpedoes"); else if (e.ship === enemy) report("tactical", "enemyDecoy"); });
     BS.Events.on("torpedoLured", function (e) { if (e.ship === ship && now() - (ship._luredReported || -99) > 6) { ship._luredReported = now(); report("tactical", "decoyLured"); } });

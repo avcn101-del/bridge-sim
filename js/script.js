@@ -76,6 +76,7 @@ BS.Script = (function () {
     var cap = ship.capMax ? ship.capacitor / ship.capMax : 0, ecap = target.capMax ? target.capacitor / target.capMax : 0;
     var alive = st.alive || {}, ealive = est.alive || {};
     var tai = target.ai, tstate = tai ? tai.state : "";
+    var eheat = est.heatCap ? target.heat / est.heatCap : 0;
     function holds(k) {
       var v = when[k];
       switch (k) {
@@ -113,6 +114,13 @@ BS.Script = (function () {
         case "enemyKiting": return tstate === "kite" || tstate === "evade" || tstate === "drained" || tstate === "retreat";
         case "enemyFocusing": return focusType(target) === v;
         case "enemyState": return tstate === v;
+        case "enemyStance": return stanceOf(target) === v;
+        case "enemyAimingAt": return aimingAt(target) === v;
+        case "rangeBand": return rangeBand(ship, dKm) === v;
+        case "enemyAfterburner": return M.find(target, "afterburner").some(function (m) { return m.active; });
+        case "enemyHeatAbove": return eheat > v;
+        case "enemyHeatBelow": return eheat < v;
+        case "blindFor": return !!ship.ai && ship.ai.blindTimer > v;
         default: return false;
       }
     }
@@ -123,6 +131,31 @@ BS.Script = (function () {
     var dx = target.pos.x - ship.pos.x, dy = target.pos.y - ship.pos.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
     var rvx = target.vel.x - ship.vel.x, rvy = target.vel.y - ship.vel.y;
     return -S.km(rvx * dx / d + rvy * dy / d);   // positive when the range is closing
+  }
+  // What the other ship is doing, in one word (enemyAI.stanceLabels), read off its doctrine state and helm command.
+  function stanceOf(t) {
+    var st = t.ai ? t.ai.state : "", cmd = t.cmd ? t.cmd.type : "";
+    if (cmd === "shadow") return "shadowing";
+    if (st === "reposition" || cmd === "comeAbout") return "rolling";
+    if (st === "kite" || st === "evade" || st === "retreat" || st === "drained") return "kiting";
+    if (st === "approach" || st === "run_in" || st === "stalk" || st === "uncloak" || st === "turn_in") return "closing";
+    if (st === "brawl" || st === "pass") return "orbiting";
+    if (st === "standoff" || st === "broadside" || st === "clear") return "holding";
+    return cmd === "orbit" ? "orbiting" : cmd === "approach" ? "closing" : "holding";
+  }
+  // What the other ship's fire is steered at (enemyAI.aimLabels): the hull, a system type, a weak point, structure.
+  function aimingAt(t) {
+    if (t.aimType === "block" && t.aimBlock) return t.aimBlock.block.structural ? "structure" : "weak";
+    if (t.aimType === "structure") return "structure";
+    return t.aimType ? "type" : "hull";
+  }
+  // The range in terms of our own fitted weapons (script.rangeBands): inside the longest beam optimal, inside the
+  // longest torpedo range, or beyond both.
+  function rangeBand(ship, dKm) {
+    var beam = BS.EnemyAI.weaponRef(ship, "phaser"), torp = BS.EnemyAI.weaponRef(ship, "torpedo");
+    if (beam !== null && dKm <= beam) return "beam";
+    if (torp !== null && dKm <= torp) return "torpedo";
+    return "out";
   }
   // What block type the other ship's fire is steered at (a focused block counts by its type).
   function focusType(ship) {
@@ -152,6 +185,7 @@ BS.Script = (function () {
     if (act.reinforce) S.startReinforce(ship);
     if (act.scan) { if (!ship.scanned && !ship.scanning) { ship.scanning = BS.Data.science.scanDuration; BS.Events.emit("scanStarted", { ship: ship, target: target, time: ship.scanning }); } }
     if (act.board) { var br = BS.Boarding.start(ship, target); if (br !== "ok") note = "boarding: " + br; }
+    if (act.roll) { if (!BS.EnemyAI.roll(ship, target)) note = "cannot come about"; }
     if (act.aim !== undefined) { var an = aim(ship, target, act.aim); if (an) { note = an; if (ship.script && /scan/.test(an)) ship.script.waitingAim = act.aim; } else if (ship.script) ship.script.waitingAim = null; }
     return note;
   }
@@ -198,6 +232,10 @@ BS.Script = (function () {
     BS.Events.emit("scriptRule", { ship: ship, entry: entry });
   }
 
+  // A rule's `callout`: what the other bridge's Tactical hears when it fires (event scriptCallout; crew.js reads it
+  // for the enemy's rules, so an enemy reaction is always announced).
+  function callout(ship, rule) { if (rule.callout) BS.Events.emit("scriptCallout", { ship: ship, text: rule.callout, rule: rule }); }
+
   // ---- update ------------------------------------------------------------------------------------------------
   function update(ship, dt) {
     // the scan runs even while the script is paused: beams hold fire until it is done
@@ -224,6 +262,7 @@ BS.Script = (function () {
       if (note && r.once) continue;   // a once rule that could not act yet tries again (a scan not yet done)
       sc.fired[i] = true; sc.lastFire[i] = sc.t;
       trace(ship, i, describe(r, def) + (note ? " (" + note + ")" : ""), "callout");
+      callout(ship, r);
     }
     // a bridge call override stands above everything until its until / holdMax; when it ends the script re-picks
     if (sc.override) {
@@ -254,12 +293,13 @@ BS.Script = (function () {
     sc.active = pick; sc.activeSince = sc.t;
     var n2 = apply(ship, target, rules[pick].do || {}, rules[pick]);
     trace(ship, pick, describe(rules[pick], def) + (n2 ? " (" + n2 + ")" : ""), "standing");
+    callout(ship, rules[pick]);
   }
 
   // ---- what the battle looked like, for the report: extremes of every measured quantity and which rules ever held ----
   function record(ship, target, sc) {
     var x = sc.extremes || (sc.extremes = { dKmMin: Infinity, dKmMax: 0, weakestMin: 1, facingMin: 1, heatMax: 0, capMin: 1, capMax: 0, hullMin: 1, efacingMin: 1, ecapMin: 1, ehullMin: 1, incomingMax: 0, ever: {} });
-    var dKm = S.distanceKm(ship, target), st = ship.stats;
+    var dKm = S.distanceKm(ship, target), st = ship.stats, est = target.stats;
     x.dKmMin = Math.min(x.dKmMin, dKm); x.dKmMax = Math.max(x.dKmMax, dKm);
     x.weakestMin = Math.min(x.weakestMin, S.shieldFrac(ship, S.weakestFacing(ship)));
     x.facingMin = Math.min(x.facingMin, S.shieldFrac(ship, S.facingToward(ship, target.pos.x, target.pos.y)));
@@ -270,12 +310,19 @@ BS.Script = (function () {
     x.ecapMin = Math.min(x.ecapMin, target.capMax ? target.capacitor / target.capMax : 0);
     x.ehullMin = Math.min(x.ehullMin, target.hull / target.hullMax);
     x.incomingMax = Math.max(x.incomingMax, BS.Weapons.incoming(ship, 99));
-    ["scanned", "boardable", "overloaded", "cloaked", "cloakOff", "noCloak", "noTubes", "noPhasers", "enemyReactorsGone", "enemyShieldsDown", "enemyCharging", "enemyCloaking", "enemyCloaked", "enemyRolling", "enemyBreaching", "enemyKiting"].forEach(function (k) {
+    x.eheatMax = Math.max(x.eheatMax || 0, est.heatCap ? target.heat / est.heatCap : 0);
+    x.blindMax = Math.max(x.blindMax || 0, ship.ai ? ship.ai.blindTimer || 0 : 0);
+    ["scanned", "boardable", "overloaded", "cloaked", "cloakOff", "noCloak", "noTubes", "noPhasers", "enemyReactorsGone", "enemyShieldsDown", "enemyCharging", "enemyCloaking", "enemyCloaked", "enemyRolling", "enemyBreaching", "enemyKiting", "enemyAfterburner"].forEach(function (k) {
       if (!x.ever[k]) { var w = {}; w[k] = true; if (conditions(ship, target, w, sc.t)) x.ever[k] = sc.t; }
     });
+    // per rule: whether all its conditions ever held together, and each condition on its own (for the report)
+    sc.everKey = sc.everKey || {};
     (sc.def.rules || []).forEach(function (r, i) {
+      if (!r.when) return;
+      var ek = sc.everKey[i] || (sc.everKey[i] = {});
+      Object.keys(r.when).forEach(function (k) { if (!ek[k]) { var w1 = {}; w1[k] = r.when[k]; if (conditions(ship, target, w1, sc.t)) ek[k] = sc.t; } });
       if (sc.everTrue[i]) return;
-      if (r.when && Object.keys(r.when).length && conditions(ship, target, r.when, sc.t)) { sc.everTrue[i] = true; sc.firstTrue[i] = { t: sc.t, above: sc.override ? "call" : sc.active }; }
+      if (Object.keys(r.when).length && conditions(ship, target, r.when, sc.t)) { sc.everTrue[i] = true; sc.firstTrue[i] = { t: sc.t, above: sc.override ? "call" : sc.active }; }
     });
   }
   // Why a rule never fired, in a sentence: the first of its conditions that never held, with how close it came.
@@ -306,7 +353,12 @@ BS.Script = (function () {
             case "enemyHullBelow": if (!(x.ehullMin < v)) why = "their hull never fell under " + pct(v) + " (lowest " + pct(x.ehullMin) + ")"; break;
             case "incomingTorpedoes": if (!(x.incomingMax >= v)) why = "never " + v + " torpedoes at once (at most " + x.incomingMax + ")"; break;
             case "scanned": if (v && !x.ever.scanned) why = "we never scanned them"; break;
-            default: if (V[k] && V[k].kind === "flag" && !(x.ever && x.ever[k])) why = "\"" + V[k].label + "\" never happened"; break;
+            case "enemyHeatAbove": if (!(x.eheatMax > v)) why = "their heat never rose over " + pct(v) + " (peak " + pct(x.eheatMax || 0) + ")"; break;
+            case "blindFor": if (!(x.blindMax > v)) why = "our guns never lost them for " + v + " s (at most " + Math.round(x.blindMax || 0) + " s)"; break;
+            default:
+              if (V[k] && V[k].kind === "flag" && !(x.ever && x.ever[k])) why = "\"" + V[k].label + "\" never happened";
+              else if (V[k] && (V[k].kind === "stance" || V[k].kind === "aiming" || V[k].kind === "band" || V[k].kind === "state" || V[k].kind === "type") && !(sc.everKey && sc.everKey[i] && sc.everKey[i][k])) why = V[k].kind === "type" ? "they never shot at our " + fmtValue("type", v) : "they were never " + fmtValue(V[k].kind, v);
+              break;
           }
         }
         if (!why) why = "its conditions never all held at the same time";
@@ -322,6 +374,10 @@ BS.Script = (function () {
     if (kind === "km") return v + " km";
     if (kind === "sec") return v + " s";
     if (kind === "type") return BS.Data.blocks[v] ? BS.Data.blocks[v].name.toLowerCase() + "s" : String(v);
+    if (kind === "state") return BS.Data.enemyAI.stateLabels[v] || String(v);
+    if (kind === "stance") return BS.Data.enemyAI.stanceLabels[v] || String(v);
+    if (kind === "aiming") return BS.Data.enemyAI.aimLabels[v] || String(v);
+    if (kind === "band") return D().rangeBands[v] || String(v);
     return String(v);
   }
   function describeWhen(when) {
@@ -375,5 +431,5 @@ BS.Script = (function () {
     return out;
   }
 
-  return { start: start, stop: stop, suspend: suspend, resume: resume, update: update, bridgeCall: bridgeCall, callRule: callRule, explain: explain, conditions: conditions, apply: apply, describe: describe, describeScript: describeScript, describeWhen: describeWhen, describeDo: describeDo, resolve: resolve, focusType: focusType };
+  return { start: start, stop: stop, suspend: suspend, resume: resume, update: update, bridgeCall: bridgeCall, callRule: callRule, explain: explain, conditions: conditions, apply: apply, describe: describe, describeScript: describeScript, describeWhen: describeWhen, describeDo: describeDo, resolve: resolve, focusType: focusType, stanceOf: stanceOf, aimingAt: aimingAt, rangeBand: rangeBand };
 })();

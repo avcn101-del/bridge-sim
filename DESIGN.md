@@ -96,6 +96,12 @@ name, while the counter-doctrine is read off the new build. A lost fight
 still counts (loss credits, streak reset). The pin clears when that fight
 is settled, or with *Let it go* in the Intel box.
 
+**Their bridge** (0.25): under *Never fired*, every rule of the enemy's
+script that fired, with the time and, for a reaction, the callout Tactical
+read out ("The cruiser is coming about to bring its batteries round").
+The enemy's script itself stays hidden; what it did is on record and goes
+into the opening book (§4 *Enemy reactions and the opening book*).
+
 ### Battle screen since 0.23: watch, trace, bridge calls
 The tactical view is the screen; the captain does not fly. Left panel as
 before (ship, blocks, target). The right panel opens with **Bridge calls**:
@@ -145,6 +151,12 @@ The left column of the hangar carries the pre-battle thinking:
   say when an aim needs a scan rule, when an Otherwise rule sits above
   other standing rules, or when a rule does nothing. At most
   `script.maxRules` (12) rules. Policies are checkboxes.
+- **Book** (0.25) under the Intel text: "Book · 3 fights: scanned us
+  inside 12 km (3) · They're coming about to bring their guns round on us
+  (2)": the enemy rules seen firing against this encounter, most often
+  first (`save.book[encounterId]`, `BS.Campaign.bookFor`); with no fight
+  on record, "their bridge is a closed book". *Copy as new* refuses beyond
+  `script.maxScripts` (12) own scripts.
 - **Dry run vs next enemy**: `BS.Game.dryRun(script, onProgress, onDone)`
   sets up the battle exactly as Undock would (same build, same seeded
   enemy, this script) with `dry: true`, so no interface changes, and steps
@@ -248,10 +260,12 @@ Erase is the palette entry. Every keyboard shortcut has a button.
   `bearingProfile`, all alive weapons) and keeps it until another sector has
   under 70% of its fire. The Helm row reads "shadowing blind sector"; the
   scan panel shows their fire per sector (bow / stbd / aft / port, dps).
-  Enemies answer it: an enemy with no weapon bearing on its target for
-  `blindTolerance` seconds (3, K't'inga 4) comes about with the side that
-  carries the most fire (`reposition` state, Tactical calls the roll), so a
-  slow hull turns while a fast one re-shadows.
+  Enemies answer it: since 0.25 by a script rule (condition `blindFor` 3 s,
+  K't'inga 2.5, action `roll`: `BS.EnemyAI.roll` comes about with the side
+  that carries the most fire, `reposition` state, Tactical reads the
+  rule's callout), so a slow hull turns while a fast one re-shadows. The
+  blind time only counts in the states that mean to fire (brawl, pass,
+  broadside, standoff): a ship breaking off shows its tail on purpose.
 - **Auto-flip** (`helm.flipMinInterval/flipShieldLow/flipShieldHigh`, both
   sides): an orbiting ship reverses its orbit when mirroring the geometry
   would bring more weapons to bear (`bearingCount`), or when the engaged
@@ -811,11 +825,27 @@ intel, script); in the fight the bridge runs the script. A script is
   closing faster than `chargingKmS` 1 km/s), `enemyCloaking`,
   `enemyCloaked`, `enemyRolling` (reposition / come about), `enemyBreaching`,
   `enemyKiting`, `enemyFocusing: type` (their fire is steered at that block
-  type of ours), `enemyState`. All conditions in a rule must hold.
+  type of ours), `enemyState`. Since 0.25: `enemyStance` (one word read off
+  their doctrine state and helm command, `enemyAI.stanceLabels`: orbiting,
+  holding station, shadowing us, kiting, closing, rolling a fresh side),
+  `enemyAimingAt` (`enemyAI.aimLabels`: spraying our hull, a system type, a
+  weak point, cutting our structure), `rangeBand` (`script.rangeBands`,
+  measured off **our** fitted weapons: inside our beam optimal, inside our
+  torpedo range, beyond our reach, so a template reads the same on any
+  build), `enemyAfterburner`, `enemyHeatAbove / Below`, `blindFor` (seconds
+  none of our weapons have borne on them, `ship.ai.blindTimer`). All
+  conditions in a rule must hold.
 - **Actions** (`script.actions`): `stance` (player ranges from the build),
   `doctrine` (fixed ranges: enemy scripts), `play`, `side`, `aim` (block
   type, `exposed`, `structure`, `{ weak: kind }`, `{ plan: n }`), `weapons`,
-  `modules`, `governor`, `repair`, `reinforce`, `scan`, `board`.
+  `modules`, `governor`, `repair`, `reinforce`, `scan`, `board`, `roll`
+  (0.25: come about to the side with the most fire, `BS.EnemyAI.roll`, a
+  reposition the doctrine resumes from after `repositionDuration` or once
+  guns bear).
+- **Callouts** (0.25): a rule may carry `callout: "…"`; when it fires or
+  takes over the engine emits `scriptCallout` and, for the enemy's rules,
+  Tactical reads it out. The player's own callouts are silent (the trace
+  already reads every rule).
 - **Scan** (`science.scanDuration` 4 s): the beam turrets hold fire
   (module state `scan`), then `ship.scanned` is set; aiming at a weak point
   or a plan target needs it (the rule still stands, the trace says
@@ -843,6 +873,37 @@ intel, script); in the fight the bridge runs the script. A script is
 - **Plans** (`save.plans[encounterId].targets`, up to `script.planTargets`
   3, `{ x, y }` on the intel layout or `{ type }`): read by `aim: { plan: n }`;
   the hangar side arrives with PR B.
+
+### Enemy reactions and the opening book (0.25, `script.enemyScripts`, `save.book`)
+Pillar 3 of the "build & fight" direction: the enemy answers in the fight
+with rules on the same engine, not with code in `enemyai.js`. The Raider
+script (also flown by the Gunboat, the random variant, the Jammer boat and
+the Leech) and the Cruiser / Siege cruiser scripts carry four reactions,
+each with a callout Tactical reads out, and the plain `doctrine` script
+(Shadow) keeps the blind roll:
+
+| They see | They do | Raider / cruiser numbers |
+|---|---|---|
+| `blindFor` n s: nothing of theirs bears on us (we shadow a blind sector) | `roll` (call-out every 8–10 s) | 3 s / 2.5 s |
+| `enemyFocusing: shield`: our fire is steered at their emitters | `reinforce` + `roll` (every 20 / 25 s) | |
+| `enemyHeatAbove` 0.6 inside 6 km: we are dumping heat (alpha) | `doctrine: kite` (`enemyAI.doctrines.kite`: keep 9 km on the afterburner) until our heat is under 35%, at most 20 / 15 s | |
+| `enemyCloaked`: we are cloaked | `doctrine: watch` (`doctrines.watch`: hold 5 km, afterburner cold) until we show, at most 60 s, then a scan inside 8 km | |
+
+Enemy scripts never set modules: `enemyai.js` keeps weapons, hardener,
+booster, jammer, neutraliser and decoy on its own policy every decision
+tick, so a script rule and the profile never fight over a module. The
+Torpedo boat (Siege play) does not react: measured in 0.21, any change
+to it breaks the fight. The blind-sector roll moved out of `enemyai.js`
+(`blindTolerance` is gone; `blindTimer` stays, counted only in the firing
+states) into the scripts, so the harness's `--noreact` enemy (scan, blind
+roll, doctrine) is exactly the 0.24 bridge.
+
+**Opening book**: `settleBattle` records, per encounter id, how many
+fights and which enemy rules were seen firing (`save.book[id] = { fights,
+rules: { "script:ruleIndex": { text, n } } }`, text = the callout or the
+rule's sentence; dry runs record nothing). The battle report shows the
+fight's enemy rules under *Their bridge*, the hangar Intel box the book.
+The enemy's script stays hidden; only what it did is known.
 
 ### Win / lose
 Enemy hull 0 → Victory; player hull 0 → Defeat; enemy bridge taken by a
@@ -931,7 +992,7 @@ ew: { jamPerBlock, jamDuration, cloakTime, decloakTime, surgeTime, cloakDrain, c
 grid.boarding: { rangeKm, minParty, partyMax, transportTime, bridgeGuard, defenderPerQuarters, gapStart, gapAbort, abortRangeMult, rate, floor }
 script: { tickSeconds, chargingKmS, traceMax, planTargets, defaultTemplate, maxRules, dryRun: { maxSeconds, stepsPerChunk }, bridgeCall: { tokens, holdSeconds, focusSeconds, confirmSeconds, disengageUntil, noCallBonus }, conditions: { id: { label, kind, def, negLabel? } }, actions: { id: { label, kind } }, policies: { id: { label } }, weakKinds,
           templates: { id: { name, desc, requires?, policies, rules: [{ when, do, until?, holdMax?, once?, every? }] } }, enemyScripts: { id: { name, rules } } }
-campaign.firstFight: { weakPointChance }; campaign.encounters[].script; save: scripts[], scriptByBuild{}, plans{}, settings.manualBridge, campaign.cleanWins, campaign.retry
+campaign.firstFight: { weakPointChance }; campaign.encounters[].script; save: scripts[], scriptByBuild{}, plans{}, book{}, settings.manualBridge, campaign.cleanWins, campaign.retry
 campaign.salvage: { destroyed, disabled, captured }; enemyAI.*: drainedBelow, drainedUntil, drainedTime; enemyAI.counters[].when.neutMin
 shipClasses: { id: { name, className, role, faction, cost, purchasable, speed, turnRate, signature, lockRangeKm, powerBase,
                      mask: [rows], layout: [rows], presets: { id: { name, desc, rows } }, variants: { id: { name, desc, rows } } (enemies),
@@ -968,7 +1029,45 @@ log, battleStarted, battleEnded, skillTrained`.
 Harness: `BS.Game.state.paused = true`, `BS.Game.step(1/60)` in a loop, the
 captain script runs once per simulated second. Enemy strength as at the
 given number of wins. Hit rolls and the enemy's aim choice are random, so
-single runs vary a lot; ranges below are over 4–6 runs.
+single runs vary a lot; ranges below are over 4–6 runs. Since 0.25 the
+harness is in the repository: `tools/harness.js` (Playwright, one
+`BS.Game.dryRun` per fight, the encounter forced by replacing
+`campaign.encounters`, seeded `Math.random`, `--noreact` for the 0.24 enemy
+bridge, `--eval` for a data tweak, `--debug` for what each bridge saw) and
+`tools/smoke.js` (the headless interface check).
+
+v0.25.0 (enemy reactions, the blind roll moved into the scripts and counted
+only in firing states; `--seed` fixed per pair so "react" and "no react"
+meet the same rolls; 4 runs each unless noted):
+
+| Matchup | Captain | Reactions on | 0.24 bridge (`--noreact`) |
+|---|---|---|---|
+| Constitution vs Raider (0 wins) | **Brawler** | **6 of 6** in 2:21–6:57 keeping 44–91% (the roll fired 0–2 times a fight) | 0.21: 4 of 6 |
+| Constitution vs Raider (1 win) | **Emitter hunter** (scan at 10 km, Engage on their blind side aiming the emitter weak point, bare hull when they roll, Standoff when they kite beyond our reach) | 4 of 4 in 2:09–3:01 keeping 91–98%; reinforce + roll fired 6–9 times a fight | 4 of 4 in 2:10–2:56 keeping 88–97% |
+| same, the reaction also aiming back at our emitter | Emitter hunter | 4 of 4 in 1:52–2:59 keeping 90–97% | |
+| Constitution vs Raider (0 wins) | **Alpha strike** template | 2 of 4 in 3:59–4:55 keeping 93–94%, two losses; the kite reaction **never fired**: the stock Constitution's heat peaks at 19% even with the governor off, so `enemyHeatAbove` 0.6 sees only hot builds | 3 of 4 in 3:58–4:40 keeping 81–95% |
+| **Shadow hunter** Constitution vs Raider (0 wins, counter: brawl) | **Ambush** template | 3 of 4 in 3:53–8:22 keeping 90–99%, one stalemate; the watch rule fired 4–9 times a fight | 2 of 4 in 6:08–8:43 keeping 90–94%, two stalemates |
+| same, watch holding 8 km instead of 5 | Ambush | 4 of 4 in 2:11–4:11 keeping 97–100% | |
+| same, watch as a 6 km / 4 km afterburner orbit | Ambush | 2 of 4 with two stalemates (5:12–5:34 / 6:47–8:34) | |
+| Constitution vs K't'inga (4 wins) | Brawler shadowing the **blind** sector | 4 of 4 in 4:10–7:11 keeping 90–100%; the cruiser rolled 1–3 times | 4 of 4 in 4:09–7:11 keeping 90–100% |
+| Constitution vs K't'inga (4 wins) | Brawler | 2 of 3 in 4:08–6:35 keeping 63–83%, one loss (the roll fired 3–10 times) | 0.21: 2 of 3 |
+| Constitution vs Torpedo boat (1 win) / Shadow (3 wins) | Brawler | 2 of 2 in 3:15–6:52 keeping 97% / 2 of 2 in 2:34–2:49 keeping 83–90% | |
+| Galaxy vs Siege K't'inga (6 wins) | Brawler | 2 of 2 in 3:54–6:25 keeping 91–96% | |
+
+Honest reading: the reaction layer works as a mechanism (every rule fires
+when its condition holds, Tactical calls it, the book records it) and
+nothing regressed, but **no reaction yet costs the player anything
+measurable**. The shadow roll against the Raider changes nothing (a strafer
+is rarely in a firing state while shadowed); against the K't'inga it is the
+same free win as in 0.21 (**not met**, still open). The emitter reaction
+(reinforce + roll, with or without aiming back) does not slow an Emitter
+hunter that wins in two to three minutes. The alpha reaction needs a build
+that actually heats. The cloak reaction is the one that moves numbers, in
+the wrong direction: holding 5 km off a cloaked ship means being struck
+standing still (3 of 4 against 2 of 4), holding 8 km is worse, and a fast
+orbit only turns wins into stalemates. Making reactions bite is pillar 2's
+job (a public counter table measured pair by pair), not a number tweak
+here.
 
 v0.21.0 (bridge scripts on both sides, scan before weak points, K't'inga
 stern cannons, Torpedo boat two tubes, first fight without weak-point
@@ -1309,6 +1408,7 @@ than slower (it is nearly untouched, as intended).
 | v0.11.0 (done) | Cloak and ECM fields: a ship cloaks only with every block inside a cloak field (several devices per hull), a partial ECM field steers the jammed enemy's fire onto the uncovered blocks |
 | v0.12.0 (done) | Disruptor cannons (punch, penetration, poor tracking) and pulse phasers (tracking, knife range) as blocks and weapon groups; Klingons mount cannons |
 | v0.13.0 (done) | Crew: systems need hands, the bridge and crew quarters supply them, manning slows weapons and shields, blocks far from quarters repair slowly; every layout re-fitted |
+| v0.25.0 (done) | Enemy reactions as script rules with callouts (roll when shadowed, reinforce and roll when their emitters are hunted, kite under an alpha, hold off a cloaked ship), new observations (enemy stance, aim, range band off our weapons, afterburner, heat, blind time), opening book per encounter, `tools/harness.js` and `tools/smoke.js` |
 | v0.24.0 (done) | Battle report with the script timeline and never-fired reasons, clean-bridge bonus, refit & retry against the same enemy |
 | v0.23.0 (done) | Battle screen: bridge calls (2 a battle, confirm by pressing twice, overrides that hand back), trace band, speed 1× / 2× / 4×, manual bridge behind a debug setting |
 | v0.22.0 (done) | Hangar script editor (sentence dropdowns, templates, copy / save / assign), plan targets on the intel drawing, dry run against the next enemy |

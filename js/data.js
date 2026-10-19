@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.24.0",
+  version: "0.25.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -1021,7 +1021,7 @@ BS.Data = {
   // with ranges taken from the fitted weapons. ranges.X = [ref, fraction, ref, fraction, ..., fallbackKm]: the first
   // ref with an alive weapon wins (ref "phaser" = phaser optimal range, "torpedo" = torpedo range).
   helm: {
-    defaultStance: "engage", reactionDelay: 0.5,
+    defaultStance: "engage", reactionDelay: 0.5, repositionDuration: 5,   // repositionDuration: how long a player "come about" (script action roll) holds before the doctrine resumes
     stances: {
       engage:    { label: "Engage",    key: "1", doctrine: "brawl",    desc: "Close orbit inside phaser optimal; the helm flips sides to keep guns and shields fresh.",
                    ranges: { engageKm: ["phaser", 1.0, 8], orbitKm: ["phaser", 0.5, 4] } },
@@ -1117,14 +1117,21 @@ BS.Data = {
       closein:   { kind: "approach", engageKm: 0, tailChaseAngular: 0.15, tailChaseTime: 99 },   // plays: approach and keep approaching
       ambush:    { kind: "ambush", engageKm: 22, decloakKm: 4.5, recloakKm: 9, passOrbitKm: 3, passTime: 12, breakKm: 10, breakMaxTime: 10, abMinCap: 0.5, tailChaseAngular: 0.15, tailChaseTime: 99 },
       siege:     { kind: "standoff", engageKm: 18, holdKm: 17, kiteBelowKm: 11, kiteToKm: 20, kiteMaxTime: 15, tailChaseAngular: 0.15, tailChaseTime: 99 },
+      // reaction doctrines (enemy scripts, 0.25): kite opens the range for a while under an alpha strike; watch holds
+      // a few km off a cloaked opponent, afterburner cold, until it shows
+      kite:      { kind: "evade", engageKm: 999, holdKm: 9, abMinCap: 0.3, tailChaseAngular: 0.15, tailChaseTime: 99 },
+      watch:     { kind: "evade", engageKm: 999, holdKm: 5, abMinCap: 2, tailChaseAngular: 0.15, tailChaseTime: 99 },
     },
     // Overview status text per AI state
+    // what a script condition "they are {v}" (enemyStance) reads off the other ship's state and command
+    stanceLabels: { orbiting: "orbiting us", holding: "holding station", shadowing: "shadowing us", kiting: "kiting", closing: "closing", rolling: "rolling a fresh side" },
+    aimLabels: { hull: "spraying our hull", type: "aiming at one of our system types", weak: "aiming at one of our weak points", structure: "cutting our structure" },
     stateLabels: { approach: "closing", shadow: "shadowing", clear: "clearing the blast", drained: "drained, opening the range", retreat: "retreating", run_in: "strafing run", pass: "firing pass", break_off: "breaking off", turn_in: "coming around", brawl: "attacking", reposition: "turning", standoff: "standing off", kite: "kiting", broadside: "broadside", stalk: "cloaked", uncloak: "decloaking", evade: "disengaging" },
     default: {
       doctrine: "brawl",
       accuracyMult: 0.85, reactionDelay: 1.2, statMult: 1.4, damageMult: 1.5,
       retreatHull: 0.28, retreatMinTime: 9, retreatMaxTime: 22,
-      repositionShield: 0.22, repositionDuration: 5, blindTolerance: 3,   // seconds with no weapon bearing on the target before it comes about to bring guns round
+      repositionShield: 0.22, repositionDuration: 5,   // a come about (shield roll, or the script's `roll` when shadowed) holds this long
       orbitRangeKm: 6, retreatRangeKm: 22,
       boosterBelow: 0.45, boosterMinCap: 0.35, afterburnerMinCap: 0.25, weakPointChance: 0.25,   // chance each re-roll to aim at your top weak point instead
       drainedBelow: 0.08, drainedUntil: 0.35, drainedTime: 20,   // neutralised under drainedBelow cap: open the range past the neutraliser until drainedUntil cap or drainedTime s
@@ -1136,7 +1143,7 @@ BS.Data = {
       doctrine: "broadside",
       accuracyMult: 0.7, reactionDelay: 1.6, statMult: 0.9, damageMult: 1.33,
       retreatHull: 0.2, retreatMinTime: 8, retreatMaxTime: 16,
-      repositionShield: 0.2, repositionDuration: 6, blindTolerance: 2.5,   // shadowed: the cruiser comes about sooner than a raider does (its stern carries two cannons since 0.21)
+      repositionShield: 0.2, repositionDuration: 6,   // its scripts roll when shadowed after blindFor 2.5 s, sooner than a raider (its stern carries two cannons since 0.21)
       orbitRangeKm: 7, retreatRangeKm: 18,
       boosterBelow: 0.5, boosterMinCap: 0.3, afterburnerMinCap: 0.35, weakPointChance: 0.6,
       drainedBelow: 0.06, drainedUntil: 0.3, drainedTime: 25,
@@ -1187,12 +1194,12 @@ BS.Data = {
     // `script` names the bridge script (script.enemyScripts) the enemy runs on top of its doctrine: the same rule engine,
     // conditions and actions as the player's (BS.Script). The doctrine stays the movement layer the script's rules pick.
       { id: "raider",   enemyClass: "bird_of_prey", layout: "default", doctrine: "strafe",    script: "raider",  minWins: 0, weight: 3, rewardMult: 1.0, counter: true },
-      { id: "gunboat",  enemyClass: "bird_of_prey", layout: "gunboat", doctrine: "brawl",     script: "doctrine", minWins: 1, weight: 2, rewardMult: 1.1 },
+      { id: "gunboat",  enemyClass: "bird_of_prey", layout: "gunboat", doctrine: "brawl",     script: "raider",   minWins: 1, weight: 2, rewardMult: 1.1 },
       { id: "torpedo",  enemyClass: "bird_of_prey", layout: "torpedo", doctrine: "standoff",  script: "torpedoBoat", minWins: 1, weight: 2, rewardMult: 1.1, damageMult: 1.0 },   // holds station and fires every tube; with the recharge delay its stream keeps a facing down
-      { id: "variant",  enemyClass: "bird_of_prey", layout: "random",  doctrine: ["strafe", "brawl"], script: "doctrine", minWins: 2, weight: 3, rewardMult: 1.1, counter: true },
-      { id: "jammer",   enemyClass: "bird_of_prey", layout: "jammer",  doctrine: "brawl",     script: "doctrine", minWins: 3, weight: 2, rewardMult: 1.2 },
+      { id: "variant",  enemyClass: "bird_of_prey", layout: "random",  doctrine: ["strafe", "brawl"], script: "raider",   minWins: 2, weight: 3, rewardMult: 1.1, counter: true },
+      { id: "jammer",   enemyClass: "bird_of_prey", layout: "jammer",  doctrine: "brawl",     script: "raider",   minWins: 3, weight: 2, rewardMult: 1.2 },
       { id: "shadow",   enemyClass: "bird_of_prey", layout: "shadow",  doctrine: "ambush",    script: "doctrine", minWins: 3, weight: 2, rewardMult: 1.3, damageMult: 1.2 },   // its decloak strikes already double
-      { id: "leech",    enemyClass: "bird_of_prey", layout: "leech",   doctrine: "brawl",     script: "doctrine", minWins: 3, weight: 2, rewardMult: 1.2 },   // two neutralisers: a close brawl becomes a capacitor war
+      { id: "leech",    enemyClass: "bird_of_prey", layout: "leech",   doctrine: "brawl",     script: "raider",   minWins: 3, weight: 2, rewardMult: 1.2 },   // two neutralisers: a close brawl becomes a capacitor war
       { id: "cruiser",  enemyClass: "ktinga",       layout: "default", doctrine: "broadside", script: "cruiser", minWins: 4, weight: 2, rewardMult: 1.8 },
       { id: "siege",    enemyClass: "ktinga",       layout: "siege",   doctrine: "siege",     script: "siegeCruiser", minWins: 6, weight: 2, rewardMult: 1.9 },
       { id: "warlord",  enemyClass: "ktinga",       layout: "random",  doctrine: ["broadside", "brawl"], script: "cruiser", minWins: 8, weight: 2, rewardMult: 1.9, counter: true },
@@ -1232,6 +1239,8 @@ BS.Data = {
     planTargets: 3,                // targets a plan may name, in order
     defaultTemplate: "brawler",    // what a ship undocks with when no script is assigned
     maxRules: 12,                  // rules per script in the editor
+    maxScripts: 12,                // own scripts a save holds (Copy as new refuses beyond it)
+    rangeBands: { beam: "inside our beam optimal", torpedo: "inside our torpedo range", out: "beyond our reach" },   // condition rangeBand, measured off the fitted weapons
     // bridge calls (BS.Script.bridgeCall, BS.Game.bridgeCall): the captain's `tokens` interventions per battle, never
     // refilled. A play or side call is an override that stands for holdSeconds and then hands back to the script;
     // Disengage stands until the weakest shield is back over disengageUntil (or holdSeconds); Reinforce acts at once;
@@ -1273,6 +1282,14 @@ BS.Data = {
       enemyKiting:      { label: "they are running from us", kind: "flag" },
       enemyFocusing:    { label: "they are shooting at our {v}", kind: "type", def: "reactor" },
       enemyState:       { label: "they are {v}", kind: "state", def: "pass" },
+      // 0.25: observations both bridges may script against
+      enemyStance:      { label: "they are {v}", kind: "stance", def: "orbiting" },          // enemyAI.stanceLabels, read off state and command
+      enemyAimingAt:    { label: "they are {v}", kind: "aiming", def: "weak" },              // enemyAI.aimLabels
+      rangeBand:        { label: "they are {v}", kind: "band", def: "beam" },                // script.rangeBands, off our own fitted weapons
+      enemyAfterburner: { label: "their afterburner is lit", kind: "flag" },
+      enemyHeatAbove:   { label: "their heat is over {v}", kind: "pct", def: 0.6 },
+      enemyHeatBelow:   { label: "their heat is under {v}", kind: "pct", def: 0.35 },
+      blindFor:         { label: "none of our weapons have borne on them for {v}", kind: "sec", def: 3 },
     },
     actions: {
       stance:    { label: "fly {v}", kind: "stance" },
@@ -1287,6 +1304,7 @@ BS.Data = {
       reinforce: { label: "reinforce the weakest shield", kind: "flag" },
       scan:      { label: "scan them (4 s, beams hold fire)", kind: "flag" },
       board:     { label: "send the boarding party", kind: "flag" },
+      roll:      { label: "come about to bring guns round", kind: "flag" },   // BS.EnemyAI.roll: a reposition toward the side with the most fire
     },
     policies: {
       lock:      { label: "keep a lock on the target" },
@@ -1343,17 +1361,36 @@ BS.Data = {
     },
     // Enemy scripts: the encounter's doctrine (and play) as rules, so both bridges run the same engine. The enemy AI keeps
     // its own module policies (booster, hardener, afterburner) in enemyai.js. `doctrine` means the encounter's doctrine.
+    // Reactions (0.25) are rules like any other, with `callout`: what Tactical says when the rule takes over or calls
+    // out. Enemy scripts never set modules (enemyai.js manages weapons, hardener and booster every decision tick); they
+    // react with the helm: roll, reinforce, a reaction doctrine held until its until / holdMax, a scan.
     enemyScripts: {
-      doctrine:      { name: "Doctrine", rules: [ { when: {}, do: { doctrine: "encounter" } } ] },
+      doctrine:      { name: "Doctrine", rules: [
+                        { when: { blindFor: 3 }, do: { roll: true }, every: 8, callout: "They're coming about to bring their guns round." },
+                        { when: {}, do: { doctrine: "encounter" } } ] },
       raider:        { name: "Raider", rules: [
                         { when: { scanned: false, dKmBelow: 12 }, do: { scan: true }, once: true },
+                        { when: { blindFor: 3 }, do: { roll: true }, every: 8, callout: "They're coming about to bring their guns round on us." },
+                        { when: { enemyFocusing: "shield" }, do: { reinforce: true, roll: true }, every: 20, callout: "They're reinforcing and turning that emitter away from us." },
+                        { when: { enemyHeatAbove: 0.6, dKmBelow: 6 }, do: { doctrine: "kite" }, until: { enemyHeatBelow: 0.35 }, holdMax: 20, callout: "They're opening the range, riding out our strike." },
+                        { when: { enemyCloaked: true }, do: { doctrine: "watch" }, until: { enemyCloaked: false }, holdMax: 60, callout: "They're holding at five klicks, waiting for us to show." },
+                        { when: { enemyCloaked: false, scanned: false, dKmBelow: 8 }, do: { scan: true }, once: true },
                         { when: {}, do: { doctrine: "encounter" } } ] },
       torpedoBoat:   { name: "Torpedo boat", rules: [ { when: {}, do: { play: "siege" } } ] },
       cruiser:       { name: "Cruiser", rules: [
                         { when: { scanned: false, dKmBelow: 14 }, do: { scan: true }, once: true },
+                        { when: { blindFor: 2.5 }, do: { roll: true }, every: 10, callout: "The cruiser is coming about to bring its batteries round." },
+                        { when: { enemyFocusing: "shield" }, do: { reinforce: true, roll: true }, every: 25, callout: "The cruiser is reinforcing and rolling that emitter away." },
+                        { when: { enemyHeatAbove: 0.6, dKmBelow: 6 }, do: { doctrine: "kite" }, until: { enemyHeatBelow: 0.35 }, holdMax: 15, callout: "The cruiser is opening the range under our strike." },
+                        { when: { enemyCloaked: true }, do: { doctrine: "watch" }, until: { enemyCloaked: false }, holdMax: 60, callout: "The cruiser is holding at five klicks, waiting for us to decloak." },
+                        { when: { enemyCloaked: false, scanned: false, dKmBelow: 8 }, do: { scan: true }, once: true },
                         { when: {}, do: { doctrine: "encounter" } } ] },
       siegeCruiser:  { name: "Siege cruiser", rules: [
                         { when: { scanned: false, dKmBelow: 20 }, do: { scan: true }, once: true },
+                        { when: { blindFor: 2.5 }, do: { roll: true }, every: 10, callout: "The cruiser is coming about to bring its batteries round." },
+                        { when: { enemyFocusing: "shield" }, do: { reinforce: true, roll: true }, every: 25, callout: "The cruiser is reinforcing and rolling that emitter away." },
+                        { when: { enemyCloaked: true }, do: { doctrine: "watch" }, until: { enemyCloaked: false }, holdMax: 60, callout: "The cruiser is holding at five klicks, waiting for us to decloak." },
+                        { when: { enemyCloaked: false, scanned: false, dKmBelow: 8 }, do: { scan: true }, once: true },
                         { when: {}, do: { doctrine: "encounter" } } ] },
     },
   },
@@ -1369,6 +1406,7 @@ BS.Data = {
     scripts: [],                       // [{ id, name, policies, rules }] the player's bridge scripts (BS.Script); templates live in script.templates
     scriptByBuild: {},                 // classId → script id or template id the ship undocks with (missing: script.defaultTemplate)
     plans: {},                         // encounterId → { targets: [{ x, y } | { type }], rows } up to script.planTargets targets in order
+    book: {},                          // encounterId → { fights, rules: { "<script>:<rule>": { text, n } } } the enemy rules seen firing (opening book)
     settings: { sound: true, screenShake: true, manualBridge: false },   // manualBridge: show the hand-flown helm controls (debug)
   },
 
