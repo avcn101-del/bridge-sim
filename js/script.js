@@ -84,40 +84,20 @@ BS.Script = (function () {
         case "dKmBelow": return dKm < v;
         case "dKmAbove": return dKm > v;
         case "heatAbove": return heat > v;
-        case "heatBelow": return heat < v;
-        case "facingBelow": return facing < v;
-        case "facingAbove": return facing > v;
         case "weakestBelow": return weakest < v;
         case "weakestAbove": return weakest > v;
         case "capBelow": return cap < v;
-        case "capAbove": return cap > v;
         case "hullBelow": return ship.hull / ship.hullMax < v;
         case "time": return time > v;
-        case "cloakOff": return ship.cloak.state === "off";
         case "cloaked": return ship.cloak.state === "cloaked";
         case "noCloak": return ship.cloak.state === "off" && !S.cloakFieldComplete(ship);
-        case "overloaded": return ship.overload > 0;
         case "noTubes": return !st.weapons.some(function (b) { return b.alive && b.def.weapon.kind === "launcher"; });
-        case "noPhasers": return !st.weapons.some(function (b) { return b.alive && b.def.weapon.kind === "turret"; });
         case "scanned": return !!ship.scanned === !!v;
-        case "incomingTorpedoes": return BS.Weapons.incoming(ship, 99) >= v;
         case "enemyReactorsGone": return !(ealive.reactor > 0);
         case "enemyShieldsDown": return S.shieldFrac(target, S.facingToward(target, ship.pos.x, ship.pos.y)) <= 0.02;
-        case "enemyFacingBelow": return S.shieldFrac(target, S.facingToward(target, ship.pos.x, ship.pos.y)) < v;
-        case "enemyCapBelow": return ecap < v;
         case "enemyHullBelow": return target.hull / target.hullMax < v;
-        case "enemyCharging": return (tstate === "run_in" || tstate === "approach") && closingKmS(ship, target) > D().chargingKmS;
-        case "enemyCloaking": return target.cloak.state === "cloaking";
         case "enemyCloaked": return S.isCloaked(target);
-        case "enemyRolling": return tstate === "reposition" || target.cmd.type === "comeAbout";
-        case "enemyBreaching": return target.breach > 0;
-        case "enemyKiting": return tstate === "kite" || tstate === "evade" || tstate === "drained" || tstate === "retreat";
         case "enemyFocusing": return focusType(target) === v;
-        case "enemyState": return tstate === v;
-        case "enemyStance": return stanceOf(target) === v;
-        case "enemyAimingAt": return aimingAt(target) === v;
-        case "rangeBand": return rangeBand(ship, dKm) === v;
-        case "enemyAfterburner": return M.find(target, "afterburner").some(function (m) { return m.active; });
         case "enemyHeatAbove": return eheat > v;
         case "enemyHeatBelow": return eheat < v;
         case "blindFor": return !!ship.ai && ship.ai.blindTimer > v;
@@ -141,37 +121,6 @@ BS.Script = (function () {
     }
     for (var i = 0; i < keys.length; i++) if (!holds(keys[i])) return false;
     return true;
-  }
-  function closingKmS(ship, target) {
-    var ct = S.contact(ship, target); if (ct.ghost) return 0;
-    var dx = target.pos.x - ship.pos.x, dy = target.pos.y - ship.pos.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
-    var rvx = target.vel.x - ship.vel.x, rvy = target.vel.y - ship.vel.y;
-    return -S.km(rvx * dx / d + rvy * dy / d);   // positive when the range is closing
-  }
-  // What the other ship is doing, in one word (enemyAI.stanceLabels), read off its doctrine state and helm command.
-  function stanceOf(t) {
-    var st = t.ai ? t.ai.state : "", cmd = t.cmd ? t.cmd.type : "";
-    if (cmd === "shadow") return "shadowing";
-    if (st === "reposition" || cmd === "comeAbout") return "rolling";
-    if (st === "kite" || st === "evade" || st === "retreat" || st === "drained") return "kiting";
-    if (st === "approach" || st === "run_in" || st === "stalk" || st === "uncloak" || st === "turn_in") return "closing";
-    if (st === "brawl" || st === "pass") return "orbiting";
-    if (st === "standoff" || st === "broadside" || st === "clear") return "holding";
-    return cmd === "orbit" ? "orbiting" : cmd === "approach" ? "closing" : "holding";
-  }
-  // What the other ship's fire is steered at (enemyAI.aimLabels): the hull, a system type, a weak point, structure.
-  function aimingAt(t) {
-    if (t.aimType === "block" && t.aimBlock) return t.aimBlock.block.structural ? "structure" : "weak";
-    if (t.aimType === "structure") return "structure";
-    return t.aimType ? "type" : "hull";
-  }
-  // The range in terms of our own fitted weapons (script.rangeBands): inside the longest beam optimal, inside the
-  // longest torpedo range, or beyond both.
-  function rangeBand(ship, dKm) {
-    var beam = BS.EnemyAI.weaponRef(ship, "phaser"), torp = BS.EnemyAI.weaponRef(ship, "torpedo");
-    if (beam !== null && dKm <= beam) return "beam";
-    if (torp !== null && dKm <= torp) return "torpedo";
-    return "out";
   }
   // What block type the other ship's fire is steered at (a focused block counts by its type).
   function focusType(ship) {
@@ -323,18 +272,14 @@ BS.Script = (function () {
 
   // ---- what the battle looked like, for the report: extremes of every measured quantity and which rules ever held ----
   function record(ship, target, sc) {
-    var x = sc.extremes || (sc.extremes = { dKmMin: Infinity, dKmMax: 0, weakestMin: 1, facingMin: 1, heatMax: 0, capMin: 1, capMax: 0, hullMin: 1, efacingMin: 1, ecapMin: 1, ehullMin: 1, incomingMax: 0, ever: {} });
+    var x = sc.extremes || (sc.extremes = { dKmMin: Infinity, dKmMax: 0, weakestMin: 1, heatMax: 0, capMin: 1, hullMin: 1, ehullMin: 1, ever: {} });
     var dKm = S.contactKm(ship, target), st = ship.stats, est = target.stats;
     x.dKmMin = Math.min(x.dKmMin, dKm); x.dKmMax = Math.max(x.dKmMax, dKm);
     x.weakestMin = Math.min(x.weakestMin, S.shieldFrac(ship, S.weakestFacing(ship)));
-    x.facingMin = Math.min(x.facingMin, S.shieldFrac(ship, S.facingToward(ship, target.pos.x, target.pos.y)));
     x.heatMax = Math.max(x.heatMax, st.heatCap ? ship.heat / st.heatCap : 0);
     var cap = ship.capMax ? ship.capacitor / ship.capMax : 0; x.capMin = Math.min(x.capMin, cap); x.capMax = Math.max(x.capMax, cap);
     x.hullMin = Math.min(x.hullMin, ship.hull / ship.hullMax);
-    x.efacingMin = Math.min(x.efacingMin, S.shieldFrac(target, S.facingToward(target, ship.pos.x, ship.pos.y)));
-    x.ecapMin = Math.min(x.ecapMin, target.capMax ? target.capacitor / target.capMax : 0);
     x.ehullMin = Math.min(x.ehullMin, target.hull / target.hullMax);
-    x.incomingMax = Math.max(x.incomingMax, BS.Weapons.incoming(ship, 99));
     x.eheatMax = Math.max(x.eheatMax || 0, est.heatCap ? target.heat / est.heatCap : 0);
     x.blindMax = Math.max(x.blindMax || 0, ship.ai ? ship.ai.blindTimer || 0 : 0);
     var al = BS.Fleet.fightingAllies(ship), hs = BS.Fleet.hostiles(ship).filter(BS.Fleet.fighting);
@@ -342,7 +287,7 @@ BS.Script = (function () {
     x.allyHullMin = Math.min(x.allyHullMin === undefined ? 1 : x.allyHullMin, al.length ? Math.min.apply(null, al.map(function (a) { return a.hull / a.hullMax; })) : 1);
     x.enemiesMin = Math.min(x.enemiesMin === undefined ? 99 : x.enemiesMin, hs.length);
     x.enemiesMax = Math.max(x.enemiesMax === undefined ? 0 : x.enemiesMax, hs.length);
-    ["scanned", "overloaded", "cloaked", "cloakOff", "noCloak", "noTubes", "noPhasers", "enemyReactorsGone", "enemyShieldsDown", "enemyCharging", "enemyCloaking", "enemyCloaked", "enemyRolling", "enemyBreaching", "enemyKiting", "enemyAfterburner", "enemyAmmoBeatsOurShields", "ourAmmoBeaten", "remodulating", "allyUnderFire", "outnumbered", "unfocused", "lanceCharging", "allyLanced"].forEach(function (k) {
+    ["scanned", "cloaked", "noCloak", "noTubes", "enemyReactorsGone", "enemyShieldsDown", "enemyCloaked", "enemyAmmoBeatsOurShields", "ourAmmoBeaten", "remodulating", "allyUnderFire", "outnumbered", "unfocused", "lanceCharging", "allyLanced"].forEach(function (k) {
       if (!x.ever[k]) { var w = {}; w[k] = true; if (conditions(ship, target, w, sc.t)) x.ever[k] = sc.t; }
     });
     // per rule: whether all its conditions ever held together, and each condition on its own (for the report)
@@ -373,15 +318,11 @@ BS.Script = (function () {
             case "dKmBelow": if (!(x.dKmMin < v)) why = "they never came inside " + v + " km (closest " + km(x.dKmMin) + ")"; break;
             case "dKmAbove": if (!(x.dKmMax > v)) why = "they never got beyond " + v + " km (farthest " + km(x.dKmMax) + ")"; break;
             case "weakestBelow": if (!(x.weakestMin < v)) why = "our weakest shield never fell under " + pct(v) + " (lowest " + pct(x.weakestMin) + ")"; break;
-            case "facingBelow": if (!(x.facingMin < v)) why = "our shield facing them never fell under " + pct(v) + " (lowest " + pct(x.facingMin) + ")"; break;
             case "heatAbove": if (!(x.heatMax > v)) why = "our heat never rose over " + pct(v) + " (peak " + pct(x.heatMax) + ")"; break;
             case "capBelow": if (!(x.capMin < v)) why = "our capacitor never fell under " + pct(v) + " (lowest " + pct(x.capMin) + ")"; break;
             case "hullBelow": if (!(x.hullMin < v)) why = "our hull never fell under " + pct(v) + " (lowest " + pct(x.hullMin) + ")"; break;
             case "time": if (!(sc.t > v)) why = "the battle lasted " + Math.round(sc.t) + " s, not " + v; break;
-            case "enemyFacingBelow": if (!(x.efacingMin < v)) why = "their shield facing us never fell under " + pct(v) + " (lowest " + pct(x.efacingMin) + ")"; break;
-            case "enemyCapBelow": if (!(x.ecapMin < v)) why = "their capacitor never fell under " + pct(v) + " (lowest " + pct(x.ecapMin) + ")"; break;
             case "enemyHullBelow": if (!(x.ehullMin < v)) why = "their hull never fell under " + pct(v) + " (lowest " + pct(x.ehullMin) + ")"; break;
-            case "incomingTorpedoes": if (!(x.incomingMax >= v)) why = "never " + v + " torpedoes at once (at most " + x.incomingMax + ")"; break;
             case "scanned": if (v && !x.ever.scanned) why = "we never scanned them"; break;
             case "enemyHeatAbove": if (!(x.eheatMax > v)) why = "their heat never rose over " + pct(v) + " (peak " + pct(x.eheatMax || 0) + ")"; break;
             case "blindFor": if (!(x.blindMax > v)) why = "our guns never lost them for " + v + " s (at most " + Math.round(x.blindMax || 0) + " s)"; break;
@@ -392,7 +333,7 @@ BS.Script = (function () {
             case "notTargeting": if (!(sc.everKey && sc.everKey[i] && sc.everKey[i][k])) why = "we were always firing at " + subjectLabel(v); break;
             default:
               if (V[k] && V[k].kind === "flag" && v !== false && !(x.ever && x.ever[k])) why = "\"" + V[k].label + "\" never happened";
-              else if (V[k] && (V[k].kind === "stance" || V[k].kind === "aiming" || V[k].kind === "band" || V[k].kind === "state" || V[k].kind === "type") && !(sc.everKey && sc.everKey[i] && sc.everKey[i][k])) why = V[k].kind === "type" ? "they never shot at our " + fmtValue("type", v) : "they were never " + fmtValue(V[k].kind, v);
+              else if (V[k] && V[k].kind === "type" && !(sc.everKey && sc.everKey[i] && sc.everKey[i][k])) why = V[k].kind === "type" ? "they never shot at our " + fmtValue("type", v) : "they were never " + fmtValue(V[k].kind, v);
               break;
           }
         }
@@ -409,10 +350,6 @@ BS.Script = (function () {
     if (kind === "km") return v + " km";
     if (kind === "sec") return v + " s";
     if (kind === "type") return BS.Data.blocks[v] ? BS.Data.blocks[v].name.toLowerCase() + "s" : String(v);
-    if (kind === "state") return BS.Data.enemyAI.stateLabels[v] || String(v);
-    if (kind === "stance") return BS.Data.enemyAI.stanceLabels[v] || String(v);
-    if (kind === "aiming") return BS.Data.enemyAI.aimLabels[v] || String(v);
-    if (kind === "band") return D().rangeBands[v] || String(v);
     return String(v);
   }
   function subjectLabel(id) { return (D().subjects && D().subjects[id]) || String(id); }
@@ -469,5 +406,5 @@ BS.Script = (function () {
     return out;
   }
 
-  return { start: start, stop: stop, update: update, bridgeCall: bridgeCall, callRule: callRule, explain: explain, conditions: conditions, apply: apply, describe: describe, describeScript: describeScript, describeWhen: describeWhen, describeDo: describeDo, subjectLabel: subjectLabel, allyLabel: allyLabel, resolve: resolve, focusType: focusType, stanceOf: stanceOf, aimingAt: aimingAt, rangeBand: rangeBand };
+  return { start: start, stop: stop, update: update, bridgeCall: bridgeCall, callRule: callRule, explain: explain, conditions: conditions, apply: apply, describe: describe, describeScript: describeScript, describeWhen: describeWhen, describeDo: describeDo, subjectLabel: subjectLabel, allyLabel: allyLabel, resolve: resolve, focusType: focusType };
 })();

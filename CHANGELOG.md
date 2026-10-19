@@ -2,6 +2,30 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.39.0] — 2026-10-19 (vocabulary cut, tuning per ship, the tutorial tier, the hangar by the loop; 0.39 of DESIGN §10 "Streamline")
+
+### Changed
+- **Script vocabulary 53 → 33 conditions**: the 1v1 micro conditions
+  (facing, heat below, cap above, incoming torpedoes, overloaded, cloak
+  off, no beams, their facing / capacitor, charging, cloaking, rolling,
+  breaching, kiting, state, stance, aiming, range band, afterburner) are
+  gone. A saved script's rule that names one is dropped and the hangar
+  says which, once.
+- **Tuning per ship**: three dropdowns in the hangar's Tuning box (one
+  modulation each for weapons, shields, armor) replace the per-cell paint
+  mode; the rows in the save are unchanged, so nothing is lost.
+- **The solo tier is a tutorial**: eight encounters (raider, gunboat,
+  torpedo boat, jammer, shadow, leech, cruiser, siege); the random
+  variant, interceptor, bombard, bulwark, pulser and warlord are gone with
+  their layouts. Fleet encounters carry `minHulls` (pair 3, pack 4): a
+  two-hull roster no longer meets the pair it lost 0 of 3 to.
+- **The hangar in the loop's order**: Flagship, Fleet, Script, Intel,
+  Tuning on the left; the editor on the right.
+- DESIGN §8 keeps 0.31 onward; the 0.6–0.30 measurements are Appendix A.
+
+### Measured (DESIGN §8)
+- See §8 v0.39.
+
 ## [0.38.0] — 2026-10-19 (boarding, crew manning, skills and science out; 0.38 of DESIGN §10 "Streamline")
 
 ### Removed

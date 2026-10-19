@@ -13,7 +13,7 @@ BS.Hangar = (function () {
   function init(gameRef) {
     game = gameRef;
     ["hangar-screen", "hg-credits", "hg-ship", "hg-ships", "hg-editor", "hg-palette", "hg-stats", "hg-msg", "hg-record", "hg-threat", "hg-intel-view", "hg-intel-info", "hg-plan", "hg-script", "hg-doctrine",
-     "hg-presets", "hg-builds", "btn-mirror", "btn-tune", "btn-fill", "btn-clear", "btn-revert", "btn-apply", "btn-savebuild", "hg-buildname", "hg-delta",
+     "hg-presets", "hg-builds", "btn-mirror", "btn-fill", "btn-clear", "btn-revert", "btn-apply", "btn-savebuild", "hg-buildname", "hg-delta",
      "btn-undock", "btn-export", "btn-import", "hg-import-file", "btn-reset"].forEach(function (id) { el[id] = $(id); });
     el["btn-undock"].addEventListener("click", function () {
       if (ed.dirty) { say("Apply or revert your build before undocking.", true); return; }
@@ -26,7 +26,6 @@ BS.Hangar = (function () {
       if (window.confirm("Reset all progress? Credits, ships, builds and scripts will be lost.")) { C.reset(); ed.rows = null; render(); say("Progress reset."); }
     });
     el["btn-mirror"].addEventListener("click", function () { ed.mirror = !ed.mirror; renderEditor(); });
-    el["btn-tune"].addEventListener("click", function () { ed.mode = ed.mode === "tune" ? "blocks" : "tune"; if (ed.mode === "tune" && !ed.tuneBrush) ed.tuneBrush = "default"; renderPalette(); renderEditor(); el["btn-tune"].classList.toggle("active", ed.mode === "tune"); });
     el["btn-fill"].addEventListener("click", function () { fillEmpty("A"); });
     el["btn-clear"].addEventListener("click", function () { clearAll(); });
     el["btn-revert"].addEventListener("click", function () { ed.rows = C.layoutFor(ed.classId).slice(); ed.tuning = C.tuningFor(ed.classId).slice(); ed.dirty = false; renderEditor(); say("Build reverted to the current layout."); });
@@ -47,9 +46,10 @@ BS.Hangar = (function () {
   }
 
   function isOpen() { return !el["hangar-screen"].classList.contains("hidden"); }
-  function show() { el["hangar-screen"].classList.remove("hidden"); render(); }
+  function show() { el["hangar-screen"].classList.remove("hidden"); render(); showNotice(); }
   function hide() { el["hangar-screen"].classList.add("hidden"); if (sc.dry && sc.dry.running) { game.cancelDryRun(); sc.dry = null; } }
   function say(msg, bad) { el["hg-msg"].textContent = msg; el["hg-msg"].classList.toggle("bad", !!bad); }
+  function showNotice() { var s = C.get(); if (s.notice) { say(s.notice, true); delete s.notice; C.persist(); } }
 
   // ---- render ---------------------------------------------------------------
   // Intel: the next enemy's layout if it was scanned (held under lock) in an earlier battle of that kind or bought,
@@ -144,7 +144,6 @@ BS.Hangar = (function () {
   // ---- editor ---------------------------------------------------------------
   function renderPalette() {
     var box = el["hg-palette"]; box.innerHTML = "";
-    if (ed.mode === "tune") { renderTunePalette(box); return; }
     Object.keys(BS.Data.blocks).forEach(function (type) {
       var d = BS.Data.blocks[type];
       if (d.enemyOnly) return;   // boss weapons (0.33) are not for sale
@@ -160,29 +159,6 @@ BS.Hangar = (function () {
     e.querySelector("i").className = "erase-icon";
     e.addEventListener("click", function () { ed.brush = "erase"; renderPalette(); });
     box.appendChild(e);
-  }
-  // Tune mode (BS.Data.tuning): a brush per modulation plus the faction default, and "set all" dropdowns per kind.
-  function renderTunePalette(box) {
-    var T = BS.Data.tuning, cls = BS.Data.shipClasses[ed.classId], dflt = T.factionDefault[cls.faction];
-    var ids = ["default"].concat(T.order);
-    ids.forEach(function (id) {
-      var m = id === "default" ? { name: "Faction default", color: "#9a9ab0" } : T.list[id];
-      var b = document.createElement("button"); b.className = "pal tune" + (ed.tuneBrush === id ? " active" : "");
-      var beats = id === "default" ? T.list[dflt] : T.list[T.order[(T.order.indexOf(id) + 1) % T.order.length]];
-      b.innerHTML = "<i style='background:" + m.color + "'></i><b>" + m.name + "</b><small>" + (id === "default" ? (cls.faction + ": " + T.list[dflt].name + ", no surcharge") : "beats " + beats.name + " · +" + Math.round(T.offFactionCost * 100) + "% off-faction") + "</small>";
-      b.title = id === "default" ? "Back to the faction's modulation" : T.list[id].how;
-      b.addEventListener("click", function () { ed.tuneBrush = id; renderPalette(); });
-      box.appendChild(b);
-    });
-    var row = document.createElement("div"); row.className = "tune-all";
-    [["ammo", "all weapons"], ["frequency", "all shields"], ["alloy", "all armor"]].forEach(function (k) {
-      var lab = document.createElement("label"); lab.textContent = k[1] + " ";
-      var sel = document.createElement("select"); sel.className = "lcars-select";
-      sel.innerHTML = "<option value=''>set…</option><option value='default'>faction default</option>" + T.order.map(function (id) { return "<option value='" + id + "'>" + T.list[id].name + "</option>"; }).join("");
-      sel.addEventListener("change", function () { if (!sel.value) return; var spec = {}; spec[k[0]] = sel.value === "default" ? null : sel.value; ed.tuning = Gr.tuningRowsFor(cls, ed.rows, spec, ed.tuning); ed.dirty = true; renderEditor(); sel.value = ""; });
-      lab.appendChild(sel); row.appendChild(lab);
-    });
-    box.appendChild(row);
   }
   function renderPresets(cls) {
     var sel = el["hg-presets"]; sel.innerHTML = "<option value=''>Load preset…</option><option value='default'>Class default</option>";
@@ -316,33 +292,27 @@ BS.Hangar = (function () {
     ed.rows[y] = row.slice(0, x) + letter + row.slice(x + 1);
     return true;
   }
-  // Tune mode: paint a modulation digit on a tunable block (and its mirror).
-  function setTune(x, y, digit) {
-    var cls = BS.Data.shipClasses[ed.classId], t = Gr.typeForLetter(ed.rows[y][x]);
-    if (!t || !BS.Data.tuning.tunable[t]) return false;
-    if (!ed.tuning || ed.tuning.length !== cls.mask.length) ed.tuning = Gr.blankTuning(cls);
-    if (ed.tuning[y][x] === digit) return false;
-    ed.tuning[y] = ed.tuning[y].slice(0, x) + digit + ed.tuning[y].slice(x + 1);
-    return true;
-  }
   function paint(cell, type) {
-    if (ed.mode === "tune") {
-      var id = ed.tuneBrush || "default", digit = id === "default" ? "0" : BS.Data.tuning.list[id].digit, ch = setTune(cell.x, cell.y, digit);
-      if (ed.mirror) { var g0 = ed.ship.grid, my0 = g0.h - 1 - cell.y; if (my0 !== cell.y) ch = setTune(cell.x, my0, digit) || ch; }
-      if (ch) { ed.dirty = true; renderEditor(); }
-      return;
-    }
     var letter = type === "erase" ? "." : BS.Data.blocks[type].letter;
     var changed = setCell(cell.x, cell.y, letter);
     if (ed.mirror && letter !== "B") { var g = ed.ship.grid, my = g.h - 1 - cell.y; if (my !== cell.y) changed = setCell(cell.x, my, letter) || changed; }
-    if (changed) { ed.dirty = true; renderEditor(); }
+    if (changed) { ed.dirty = true; syncTuning(); renderEditor(); }
   }
+  // Tuning per ship (0.39): one modulation for all weapons, one for all shields, one for all armor (null = the faction
+  // default), read off the rows in the editor and written back to every block of that kind, new blocks included.
+  function tuneSpec() {
+    var cls = BS.Data.shipClasses[ed.classId], T = BS.Data.tuning, dflt = T.factionDefault[cls.faction];
+    var sm = Gr.tuningSummary(Gr.build(cls, ed.rows, 1, ed.tuning), true), out = {};
+    ["ammo", "frequency", "alloy"].forEach(function (k) { var d = Gr.dominantTune(sm[k]); out[k] = d && d !== dflt ? d : null; });
+    return out;
+  }
+  function syncTuning(spec) { ed.tuning = Gr.tuningRowsFor(BS.Data.shipClasses[ed.classId], ed.rows, spec || tuneSpec()); }
   function fillEmpty(letter) {
     var cls = BS.Data.shipClasses[ed.classId], changed = false;
     for (var y = 0; y < cls.mask.length; y++) for (var x = 0; x < cls.mask[0].length; x++) {
       var m = cls.mask[y][x]; if ((m === "#" || m === "n" || m === "r") && ed.rows[y][x] === ".") changed = setCell(x, y, letter) || changed;
     }
-    if (changed) { ed.dirty = true; renderEditor(); say("Empty cells filled with armor."); }
+    if (changed) { ed.dirty = true; syncTuning(); renderEditor(); say("Empty cells filled with armor."); }
   }
   function clearAll() {
     ed.rows = ed.rows.map(function (r) { return r.replace(/[^.B]/g, "."); });
@@ -385,9 +355,9 @@ BS.Hangar = (function () {
     ["pointerup", "pointercancel"].forEach(function (n) { canvas.addEventListener(n, function (ev) { if (ev.pointerType === "touch") { ed.painting = false; ed.hover = null; renderEditor(); } }); });
   }
 
-  // ---- doctrine: the tuning ring (BS.Data.tuning), with the player's ammo and the next enemy's known frequencies ----
+  // ---- tuning: the ring (BS.Data.tuning), the ship's three modulations, and the next enemy's known frequencies ----
   function renderDoctrine(enc) {
-    var T = BS.Data.tuning, box = el["hg-doctrine"], cls = BS.Data.shipClasses[ed.classId];
+    var T = BS.Data.tuning, box = el["hg-doctrine"], cls = BS.Data.shipClasses[ed.classId], dflt = T.factionDefault[cls.faction], spec = tuneSpec();
     function chip(id) { var m = T.list[id]; return "<span class='el' style='border-color:" + m.color + "' title='" + escapeHtml(m.how) + "'>" + m.name + "</span>"; }
     var html = "<div class='wheel'>" + T.order.map(function (id) { return chip(id) + "<span class='arrow'>beats</span>"; }).join("") + chip(T.order[0]) + "</div>";
     html += "<div>One rule: ammo that beats the frequency of the emitter it hits drains that shield ×" + T.bonus + ", ammo the frequency beats ×" + T.malus + "; the same against a plate's alloy. Systems take ×1. Every emitter, plate and weapon block carries its own modulation (Tune in the editor), so a hull can be Graviton at the bow and Nadion astern.</div>";
@@ -399,6 +369,16 @@ BS.Hangar = (function () {
     if (T.measured.ring) html += "<div class='dim'>Measured: " + escapeHtml(T.measured.ring) + ".</div>";
     html += T.order.map(function (id) { var m = T.list[id]; return "<div class='edge'><b style='color:" + m.color + "'>" + m.name + "</b> " + escapeHtml(m.how.split(": ").slice(1).join(": ")) + "</div>"; }).join("");
     box.innerHTML = html;
+    var row = document.createElement("div"); row.className = "tune-all";
+    [["ammo", "weapons"], ["frequency", "shields"], ["alloy", "armor"]].forEach(function (k) {
+      var lab = document.createElement("label"); lab.textContent = k[1] + " ";
+      var sel = document.createElement("select"); sel.className = "lcars-select";
+      sel.innerHTML = "<option value=''>" + T.list[dflt].name + " (" + cls.faction + " default)</option>" + T.order.filter(function (id) { return id !== dflt; }).map(function (id) { return "<option value='" + id + "'>" + T.list[id].name + " (+" + Math.round(T.offFactionCost * 100) + "%)</option>"; }).join("");
+      sel.value = spec[k[0]] || "";
+      sel.addEventListener("change", function () { var sp = tuneSpec(); sp[k[0]] = sel.value || null; syncTuning(sp); ed.dirty = true; renderEditor(); say("Tuning changed. Apply to pay the surcharge."); });
+      lab.appendChild(sel); row.appendChild(lab);
+    });
+    box.appendChild(row);
   }
 
   // ---- plan: up to script.planTargets targets on the next enemy, in order ------------------------------------
@@ -650,10 +630,6 @@ BS.Hangar = (function () {
         case "pct": return pct(obj[k], function (v) { obj[k] = v; });
         case "bool": return sel([["1", d.label], ["0", d.negLabel || ("not: " + d.label)]], obj[k] ? "1" : "0", function (v) { obj[k] = v === "1"; });
         case "type": return sel(Object.keys(BS.Data.blocks).map(function (b) { return [b, BS.Data.blocks[b].name.toLowerCase() + "s"]; }), obj[k], function (v) { obj[k] = v; });
-        case "state": return sel(Object.keys(BS.Data.enemyAI.stateLabels).map(function (st) { return [st, BS.Data.enemyAI.stateLabels[st]]; }), obj[k], function (v) { obj[k] = v; });
-        case "stance": return sel(Object.keys(BS.Data.enemyAI.stanceLabels).map(function (st) { return [st, BS.Data.enemyAI.stanceLabels[st]]; }), obj[k], function (v) { obj[k] = v; });
-        case "aiming": return sel(Object.keys(BS.Data.enemyAI.aimLabels).map(function (st) { return [st, BS.Data.enemyAI.aimLabels[st]]; }), obj[k], function (v) { obj[k] = v; });
-        case "band": return sel(Object.keys(SD().rangeBands).map(function (st) { return [st, SD().rangeBands[st]]; }), obj[k], function (v) { obj[k] = v; });
         case "subject": return sel(Object.keys(SD().subjects).map(function (id) { return [id, SD().subjects[id]]; }), obj[k], function (v) { obj[k] = v; });
         default: return null;
       }
