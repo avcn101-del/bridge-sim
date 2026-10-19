@@ -1,6 +1,6 @@
 # DESIGN.md — Bridge Sim
 
-Version: 0.39.0 (vocabulary cut, tuning per ship, the tutorial tier, the hangar by the loop); direction in §10. Keep this file in sync with the game.
+Version: 0.40.0 (the campaign harness; heat measured and removed); direction in §10. Keep this file in sync with the game.
 
 ## 1. Concept: WoW raids, in Trek ships, in an arena
 
@@ -94,8 +94,8 @@ lost, stalemate) and **Never fired**: every standing rule and call-out
 that never fired, with the reason from `BS.Script.explain(ship)`. The
 engine records per tick the extremes of what the conditions measure
 (`script.extremes`: closest and farthest range, lowest weakest and engaged
-facing, peak heat, lowest capacitor and hull on both sides, most torpedoes
-in flight, the first time each flag condition held) and, per rule, the
+facing, lowest capacitor and hull on both sides, the first time each flag
+condition held) and, per rule, the
 first time its conditions all held and what stood above it then. The
 reason is the first condition that never held, with how close it came
 ("they never came inside 5 km (closest 6.2 km)", "our weakest shield never
@@ -113,7 +113,7 @@ is settled, or with *Let it go* in the Intel box.
 of standing rules (theirs | ours) under which the largest share of the
 damage landed ("61% of the damage we took landed while their r4 stood:
 'The cruiser is opening the range under our strike' … and our r2 stood:
-'When our heat is over 90%: weapons off'"). Every shield or hull hit is
+'When our weakest shield is under 25%: fly Disengage'"). Every shield or hull hit is
 booked to the rules standing at that moment (`state.attrib`, events
 `shieldHit` / `hullHit`), so the sentence names what actually hurt, not
 a guess. (0.36: the style tags and the doctrine table's sentence are
@@ -361,19 +361,11 @@ Erase is the palette entry. Every keyboard shortcut has a button.
   weapons cycle and shields regenerate at supply / draw (never below 40%).
   This is the only cap on weapons: more guns need more reactors, and
   reactors explode.
-- **Heat** (`grid.heat`, `weapon.heat`): every shot adds its weapon's heat
-  (phaser 6, torpedo 30). Capacity = 80 + 2 per block, dissipation = 6/s
-  + 0.25 per rim cell (hull surface). A weapon cannot fire at capacity; the
-  shot that crosses it **overloads** the ship for 6 s: nothing fires or
-  cycles. A Constitution (cap 480) can alpha-strike 16 tubes, not 100. The
-  gauge shows heat as the thin outer ring, and the **heat bar** under the
-  module bar shows heat / capacity with a marker for what the next full
-  salvo would add (green, amber above 60%, red above 85%). The **heat
-  governor** (GOV button, key H, on by default; `heat.governorHigh/Low`)
-  holds fire above 85% heat and releases it below 60%, so the player ship
-  never overloads unless the governor is switched off. The editor shows
-  the full-salvo heat and whether sustained fire is heat-neutral. The AI
-  stops firing at 85% heat.
+- **Heat** (0.7–0.39): removed in 0.40. Measured first (§8 v0.40): with
+  the heat cap set to infinity every reference fight was identical to the
+  second, so the cap, the overload, the governor, the heat bar and the
+  heat conditions never bound a scripted fight. The capacitor is the one
+  cap on weapons.
 - **Reactor breach** (`blocks.reactor.explosion`, after Cosmoteer): a
   destroyed reactor deals 80 damage to each of its eight neighbours; a
   reactor among them explodes in turn, so touching reactors chain. Armor
@@ -752,7 +744,8 @@ intel, script); in the fight the bridge runs the script. A script is
   it takes over (an order the helm already flies is not re-issued). A rule
   with `until` holds its orders until that condition holds, or `holdMax`
   seconds pass, unless a rule above it takes over: that is how phases are
-  written ("when heat is over 90%: weapons off, until heat is under 30%").
+  written ("when our weakest shield is under 25%: fly Disengage, until it is
+  over 60%").
   A rule with no conditions is the default and stands when nothing above
   it does.
 - **Call-outs** (`once: true` or `every: N`) fire their actions whenever
@@ -764,7 +757,7 @@ intel, script); in the fight the bridge runs the script. A script is
   when torpedoes are inside `ew.decoy.aiIncomingKm`), `neut` (run it in
   range).
 - **Conditions** (`script.conditions`, each with a sentence): the ship's
-  own state (`dKm`, `facing`, `weakest`, `heat`, `cap`, `time`, cloak and
+  own state (`dKm`, `weakest`, `cap`, `time`, cloak and
   weapon states, `enemyReactorsGone`, `enemyShieldsDown`) plus `scanned`,
   `hullBelow`, `incomingTorpedoes`, `boardable`, `enemyFacingBelow`,
   `enemyCapBelow`, `enemyHullBelow`, `enemyCharging` (running in and
@@ -805,10 +798,10 @@ intel, script); in the fight the bridge runs the script. A script is
   `scriptRule`, read into the log by the computer) records every takeover
   and call-out with the reason an action could not be done.
 - **Templates** (`script.templates`): Brawler (the default fight: Engage,
-  weapons, hardener, governor), Siege, Hunter, Ambush (the plays of 0.9
-  rewritten as rules, the plays themselves gone since 0.37). Alpha strike, Turtle and Hit & fade moved to
-  `script.retiredTemplates` (§10): not in the hangar list, still readable
-  by the harness; a save that assigned one undocks with the default. A hull undocks with
+  weapons, hardener), Siege, Hunter, Ambush (the plays of 0.9 rewritten as
+  rules, the plays themselves gone since 0.37); Alpha strike, Turtle and
+  Hit & fade were retired in 0.31 and deleted in 0.40 with the heat they
+  were written around. A hull undocks with
   `save.scriptByBuild[classId]` (an own script by id, PR B's editor, or a
   template), else `script.defaultTemplate`.
 - **Enemy scripts** (`script.enemyScripts`, `campaign.encounters[].script`):
@@ -919,7 +912,6 @@ each with a callout Tactical reads out, and the plain `doctrine` script
 |---|---|---|
 | `blindFor` n s: nothing of theirs bears on us (we shadow a blind sector) | `roll` (call-out every 8–10 s) | 3 s / 2.5 s |
 | `enemyFocusing: shield`: our fire is steered at their emitters | `reinforce` + `roll` (every 20 / 25 s) | |
-| `enemyHeatAbove` 0.6 inside 6 km: we are dumping heat (alpha) | `doctrine: kite` (`enemyAI.doctrines.kite`: keep 9 km on the afterburner) until our heat is under 35%, at most 20 / 15 s | |
 | `enemyCloaked`: we are cloaked | `doctrine: watch` (`doctrines.watch`: hold 5 km, afterburner cold) until we show, at most 60 s, then a scan inside 8 km | |
 
 Enemy scripts never set modules: `enemyai.js` keeps weapons, hardener,
@@ -1230,10 +1222,10 @@ enemyAI.doctrines: { id: { kind, ...ranges and timers, label?, desc?, ranges?: {
 subsystems: { weapons, torpedoes, engines, shields, sensors, bridge: { label, short, effect, targetReport, damaged, repaired } }
 subsystemEffects: { sensorsAccuracyFloor, sensorsLockMaxMult, bridgeCapMinMult, targetAccuracyMult }
 modules: { id: { slot, kind: turret|launcher|active|passive, name, short, cycle, cap, pg, cpu, cost, desc, ...stats, effect } }
-grid: { cellPx, structureHp, structurePierceCost, shield*/regen*/cap*/thrust*/sensor*/repair*, shieldRadius, powerPerReactor, brownoutMin, heat: { base, perBlock, dissipationBase, dissipationPerRimCell, overloadTime, aiFireBelow, governorHigh, governorLow },
+grid: { cellPx, structureHp, structurePierceCost, shield*/regen*/cap*/thrust*/sensor*/repair*, shieldRadius, powerPerReactor, brownoutMin,
         hitScatter, penetration, lineOfFire, lineOfFireStep, lineOfFireMuzzle, lineOfFireRangeCells, torpedoSplash, aimRadius, aimScatter, deadFraction,
         variant: { fraction, attempts, systemWeights }, maskLegend, layoutLegend }
-blocks: { type: { letter, name, short, hp, mass, cost, power, color, desc, unique?, pierceCost?, explosion?: { damage, radius }, weapon?: { ..., heat } } }
+blocks: { type: { letter, name, short, hp, mass, cost, power, color, desc, unique?, pierceCost?, explosion?: { damage, radius }, weapon?: { ... } } }
 modules: { phaser_group, torpedo_group, shield_booster, shield_hardener, afterburner, jammer (block-bound active, effect.jam), cloak (kind "cloak", block-bound),
            decoy (block-bound active, effect.decoy), neut (block-bound active, effect.neut) }
 ew: { jamPerBlock, jamDuration, cloakTime, decloakTime, surgeTime, cloakDrain, cloakMinCap, detectPerSensor, ghostAlpha, ownCloakAlpha, cloakRadius, jamRadius, strike,
@@ -1244,6 +1236,7 @@ campaign.firstFight: { weakPointChance }; campaign.encounters[].script; tuning (
 campaign.salvage: { destroyed, disabled, captured }; enemyAI.*: drainedBelow, drainedUntil, drainedTime
 0.31: balance.fleetSpacingKm; campaign.fleetMax; campaign.encounters[].ships: [{ enemyClass, layout, doctrine, script, damageMult }]; save.fleet: [classId]; ship: team, target, contacts{}, flags.captured; state: teams { player: [], enemy: [] }, enemyFlag
 0.32: script.subjects; rule.about; action target; conditions allyShieldBelow / allyHullBelow / allyUnderFire / outnumbered / enemiesAtMost / unfocused; templates.wolfpack; ship: scannedOf{}, scanTarget
+0.40: grid.heat, blocks.*.weapon.heat, ship.heat / overload / heatGovernor / governorHold, stats.heatCap / heatDissipation, conditions heatAbove / enemyHeatAbove / enemyHeatBelow, action governor, doctrine kite, the retired templates, event overload: all gone; tools/campaign.js
 0.39: script.conditions 53 → 33 (the 1v1 micro conditions gone; a save's rule naming one is dropped and save.notice says so); enemyAI.stanceLabels / aimLabels, script.rangeBands / chargingKmS gone; campaign.encounters[].minHulls; encounters variant, interceptor, bombard, bulwark, pulser, warlord and the Bird-of-Prey variants interceptor, bulwark, pulser, bombard gone; the hangar's tuning dropdowns (rows unchanged)
 0.38: grid.crew, blocks.*.crew, stats.crew, grid.boarding, ship.boarding, skills, save.skills / training, science (scanSeconds → script, cloakDetectRangeKm → ew), salvage.captured, flags.captured, condition boardable, action board, weak point kind crew, crit on quarters: all gone; BS.Grid.isSystem
 0.37: helm.defaultDoctrine, helm.policy; enemyAI.doctrines[].label / desc / ranges (engage, skirmish, standoff, disengage; dogfight and bombard are the fixed former skirmish / standoff); script action doctrine (stance and play gone; saves migrated); settings.manualBridge gone; enemyScripts.torpedoBoat rules
@@ -1274,7 +1267,7 @@ block: `covered, coverBy` from derive.
 `lockStarted, lockAcquired, lockLost, moduleToggled, moduleCycle,
 moduleOffline, shieldBoosted, phaserFired, torpedoLaunched, torpedoHit,
 torpedoExpired, shieldHit, hullHit, blockDestroyed, sectionLost,
-blockExploded, shipDisabled, shipDestroyed, overload, jammed, cloakChanged,
+blockExploded, shipDisabled, shipDestroyed, jammed, cloakChanged,
 alertChanged, stateChanged, orbitFlipped, stanceChanged (a doctrine set), enemyRolled, commandGiven,
 decoyLaunched, decoyExpired, torpedoLured, torpedoDecoyed, neutralised, scriptRule, scriptSuspended, scriptAim, scanStarted, scanned, bridgeCall, bridgeCallRefused, speedChanged,
 log, battleStarted, battleEnded, skillTrained`.
@@ -1290,6 +1283,35 @@ harness is in the repository: `tools/harness.js` (Playwright, one
 `campaign.encounters`, seeded `Math.random`, `--noreact` for the 0.24 enemy
 bridge, `--eval` for a data tweak, `--debug` for what each bridge saw) and
 `tools/smoke.js` (the headless interface check).
+
+v0.40.0 (the campaign harness; heat measured and removed. Harness rows
+with every hull's script set, seeds 1–4 for the 1v1, the pack and the
+cruiser, 1–2 for the rest; `--eval "BS.Data.grid.heat.base = 1e6"` is "no
+heat" on 0.39, the third column is 0.40 with heat gone):
+
+| Matchup | 0.39 | 0.39, no heat | 0.40 |
+|---|---|---|---|
+| Constitution vs Raider (0 wins), Brawler | 3 of 4 in 2:35–2:59 keeping 73–92% | identical | identical |
+| Four hulls vs `pack` (0 wins), Wolf pack | 4 of 4 in 3:57–6:56 keeping 42–73% | identical | identical |
+| Four Cube breakers vs `cube` (0 wins) | 2 of 2 in 3:50–5:27 keeping 84–91% | identical | identical |
+| Constitution vs Cruiser (4 wins), Brawler | 4 of 4 in 3:32–5:52 keeping 78–99% | identical | identical |
+| Constitution vs Shadow (3 wins), Ambush | — | — | 2 of 2 in 3:46–5:54 keeping 100% (its heat `until`s gone) |
+
+Two whole runs (`tools/campaign.js --battles 12`, seed 1, before the heat
+cut; the cut changed no fight):
+
+| Run | Battles | Credits | Notes |
+|---|---|---|---|
+| Constitution alone, Brawler | 11 of 12 won; no boss slot (one hull) | 600 → 6,688 (earned 14,613, repairs 5,451) | the one loss (the Leech, battle 5) cost the whole purse: the repair bill of a lost hull is capped at the credits in hand |
+| Constitution + Galaxy + Excelsior + Defiant, Cube breakers | 11 of 12; the cube at battles 6 and 12, both won; no fleet skirmish drawn | 600 → 15,931 (earned 23,311, repairs 3,950) | one stalemate: the Shadow against a Cube breaker flagship (a cloaked raider nobody hunts); a four-hull fleet banks 16k credits with nothing to spend them on |
+
+Honest reading: heat never bound a scripted fight, so it is gone and
+nothing moved. The campaign harness shows two things the fight harness
+could not: a single early loss empties the purse (repairs are 37% of a
+solo run's income, 17% of a fleet's), and credits pile up once the fleet
+is bought. Both are economy questions for after the second boss; and the
+Shadow stalemate says a solo-tier template needs a cloak answer the fleet
+templates lack (a `noCloak` / scan rule), noted for the next template pass.
 
 v0.39.0 (vocabulary cut, tuning per ship, the tutorial tier; seeds 1–4
 for the 1v1 and the pack, 1–2 for the rest; every hull's script set):
@@ -1502,6 +1524,7 @@ Appendix A at the end of this file.
 | v0.33.0 (done) | The first boss (§4 "Bosses"): the Borg cube, the cutting beam with a charge tell, summoned escorts, overdrive, the boss script with callouts, the Cube breaker template, enemy-only blocks and actions |
 | v0.32.0 (done) | Fleet scripts (§4): subjects (`about`), the `target` action, ally and count conditions, scans per ship, the Wolf pack template, enemy packs that concentrate fire, the report per hull |
 | v0.31.0 (done) | Fleet engine (§4, §10): teams, N ships against M, target selection and retargeting, team elimination, viewer and primary enemy, camera over every ship, encounters with `ships`, `save.fleet`, harness fleets and `--perf`, deterministic harness, learning zeroed |
+| v0.40.0 (done) | `tools/campaign.js` plays a whole run headless (encounters as the game picks them, repairs and credits settled); heat measured with the cap at infinity (every reference identical) and removed with the governor, the heat bar, the heat conditions, the `kite` doctrine and the retired templates (§8 v0.40) |
 | v0.39.0 (done) | Script vocabulary 53 → 33 conditions with a save migration; tuning per ship (three dropdowns); the solo tier trimmed to eight and `minHulls` on fleet encounters; the hangar in the loop's order (flagship, fleet, script, intel, tuning); §8 history before 0.31 moved to Appendix A |
 | v0.38.0 (done) | Boarding (`js/boarding.js`), crew manning (`grid.crew`, `blocks.*.crew`, manning multipliers, far-from-quarters repair, the crew weak point), real-time skills and science removed; quarters are damage-control blocks; `script.scanSeconds`, `ew.cloakDetectRangeKm` |
 | v0.37.0 (done) | Plays and the hand-flown bridge removed; stances folded into one doctrine list (§4 "One doctrine list"): labelled doctrines with build-derived ranges, the `doctrine` action for both bridges, a Fly bridge call; the Torpedo boat's Siege play as rules |
@@ -1673,7 +1696,7 @@ script; learning off since 0.31; plays shadowed by the script since 0.21):
 | Core | block grids and role cells; the script engine, dry run and the report's "never fired"; the fleet engine, subjects, support and escort; bosses with public rules, tells, adds and enrage; runs, roster and repair bills; the doctrine machine; shields, capacitor, booster / hardener / afterburner; crew callouts; bridge calls; credits and salvage | keep |
 | Support, simplify | script vocabulary (keep what a fleet reads: ranges, our and allies' shields and hull, counts, the boss's charge, tuning; cut the 1v1 micro conditions); stances and doctrines (one list); tuning per ship instead of per cell, kept as boss material (remodulation); the solo encounter list (a tutorial tier, 5–6 entries); intel as the boss's journal; EW blocks (jammer, cloak, decoy, neutraliser) as the future control role, no new work | simplify |
 | Foreign | learning / signatures / opening book / counter table / doctrine table (0.26); plays; boarding and crew manning; real-time skills and science; the hand-flown bridge | cut |
-| Unknown | heat and overload: gates the alpha strike, but a micro resource; measure before deciding | measure |
+| Measured, cut | heat and overload (0.40): with the cap at infinity every reference fight was identical, so it never bound a scripted fight; removed with the governor, the heat conditions, the `kite` doctrine and the retired templates | cut |
 
 | PR | Scope |
 |---|---|
@@ -1681,7 +1704,8 @@ script; learning off since 0.31; plays shadowed by the script since 0.21):
 | 0.37 (done) | Plays, `js/plays.js` and the hand-flown bridge (manual helm, stances, sides, aim chips, module clicks, fly-to, keys, `settings.manualBridge`) out; stances folded into `enemyAI.doctrines` as labelled doctrines with `ranges`; one `doctrine` action; bridge call *Fly*; the Torpedo boat's play as rules. Measured in §8 v0.37 |
 | 0.38 (done) | Boarding, crew manning, real-time skills and science out: no step of the loop read them (no role boards, no boss tests manning, training is idle time). Quarters stay as damage-control blocks so no layout changes. Measured in §8 v0.38 |
 | 0.39 (done) | 20 micro conditions cut (53 → 33), saves migrated with a notice; tuning per ship; the solo tier eight entries with `minHulls` on fleet fights (the `pair` wall of 0.35 closed); the hangar in the loop's order; §8 history in Appendix A. Measured in §8 v0.39 |
-| next | The second boss (damage one afterburner burst cannot dodge, so the pair pays off); a campaign harness that plays a whole run; the heat question (measure) |
+| 0.40 (done) | `tools/campaign.js` (a whole run headless) and the heat cut, both measured in §8 v0.40 |
+| next | The second boss (damage one afterburner burst cannot dodge, so the pair pays off) |
 
 Known risks: the pivot touches nearly every file; 8 grids measured in 0.31
 (12 ms a frame headless without a GPU, the simulation negligible); the §8

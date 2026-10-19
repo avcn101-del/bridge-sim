@@ -88,6 +88,7 @@ BS.Grid = (function () {
     return grid;
   }
 
+
   function isRim(grid, b) {
     for (var i = 0; i < 4; i++) { var d = [[1, 0], [-1, 0], [0, 1], [0, -1]][i], q = grid.at[(b.x + d[0]) + "," + (b.y + d[1])]; if (!q || !q.alive) return true; }
     return false;
@@ -103,8 +104,7 @@ BS.Grid = (function () {
   function derive(grid) {
     var g = G(), s = { mass: 0, thrust: 0, cap: g.capBase, shieldMax: { fore: g.shieldBase, aft: g.shieldBase, port: g.shieldBase, starboard: g.shieldBase },
       regen: { fore: g.regenBase, aft: g.regenBase, port: g.regenBase, starboard: g.regenBase }, sensors: g.sensorBase, repair: g.repairBase,
-      counts: {}, alive: {}, hullTotal: 0, hullAlive: 0, weapons: [], bridgeAlive: false, powerUsed: 0, powerMax: grid.cls.powerBase || 0,
-      heatCap: g.heat.base, heatDissipation: g.heat.dissipationBase, rimCells: 0 };
+      counts: {}, alive: {}, hullTotal: 0, hullAlive: 0, weapons: [], bridgeAlive: false, powerUsed: 0, powerMax: grid.cls.powerBase || 0 };
     // reactor power range: systems outside every alive reactor's radius run at g.unpoweredFactor (b.powered, b.powerMult)
     var pc = fieldCover(grid, "reactor", g.powerRadius, "powered");
     s.powered = pc.covered; s.unpowered = pc.exposed; s.poweredFrac = pc.frac;
@@ -120,8 +120,6 @@ BS.Grid = (function () {
       s.mass += b.def.mass;
       s.powerUsed += b.def.power || 0;
       if (b.type === "reactor") s.powerMax += g.powerPerReactor;
-      s.heatCap += g.heat.perBlock;
-      if (isRim(grid, b)) { s.rimCells++; s.heatDissipation += g.heat.dissipationPerRimCell; }
       var f = facingOf(b);
       switch (b.type) {
         case "engine": s.thrust += (b.nacelle ? g.nacelleThrustMult : 1) * pm; break;

@@ -56,7 +56,7 @@ These rules apply to every session working in this repository.
   calls** (`BS.Game.bridgeCall`: fly a doctrine, side, disengage,
   reinforce, focus block, remodulate), overrides that stand for a while and
   hand back. There is no hand-flown bridge (removed in 0.37): the only live
-  inputs are the calls, Hail, Red alert and the heat governor. Movement is
+  inputs are the calls, Hail and Red alert. Movement is
   always the helm's: every ship flies a doctrine from the one list
   (`enemyAI.doctrines`; the labelled ones take their ranges from the build)
   with the same machine and the same `BS.Ships.setCommand` /
@@ -119,7 +119,9 @@ These rules apply to every session working in this repository.
   game error). Report the result honestly.
 - Balance changes must be checked with the accelerated simulation in
   `tools/harness.js` (seeded and deterministic; `--fleet` / `--efleet` for
-  fleets, `--perf` for cost) and recorded in `DESIGN.md` §8. The 1v1
+  fleets, `--perf` for cost) and, for anything that touches the campaign
+  (economy, encounter order, boss slots), `tools/campaign.js`, which plays a
+  whole run; both recorded in `DESIGN.md` §8. The 1v1
   reference: the Brawler template against the Raider wins 3–4 of 4 in 2–4
   min keeping 70–90% of block hp. Fleet and boss targets are set per PR by
   §10.

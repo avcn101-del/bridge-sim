@@ -42,38 +42,24 @@ tell the helm how to fly relative to it, and you switch modules on and off.
 - The bridge fights by a **script**: ordered "when → do" rules. In the
   hangar's Script section pick a template (Brawler, Siege, Hunter,
   Ambush), *Copy as new*, and build rules from
-  dropdowns that read as sentences ("When they are closer than 5 km: run
-  the Alpha strike play"); *Assign to this build* and the ship flies it.
+  dropdowns that read as sentences ("When our weakest shield is under 25%:
+  fly Disengage"); *Assign to this build* and the ship flies it.
   **Plan** names up to three targets on the next enemy (tap its intel
   drawing); a rule can aim at plan target 1 after a scan. **Dry run vs
   next enemy** fights one simulated battle in a second and shows the
   trace. In battle the script has the conn: watch at 1× / 2× / 4×, read
   the trace band, and spend your **two bridge calls** (Bridge panel:
-  change play, change side, disengage, reinforce, or focus a block tapped
-  on the scan panel; press a button twice to confirm). A win without a
-  call pays ×1.2. The battle report shows the script's timeline and why
-  each unfired rule never fired; **Refit & retry** brings the same enemy
-  back. The old hand-flown controls live behind "Manual bridge (debug)".
-- Pick a **stance** (Helm panel, keys 1–4) and the helm flies it:
-  **Engage** (default) orbits inside phaser range and reverses on its own
-  when the other side has more guns or a fresher shield, **Skirmish** orbits
-  tight on the afterburner so their guns cannot track you, **Standoff**
-  holds torpedo range and kites, **Disengage** runs. Ranges come from the
-  weapons you fitted. **Stop** puts the helm on manual.
-- Or run a **play** (keys 5–0): a whole strategy in phases. **Alpha
-  strike** closes with weapons cold, dumps everything with the governor off
-  and breaks off to cool; **Siege** fires tubes only from range; **Turtle**
-  holds a broadside with hardener and reinforce; **Hunter** goes for
-  reactors, then bare hull; **Ambush** cloaks in, strikes and slips away
-  cloaked (needs a cloaking device); **Hit & fade** engages until a shield
-  runs low and goes to full burn until it recovers. The Helm row shows the
-  phase; any stance or Stop cancels the play.
+  fly a doctrine, change side, disengage, reinforce, remodulate, or focus
+  a block tapped on the scan panel; press a button twice to confirm). A
+  win without a call pays ×1.2. The battle report shows the script's
+  timeline and why each unfired rule never fired; **Refit & retry** brings
+  the same enemy back. There is no hand-flown bridge.
 - The camera keeps both ships in view; wheel or +/− zooms on top of that.
   A Constitution measures about 1 km on the game's scale (three times its
   real size, so you can see the blocks).
 - The bottom row is the **scan panel**: once you hold a lock it shows the
   enemy's blocks and damage, shields and bare hull, cloak and ECM field
-  gaps, power, heat, how many of its weapons bear on you and what its
+  gaps, power, how many of its weapons bear on you and what its
   torpedoes would do to you. The bridge log is the two-line ticker at the
   top of the display; LOG (G) opens the full log.
 - Switch on systems in the bar at the bottom of the display (click or
@@ -105,11 +91,7 @@ tell the helm how to fly relative to it, and you switch modules on and off.
 - **Power**: every system draws power from the hull's grid plus 15 per
   reactor; the editor shows "Power 118 / 140" and refuses a build that
   draws more. Lose reactors in battle and your weapons and shields slow
-  down. **Heat**: every shot heats the ship (thin outer ring of the
-  gauge and the HEAT bar under the module bar, with a marker for the next
-  salvo); at the cap weapons stop, and a salvo that crosses it overloads
-  everything for six seconds. The **GOV** heat governor (key H, on by
-  default) holds fire at 85% heat; switch it off for a big alpha strike.
+  down.
 - **Electronic warfare**: an **ECM jammer** block (F6) rolls against the
   enemy's sensors every five seconds and breaks their lock; a **cloaking
   device** (F7, one per ship, 400 cr) makes you unlockable and unseen
@@ -135,7 +117,7 @@ tell the helm how to fly relative to it, and you switch modules on and off.
   off to come around again; a **brawler** orbits close and reverses
   direction; a **standoff** torpedo boat sits at 14 km and runs when you
   close (Engage chases it); the **broadside** cruiser turns slowly to keep
-  a fresh shield toward you. Your helm answers with the stance you pick.
+  a fresh shield toward you. Your script answers with the doctrine it sets.
 - Weapons only fire where your own hull does not block them, so a saucer
   fights with the guns on the side facing the enemy; the helm reverses the
   orbit when the other side has more to bring to bear. Paint weapons on
@@ -183,7 +165,7 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | Where | What it changes |
 |---|---|
 | `units.pxPerKm`, `grid.cellPx` | World scale and cell size |
-| `blocks.*` | Every block: hp, mass, cost, colour, glyph, weapon stats (damage, cycle, cap, heat, optimal / falloff / tracking, arc, `pierceBonus`), effects |
+| `blocks.*` | Every block: hp, mass, cost, colour, glyph, weapon stats (damage, cycle, cap, optimal / falloff / tracking, arc, `pierceBonus`), effects |
 | `grid.lineOfFire / lineOfFireMuzzle / lineOfFireRangeCells` | Whether and how the own hull masks weapons |
 | `grid.shieldBase / shieldAdd / regenBase / regenAdd / shieldRadius / shieldRechargeDelay` | Shield facings from emitters; bubble radius in cells; seconds a hit facing waits before regenerating |
 | `grid.crits` | Critical hits: hp threshold, chance, tumble time and spin, sensor blind time, emitter drain, weapon jam cycles |
@@ -198,11 +180,9 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `blocks.*.pierceCost`, `grid.structurePierceCost` | How much of a beam's penetration each block type eats (armor 2, structure 3) |
 | `blocks.reactor.explosion`, `grid.lineOfFire` | Reactor breach damage and radius; whether the own hull masks weapons |
 | `blocks.*.power`, `shipClasses.*.powerBase`, `grid.powerPerReactor / brownoutMin` | Power grid: what each system draws, what a hull and its reactors supply, how a brownout bites |
-| `grid.heat`, `blocks.*.weapon.heat` | Heat capacity and dissipation, overload time, heat per shot |
 | `ew.*` (`ew.cloakDetectRangeKm`) | Jam strength and duration, cloak timings, surge and drain, decloak strike (`ew.strike`: window, shield bypass, damage), field radii (`cloakRadius`, `jamRadius`), detection range |
 | `ew.decoy`, `ew.neut`, `enemyAI.*.drainedBelow / drainedUntil / drainedTime` | Decoy life, lure radius, speed; neutraliser range, drain per block, the enemy's flee range and when a drained enemy opens the range |
 | `script.*` | Rule tick, charging speed, trace length, plan targets, default template, rules per script, own scripts per save (`maxScripts`), range bands (`rangeBands`), subjects a rule can be about and the `target` action switches to (`subjects`), dry-run length, bridge calls (`bridgeCall`: tokens, hold and focus seconds, confirm window), the sentence for every condition / action / policy, the templates (Wolf pack for a fleet) and the enemy scripts with their reaction rules and callouts |
-| `enemyAI.stanceLabels`, `enemyAI.aimLabels` | The words the conditions `enemyStance` / `enemyAimingAt` read as |
 | `tuning.order`, `tuning.bonus / malus`, `tuning.list`, `tuning.factionDefault`, `tuning.offFactionCost`, `tuning.tunable`, `tuning.remodulate`, `tuning.measured` | The modulation ring (each beats the next), the one multiplier (×1.5 for ammo that beats the frequency or alloy it hits, ×0.5 when beaten), each modulation's digit, colour and sentence, the faction defaults, the surcharge for off-faction tuning, which block types carry a modulation, how long a remodulation takes (shields down / weapons cold), the measured numbers |
 | `balance.speeds / maxStepsPerFrame` | Battle speed buttons and the fixed steps a frame may run |
 | `campaign.firstFight`, `campaign.encounters[].script` | The first fight's enemy overrides; which script each encounter runs |
@@ -235,7 +215,7 @@ index.html      entry point
 css/            LCARS interface styles
 js/             data, grid, game loop, ships, modules, weapons, crew voices, enemy AI (the doctrine machine), fleet, scripts, campaign, hangar, UI, renderer, effects
 assets/         optional sprites / sounds (empty in MVP)
-tools/          harness.js (accelerated balance runs, DESIGN.md §8: forced encounter, equal-hull duels, tuning per side, fleets on both sides, --perf cost) and smoke.js (headless interface check, desktop, phone and a fleet of four); plain Node + Playwright, not needed to play
+tools/          harness.js (accelerated balance runs, DESIGN.md §8: forced encounter, equal-hull duels, tuning per side, fleets on both sides, --perf cost), campaign.js (a whole run headless: encounters as the game picks them, credits and repairs settled between fights) and smoke.js (headless interface check, desktop, phone and a fleet of four); plain Node + Playwright, not needed to play
 DESIGN.md       full game design and data structures
 CHANGELOG.md    version history
 CLAUDE.md       rules for AI-assisted development sessions

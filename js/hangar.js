@@ -259,7 +259,6 @@ BS.Hangar = (function () {
       "<div><label>Tuning</label><span>" + escapeHtml(Gr.tuningText(ed.ship.grid)) + " <span class='dim'>(" + BS.Data.shipClasses[ed.classId].faction + " default " + BS.Data.tuning.list[BS.Data.tuning.factionDefault[BS.Data.shipClasses[ed.classId].faction]].name + "; others +" + Math.round(BS.Data.tuning.offFactionCost * 100) + "%)</span></span></div>" +
       "<div><label>Damage</label><span>" + st.dps + " dps <span class='dim'>(beams " + st.turretDps + " · torpedoes " + st.launcherDps + ")</span></span></div>" +
       "<div><label>Capacitor</label><span>" + st.cap + " · " + capLine + " <span class='dim'>(drain " + st.drain + "/s · peak " + st.peakRecharge + "/s)</span></span></div>" +
-      "<div><label>Heat</label><span>cap " + st.heatCap + " · full salvo " + st.salvoHeat + (st.salvoHeat > st.heatCap ? " <span class='bad'>(overloads)</span>" : "") + " · bleeds " + st.heatDissipation + "/s vs " + st.heatPerSec + "/s firing" + (st.heatNeutral < 1 ? " <span class='warn'>(sustained fire " + Math.round(100 * st.heatNeutral) + "%)</span>" : " (sustainable)") + "</span></div>" +
       "<div><label>Power</label><span class='" + (st.powerUsed > st.powerMax ? "bad" : "") + "'>" + st.powerUsed + " / " + st.powerMax + " <span class='dim'>(" + (st.counts.reactor || 0) + " reactors · phaser 5, cannon 5, pulse 4, tube 8, shield 4, sensor 3, engine 1, quarters 0, jammer 6, cloak 5, decoy 2, neutraliser 4)</span></span></div>" +
       "<div><label>Reactors</label><span>" + (st.counts.reactor || 0) + " · range " + BS.Data.grid.powerRadius + " cells · powered " + Math.round(100 * (st.poweredFrac || 0)) + "%" + (st.unpowered ? " <span class='warn'>(" + st.unpowered + " dim cells at " + Math.round(100 * BS.Data.grid.unpoweredFactor) + "%)</span>" : "") + "</span></div>" +
       "<div><label>Defence</label><span>hull " + st.hull + " · shields " + shields + " · cover " + Math.round(100 * st.coverFrac) + "%" + (st.exposed ? " <span class='" + (st.coverFrac < 0.9 ? "bad" : "warn") + "'>(" + st.exposed + " exposed, red cells)</span>" : "") + " · repair " + st.repair + "/s" + (st.cloakCover && st.cloakCover.sources ? " · cloak field " + Math.round(100 * st.cloakCover.frac) + "%" + (st.cloakCover.exposed ? " <span class='bad'>(" + st.cloakCover.exposed + " outside, purple: cannot cloak)</span>" : "") : "") + (st.jamCover && st.jamCover.sources ? " · ECM field " + Math.round(100 * st.jamCover.frac) + "%" + (st.jamCover.exposed ? " <span class='warn'>(" + st.jamCover.exposed + " outside, green)</span>" : " (breaks locks)") : "") + "</span></div>" +
@@ -608,7 +607,7 @@ BS.Hangar = (function () {
     if (k.indexOf("modules.") === 0) { obj.modules = obj.modules || {}; obj.modules[k.slice(8)] = true; return; }
     var V = mode === "cond" ? SD().conditions : SD().actions, d = V[k];
     if (mode === "cond") obj[k] = d.kind === "flag" ? true : d.kind === "bool" ? (d.def !== undefined ? d.def : true) : d.def;
-    else obj[k] = { doctrine: "engage", side: "blind", aim: "reactor", weapons: true, governor: true, repair: "shield", reinforce: true, scan: true, roll: true, remodulate: "shields", target: "focus" }[k];
+    else obj[k] = { doctrine: "engage", side: "blind", aim: "reactor", weapons: true, repair: "shield", reinforce: true, scan: true, roll: true, remodulate: "shields", target: "focus" }[k];
   }
   function removeTerm(k, obj, mode) {
     if (k.indexOf("modules.") === 0) { delete obj.modules[k.slice(8)]; if (!Object.keys(obj.modules).length) delete obj.modules; return; }
@@ -637,7 +636,7 @@ BS.Hangar = (function () {
     switch (k) {
       case "doctrine": { var DD = BS.Data.enemyAI.doctrines, ids = Object.keys(DD).filter(function (id) { return DD[id].label || id === obj[k]; }); return sel(ids.map(function (id) { return [id, DD[id].label || "the " + id + " doctrine"]; }), obj[k], function (v) { obj[k] = v; }); }
       case "side": return sel(Object.keys(BS.Data.helm.sides).map(function (id) { return [id, BS.Data.helm.sides[id].label.toLowerCase()]; }), obj[k], function (v) { obj[k] = v; });
-      case "weapons": case "governor": return sel([["on", "on"], ["off", "off"]], obj[k] ? "on" : "off", function (v) { obj[k] = v === "on"; });
+      case "weapons": return sel([["on", "on"], ["off", "off"]], obj[k] ? "on" : "off", function (v) { obj[k] = v === "on"; });
       case "remodulate": return sel([["shields", "shields (frequency that beats their ammo)"], ["ammo", "weapons (ammo that beats their shields)"]], obj[k], function (v) { obj[k] = v; });
       case "target": return sel(Object.keys(SD().subjects).map(function (id) { return [id, SD().subjects[id]]; }), obj[k], function (v) { obj[k] = v; });
       case "repair": return sel([["", "automatic"]].concat(Object.keys(BS.Data.blocks).map(function (b) { return [b, BS.Data.blocks[b].name.toLowerCase() + "s"]; })), obj[k] || "", function (v) { obj[k] = v || null; });

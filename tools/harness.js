@@ -16,7 +16,7 @@
 //   --seed <n>          first seed (Math.random is seeded per run: seed + run index), so runs repeat (since 0.31 the
 //                       page's frame loop is stopped, so a seed repeats exactly; 0.25–0.30 numbers drifted by a few seconds)
 //   --eval "<js>"       run this in the page before each fight (try a data tweak: "BS.Data.enemyAI.doctrines.watch.holdKm = 8")
-//   --debug             print the enemy's measured extremes (their heat peak, our blind time) after each run
+//   --debug             print both bridges' measured extremes (shields, capacitor, hull, blind time) after each run
 //   --variant <layout> --doctrine <id> --escript <id>   force the enemy's layout (a class variant or "default"), doctrine
 //                       and script regardless of the encounter (the matrix runs of DESIGN §8)
 //   --fleet a,b,c       the player's side (0.31): class ids that undock with --ship (save.fleet), each with its own
@@ -95,7 +95,7 @@ function fmt(t) { var m = Math.floor(t / 60), s = Math.floor(t % 60); return m +
         BS.Data.campaign.run = { bossEvery: enc.kind === "boss" ? 1 : 1e9, bossFromWins: 0, fleetMinHulls: 1 };
         if (o.eval) (new Function(o.eval))();
         BS.Data.script.dryRun.maxSeconds = o.max;
-        var script = typeof o.script === "string" ? JSON.parse(JSON.stringify(BS.Data.script.templates[o.script] || BS.Data.script.retiredTemplates[o.script] || null)) : o.script;
+        var script = typeof o.script === "string" ? JSON.parse(JSON.stringify(BS.Data.script.templates[o.script] || null)) : o.script;
         if (!script) throw new Error("no script " + o.script);
         if (o.side) script.rules.forEach(function (r) { if (r.do && r.do.doctrine) r.do.side = o.side; });
         var encInfo = BS.Campaign.encounter();
@@ -124,7 +124,7 @@ function fmt(t) { var m = Math.floor(t / 60), s = Math.floor(t % 60); return m +
     console.log("run " + (i + 1) + ": " + (out.result === "victory" ? "WIN" + (out.how ? " (" + out.how + ")" : "") : out.result === "defeat" ? "LOSS" : "STALEMATE") + " " + fmt(out.time) + " · our blocks " + out.hullPct + "% · their hull " + out.enemyHullPct + "%" + (out.scanned ? " · scanned" : "") + " · enemy rules fired: " + (Object.keys(fired).map(function (k) { return "r" + (parseInt(k, 10) + 1) + "×" + fired[k]; }).join(" ") || "none"));
     if ((out.ships && out.ships.length > 1) || (out.enemies && out.enemies.length > 1)) console.log("    ours: " + out.ships.map(function (s) { return s.name + " " + (s.destroyed ? "lost" : s.disabled ? "disabled" : s.hullPct + "%"); }).join(", ") + " · theirs: " + out.enemies.map(function (s) { return s.name + " " + (s.destroyed ? "destroyed" : s.disabled ? "disabled" : s.hullPct + "%"); }).join(", "));
     out.enemy.trace.filter(function (en) { return en.kind === "callout" || en.kind === "standing"; }).slice(0, 12).forEach(function (en) { console.log("    " + fmt(en.t) + " r" + (en.rule + 1) + " " + en.text); });
-    if (opts.debug) { var px = out.extremes || {}; console.log("    we: heat peak " + Math.round((px.heatMax || 0) * 100) + "%, cap min " + Math.round((px.capMin || 0) * 100) + "%, weakest shield min " + Math.round((px.weakestMin || 0) * 100) + "%"); (out.neverFired || []).forEach(function (nf) { console.log("    our r" + (nf.rule + 1) + " never fired: " + nf.reason); }); var x = out.enemy.extremes || {}; console.log("    enemy sees: our heat peak " + Math.round((x.eheatMax || 0) * 100) + "%, closest " + (x.dKmMin || 0).toFixed(1) + " km, blind at most " + Math.round(x.blindMax || 0) + " s, our hull min " + Math.round((x.ehullMin || 0) * 100) + "%"); (out.enemy.neverFired || []).forEach(function (nf) { console.log("    never fired r" + (nf.rule + 1) + ": " + nf.reason); }); }
+    if (opts.debug) { var px = out.extremes || {}; console.log("    we: cap min " + Math.round((px.capMin || 0) * 100) + "%, weakest shield min " + Math.round((px.weakestMin || 0) * 100) + "%"); (out.neverFired || []).forEach(function (nf) { console.log("    our r" + (nf.rule + 1) + " never fired: " + nf.reason); }); var x = out.enemy.extremes || {}; console.log("    enemy sees: closest " + (x.dKmMin || 0).toFixed(1) + " km, blind at most " + Math.round(x.blindMax || 0) + " s, our hull min " + Math.round((x.ehullMin || 0) * 100) + "%"); (out.enemy.neverFired || []).forEach(function (nf) { console.log("    never fired r" + (nf.rule + 1) + ": " + nf.reason); }); }
   }
   if (opts.perf) { if (errors.length) { console.log("PAGE ERRORS:\n" + errors.join("\n")); process.exitCode = 1; } await browser.close(); return; }
   var wins = results.filter(function (r) { return r.result === "victory"; });
