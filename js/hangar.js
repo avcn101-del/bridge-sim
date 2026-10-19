@@ -127,7 +127,7 @@ BS.Hangar = (function () {
       var cls = BS.Data.shipClasses[id];
       if (!cls.purchasable && s.ownedShips.indexOf(id) < 0) return;
       var owned = s.ownedShips.indexOf(id) >= 0, current = s.shipClass === id;
-      var cells = cls.mask.reduce(function (a, r) { return a + (r.match(/[#n]/g) || []).length; }, 0);
+      var cells = cls.mask.reduce(function (a, r) { return a + (r.match(/[#nr]/g) || []).length; }, 0);
       var row = document.createElement("div"); row.className = "hg-row" + (current ? " current" : "");
       row.innerHTML = "<span class='hg-name'>" + cls.className + "</span><span class='dim'>" + cls.role + " · " + cells + " cells</span>";
       var b = document.createElement("button"); b.className = "lcars-btn " + (owned ? "c-blue" : "c-orange");
@@ -149,7 +149,7 @@ BS.Hangar = (function () {
       var d = BS.Data.blocks[type];
       if (d.enemyOnly) return;   // boss weapons (0.33) are not for sale
       var b = document.createElement("button"); b.className = "pal" + (ed.brush === type ? " active" : "");
-      b.innerHTML = "<b>" + d.name + "</b><small>" + (d.cost ? d.cost + " cr" : "free") + " · " + d.hp + " hp</small>";
+      b.innerHTML = "<b>" + d.name + "</b><small>" + (d.cost ? d.cost + " cr" : "free") + " · " + d.hp + " hp" + (d.roleOnly ? " · role cell" : "") + "</small>";
       b.insertBefore(BS.Renderer.blockIcon(type, 22), b.firstChild);
       b.title = d.desc;
       b.addEventListener("click", function () { ed.brush = type; renderPalette(); });
@@ -223,8 +223,9 @@ BS.Hangar = (function () {
     for (var y = 0; y < g.h; y++) for (var x = 0; x < g.w; x++) {
       var m = cls.mask[y][x]; if (m === ".") continue;
       var lx = (x + 0.5 - g.w / 2) * cp, ly = (y + 0.5 - g.h / 2) * cp;
-      c.fillStyle = m === "p" ? "rgba(140,146,170,0.35)" : m === "n" ? "rgba(90,160,255,0.10)" : "rgba(255,255,255,0.05)";
+      c.fillStyle = m === "p" ? "rgba(140,146,170,0.35)" : m === "n" ? "rgba(90,160,255,0.10)" : m === "r" ? "rgba(255,153,102,0.22)" : "rgba(255,255,255,0.05)";
       c.fillRect(lx - half, ly - half, cp, cp);
+      if (m === "r") { c.strokeStyle = "rgba(255,153,102,0.8)"; c.lineWidth = 0.8; c.strokeRect(lx - half + 0.6, ly - half + 0.6, cp - 1.2, cp - 1.2); }
       c.strokeStyle = "rgba(255,255,255,0.08)"; c.lineWidth = 0.3 / ed.scale * 2; c.strokeRect(lx - half, ly - half, cp, cp);
     }
     BS.Renderer.drawGridShip(c, ed.ship, 0.5, { still: true, tuning: true });
@@ -311,6 +312,7 @@ BS.Hangar = (function () {
     if (m === "." || m === "p") return false;
     var row = ed.rows[y];
     var type = Gr.typeForLetter(letter);
+    if (type && BS.Data.blocks[type].roleOnly && m !== "r") { say(BS.Data.blocks[type].name + " fits a role cell only (the outlined cells).", true); return false; }
     if (type && BS.Data.blocks[type].unique) { ed.rows = ed.rows.map(function (r) { return r.split(letter).join(type === "bridge" ? "A" : "."); }); row = ed.rows[y]; }   // unique blocks move
     if (row[x] === letter) return false;
     ed.rows[y] = row.slice(0, x) + letter + row.slice(x + 1);
@@ -340,7 +342,7 @@ BS.Hangar = (function () {
   function fillEmpty(letter) {
     var cls = BS.Data.shipClasses[ed.classId], changed = false;
     for (var y = 0; y < cls.mask.length; y++) for (var x = 0; x < cls.mask[0].length; x++) {
-      var m = cls.mask[y][x]; if ((m === "#" || m === "n") && ed.rows[y][x] === ".") changed = setCell(x, y, letter) || changed;
+      var m = cls.mask[y][x]; if ((m === "#" || m === "n" || m === "r") && ed.rows[y][x] === ".") changed = setCell(x, y, letter) || changed;
     }
     if (changed) { ed.dirty = true; renderEditor(); say("Empty cells filled with armor."); }
   }

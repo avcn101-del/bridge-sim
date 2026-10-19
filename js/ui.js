@@ -581,7 +581,8 @@ BS.UI = (function () {
     if (p.scanning > 0) st = "SCANNING " + p.scanning.toFixed(1) + " s · " + st;
     var sc = p.script && !p.script.suspended && p.script.active >= 0 ? "Script " + (p.script.active + 1) + " · " : (p.script && p.script.suspended ? "Manual · " : "");
     if (p.play && p.ai && !p.ai.suspended) { var ph = p.play.def.phases[p.play.phase]; return sc + p.play.def.label + " · " + ph.label + " · " + st; }
-    if (p.ai && !p.ai.suspended && p.stance) return sc + BS.Data.helm.stances[p.stance].label + " · " + st;
+    if (p.escorting && p.ai && p.ai.suspended) return sc + "Escorting " + p.escorting.name + (p.support ? " · supporting " + p.support.name : "");
+    if (p.ai && !p.ai.suspended && p.stance) return sc + BS.Data.helm.stances[p.stance].label + " · " + st + (p.support ? " · supporting " + p.support.name : "");
     if (p.ai && !p.ai.suspended) return sc + (p.doctrineId || "helm") + " · " + st;
     return p.cmd.type === "flyTo" ? "Manual · flying to point" : "Manual · all stop";
   }

@@ -78,7 +78,7 @@ BS.Grid = (function () {
         if (!type) continue;
         var def = structural ? { hp: G().structureHp, mass: 1, color: "#8a90a0", name: "Structure", pierceCost: G().structurePierceCost } : BS.Data.blocks[type];
         var hp = Math.round(def.hp * statMult);
-        var b = { x: x, y: y, type: type, def: def, hp: hp, maxHp: hp, alive: true, structural: structural, nacelle: m === "n",
+        var b = { x: x, y: y, type: type, def: def, hp: hp, maxHp: hp, alive: true, structural: structural, nacelle: m === "n", roleCell: m === "r",
                   lx: (x + 0.5 - w / 2) * cellPx, ly: (y + 0.5 - h / 2) * cellPx, cycleLeft: 0, id: y * w + x, tune: structural ? null : tuneOf(cls, type, tuningRows, x, y) };
         b.outward = Math.atan2(b.ly, b.lx);
         grid.blocks.push(b); grid.at[x + "," + y] = b;
@@ -551,6 +551,7 @@ BS.Grid = (function () {
       counts[t] = (counts[t] || 0) + 1;
       if (t === "bridge") bridges++;
       if (BS.Data.blocks[t].enemyOnly && cls.faction === "federation") errors.push(BS.Data.blocks[t].name + " is not a Starfleet system.");
+      if (BS.Data.blocks[t].roleOnly && m !== "r") errors.push(BS.Data.blocks[t].name + " at " + x + "," + y + " fits a role cell only.");
     }
     if (bridges !== 1) errors.push("Exactly one bridge is required (" + bridges + " placed).");
     Object.keys(counts).forEach(function (t) { if (t !== "bridge" && BS.Data.blocks[t].unique && counts[t] > 1) errors.push("Only one " + BS.Data.blocks[t].name.toLowerCase() + " per ship."); });
@@ -586,7 +587,7 @@ BS.Grid = (function () {
     var weights = V.systemWeights, keys = Object.keys(weights), total = keys.reduce(function (a, k) { return a + weights[k]; }, 0);
     function rollType() { var r = rng() * total; for (var i = 0; i < keys.length; i++) { r -= weights[keys[i]]; if (r < 0) return keys[i]; } return keys[0]; }
     var cells = [];
-    for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) { var m = cls.mask[y][x]; if ((m === "#" || m === "n") && rows[y][x] !== "." && rows[y][x] !== "B") cells.push({ x: x, y: y }); }
+    for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) { var m = cls.mask[y][x]; if ((m === "#" || m === "n" || m === "r") && rows[y][x] !== "." && rows[y][x] !== "B") cells.push({ x: x, y: y }); }
     for (var attempt = 0; attempt < V.attempts; attempt++) {
       var out = rows.slice(), n = Math.max(1, Math.round(cells.length * V.fraction));
       for (var i = 0; i < n; i++) {

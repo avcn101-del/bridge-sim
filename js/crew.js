@@ -203,6 +203,10 @@ BS.Crew = (function () {
     BS.Events.on("scriptAim", function (e) { if (e.ship === ship) report("tactical", "aimWeak", { label: e.label }); });
     // an enemy reaction rule with a callout: Tactical reads it out (the enemy's script stays hidden, its moves do not)
     BS.Events.on("scriptCallout", function (e) { if (e.ship && e.ship.team === "enemy") say("tactical", e.text, "warn"); });
+    // support (0.34): transfers in and out, repair teams, the escort order
+    BS.Events.on("shieldTransferred", function (e) { if (e.amount <= 0) return; if (e.ship === ship && now() - (ship._xferOut || -99) > 10) { ship._xferOut = now(); report("engineering", "transferOut", { amount: Math.round(e.amount), name: e.target.name }); } else if (e.target === ship && now() - (ship._xferIn || -99) > 10) { ship._xferIn = now(); report("engineering", "transferIn", { amount: Math.round(e.amount), name: e.ship.name, facing: e.to }); } });
+    BS.Events.on("remoteRepaired", function (e) { if (e.target === ship && e.amount > 0 && now() - (ship._rrepIn || -99) > 15) { ship._rrepIn = now(); report("engineering", "repairIn", { name: e.ship.name }); } });
+    BS.Events.on("escortChanged", function (e) { if (e.ship === ship) report("helm", "escort", { name: e.ally.name }); });
     // a charging weapon (0.33): the tell every bridge hears
     BS.Events.on("weaponCharging", function (e) { if (!ship || !e.target || e.target.team !== ship.team) return; if (e.target === ship) report("tactical", "lanceOnUs", { t: Math.round(e.time) }, "warn"); else report("tactical", "lanceOnAlly", { name: e.target.name, t: Math.round(e.time) }, "warn"); });
     // second-generation EW and boarding

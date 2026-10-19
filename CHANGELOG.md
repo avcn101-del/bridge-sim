@@ -2,6 +2,38 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.34.0] — 2026-10-19 (role blocks on role cells; 0.34 of DESIGN §10)
+
+### Added
+- **Role cells**: mask letter `r` in every Federation hull (Constitution 2,
+  Miranda 1, Defiant 1, Excelsior 3, Galaxy 5, Sovereign 3), fillable by
+  anything and the only place a `roleOnly` block fits (validation, editor
+  message, orange outline in the editor).
+- **Role blocks and modules**: shield transfer emitter (`shield_transfer`:
+  100 shield per emitter from our strongest facing to the supported ally's
+  weakest, 4 km, our pool pays), remote repair projector (`remote_repair`:
+  45 hp per projector to the ally's damaged blocks), signature beacon
+  (`beacon`: signature ×2.5 while it runs). `BS.Data.support`.
+- **Ally subjects** (`weakestAlly`, `hurtAlly`, `huntedAlly`, `flagship`),
+  actions `support` and `escort` (the helm keeps station 2.5 km from an
+  ally), policy `support: auto`, subject `loudest`. The Borg cube turns on
+  the loudest ship, so a lit beacon draws every beam charge.
+- Templates **Anchor** (tank) and **Lifeline** (healer); presets Galaxy
+  *Anchor* and Excelsior *Lifeline*. Crew lines for transfers, repairs and
+  the escort order; harness `--layouts a:preset` and `--scripts a:id`.
+
+### Changed
+- The Borg cube carries a pair of cutting beams on its aft face too; the
+  beam is 600 damage every 22 s (was 520 / 28). A false flag condition
+  reads "not: …" in a sentence.
+
+### Measured (DESIGN §8), honest
+- The machinery works (in one fight all 15 beams charged on the beacon
+  ship; 59 transfers, 50 repairs), but tank + healer + two breakers is a
+  worse fleet than four Cube breakers against the cube at 0 and 6 wins,
+  with a dodgeable beam and with an undodgeable one (tried, not kept).
+  The numbers pass that makes the pair pay off is 0.35's. 1v1 unchanged.
+
 ## [0.33.0] — 2026-10-19 (the first boss: the Borg cube; 0.33 of DESIGN §10)
 
 ### Added

@@ -196,7 +196,7 @@ BS.Script = (function () {
     if (act.target) { var ts = BS.Fleet.subject(ship, act.target); if (!ts) note = "no " + subjectLabel(act.target); else if (ts !== BS.Fleet.targetOf(ship)) { BS.Fleet.retarget(ship, ts, "script"); target = ts; } }
     var flying = ship.ai && !ship.ai.suspended;
     if (act.play) { if (!(ship.play && ship.play.id === act.play) && BS.Plays.start(ship, target, act.play) !== true) note = "no " + act.play + " play"; }
-    else if (act.stance) { if (!(flying && !ship.play && ship.stance === act.stance)) { BS.Plays.stop(ship); BS.EnemyAI.setStance(ship, target, act.stance); } }
+    else if (act.stance) { if (!(flying && !ship.play && ship.stance === act.stance)) { BS.Plays.stop(ship); ship.escortSubject = null; BS.EnemyAI.setStance(ship, target, act.stance); } }
     else if (act.doctrine) { if (!(flying && !ship.play && !ship.stance && ship.doctrineId === act.doctrine)) { BS.Plays.stop(ship); BS.EnemyAI.setDoctrine(ship, target, act.doctrine); } }
     if (act.side && ship.attackSide !== act.side) BS.EnemyAI.setAttackSide(ship, target, act.side);
     if (act.modules) setModules(ship, act.modules);
@@ -208,6 +208,8 @@ BS.Script = (function () {
     if (act.board) { var br = BS.Boarding.start(ship, target); if (br !== "ok") note = "boarding: " + br; }
     if (act.roll) { if (!BS.EnemyAI.roll(ship, target)) note = "cannot come about"; }
     if (act.remodulate) { var rn = S.remodulate(ship, act.remodulate, target); if (rn) note = "remodulate: " + rn; }
+    if (act.support !== undefined) { var sa = BS.Fleet.ally(ship, act.support); if (sa) ship.support = sa; else note = "no " + allyLabel(act.support); }
+    if (act.escort !== undefined) { var ea = BS.Fleet.ally(ship, act.escort); ship.escortSubject = act.escort; if (!ea || !BS.EnemyAI.escort(ship, ea)) note = "no " + allyLabel(act.escort); }
     if (act.summon) { var sn = BS.Game.summon(ship); if (sn) note = "summon: " + sn; }
     if (act.overdrive) { var on = BS.Ships.overdrive(ship); if (on) note = "overdrive: " + on; }
     if (act.aim !== undefined) { var an = aim(ship, target, act.aim); if (an) { note = an; if (ship.script && /scan/.test(an)) ship.script.waitingAim = act.aim; } else if (ship.script) ship.script.waitingAim = null; }
@@ -244,6 +246,9 @@ BS.Script = (function () {
     if (pol.decoy === "auto") setModules(ship, { decoy: ship.cloak.state === "off" && BS.Weapons.incoming(ship, EW.decoy.aiIncomingKm) > 0 });
     if (pol.neut === "auto") setModules(ship, { neut: ship.lock.locked && S.distanceKm(ship, target) <= EW.neut.rangeKm + 0.5 && cap > EW.neut.aiMinCap });
     if (pol.hardener === "auto") setModules(ship, { shield_hardener: cap > 0.15 && ship.cloak.state === "off" });
+    // 0.34: the supported ally is re-picked every tick; an escort whose ally is lost picks the subject again
+    if (pol.support === "auto") { var wa = BS.Fleet.ally(ship, "weakestAlly"); if (wa) ship.support = wa; }
+    if (ship.escortSubject && (!ship.escorting || ship.escorting.flags.destroyed)) { var ne = BS.Fleet.ally(ship, ship.escortSubject); if (ne) BS.EnemyAI.escort(ship, ne); else { ship.escortSubject = null; BS.EnemyAI.setStance(ship, target, BS.Data.helm.defaultStance); } }
   }
 
   // ---- trace -------------------------------------------------------------------------------------------------
@@ -417,10 +422,11 @@ BS.Script = (function () {
     return String(v);
   }
   function subjectLabel(id) { return (D().subjects && D().subjects[id]) || String(id); }
+  function allyLabel(id) { return (D().allySubjects && D().allySubjects[id]) || String(id); }
   function describeWhen(when, about) {
     var V = D().conditions, keys = Object.keys(when || {});
     if (!keys.length) return "otherwise";
-    return (about && about !== "target" ? "about " + subjectLabel(about) + ", " : "") + "when " + keys.map(function (k) { var c = V[k]; if (!c) return k; if (c.kind === "bool" && !when[k] && c.negLabel) return c.negLabel; return c.label.replace("{v}", c.kind === "subject" ? subjectLabel(when[k]) : fmtValue(c.kind, when[k])); }).join(" and ");
+    return (about && about !== "target" ? "about " + subjectLabel(about) + ", " : "") + "when " + keys.map(function (k) { var c = V[k]; if (!c) return k; if (c.kind === "bool" && !when[k] && c.negLabel) return c.negLabel; if (c.kind === "flag" && when[k] === false) return "not: " + c.label; return c.label.replace("{v}", c.kind === "subject" ? subjectLabel(when[k]) : fmtValue(c.kind, when[k])); }).join(" and ");
   }
   function describeDo(act) {
     var A = D().actions, parts = [];
@@ -439,6 +445,7 @@ BS.Script = (function () {
       else if (k === "repair") text = v ? a.label.replace("{v}", BS.Data.blocks[v] ? BS.Data.blocks[v].name.toLowerCase() + "s" : v) : "damage control on automatic";
       else if (k === "remodulate") text = a.label.replace("{v}", v === "ammo" ? "weapons to the ammo that beats their shields" : "shields to the frequency that beats their ammo");
       else if (k === "target") text = a.label.replace("{v}", subjectLabel(v));
+      else if (k === "support" || k === "escort") text = a.label.replace("{v}", allyLabel(v));
       else text = a.label;
       parts.push(text);
     });
@@ -470,5 +477,5 @@ BS.Script = (function () {
     return out;
   }
 
-  return { start: start, stop: stop, suspend: suspend, resume: resume, update: update, bridgeCall: bridgeCall, callRule: callRule, explain: explain, conditions: conditions, apply: apply, describe: describe, describeScript: describeScript, describeWhen: describeWhen, describeDo: describeDo, subjectLabel: subjectLabel, resolve: resolve, focusType: focusType, stanceOf: stanceOf, aimingAt: aimingAt, rangeBand: rangeBand };
+  return { start: start, stop: stop, suspend: suspend, resume: resume, update: update, bridgeCall: bridgeCall, callRule: callRule, explain: explain, conditions: conditions, apply: apply, describe: describe, describeScript: describeScript, describeWhen: describeWhen, describeDo: describeDo, subjectLabel: subjectLabel, allyLabel: allyLabel, resolve: resolve, focusType: focusType, stanceOf: stanceOf, aimingAt: aimingAt, rangeBand: rangeBand };
 })();

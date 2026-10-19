@@ -75,7 +75,7 @@ BS.EnemyAI = (function () {
   function setStance(ship, target, stanceId) {
     var st = BS.Data.helm.stances[stanceId];
     if (!st || !target) return false;
-    ship.stance = stanceId; ship.doctrine = doctrineFor(ship, st); ship.doctrineId = st.doctrine;
+    ship.stance = stanceId; ship.doctrine = doctrineFor(ship, st); ship.doctrineId = st.doctrine; ship.escorting = null;
     ship.ai = carryAI(ship, newAI(target));
     if (S.distanceKm(ship, target) < ship.doctrine.engageKm) enter(ship, target, ship.doctrine);
     else S.setCommand(ship, "approach", { target: target });
@@ -86,7 +86,7 @@ BS.EnemyAI = (function () {
   function setDoctrine(ship, target, doctrineId) {
     var d = BS.Data.enemyAI.doctrines[doctrineId];
     if (!d || !target) return false;
-    ship.stance = null; ship.doctrine = d; ship.doctrineId = doctrineId;
+    ship.stance = null; ship.doctrine = d; ship.doctrineId = doctrineId; ship.escorting = null;
     ship.ai = carryAI(ship, newAI(target));
     if (S.distanceKm(ship, target) < d.engageKm) enter(ship, target, d); else S.setCommand(ship, "approach", { target: target });
     BS.Events.emit("stanceChanged", { ship: ship, stance: null, doctrine: doctrineId });
@@ -94,6 +94,16 @@ BS.EnemyAI = (function () {
   }
   // Manual helm: the doctrine stops driving until a stance is picked again.
   function suspend(ship) { if (ship.ai) ship.ai.suspended = true; }
+  // Escort (0.34, script action `escort`): the helm keeps station support.escortKm from an ally instead of flying a
+  // doctrine, until a stance or doctrine is set again. The weapons still fire at the lock.
+  function escort(ship, ally) {
+    if (!ally || ally === ship || ally.flags.destroyed) return false;
+    if (!ship.ai) ship.ai = newAI(ally);
+    ship.ai.suspended = true; ship.escorting = ally;
+    S.setCommand(ship, "keep", { target: ally, rangeKm: BS.Data.support.escortKm });
+    BS.Events.emit("escortChanged", { ship: ship, ally: ally });
+    return true;
+  }
 
   // ---- shared machine --------------------------------------------------------------
   function setState(ship, state) {
@@ -341,5 +351,5 @@ BS.EnemyAI = (function () {
     }
   }
 
-  return { attach: attach, update: update, setStance: setStance, setDoctrine: setDoctrine, suspend: suspend, doctrineFor: doctrineFor, bearingCount: bearingCount, setAttackSide: setAttackSide, sideBearing: sideBearing, roll: roll, weaponRef: weaponRef };
+  return { attach: attach, update: update, setStance: setStance, setDoctrine: setDoctrine, suspend: suspend, escort: escort, doctrineFor: doctrineFor, bearingCount: bearingCount, setAttackSide: setAttackSide, sideBearing: sideBearing, roll: roll, weaponRef: weaponRef };
 })();

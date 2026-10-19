@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.33.0",
+  version: "0.34.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -125,8 +125,8 @@ BS.Data = {
     deadFraction: 0.3,            // ship is lost when alive block hp falls below this fraction of total
     // random enemy variants: a fraction of the base layout's cells is re-rolled (armor → system, system → armor) and the result re-validated
     variant: { fraction: 0.12, attempts: 12, systemWeights: { phaser: 2, disruptor: 3, pulse: 2, shield: 3, reactor: 2, engine: 2, armor: 6, quarters: 1, sensor: 1, torpedo: 1, jammer: 1, decoy: 1, neut: 1 } },
-    maskLegend: { ".": "empty", "#": "fillable", "n": "nacelle (engine ×2)", "p": "structure (fixed)" },
-    layoutLegend: { A: "armor", P: "phaser", D: "disruptor", U: "pulse", T: "torpedo", S: "shield", R: "reactor", E: "engine", N: "sensor", B: "bridge", Q: "quarters", J: "jammer", C: "cloak", Y: "decoy", X: "neut", L: "lance" },
+    maskLegend: { ".": "empty", "#": "fillable", "n": "nacelle (engine ×2)", "p": "structure (fixed)", "r": "role cell (fillable; the only place for role blocks)" },
+    layoutLegend: { A: "armor", P: "phaser", D: "disruptor", U: "pulse", T: "torpedo", S: "shield", R: "reactor", E: "engine", N: "sensor", B: "bridge", Q: "quarters", J: "jammer", C: "cloak", Y: "decoy", X: "neut", L: "lance", W: "transfer", H: "repairbeam", K: "beacon" },
   },
 
   editor: {
@@ -159,11 +159,17 @@ BS.Data = {
     // electronic warfare, second generation: a decoy lures torpedoes away for a few seconds; an energy neutraliser drains
     // the locked target's capacitor at short range, so its booster, hardener, afterburner and cloak starve
     decoy:    { letter: "Y", name: "Decoy launcher",  short: "DY", hp: 40, mass: 1, cost: 90,  power: 2, crew: 1, color: "#ffc96b", glyph: "flare", desc: "Module (F-key, 20 s cycle, 15 cap): drops a decoy astern that burns for 8 s. Every torpedo within 3 km of it that was hunting you turns on the decoy instead and blows up on it. Fire it when the volley is 2–4 km out: too early and the decoy burns out before they arrive, too late and they are already on you. One decoy per launcher block per cycle." },
+    // role blocks (0.34, DESIGN §10): they fit only the hull's role cells (mask `r`), and hulls differ in how many they have.
+    // The healer's transfer is a transfer, not creation: it comes out of its own shield pool. Remote repair restores hp to
+    // damaged blocks only. The beacon makes the ship the loudest contact so a boss that turns on the loudest turns on it.
+    transfer: { letter: "W", name: "Shield transfer emitter", short: "ST", hp: 40, mass: 2, cost: 220, power: 6, crew: 2, color: "#6ad5ff", glyph: "shield", roleOnly: true, desc: "Role cell only. Module (5 s cycle, 24 cap): moves 100 shield per emitter from our strongest facing to the supported ally's weakest facing, within 4 km. Our own shields pay for it; it cannot support ourselves." },
+    repairbeam: { letter: "H", name: "Remote repair projector", short: "RR", hp: 40, mass: 2, cost: 200, power: 5, crew: 2, color: "#ffb86a", glyph: "windows", roleOnly: true, desc: "Role cell only. Module (6 s cycle, 18 cap): repairs 45 hp per projector on the supported ally's damaged blocks, within 4 km. Destroyed blocks stay gone." },
+    beacon:   { letter: "K", name: "Signature beacon", short: "BC", hp: 40, mass: 1, cost: 160, power: 3, crew: 1, color: "#ff7a7a", glyph: "dish", roleOnly: true, desc: "Role cell only. Module (4 s cycle, 6 cap): while it runs our signature is ×2.5: we are the loudest contact (a boss turns on us), we are locked faster and torpedoes hit us for full damage." },
     // boss weapon (0.33, enemy only): a cutting beam that charges for `charge` seconds (event weaponCharging, the tell)
     // before it fires at the ship it was charging on, and cuts `pierceBonus` blocks deep. Low tracking: an orbit on the
     // afterburner is nearly immune, a ship holding station or closing is not.
-    lance:    { letter: "L", name: "Cutting beam",    short: "CB", hp: 90, mass: 4, cost: 600, power: 10, crew: 3, color: "#7dff9e", glyph: "lens", enemyOnly: true, desc: "Boss weapon: charges for 6 s, then a beam that cuts 8 blocks deep into the ship it charged on. Tracking 0.35 rad/s: outrun it on the afterburner.",
-                weapon: { kind: "turret", damage: 520, cycle: 28, cap: 30, heat: 20, optimalKm: 7, falloffKm: 2.5, tracking: 0.35, accuracy: 1, arc: 100, pierceBonus: 8, charge: 6, color: "#9dffb0", coreColor: "#ffffff", beamLife: 0.9 } },
+    lance:    { letter: "L", name: "Cutting beam",    short: "CB", hp: 90, mass: 4, cost: 600, power: 10, crew: 3, color: "#7dff9e", glyph: "lens", enemyOnly: true, desc: "Boss weapon: charges for 6 s, then a beam that cuts 8 blocks deep into the ship it charged on, every 22 s. Tracking 0.35 rad/s: outrun it on the afterburner, or be the ship built to take it.",
+                weapon: { kind: "turret", damage: 600, cycle: 22, cap: 30, heat: 20, optimalKm: 7, falloffKm: 2.5, tracking: 0.35, accuracy: 1, arc: 100, pierceBonus: 8, charge: 6, color: "#9dffb0", coreColor: "#ffffff", beamLife: 0.9 } },
     neut:     { letter: "X", name: "Energy neutraliser", short: "NT", hp: 40, mass: 2, cost: 110, power: 4, crew: 1, color: "#ff6ad5", glyph: "drain", desc: "Module (F-key, 6 s cycle, 20 cap, needs a lock inside 4 km): drains 30 capacitor per neutraliser block from the target each cycle. A ship with no capacitor loses its booster, hardener, afterburner and cloak and fires nothing. It drains your own capacitor too: fit reactors." },
   },
 
@@ -181,6 +187,9 @@ BS.Data = {
     jammer: { kind: "active", block: "jammer", name: "ECM jammer", short: "JAM", cycle: 5, cap: 10, effect: { jam: true }, desc: "Every 5 s: jam strength (3 per jammer block) against the enemy's sensor strength. A hit breaks their lock for 4 s and blinds their torpedoes." },
     cloak: { kind: "cloak", block: "cloak", name: "Cloaking device", short: "CLK", cycle: 0, cap: 0, capText: "8 cap/s", desc: "Cloak in 3 s: unlockable and unseen beyond their sensors. Shields down, weapons cold, capacitor drains. Decloak takes 2 s; shields recover 5 s later; 10 s decloak strike: double damage, 60% of it straight through their shields." },
     decoy: { kind: "active", block: "decoy", name: "Decoy", short: "DCY", cycle: 20, cap: 15, effect: { decoy: true }, desc: "Drops one decoy per launcher block astern for 8 s; torpedoes hunting you within 3 km of it turn on the decoy and blow up on it. Time it for when the volley is 2–4 km out." },
+    shield_transfer: { kind: "active", block: "transfer", name: "Shield transfer", short: "XFER", cycle: 5, cap: 24, effect: { transfer: true }, desc: "Every 5 s: 100 shield per emitter from our strongest facing to the supported ally's weakest, within 4 km." },
+    remote_repair: { kind: "active", block: "repairbeam", name: "Remote repair", short: "RREP", cycle: 6, cap: 18, effect: { repair: true }, desc: "Every 6 s: 45 hp per projector to the supported ally's damaged blocks, within 4 km." },
+    beacon: { kind: "active", block: "beacon", name: "Signature beacon", short: "BCN", cycle: 4, cap: 6, effect: { sigMult: 2.5 }, desc: "While running: signature ×2.5. The loudest contact draws the boss." },
     neut: { kind: "active", block: "neut", name: "Energy neutraliser", short: "NEUT", cycle: 6, cap: 20, effect: { neut: true }, desc: "Every 6 s, with a lock inside 4 km: drains 30 capacitor per neutraliser block from the target. Starves their booster, hardener, afterburner and cloak." },
   },
   builtInModules: ["shield_booster", "shield_hardener", "afterburner"],
@@ -202,8 +211,8 @@ BS.Data = {
         ".....pp.......###########.",
         ".....pp##.....###########.",
         "...##pp#####.#############",
-        "..##########ppp###########",
-        "..##########ppp###########",
+        "..##########ppp#r#########",
+        "..##########ppp#r#########",
         "...##pp#####.#############",
         ".....pp##.....###########.",
         ".....pp.......###########.",
@@ -336,7 +345,7 @@ BS.Data = {
         "....pp.....##########.",
         "....####..############",
         "...###################",
-        "...###################",
+        "...#########r#########",
         "...###################",
         "...###################",
         "....####..############",
@@ -392,7 +401,7 @@ BS.Data = {
         ".nnnnnnn###.......",
         ".###############..",
         ".################.",
-        "..################",
+        "..######r#########",
         "..################",
         ".################.",
         ".###############..",
@@ -446,8 +455,8 @@ BS.Data = {
         "......pp##.......############.",
         "....##pp####....#############.",
         "...#########ppp###############",
-        "...#########ppp###############",
-        "...#########ppp###############",
+        "...#########ppp####r#r########",
+        "...#########ppp####r##########",
         "...#########ppp###############",
         "....##pp####....#############.",
         "......pp##.......############.",
@@ -479,6 +488,26 @@ BS.Data = {
       ],
       visual: { kind: "grid", sprite: null, nacelleColor: "90,160,255", hullTint: "#cdd3e0" },
       presets: {
+        lifeline: { name: "Lifeline", desc: "Healer: the default Excelsior with two shield transfer emitters and a remote repair projector on its role cells, two torpedo tubes given up for the power. Support an ally within 4 km; the transfer comes out of its own shields.", rows: [
+          "..............................",
+          ".EEEEEEAAAA..........APA......",
+          ".EEEEEEQAAA........AARAAAA....",
+          "..................AAAAAAAAP...",
+          ".................SAAAAAAAQSA..",
+          "........SA.......AAAAASAAAAAP.",
+          "....AA..AAAA....AAAAAAQAAAAAA.",
+          "...AARARAAAA...AAAAAAAQAAAAAAT",
+          "...AAAAAAAAA...AAAAWAHBAANAAAP",
+          "...AAAAAAAAA...AAAAWAAQAANAAAP",
+          "...AARARAAAA...AAAAAAAQAAAAAAT",
+          "....AA..AAAA....AAAAAAQAAAAAA.",
+          "........SA.......AAAAASAAAAAP.",
+          ".................SAAAAAAAQSA..",
+          "..................AAAAAAAAP...",
+          ".EEEEEEQAAA........AARAAAA....",
+          ".EEEEEEAAAA..........APA......",
+          ".............................."
+        ] },
         lancer: { name: "Lancer", desc: "Six torpedo tubes in the saucer bow, eight reactors, four phasers. Keep at 10 km.", rows: [
           "..............................",
           ".EEEEEESAAA..........AAA......",
@@ -515,9 +544,9 @@ BS.Data = {
         "......pp.........##################.",
         "....########.....##################.",
         "...##########...###################.",
-        "...##########ppp####################",
-        "...##########ppp####################",
-        "...##########ppp####################",
+        "...##########ppp####r###############",
+        "...##########ppp##r#r#r#############",
+        "...##########ppp####r###############",
         "...##########ppp####################",
         "...##########...###################.",
         "....########.....##################.",
@@ -552,6 +581,28 @@ BS.Data = {
       ],
       visual: { kind: "grid", sprite: null, nacelleColor: "90,160,255", hullTint: "#d2d7e3" },
       presets: {
+        anchor: { name: "Anchor", desc: "Tank: the default Galaxy with a signature beacon on a role cell. Switched on, it is the loudest thing in the sky, so a boss that turns on the loudest ship turns on it.", rows: [
+          "....................................",
+          "..EEEEEEEESA..........AAAPAAAA......",
+          "..EEEEEEEEAA........AARAAAAAAAAP....",
+          "...................AAAAAAAAAAAQAA...",
+          "..................AAAAAAAAAAAAAAAA..",
+          ".................TSAAAAAASAAAAAASAP.",
+          "....SAQSAAAA.....AAAAAAAAAAAAAAAAAA.",
+          "...AAAARARAAA...AAAAAAAAAAQANAAAAAP.",
+          "...AAAAAAAARA...AAAAKAAAAAQAAAAAAAAP",
+          "...AAAAAAAAAA...AAAAAAAAAABQANAAAAAA",
+          "...AAAAAAAAAA...AAAAAAAAAAQQANAAAAAA",
+          "...AAAAAAAARA...AAAAAAAAAAQAAAAAAAAP",
+          "...AAAARARAAA...AAAAAAAAAAQANAAAAAP.",
+          "....SAQSAAAA.....AAAAAAAAAAAAAAAAAA.",
+          ".................TSAAAAAASAAAAAASAP.",
+          "..................AAAAAAAAAAAAAAAA..",
+          "...................AAAAAAAAAAAQAA...",
+          "..EEEEEEEEAA........AARAAAAAAAAP....",
+          "..EEEEEEEESA..........AAAPAAAA......",
+          "...................................."
+        ] },
         fortress: { name: "Fortress", desc: "Twenty-eight shield emitters, ten reactors spread apart, nine crew quarters. Sits at 6 km and soaks it up.", rows: [
           "....................................",
           "..EEEEEEEESA..........AASPSAAA......",
@@ -590,8 +641,8 @@ BS.Data = {
         "......pp#.........################....",
         "....######.......###################..",
         "...#######pppp.######################.",
-        "...###################################",
-        "...###################################",
+        "...##############r#r##################",
+        "...##############r####################",
         "...#######pppp.######################.",
         "....######.......###################..",
         "......pp#.........################....",
@@ -918,8 +969,9 @@ BS.Data = {
         ] },
       },
     },
-    // The first boss (0.33, DESIGN §10): a Borg cube. 24×24 cells, cutting beams on three faces, cannons on all four,
-    // shield emitters on the fore, port and starboard sides only: the aft face is bare hull over the reactor core.
+    // The first boss (0.33, DESIGN §10): a Borg cube. 24×24 cells, cutting beams on all four faces (the aft pair
+    // since 0.34, so no face is safe from the beam), cannons on all four, shield emitters on the fore, port and starboard
+    // sides only: the aft face is bare hull over the reactor core.
     borg_cube: {
       id: "borg_cube", name: "Borg cube", className: "Borg cube",
       role: "Boss", faction: "borg", cost: 0, purchasable: false,
@@ -964,8 +1016,8 @@ BS.Data = {
         "AAAAAAAAAQAAEQAAAQAAAAAA",
         "AAARAAAAARAQAAAAAAAAAASA",
         "AAAAAEAEAAQAQAQAEAAAAAAA",
-        "AAAAEAAAEQABAQAAAAAQAAAL",
-        "AAAAEARAEAQAQAAAAAAQAAAL",
+        "LAAAEAAAEQABAQAAAAAQAAAL",
+        "LAAAEARAEAQAQAAAAAAQAAAL",
         "AAAAAEAEAAAQAAQAEAAAAAAA",
         "AAARAAAAARQAQAAAAAAAAASA",
         "AAAAAAAAAQAAEQAAAQAAAAAA",
@@ -1140,6 +1192,10 @@ BS.Data = {
       enemyRemodDone: "Their {what} are back, retuned to {mod}.",
       enemyScanning: "They're scanning us, Captain. They're reading our layout.",
       lanceOnUs: "Cutting beam charging on us, Captain: {t} seconds. Get us moving!",
+      transferOut: "Transferring {amount} shield to the {name}, Captain.",
+      transferIn: "The {name} is feeding our {facing} shield: +{amount}.",
+      repairIn: "Repair teams from the {name} are on our hull.",
+      escort: "Helm answering: keeping station on the {name}.",
       lanceOnAlly: "Cutting beam charging on the {name}: {t} seconds.",
       aimWeak: "Aye. {label}.",
       reinforceShields: "Reinforcing the {weak} shield from the {strong} grid.",
@@ -1517,6 +1573,8 @@ BS.Data = {
 
   science: { scanDuration: 4, weaknessBonus: 1.25, cloakDetectRangeKm: 10 },
   // electronic warfare: ECM rolls jam / (jam + target sensors); cloak timings in seconds; detection grows with sensor arrays
+  // support (0.34): the healer's reach, what each emitter and projector moves per cycle, and how close an escort keeps
+  support: { rangeKm: 4, transferPerBlock: 100, repairPerBlock: 45, escortKm: 2.5 },
   ew: { jamPerBlock: 3, jamDuration: 4, cloakTime: 3, decloakTime: 2, surgeTime: 5, cloakDrain: 8, cloakMinCap: 5, detectPerSensor: 1, ghostAlpha: 0.25, ownCloakAlpha: 0.35,
         // fields (cells from the block): a ship cloaks only with every block inside a cloak field; a jam breaks the lock only
         // with every block inside an ECM field, otherwise it just forces their fire onto the blocks outside it
@@ -1549,7 +1607,9 @@ BS.Data = {
     rangeBands: { beam: "inside our beam optimal", torpedo: "inside our torpedo range", out: "beyond our reach" },   // condition rangeBand, measured off the fitted weapons
     // subjects (0.32, BS.Fleet.subject): a rule's `about` picks which enemy its conditions read ("target" = the ship we
     // are fighting); the action `target` switches our fire to one. "hunter" is null when nobody is shooting at us.
-    subjects: { target: "the ship we are fighting", nearest: "the nearest enemy", weakest: "the enemy with the least hull", biggest: "the biggest enemy", smallest: "the smallest enemy", hunter: "the enemy shooting at us", focus: "the enemy most of us are fighting" },
+    subjects: { target: "the ship we are fighting", nearest: "the nearest enemy", weakest: "the enemy with the least hull", biggest: "the biggest enemy", smallest: "the smallest enemy", loudest: "the loudest enemy (largest signature)", hunter: "the enemy shooting at us", focus: "the enemy most of us are fighting" },
+    // ally subjects (0.34): who a support or escort action is for
+    allySubjects: { weakestAlly: "the ally with the weakest shield", hurtAlly: "the ally with the least hull", huntedAlly: "the ally the most enemies are firing at", flagship: "the flagship" },
     // bridge calls (BS.Script.bridgeCall, BS.Game.bridgeCall): the captain's `tokens` interventions per battle, never
     // refilled. A play or side call is an override that stands for holdSeconds and then hands back to the script;
     // Disengage stands until the weakest shield is back over disengageUntil (or holdSeconds); Reinforce acts at once;
@@ -1632,10 +1692,13 @@ BS.Data = {
       roll:      { label: "come about to bring guns round", kind: "flag" },   // BS.EnemyAI.roll: a reposition toward the side with the most fire
       remodulate:{ label: "remodulate our {v}", kind: "remod" },   // "shields" (frequency that beats their ammo, deflector down meanwhile) or "ammo" (ammo that beats their frequency, weapons cold meanwhile)
       target:    { label: "switch our fire to {v}", kind: "subject" },   // 0.32: script.subjects; the helm, lock and aim follow (BS.Fleet.retarget)
+      support:   { label: "support {v}", kind: "ally" },     // 0.34: the ally our shield transfer and remote repair work on
+      escort:    { label: "escort {v}", kind: "ally" },      // 0.34: the helm keeps station on that ally (support.escortKm) until a stance or doctrine
       summon:    { label: "call in the reinforcements", kind: "flag", enemyOnly: true },   // 0.33: the encounter's `reinforcements` drop in beside the ship, once
       overdrive: { label: "reroute all power to weapons", kind: "flag", enemyOnly: true }, // 0.33: enemyAI.overdrive for the rest of the fight
     },
     policies: {
+      support:   { label: "support the ally with the weakest shield" },   // 0.34: re-picked every tick for the transfer and repair modules
       lock:      { label: "keep a lock on the target" },
       booster:   { label: "pulse the booster when a shield is low" },
       reinforce: { label: "reinforce when a shield is very low" },
@@ -1658,6 +1721,18 @@ BS.Data = {
           { when: { enemyHullBelow: 0.4 }, about: "weakest", do: { target: "weakest", stance: "engage", weapons: true, modules: { shield_hardener: true }, governor: true } },
           { when: { unfocused: true }, do: { target: "focus" }, every: 8 },
           { when: {}, do: { stance: "engage", weapons: true, modules: { shield_hardener: true }, governor: true } },
+        ] },
+      // 0.34: role templates (DESIGN §10). Anchor is the tank: beacon lit, on the biggest enemy, hardener and reinforce.
+      // Lifeline is the healer: escorts the ally under most fire, supports the weakest shield, runs transfer and repair.
+      anchor: { name: "Anchor", desc: "Tank: light the beacon so the boss turns on us, engage the biggest enemy with the hardener up, reinforce when a shield falls.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto", neut: "auto" },
+        rules: [
+          { when: { weakestBelow: 0.3 }, do: { reinforce: true }, every: 20 },
+          { when: {}, do: { target: "biggest", stance: "engage", weapons: true, modules: { beacon: true, shield_hardener: true }, governor: true, repair: "shield" } },
+        ] },
+      lifeline: { name: "Lifeline", desc: "Healer: keep station on the ally under most fire, transfer shields and repair the weakest, skirmish away from a charging beam. Needs transfer emitters or repair projectors.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto", support: "auto" },
+        rules: [
+          { when: { lanceCharging: true }, do: { stance: "skirmish", modules: { afterburner: true } }, until: { lanceCharging: false }, holdMax: 9 },
+          { when: {}, do: { escort: "huntedAlly", weapons: true, modules: { shield_transfer: true, remote_repair: true, shield_hardener: true }, governor: true } },
         ] },
       // 0.33: the intended answer to the first boss (DESIGN §4 "Bosses"): outrun the cutting beam on the afterburner
       // while it charges, kill the escorts first, retune the ammo, and work the bare aft over the reactors.
@@ -1735,7 +1810,7 @@ BS.Data = {
       // the first boss (0.33): every mechanic is a rule with a callout the fleet can script against
       borg:          { name: "Borg cube", rules: [
                         { when: { scanned: false, dKmBelow: 20 }, do: { scan: true }, once: true },
-                        { when: { notTargeting: "nearest" }, do: { target: "nearest" }, every: 30, callout: "The cube is turning on the nearest ship." },
+                        { when: { notTargeting: "loudest" }, do: { target: "loudest" }, every: 30, callout: "The cube is turning on the loudest ship." },
                         { when: { scanned: true, enemyAmmoBeatsOurShields: true, remodulating: false }, do: { remodulate: "shields" }, every: 45, callout: "The cube is adapting: its shields are remodulating." },
                         { when: { hullBelow: 0.6 }, do: { summon: true }, once: true, callout: "Two assimilated Birds-of-Prey are dropping out of warp beside the cube!" },
                         { when: { time: 420 }, do: { overdrive: true }, once: true, callout: "The cube is rerouting everything to its weapons. Finish it now or not at all." },
