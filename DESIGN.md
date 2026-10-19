@@ -1,6 +1,6 @@
 # DESIGN.md — Bridge Sim
 
-Version: 0.33.0 (the first boss); direction in §10. Keep this file in sync with the game.
+Version: 0.34.0 (role blocks); direction in §10. Keep this file in sync with the game.
 
 ## 1. Concept
 
@@ -345,7 +345,9 @@ Erase is the palette entry. Every keyboard shortcut has a button.
 ### Hull grid and blocks (`BS.Data.grid`, `BS.Data.blocks`, `shipClasses.*.mask / layout`)
 - A hull mask is rows of `.` (space), `#` (fillable), `n` (nacelle cell:
   engines count double), `p` (fixed structure, 700 hp, not editable: necks
-  and pylons are tough, so losing a whole section is a rare disaster).
+  and pylons are tough, so losing a whole section is a rare disaster), and
+  since 0.34 `r` (a role cell: fillable by anything, the only place a role
+  block fits).
   Cells are 6 px; the grid centre is the ship centre; x is forward, y is
   starboard. Every mask is symmetric about its long axis (Mirror in the editor).
 
@@ -1191,6 +1193,61 @@ script against, plus `reinforcements` its script summons.
   the runs of 0.35; the harness reaches it with `--enemy cube`, and the
   smoke test's fleet pass fights it.
 
+### Roles from blocks (0.34, mask `r`, `blocks.*.roleOnly`, `BS.Data.support`, `script.allySubjects`)
+The role layer of §10: roles are what a hull carries on its **role cells**.
+- **Role cells**: mask letter `r`, fillable by any block and the only place
+  for a block marked `roleOnly` (`validateLayout` refuses them elsewhere;
+  the editor says so and draws role cells with an orange outline). Hulls
+  differ: Constitution 2, Miranda 1, Defiant 1, Excelsior 3, Galaxy 5,
+  Sovereign 3. The default layouts keep whatever stood there.
+- **Role blocks** (`roleOnly`, letters W / H / K):
+  - *Shield transfer emitter* (`transfer`) and module `shield_transfer`
+    (5 s, 24 cap): moves `support.transferPerBlock` 100 shield per emitter
+    from the healer's strongest facing to the supported ally's weakest,
+    within `support.rangeKm` 4. A transfer, not creation: the healer's own
+    pool pays, and it cannot support itself.
+  - *Remote repair projector* (`repairbeam`) and module `remote_repair`
+    (6 s, 18 cap): `support.repairPerBlock` 45 hp per projector to the
+    supported ally's damaged blocks (`BS.Grid.repair`, destroyed blocks stay
+    gone).
+  - *Signature beacon* (`beacon`) and module `beacon` (4 s, 6 cap): while
+    it runs the ship's signature is ×2.5 (`effect.sigMult`, written to
+    `ship.signature` every module tick): the loudest contact, locked faster,
+    hit by torpedoes for full damage.
+  A support module with no supported ally alive in range spends nothing
+  (`nosupport` / `range`).
+- **Ally subjects** (`script.allySubjects`): `weakestAlly`, `hurtAlly`,
+  `huntedAlly` (the ally the most enemies are firing at), `flagship`
+  (`BS.Fleet.ally`). Actions **`support: <ally>`** (sets `ship.support`,
+  what the transfer and repair modules work on) and **`escort: <ally>`**
+  (`BS.EnemyAI.escort`: the doctrine machine stands down and the helm
+  keeps station `support.escortKm` 2.5 km from that ally until a stance
+  or doctrine is set; a lost ally re-picks the subject each tick). Policy
+  `support: "auto"` re-picks the weakest ally every tick.
+- **Subject `loudest`** (largest signature). The Borg cube now turns on the
+  loudest ship, so a lit beacon draws it: measured, every one of its 15
+  beam charges in a fight landed on the beacon ship.
+- **Templates**: *Anchor* (tank: beacon lit, hardener, engage the biggest,
+  reinforce under 30%, damage control to the emitters) and *Lifeline*
+  (healer: escort the hunted ally, support the weakest, transfer and
+  repair on, skirmish away from a charging beam). Presets *Anchor* (Galaxy,
+  a beacon on a role cell) and *Lifeline* (Excelsior: two transfer
+  emitters and a projector on its role cells, two tubes given up for the
+  power).
+- **The cube** gained a pair of cutting beams on its aft face (no face is
+  safe from the beam any more; the aft stays bare of shields), the beam is
+  600 damage every 22 s (was 520 / 28).
+- **Honest measurement (§8)**: the machinery does what it says, and the
+  tank plus healer pair does **not** pay off yet against the cube: four
+  Cube breakers beat the cube faster and keep more hull than two breakers
+  with an Anchor and a Lifeline, at 0 and at 6 wins, with a dodgeable beam
+  and with an undodgeable one. Spreading the damage over four ships that
+  skirmish away from the beam beats concentrating it on one ship that
+  the healer cannot keep up with (a fight's 15 beams on the tank are
+  about 14k damage; the healer moved 3.8k shield and 1.4k hull). The
+  lever for 0.35+ is numbers, not rules: tank durability and healer
+  throughput against the beam, or a boss whose damage cannot be spread.
+
 ### Win / lose
 Enemy side beaten → Victory; player side beaten → Defeat; the last enemy
 bridge taken by a boarding party → Victory ("captured"). Result overlay with
@@ -1283,6 +1340,7 @@ campaign.firstFight: { weakPointChance }; campaign.encounters[].script; campaign
 campaign.salvage: { destroyed, disabled, captured }; enemyAI.*: drainedBelow, drainedUntil, drainedTime; enemyAI.counters[].when.neutMin
 0.31: balance.fleetSpacingKm; campaign.fleetMax; campaign.encounters[].ships: [{ enemyClass, layout, doctrine, script, damageMult }]; save.fleet: [classId]; ship: team, target, contacts{}, flags.captured; state: teams { player: [], enemy: [] }, enemyFlag
 0.32: script.subjects; rule.about; action target; conditions allyShieldBelow / allyHullBelow / allyUnderFire / outnumbered / enemiesAtMost / unfocused; templates.wolfpack; ship: scannedOf{}, scanTarget
+0.34: mask letter r (block.roleCell); blocks transfer / repairbeam / beacon (roleOnly); modules shield_transfer / remote_repair / beacon (effect.sigMult); support { rangeKm, transferPerBlock, repairPerBlock, escortKm }; script.allySubjects; actions support / escort; policy support; subject loudest; templates anchor / lifeline; presets galaxy.anchor / excelsior.lifeline; ship: support, escorting, escortSubject
 0.33: blocks.lance (enemyOnly, weapon.charge); modules.lance_group; shipClasses.borg_cube; enemyAI.boss (shieldMult, shieldRegenMult), enemyAI.overdrive; campaign.encounters[].kind / reinforcements; script.enemyScripts.borg; templates.cubebreaker; conditions notTargeting / enemiesAtLeast / lanceCharging / allyLanced; actions summon / overdrive; tuning.factionDefault.borg; block: charging, chargeTarget; ship: overdriven; state: summoned
 shipClasses: { id: { name, className, role, faction, cost, purchasable, speed, turnRate, signature, lockRangeKm, powerBase,
                      mask: [rows], layout: [rows], presets: { id: { name, desc, rows } }, variants: { id: { name, desc, rows } } (enemies),
@@ -1325,6 +1383,32 @@ harness is in the repository: `tools/harness.js` (Playwright, one
 `campaign.encounters`, seeded `Math.random`, `--noreact` for the 0.24 enemy
 bridge, `--eval` for a data tweak, `--debug` for what each bridge saw) and
 `tools/smoke.js` (the headless interface check).
+
+v0.34.0 (role blocks; the cube with aft beams, beam 600 / 22 s; the fleet is
+Constitution + Galaxy + Excelsior + Defiant, "mixed" = Constitution and
+Defiant on the Cube breaker, Galaxy on the Anchor preset and template,
+Excelsior on the Lifeline preset and template; 2 fights each):
+
+| Fleet | 0 wins | 6 wins |
+|---|---|---|
+| Four Cube breakers (default layouts) | 2 of 2 in 4:06–4:24 keeping 88–89% | 2 of 2 in 5:02–5:30 keeping 81–85% |
+| Mixed: tank + healer + two breakers | 2 of 2 in 5:56–6:12 keeping 81–86%, a hull lost each fight | 1 of 2 (a win at 7:01 keeping 71%, a loss at 7:04 with the Galaxy and two more lost) |
+| Four breakers without the dodge rule | 2 of 2 in 4:20–5:44 keeping 74–87%, the Galaxy lost once | — |
+| Mixed vs an undodgeable 760-damage beam (tried, not kept) | 2 of 2 in 7:40–8:05 keeping 59–66%, the Galaxy lost both times; four breakers against the same beam 2 of 2 in 4:14–6:02 keeping 75–84% | — |
+
+Event counts in one mixed fight (seed 7): beacon lit, the Galaxy's
+signature 1500; all 15 beam charges on the Galaxy, none on the others;
+59 transfers moving 3,807 shield, 50 remote repairs restoring 1,378 hp,
+2 escort orders; the Galaxy was still lost at 49% of its blocks.
+
+Honest reading: 0.34 delivers the role machinery (cells, blocks, subjects,
+actions, templates, presets) and the beacon does draw the boss exactly as
+designed, but a tank plus healer is a worse fleet than two more breakers
+against this boss, at both tiers. With the aft beams the dodge rule now
+buys a little (a Galaxy lost once without it). Roles will pay off only
+when a boss deals damage that cannot be spread or dodged and a healer's
+throughput can hold one ship under it; that is a numbers pass for 0.35+,
+recorded here so nobody mistakes the role templates for a solution.
 
 v0.33.0 (the first boss; four Federation hulls, the same script on all four,
 `--enemy cube --wins 0`, seeds 1–4 for the two rows that decide, 1–2 for
@@ -1930,10 +2014,11 @@ than slower (it is nearly untouched, as intended).
 | B (done, v0.4) | Hangar with slot fitting, market, credits, real-time skills, save |
 | v0.5 PR 1 (done) | Block grid hulls, nine block types, per-block damage with penetration, splash and section loss, grid renderer, build preview and statistics |
 | v0.5 PR 2 (done) | Hangar block editor (paint, erase, mirror, presets), block costs and refunds, saved builds |
+| v0.34.0 (done) | Role blocks (§4 "Roles from blocks"): role cells in every Federation mask, shield transfer, remote repair and beacon blocks and modules, ally subjects with `support` and `escort`, the `loudest` subject, Anchor and Lifeline templates and presets, aft beams on the cube; measured as not yet paying off |
 | v0.33.0 (done) | The first boss (§4 "Bosses"): the Borg cube, the cutting beam with a charge tell, summoned escorts, overdrive, the boss script with callouts, the Cube breaker template, enemy-only blocks and actions |
 | v0.32.0 (done) | Fleet scripts (§4): subjects (`about`), the `target` action, ally and count conditions, scans per ship, the Wolf pack template, enemy packs that concentrate fire, the report per hull |
 | v0.31.0 (done) | Fleet engine (§4, §10): teams, N ships against M, target selection and retargeting, team elimination, viewer and primary enemy, camera over every ship, encounters with `ships`, `save.fleet`, harness fleets and `--perf`, deterministic harness, learning zeroed |
-| v0.34–0.35 (planned) | Fleet direction, §10: role blocks (shield transfer, remote repair, beacon) on role cells with the transfer actions, fleet hangar with roster and repair bills, skirmish-then-boss runs |
+| v0.35 (planned) | Fleet direction, §10: fleet hangar with roster and repair bills, skirmish-then-boss runs; the numbers pass that makes a tank and a healer pay off |
 | v0.5 PR 3 (done) | Masks for Miranda, Defiant, Excelsior, Galaxy, Sovereign; K't'inga; enemy layouts, random variants and encounters; fragments and shatter; balance pass |
 | v0.5.3 (done) | Enemy doctrines: strafe, brawl, standoff, broadside; tail-chase detection; status labels and callouts |
 | v0.6.0 (done) | Cosmoteer ideas: reactor breaches that chain, line of fire blocked by the own hull, armor pierce cost, disabled ships and salvage |
@@ -2083,7 +2168,7 @@ Decisions:
 | 0.31 (done) | Engine for N v M: teams, ship arrays per side, target selection, camera fitting every ship, harness for fleets; measured with **8 block grids** (§4 "Fleet engine", §8) |
 | 0.32 (done) | Script subjects and the target action; one script per hull; report per hull; the Wolf pack template (4 of 4 against the pack where the Brawler is 0 of 4). Transfer actions moved to 0.34 with their blocks |
 | 0.33 (done) | The Borg cube (§4 "Bosses"): cutting beam with a tell, bare aft over the core, summoned escorts, remodulation, enrage at 7 min; the Cube breaker wins 4 of 4 where the Brawler loses 0 of 4 |
-| 0.34 | Role blocks (shield transfer, remote repair, beacon) and role cells in the masks |
+| 0.34 (done) | Role blocks (shield transfer, remote repair, beacon) on role cells, ally subjects, support and escort actions, Anchor and Lifeline. Measured: the pair draws the boss as designed but loses to two more breakers; the numbers pass is 0.35's |
 | 0.35 | Fleet hangar (four hulls, roster per fight, repair bills), the skirmish-then-boss run in `campaign.encounters`, skirmish modifiers |
 
 Known risks: the pivot touches nearly every file; 8 grids measured in 0.31

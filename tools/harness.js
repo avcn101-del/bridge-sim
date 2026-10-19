@@ -25,6 +25,8 @@
 //   --fleet a,b,c       the player's side (0.31): class ids that undock with --ship (save.fleet), each with its own
 //                       script (--script is the flagship's; the others fly their assigned or default template)
 //   --efleet id,id      extra enemy ships added to the encounter, each an encounter id whose first ship is taken
+//   --layouts a:preset,b:preset   a preset per class id for any hull of the fleet (0.34: galaxy:anchor, excelsior:lifeline)
+//   --scripts a:id,b:id           a template or own-script id per class id for the other hulls (the flagship flies --script)
 //   --perf              no fights: set the battle up, step 600 fixed steps and draw 120 frames at 1280×800, print
 //                       ms per simulated second and ms per frame (headless, no GPU: an upper bound)
 // Each run is BS.Game.dryRun: the battle set up exactly as Undock would, stepped at 1/60 s with no interface.
@@ -39,7 +41,7 @@ var opts = {
   signature: args.signature ? String(args.signature).split(",") : null, learn: !!args.learn,
   variant: args.variant || null, doctrine: args.doctrine || null, escript: args.escript || null, rows: args.rows || null, equal: !!args.equal,
   tune: args.tune || null, etune: args.etune || null, sigtune: args.sigtune || null,
-  fleet: args.fleet ? String(args.fleet).split(",") : null, efleet: args.efleet ? String(args.efleet).split(",") : null, perf: !!args.perf,
+  fleet: args.fleet ? String(args.fleet).split(",") : null, layouts: args.layouts || null, scripts: args.scripts || null, efleet: args.efleet ? String(args.efleet).split(",") : null, perf: !!args.perf,
 };
 if (fs.existsSync(opts.script)) opts.script = JSON.parse(fs.readFileSync(opts.script, "utf8"));
 
@@ -66,6 +68,8 @@ function fmt(t) { var m = Math.floor(t / 60), s = Math.floor(t % 60); return m +
         var save = BS.Campaign.reset();
         save.shipClass = o.ship; if (save.ownedShips.indexOf(o.ship) < 0) save.ownedShips.push(o.ship);
         if (o.fleet) { o.fleet.forEach(function (id) { if (!BS.Data.shipClasses[id]) throw new Error("no class " + id); if (save.ownedShips.indexOf(id) < 0) save.ownedShips.push(id); }); save.fleet = o.fleet.slice(); }
+        if (o.layouts) String(o.layouts).split(",").forEach(function (kv) { var p = kv.split(":"), c = BS.Data.shipClasses[p[0]]; if (!c || !c.presets || !c.presets[p[1]]) throw new Error("no preset " + kv); save.layouts[p[0]] = c.presets[p[1]].rows.slice(); });
+        if (o.scripts) String(o.scripts).split(",").forEach(function (kv) { var p = kv.split(":"); save.scriptByBuild[p[0]] = p[1]; });
         save.campaign.battlesWon = o.wins;
         var cls = BS.Data.shipClasses[o.ship];
         if (o.preset) { if (!cls.presets || !cls.presets[o.preset]) throw new Error("no preset " + o.preset); save.layouts[o.ship] = cls.presets[o.preset].rows.slice(); }

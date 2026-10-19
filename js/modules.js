@@ -95,6 +95,25 @@ BS.Modules = (function () {
       target.neuted = BS.Data.ew.neut.drainMemory;   // the drained ship knows it (enemy AI opens the range)
       BS.Events.emit("neutralised", { ship: ship, target: target, amount: amount, drained: before - target.capacitor, dry: target.capacitor <= 0 });
     }
+    // support modules (0.34): they need a supported ally (ship.support, script action `support` or the support policy)
+    // alive and within support.rangeKm; nothing is spent otherwise
+    if (def.effect && (def.effect.transfer || def.effect.repair)) {
+      var SP = BS.Data.support, ally = ship.support && !ship.support.flags.destroyed && ship.support !== ship ? ship.support : null;
+      if (!ally) { m.state = "nosupport"; ship.capacitor += def.cap; return false; }
+      if (BS.Ships.distanceKm(ship, ally) > SP.rangeKm) { m.state = "range"; ship.capacitor += def.cap; return false; }
+      var n = weaponBlocks(ship, m).length;
+      if (def.effect.transfer) {
+        var from = BS.Ships.strongestFacing(ship), to = BS.Ships.weakestFacing(ally);
+        var amount = Math.min(n * SP.transferPerBlock, ship.shields[from], ally.shieldMax[to] - ally.shields[to]);
+        if (amount > 0) { ship.shields[from] -= amount; ally.shields[to] += amount; }
+        BS.Events.emit("shieldTransferred", { ship: ship, target: ally, amount: amount, from: from, to: to });
+      } else {
+        var before = ally.hull;
+        BS.Grid.repair(ally.grid, n * SP.repairPerBlock, ally.repairPriority, 1);
+        ally.hull = ally.grid.blocks.reduce(function (a, b) { return a + (b.alive && !b.structural ? b.hp : 0); }, 0);
+        BS.Events.emit("remoteRepaired", { ship: ship, target: ally, amount: ally.hull - before });
+      }
+    }
     if (def.effect && def.effect.decoy) BS.Weapons.launchDecoy(ship, weaponBlocks(ship, m).length);
     if (def.effect && def.effect.jam) {
       var target = ship.lock.target || ship.selected, strength = weaponBlocks(ship, m).length * BS.Data.ew.jamPerBlock;
@@ -135,7 +154,7 @@ BS.Modules = (function () {
     return ship.modules.slice().sort(function (a, b) { return (a.def.kind === "launcherGroup" ? 0 : 1) - (b.def.kind === "launcherGroup" ? 0 : 1); });
   }
   function update(ship, dt) {
-    var eff = { speedMult: 1, shieldResist: 0, lockMult: 1, trackingMult: 1 }, order = updateOrder(ship);
+    var eff = { speedMult: 1, shieldResist: 0, lockMult: 1, trackingMult: 1, sigMult: 1 }, order = updateOrder(ship);
     // heat governor: hold fire above the high mark until the heat falls below the low mark (hysteresis)
     var H = BS.Data.grid.heat, hf = ship.stats.heatCap > 0 ? ship.heat / ship.stats.heatCap : 0;
     if (ship.heatGovernor && !ship.aiProfile) {
@@ -170,9 +189,11 @@ BS.Modules = (function () {
         if (e.shieldResist) eff.shieldResist = 1 - (1 - eff.shieldResist) * (1 - e.shieldResist);
         if (e.lockMult) eff.lockMult *= e.lockMult;
         if (e.trackingMult) eff.trackingMult *= e.trackingMult;
+        if (e.sigMult) eff.sigMult *= e.sigMult;
       }
     }
     ship.activeEffects = eff;
+    ship.signature = ship.cls.signature * eff.sigMult;   // the beacon (0.34): louder while it runs
   }
 
   function find(ship, id) { return ship.modules.filter(function (m) { return m.id === id; }); }

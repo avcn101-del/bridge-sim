@@ -42,6 +42,7 @@ BS.Fleet = (function () {
       case "weakest": { var w = null; hs.forEach(function (o) { if (!w || o.hull / o.hullMax < w.hull / w.hullMax) w = o; }); return w; }
       case "biggest": { var g = null; hs.forEach(function (o) { if (!g || o.hullMax > g.hullMax) g = o; }); return g; }
       case "smallest": { var sm = null; hs.forEach(function (o) { if (!sm || o.hullMax < sm.hullMax) sm = o; }); return sm; }
+      case "loudest": { var lo = null; hs.forEach(function (o) { if (!lo || o.signature > lo.signature) lo = o; }); return lo; }
       case "hunter": { var h = hs.filter(function (o) { return o.target === ship; }); return h.length ? nearestOf(ship, h) : null; }
       case "focus": {   // the hostile most of our side is fighting, the nearest among equals
         var count = {}; allies(ship).concat([ship]).forEach(function (a) { if (a.target && hs.indexOf(a.target) >= 0) count[a.target.id] = (count[a.target.id] || 0) + 1; });
@@ -53,6 +54,17 @@ BS.Fleet = (function () {
     }
   }
   function fightingAllies(ship) { return allies(ship).filter(fighting); }
+  // Ally subjects (script.allySubjects, 0.34): who a support or escort action is for; null when alone.
+  function ally(ship, id) {
+    var al = fightingAllies(ship);
+    if (!al.length) return null;
+    switch (id) {
+      case "hurtAlly": { var h = null; al.forEach(function (a) { if (!h || a.hull / a.hullMax < h.hull / h.hullMax) h = a; }); return h; }
+      case "huntedAlly": { var hs = hostiles(ship), best = null, bn = -1; al.forEach(function (a) { var n = hs.filter(function (o) { return o.target === a; }).length; if (n > bn || (n === bn && best && S.contactKm(ship, a) < S.contactKm(ship, best))) { best = a; bn = n; } }); return best; }
+      case "flagship": { var st = BS.Game.state, f = st.teams[ship.team][0]; return f && f !== ship && fighting(f) ? f : al[0]; }
+      default: { var w = null; al.forEach(function (a) { var v = S.shieldFrac(a, S.weakestFacing(a)); if (!w || v < w.v) w = { a: a, v: v }; }); return w ? w.a : null; }
+    }
+  }
 
   // Point every layer of a ship at `t`. The helm re-enters the stance (player side) or doctrine (enemy side) it was
   // flying, which re-issues the movement command; the lock policy and the AI re-lock on their own tick.
@@ -86,5 +98,5 @@ BS.Fleet = (function () {
     }
   }
 
-  return { hostiles: hostiles, allies: allies, fightingAllies: fightingAllies, teamShips: teamShips, teamFighting: teamFighting, nearestHostile: nearestHostile, targetOf: targetOf, subject: subject, retarget: retarget, update: update, fighting: fighting };
+  return { hostiles: hostiles, allies: allies, fightingAllies: fightingAllies, teamShips: teamShips, teamFighting: teamFighting, nearestHostile: nearestHostile, targetOf: targetOf, subject: subject, ally: ally, retarget: retarget, update: update, fighting: fighting };
 })();

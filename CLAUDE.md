@@ -71,7 +71,7 @@ These rules apply to every session working in this repository.
   A side loses when none of its ships can fight. Encounters list their ships
   in `campaign.encounters[].ships`; the player's side is `save.fleet`.
 - **Ships are block grids.** A class gives a hull `mask` (`.` empty, `#`
-  fillable, `n` nacelle, `p` fixed structure) and a default `layout`
+  fillable, `n` nacelle, `p` fixed structure, `r` role cell) and a default `layout`
   (letters from `grid.layoutLegend`). `BS.Grid.build` turns them into
   blocks; `BS.Grid.derive` sums stats (hull hp, shield facings from emitter
   positions, capacitor from reactors, thrust/mass → speed, sensors, repair).

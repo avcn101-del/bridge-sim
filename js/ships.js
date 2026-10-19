@@ -23,7 +23,7 @@ BS.Ships = (function () {
     var grid = Gr.build(cls, options.layout || cls.layout, statMult, options.tuning || null);
     var st = Gr.derive(grid);
     var ship = {
-      id: nextId++, classId: classId, cls: cls, name: options.name || cls.name, faction: cls.faction, isPlayer: !!options.isPlayer, team: options.team || (options.isPlayer ? "player" : "enemy"), target: null, contacts: {}, scanned: false, scanning: 0, scannedOf: {},
+      id: nextId++, classId: classId, cls: cls, name: options.name || cls.name, faction: cls.faction, isPlayer: !!options.isPlayer, team: options.team || (options.isPlayer ? "player" : "enemy"), target: null, contacts: {}, scanned: false, scanning: 0, scannedOf: {}, support: null, escorting: null, escortSubject: null,
       pos: { x: options.pos ? options.pos.x : 0, y: options.pos ? options.pos.y : 0 }, prevPos: { x: 0, y: 0 },
       heading: options.heading || 0, prevHeading: options.heading || 0, speed: 0, vel: { x: 0, y: 0 },
       grid: grid, stats: st, statMult: statMult, mods: mods, layoutRows: (options.layout || cls.layout).slice(), tuningRows: options.tuning ? options.tuning.slice() : null,
@@ -496,6 +496,6 @@ BS.Ships = (function () {
     distanceTo: distanceTo, distanceKm: distanceKm, bearingTo: bearingTo, angularVelocity: angularVelocity, speedKmS: speedKmS,
     setCommand: setCommand, setAlert: setAlert, startReinforce: startReinforce, startLock: startLock, clearLock: clearLock, lockTime: lockTime,
     trackingMult: trackingMult, maxSpeed: maxSpeed, firingBearings: firingBearings, shieldsUp: shieldsUp, effectiveAim: effectiveAim, setAimBlock: setAimBlock, cloakFieldComplete: cloakFieldComplete, debrisHit: debrisHit, capRechargeMult: capRechargeMult, blockTypes: blockTypes,
-    isCloaked: isCloaked, visibility: visibility, detectRangeKm: detectRangeKm, setCloak: setCloak, contact: contact, contactKm: contactKm, remodulate: remodulate, beats: beats, overdrive: overdrive,
+    isCloaked: isCloaked, visibility: visibility, detectRangeKm: detectRangeKm, setCloak: setCloak, contact: contact, contactKm: contactKm, remodulate: remodulate, beats: beats, overdrive: overdrive, FACINGS_: FACINGS,
   };
 })();
