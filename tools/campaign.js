@@ -8,13 +8,14 @@
 //   --ship <classId>    the flagship (default constitution); --fleet a,b,c the rest of the roster (bought for free)
 //   --layouts a:preset,b:preset   a preset per class; --scripts a:id,b:id a template per class; --script <id> the flagship's
 //   --soloscript <id>   the flagship's script for solo fights (0.43, save.soloScriptByBuild); unset: --script
+//   --fleetscripts a:id,b:id   a template per class for fleet skirmishes (0.44, save.fleetScriptByBuild); unset: the --scripts one
 //   --credits <n>       starting credits (default campaign.startingCredits)
 //   --max <s>           stalemate after this many simulated seconds (default 600)
 //   --eval "<js>"       run this in the page before the run (a data tweak, as tools/harness.js)
 var path = require("path"), pw = require("playwright");
 var args = {}; process.argv.slice(2).forEach(function (a, i, all) { if (a.indexOf("--") === 0) { var v = all[i + 1]; args[a.slice(2)] = v === undefined || v.indexOf("--") === 0 ? true : v; } });
 var opts = { battles: parseInt(args.battles || "12", 10), seed: parseInt(args.seed || "1", 10), ship: args.ship || "constitution", fleet: args.fleet ? String(args.fleet).split(",") : null,
-  layouts: args.layouts || null, scripts: args.scripts || null, script: args.script || null, credits: args.credits ? parseInt(args.credits, 10) : null, max: parseInt(args.max || "600", 10), eval: args.eval || null, soloscript: args.soloscript || null };
+  layouts: args.layouts || null, scripts: args.scripts || null, script: args.script || null, credits: args.credits ? parseInt(args.credits, 10) : null, max: parseInt(args.max || "600", 10), eval: args.eval || null, soloscript: args.soloscript || null, fleetscripts: args.fleetscripts || null };
 function fmt(t) { var m = Math.floor(t / 60), s = Math.floor(t % 60); return m + ":" + (s < 10 ? "0" : "") + s; }
 
 (async function () {
@@ -34,6 +35,7 @@ function fmt(t) { var m = Math.floor(t / 60), s = Math.floor(t % 60); return m +
     if (o.scripts) String(o.scripts).split(",").forEach(function (kv) { var p = kv.split(":"); save.scriptByBuild[p[0]] = p[1]; });
     if (o.script) save.scriptByBuild[o.ship] = o.script;
     if (o.soloscript) save.soloScriptByBuild[o.ship] = o.soloscript;   // 0.43: the flagship's script when it undocks alone
+    if (o.fleetscripts) String(o.fleetscripts).split(",").forEach(function (kv) { var p = kv.split(":"); save.fleetScriptByBuild[p[0]] = p[1]; });   // 0.44: per class, fleet skirmishes
     if (o.credits !== null) save.credits = o.credits;
     BS.Data.script.dryRun.maxSeconds = o.max;
     if (o.eval) (new Function(o.eval))();   // 0.42: a data tweak before the run, as the fight harness's --eval

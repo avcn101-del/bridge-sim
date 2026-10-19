@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.43.0",
+  version: "0.44.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -1674,8 +1674,9 @@ BS.Data = {
     campaign: { missionIndex: 0, battlesWon: 0, battlesLost: 0, streak: 0, cleanWins: 0, retry: null, bossesBeaten: [] },   // bossesBeaten (0.41): encounter ids of the bosses won, the boss slot takes the first not in it   // retry: { encounterId, seed, battlesWon } pins the last enemy for the next fight
     intel: {},                         // encounterId → { rows, classId, layoutName, seed } layouts scanned in battle or bought
     scripts: [],                       // [{ id, name, policies, rules }] the player's bridge scripts (BS.Script); templates live in script.templates
-    scriptByBuild: {},                 // classId → script id or template id the ship undocks with on fleet and boss fights (missing: script.defaultTemplate)
-    soloScriptByBuild: {},             // classId → the script it flies when it undocks alone (0.43; missing: the fleet one), so a boss script need not fight 1v1
+    scriptByBuild: {},                 // classId → script id or template id the ship undocks with on a boss fight, and on any fight without a more specific one below (missing: script.defaultTemplate)
+    soloScriptByBuild: {},             // classId → the script it flies when it undocks alone (0.43; missing: scriptByBuild), so a boss script need not fight 1v1
+    fleetScriptByBuild: {},            // classId → the script it flies in a fleet skirmish (0.44, encounter kind "fleet"; missing: scriptByBuild)
     plans: {},                         // encounterId → { targets: [{ x, y } | { type }], rows } up to script.planTargets targets in order
     tuning: {},                        // classId → rows of digits in the layout's shape (BS.Data.tuning): shield frequencies, armor alloys, ammo per block
     settings: { sound: true, screenShake: true },

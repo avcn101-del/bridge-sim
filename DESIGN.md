@@ -164,11 +164,13 @@ The left column of the hangar carries the pre-battle thinking:
   layout rows it was made on). Rules with `aim: plan target n` read it.
 - **Script**: a dropdown of the seven templates (read-only) and the player's
   own scripts; *Copy as new* makes an editable copy, *Rename*, *Save*,
-  *Delete*, and two assign buttons (0.43): *Fleet & boss: assign*
-  (`save.scriptByBuild[classId]`, "✓ Flies it in a fleet") and *Alone:
-  assign* (`save.soloScriptByBuild[classId]`, "✓ Flies it alone"; unset,
-  the hull flies its fleet script alone too), so a boss script with no 1v1
-  rules never has to fight a solo encounter. Each rule is a card: number, kind (Standing orders /
+  *Delete*, and three assign buttons, one per encounter kind (0.43 /
+  0.44): *Boss: assign* (`save.scriptByBuild[classId]`, "✓ Flies it
+  against a boss", also the default for the other kinds), *Fleet skirmish:
+  assign* (`save.fleetScriptByBuild[classId]`, "✓ Flies it in a
+  skirmish") and *Alone: assign* (`save.soloScriptByBuild[classId]`, "✓
+  Flies it alone"), so a boss script with no 1v1 or pack rules never has
+  to fight a solo encounter or the pack. Each rule is a card: number, kind (Standing orders /
   Once / Every N s), ▲ ▼ ✕, a WHEN line of terms, a DO line of terms, and
   for standing rules an UNTIL line and "At most N s" (`holdMax`). Terms
   are built from dropdowns whose labels are the sentences in
@@ -807,8 +809,9 @@ intel, script); in the fight the bridge runs the script. A script is
   were written around. A hull undocks with
   `save.scriptByBuild[classId]` (an own script by id, PR B's editor, or a
   template), else `script.defaultTemplate`; alone (encounter kind `solo`)
-  with `save.soloScriptByBuild[classId]` first, if set (0.43,
-  `BS.Campaign.scriptFor(classId, kind)`).
+  with `save.soloScriptByBuild[classId]` first and in a fleet skirmish
+  (kind `fleet`) with `save.fleetScriptByBuild[classId]` first, if set
+  (0.43 / 0.44, `BS.Campaign.scriptFor(classId, kind)`).
 - **Enemy scripts** (`script.enemyScripts`, `campaign.encounters[].script`):
   `doctrine: "encounter"` flies the doctrine the encounter rolled; the
   Torpedo boat's rules replace its Siege play; the Raider, K't'inga and
@@ -1187,7 +1190,8 @@ The skirmish-then-boss run of §10 and the fleet hangar's roster.
   flagship): owned hulls in the shipyard get "Add to fleet" / "In fleet ✓"
   buttons and the ship line reads "Fleet n of 4: …". Each hull undocks
   with its own layout, tuning and script (`scriptByBuild`; alone,
-  `soloScriptByBuild` first, 0.43).
+  `soloScriptByBuild` first, in a skirmish `fleetScriptByBuild` first,
+  0.43 / 0.44).
 - **Repair bills** (`campaign.repair`): after a fight every destroyed
   block of ours costs `destroyedBlock` 20% of its price and a hull that was
   lost costs `lostHull` 30% of its block value; the bill is capped at the
@@ -1297,6 +1301,7 @@ campaign.firstFight: { weakPointChance }; campaign.encounters[].script; tuning (
 campaign.salvage: { destroyed, disabled, captured }; enemyAI.*: drainedBelow, drainedUntil, drainedTime
 0.31: balance.fleetSpacingKm; campaign.fleetMax; campaign.encounters[].ships: [{ enemyClass, layout, doctrine, script, damageMult }]; save.fleet: [classId]; ship: team, target, contacts{}, flags.captured; state: teams { player: [], enemy: [] }, enemyFlag
 0.32: script.subjects; rule.about; action target; conditions allyShieldBelow / allyHullBelow / allyUnderFire / outnumbered / enemiesAtMost / unfocused; templates.wolfpack; ship: scannedOf{}, scanTarget
+0.44: save.fleetScriptByBuild (scriptFor / scriptIdFor / setScriptFor take kind "fleet"); tools/campaign.js --fleetscripts
 0.43: save.soloScriptByBuild (BS.Campaign.scriptFor(classId, kind), scriptIdFor, setScriptFor(classId, id, kind)); tools/campaign.js --soloscript; templates.warbreaker answers the cube too (the beam rule, the aft side)
 0.42: campaign.credits.hullLostScalesWithReward; tools/campaign.js --eval; the tools exit on a page error instead of waiting for a dry run that never ends
 0.41: blocks plasma / tractor (enemyOnly); modules plasma_group / tractor (effect.tractor); ew.tractor { rangeKm, hold, aiMinCap }; shipClasses.dderidex; enemyAI.warbird; tuning.factionDefault.romulan; campaign.encounters[].name, encounter warbird; save.campaign.bossesBeaten; ship.tractored / tractoredBy / tractorBlock, BS.Ships.tractor / heldBy; conditions tractored / allyTractored; allySubjects.heldAlly; templates.warbreaker; enemyScripts.warbird; support.repairPerBlock 45 → 300; the Anchor preset's armoured nacelle rows
@@ -1347,6 +1352,27 @@ harness is in the repository: `tools/harness.js` (Playwright, one
 `campaign.encounters`, seeded `Math.random`, `--noreact` for the 0.24 enemy
 bridge, `--eval` for a data tweak, `--debug` for what each bridge saw) and
 `tools/smoke.js` (the headless interface check).
+
+v0.44.0 (the third script kind. `tools/campaign.js --battles 12`, seed 1,
+`--soloscript brawler`, `--fleetscripts` the Wolf pack on every hull of
+the breaker fleet and on the two DPS hulls of the mixed one, bosses as in
+v0.43):
+
+| Run | The pack at battle 9 (8 wins: enemies +32%) | Bosses | Credits |
+|---|---|---|---|
+| Four Cube breakers | **stalemate** 11:00 keeping 44%, two hulls lost, −6,922 (v0.43 with the Cube breaker: lost, three hulls) | cube at 6 won 5:00; warbird at 12 won 3:11 keeping 68%, the Galaxy lost | 600 → 3,486 (11 of 12; 3 hulls lost) |
+| Mixed | won 7:52 keeping 60%, two hulls lost, −5,314 (v0.43 with the Warbird breaker: won 5:15, one hull) | cube at 6 won 7:33; warbird at 12 won 2:28 keeping 84% | 600 → 9,873 (11 of 12: the Siege cruiser at 11 stalemated the Brawler alone; 2 hulls lost) |
+
+Honest reading: the script kinds work as built (every hull flew the Wolf
+pack in the pack fight and the Brawler alone), and the measurement says
+the pack at 8 wins is not a template problem: both fleets lose two hulls
+to it with the fleet template, where the §8 reference for the pack is at
+0 wins (4 of 4 in 2:31–3:59). Enemy scaling (+4% a win, up to +40%)
+lands four times on a fleet encounter and once on a solo one, so the
+fleet tier gets harder faster than the solo tier; that, not the script,
+is the next balance lever (§10 "next"). The warbird at 10 wins (stat
+2.0) fell in 2:28–3:11 to both fleets with the aft side, the mixed one
+keeping 84%.
 
 v0.43.0 (a script per fight kind. `tools/campaign.js --battles 12`, seed 1,
 `--soloscript brawler` on both fleets, the fleets as in v0.41; the Warbird
@@ -1947,7 +1973,8 @@ script; learning off since 0.31; plays shadowed by the script since 0.21):
 | 0.41 (done) | The second boss: the warbird, its tractor beam and plasma cannons, the Warbird breaker; the healer's repair 45 → 300, the Anchor's nacelle rims plated; boss progression (`bossesBeaten`). Measured in §8 v0.41 |
 | 0.42 (done) | The frozen fight (an escort whose last ally died called a stance setter removed in 0.37; the tools now exit on a page error); the warbird measured at stat 1.8 and 2.0 with the fix (the tank dies too: it stays at 1.6); the hull-lost penalty scaled by the reward multiple, measured over two 12-battle runs (§8 v0.42) |
 | 0.43 (done) | A script per fight kind: a hull flies one script in fleet and boss fights and may fly another alone (`soloScriptByBuild`, two assign buttons, `--soloscript`); the Warbird breaker answers the cube too, so one boss script serves a run. Measured over 12-battle runs in §8 v0.43 (the Brawler alone wins the solo fights a boss script lost) |
-| next | The healer's ceiling: a longer boss fight kills the tank through 50 hp/s of repair, so a third boss needs damage the healer can race (phases, not a bigger hull); skirmish modifiers (§10 "Skirmishes"); a fleet template for the pack that is not the Cube breaker (the breaker fleet lost the pack with three hulls, §8 v0.43) |
+| 0.44 (done) | The third script kind: a hull may fly its own script in a fleet skirmish (`fleetScriptByBuild`, the Wolf pack), so the pack is not fought with a boss script. Measured over 12-battle runs in §8 v0.44 |
+| next | Fleet-tier scaling: enemy scaling lands four times on a fleet encounter, and the pack at 8 wins costs both fleets two hulls (§8 v0.44); then skirmish modifiers (§10 "Skirmishes") and the third boss (damage the healer can race: phases, not a bigger hull) |
 
 Known risks: the pivot touches nearly every file; 8 grids measured in 0.31
 (12 ms a frame headless without a GPU, the simulation negligible); the §8
