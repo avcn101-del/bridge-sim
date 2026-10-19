@@ -436,7 +436,7 @@ BS.Hangar = (function () {
   // ---- script editor: when → do rules as sentences built from dropdowns ---------------------------------------
   function SD() { return BS.Data.script; }
   function copyDef(d) { return JSON.parse(JSON.stringify(d)); }
-  function currentScriptId(kind) { return C.scriptIdFor(ed.classId, kind || "fleet"); }   // 0.43: "solo" = alone, else the fleet and boss script
+  function currentScriptId(kind) { return C.scriptIdFor(ed.classId, kind || "boss"); }   // 0.43 / 0.44: "solo" alone, "fleet" a skirmish, else the boss script
   function loadScript(id) {
     var own = C.get().scripts.filter(function (x) { return x.id === id; })[0];
     if (own) { sc.id = id; sc.def = copyDef(own); sc.template = false; }
@@ -470,10 +470,12 @@ BS.Hangar = (function () {
       head.appendChild(btn(sc.dirty ? "Save" : "Saved", sc.dirty ? "c-orange" : "c-peach", null, function () { if (!sc.dirty) return; C.saveScript(copyDef(def)); sc.dirty = false; renderScript(); say("Script saved."); }));
       head.appendChild(btn("Delete", "c-red", null, function () { if (!window.confirm("Delete script \"" + def.name + "\"?")) return; C.deleteScript(sc.id); loadScript(currentScriptId()); renderScript(); }));
     }
-    // 0.43: a hull flies one script in a fleet or boss fight and may fly another alone (a boss script has no 1v1 rules)
+    // 0.43 / 0.44: a hull flies one script against a boss and may fly others in a fleet skirmish and alone (a boss
+    // script has no 1v1 rules and no pack rules)
     var cn = BS.Data.shipClasses[ed.classId].className;
-    [["fleet", "✓ Flies it in a fleet", "Fleet & boss: assign", "The script the " + cn + " undocks with on fleet and boss fights", "in a fleet"],
-     ["solo", "✓ Flies it alone", "Alone: assign", "The script the " + cn + " undocks with alone (unset: the fleet one)", "alone"]].forEach(function (k) {
+    [["boss", "✓ Flies it against a boss", "Boss: assign", "The script the " + cn + " undocks with on a boss fight, and on any fight without a more specific one", "against a boss"],
+     ["fleet", "✓ Flies it in a skirmish", "Fleet skirmish: assign", "The script the " + cn + " undocks with in a fleet skirmish (unset: the boss one)", "in a fleet skirmish"],
+     ["solo", "✓ Flies it alone", "Alone: assign", "The script the " + cn + " undocks with alone (unset: the boss one)", "alone"]].forEach(function (k) {
       var assigned = currentScriptId(k[0]) === sc.id;
       head.appendChild(btn(assigned ? k[1] : k[2], assigned ? "c-peach" : "c-purple", k[3], function () { if (!assigned) { if (sc.dirty) { C.saveScript(copyDef(def)); sc.dirty = false; } C.setScriptFor(ed.classId, sc.id, k[0]); renderScript(); say("The ship will fly \"" + def.name + "\" " + k[4] + "."); } }));
     });

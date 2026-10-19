@@ -59,6 +59,7 @@ BS.Campaign = (function () {
     if (dropped.length) out.notice = "Rules dropped (their conditions no longer exist): " + dropped.join(" · ");
     out.scriptByBuild = {}; Object.keys(s.scriptByBuild || {}).forEach(function (id) { if (D().shipClasses[id]) out.scriptByBuild[id] = s.scriptByBuild[id]; });
     out.soloScriptByBuild = {}; Object.keys(s.soloScriptByBuild || {}).forEach(function (id) { if (D().shipClasses[id]) out.soloScriptByBuild[id] = s.soloScriptByBuild[id]; });
+    out.fleetScriptByBuild = {}; Object.keys(s.fleetScriptByBuild || {}).forEach(function (id) { if (D().shipClasses[id]) out.fleetScriptByBuild[id] = s.fleetScriptByBuild[id]; });
     out.plans = {}; Object.keys(s.plans || {}).forEach(function (id) { var pl = s.plans[id]; if (pl && Array.isArray(pl.targets)) out.plans[id] = pl; });
     out.tuning = {}; Object.keys(s.tuning || {}).forEach(function (id) { if (D().shipClasses[id] && Array.isArray(s.tuning[id])) out.tuning[id] = s.tuning[id]; });
     out.fleet = (Array.isArray(s.fleet) ? s.fleet : []).filter(function (id, i, a) { return D().shipClasses[id] && out.ownedShips.indexOf(id) >= 0 && a.indexOf(id) === i; }).slice(0, D().campaign.fleetMax);
@@ -282,20 +283,22 @@ BS.Campaign = (function () {
   }
   // ---- bridge scripts and plans ---------------------------------------------------------------------------
   // The script a hull undocks with: an own script by id, a template by id, or the default template.
-  // The script a hull undocks with: its solo script when it undocks alone (kind "solo", 0.43), else its fleet one.
-  function scriptIdFor(classId, kind) { return (kind === "solo" && save.soloScriptByBuild[classId]) || save.scriptByBuild[classId] || D().script.defaultTemplate; }
+  // The script a hull undocks with, by the encounter's kind (0.43 / 0.44): its solo script alone, its skirmish script in a
+  // fleet fight, else the one in scriptByBuild (the boss script, and the default for the kinds without one).
+  function kindMap(kind) { return kind === "solo" ? save.soloScriptByBuild : kind === "fleet" ? save.fleetScriptByBuild : null; }
+  function scriptIdFor(classId, kind) { var m = kindMap(kind); return (m && m[classId]) || save.scriptByBuild[classId] || D().script.defaultTemplate; }
   function scriptFor(classId, kind) {
     var id = scriptIdFor(classId, kind), own = save.scripts.filter(function (s) { return s.id === id; })[0];
     return own || D().script.templates[id] || D().script.templates[D().script.defaultTemplate];
   }
-  function setScriptFor(classId, id, kind) { if (kind === "solo") save.soloScriptByBuild[classId] = id; else save.scriptByBuild[classId] = id; persist(); }
+  function setScriptFor(classId, id, kind) { var m = kindMap(kind); if (m) m[classId] = id; else save.scriptByBuild[classId] = id; persist(); }
   function saveScript(sc) {
     if (!sc.id) sc.id = "s" + Date.now().toString(36);
     var i = save.scripts.map(function (s) { return s.id; }).indexOf(sc.id);
     if (i >= 0) save.scripts[i] = sc; else save.scripts.push(sc);
     persist(); return sc.id;
   }
-  function deleteScript(id) { save.scripts = save.scripts.filter(function (s) { return s.id !== id; }); [save.scriptByBuild, save.soloScriptByBuild].forEach(function (map) { Object.keys(map).forEach(function (c) { if (map[c] === id) delete map[c]; }); }); persist(); }
+  function deleteScript(id) { save.scripts = save.scripts.filter(function (s) { return s.id !== id; }); [save.scriptByBuild, save.soloScriptByBuild, save.fleetScriptByBuild].forEach(function (map) { Object.keys(map).forEach(function (c) { if (map[c] === id) delete map[c]; }); }); persist(); }
   // The plan for an encounter: up to script.planTargets targets in order ({ x, y } on the intel layout, or { type }).
   function planFor(enc) { return enc && save.plans ? save.plans[enc.id] || null : null; }
   function setPlan(enc, targets) { save.plans[enc.id] = { targets: targets.slice(0, D().script.planTargets), rows: enc.rows.slice() }; persist(); }

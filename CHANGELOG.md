@@ -2,6 +2,22 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.44.0] — 2026-10-19 (the third script kind: fleet skirmishes)
+
+### Added
+- **A script for fleet skirmishes** (`save.fleetScriptByBuild[classId]`):
+  the Script section's assign buttons are now *Boss*, *Fleet skirmish* and
+  *Alone*; the boss script is the default for the kinds without one. A
+  boss script with no pack rules never has to fight the pack.
+  `tools/campaign.js --fleetscripts a:id,b:id`.
+
+### Measured (DESIGN §8 v0.44)
+- Two 12-battle runs with the Wolf pack in skirmishes: the pack at 8 wins
+  (enemies +32%) costs both fleets two hulls (a stalemate for the
+  breakers, a 7:52 win for the mixed fleet), so the fleet tier's scaling,
+  not the template, is the next lever. Mixed 600 → 9,873, breakers
+  600 → 3,486. Smoke test zero console errors in four passes.
+
 ## [0.43.0] — 2026-10-19 (a script per fight kind)
 
 ### Added
