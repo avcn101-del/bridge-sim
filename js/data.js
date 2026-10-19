@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.44.0",
+  version: "0.45.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -1374,7 +1374,10 @@ BS.Data = {
     intelMinLockSeconds: 10, intelCost: 150,
     sellBack: 0.6,                      // fraction of price refunded when selling a module
     // the raider gets tougher with every victory: statMult = base + perWin × wins (capped)
-    enemyScaling: { perWin: 0.04, maxBonus: 0.4 },
+    // enemies grow perWin a win up to maxBonus; a fleet encounter (kind "fleet") takes fleetFactor of the bonus. Measured at
+    // 0.5 in 0.45 (DESIGN §8): the pack at 8 wins was not easier for the Wolf pack (3 of 4 with a stalemate against 4 of 4),
+    // so it ships at 1; the knob stays for the next pass
+    enemyScaling: { perWin: 0.04, maxBonus: 0.4, fleetFactor: 1 },
     fleetMax: 4,                        // hulls a side (0.31): the player's save.fleet and an encounter's ships, flagship included
     // runs (0.35, DESIGN §10): every bossEvery-th battle (counting wins and losses) is a boss fight, once the roster has
     // two or more hulls and bossFromWins wins are in; fleet skirmishes (encounter kind "fleet") need two hulls too. A
@@ -1679,7 +1682,7 @@ BS.Data = {
     fleetScriptByBuild: {},            // classId → the script it flies in a fleet skirmish (0.44, encounter kind "fleet"; missing: scriptByBuild)
     plans: {},                         // encounterId → { targets: [{ x, y } | { type }], rows } up to script.planTargets targets in order
     tuning: {},                        // classId → rows of digits in the layout's shape (BS.Data.tuning): shield frequencies, armor alloys, ammo per block
-    settings: { sound: true, screenShake: true },
+    settings: { sound: true, screenShake: true, devMode: false },   // devMode (0.45): nothing costs credits, to try builds; the hangar shows ∞
   },
 
   // -------------------------------------------------------------- visuals

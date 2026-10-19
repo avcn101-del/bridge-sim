@@ -54,7 +54,9 @@ loop in §2 does it serve?** A system that serves none is cut (§10,
    each hull's fate, credits, salvage, the repair bill. Return to the
    hangar and fix the script.
 5. **Progress**: credits buy hulls and blocks (gear); understanding the
-   boss buys a better script (skill). Enemies scale +4% a win up to +40%;
+   boss buys a better script (skill). Enemies scale +4% a win up to +40%
+   (`enemyScaling`; a fleet encounter takes `fleetFactor` of it, 1 since
+   it was measured, §8 v0.45);
    the real difficulty is the next boss's mechanic.
 
 Decision pressure: the build (what each hull can do at all), the roster
@@ -1248,6 +1250,11 @@ with stats.
 - **Save**: localStorage key `bridgesim.save`, `saveDefaults` shape
   (version 2). Export downloads `bridge-sim-save.json`; Import validates and
   migrates. Reset asks for confirmation.
+- **Dev mode** (0.45, `save.settings.devMode`, the *Dev mode* button by
+  the save buttons): while on, hulls, blocks, tuning and intel cost
+  nothing (`BS.Campaign.canAfford / spend`), the credit line reads "∞ cr ·
+  DEV MODE (n banked)" and the balance is kept; battles still pay and bill
+  as usual. For trying builds.
 
 ## 5. Visual style
 LCARS panels (orange / peach / purple / blue, Antonio font, red-alert
@@ -1301,6 +1308,7 @@ campaign.firstFight: { weakPointChance }; campaign.encounters[].script; tuning (
 campaign.salvage: { destroyed, disabled, captured }; enemyAI.*: drainedBelow, drainedUntil, drainedTime
 0.31: balance.fleetSpacingKm; campaign.fleetMax; campaign.encounters[].ships: [{ enemyClass, layout, doctrine, script, damageMult }]; save.fleet: [classId]; ship: team, target, contacts{}, flags.captured; state: teams { player: [], enemy: [] }, enemyFlag
 0.32: script.subjects; rule.about; action target; conditions allyShieldBelow / allyHullBelow / allyUnderFire / outnumbered / enemiesAtMost / unfocused; templates.wolfpack; ship: scannedOf{}, scanTarget
+0.45: campaign.enemyScaling.fleetFactor (BS.Campaign.enemyStatMult(profileId, kind)); save.settings.devMode (BS.Campaign.devMode / setDevMode / canAfford); state.encounter is set before the enemies spawn
 0.44: save.fleetScriptByBuild (scriptFor / scriptIdFor / setScriptFor take kind "fleet"); tools/campaign.js --fleetscripts
 0.43: save.soloScriptByBuild (BS.Campaign.scriptFor(classId, kind), scriptIdFor, setScriptFor(classId, id, kind)); tools/campaign.js --soloscript; templates.warbreaker answers the cube too (the beam rule, the aft side)
 0.42: campaign.credits.hullLostScalesWithReward; tools/campaign.js --eval; the tools exit on a page error instead of waiting for a dry run that never ends
@@ -1352,6 +1360,29 @@ harness is in the repository: `tools/harness.js` (Playwright, one
 `campaign.encounters`, seeded `Math.random`, `--noreact` for the 0.24 enemy
 bridge, `--eval` for a data tweak, `--debug` for what each bridge saw) and
 `tools/smoke.js` (the headless interface check).
+
+v0.45.0 (the fleet-tier scaling knob. `--enemy pack --wins 8`, the Galaxy
+fleet on the Wolf pack, seeds 1–4, `--max 660`; `enemyScaling.fleetFactor`
+scales the win bonus of a fleet encounter):
+
+| fleetFactor | Pack at 8 wins |
+|---|---|
+| 1 (enemies +32%) | 4 of 4 in 4:02–5:07 keeping 66–81% |
+| 0.5 (enemies +16%) | 3 of 4 in 3:28–5:07 keeping 63–79%, a stalemate at 11:00 (seed 2) keeping 46% |
+
+Honest reading: a weaker pack was not a cheaper pack. Four seeds are few,
+but nothing in them says the win bonus is what makes the pack fight cost
+two hulls in a run (§8 v0.44), so the knob ships at 1 and the pack itself
+(its composition, its payout against a two-hull repair bill) is the next
+question. The first measurement of this row was wrong and is not shown:
+the enemies' strength read the previous fight's encounter kind because
+`state.encounter` was set after they spawned (fixed; the harness's run 1
+of both columns came out identical, which is how it showed). The 12-battle
+runs of v0.44 are unchanged by this version. Dev mode checked headless:
+with 600 cr a Galaxy, a Sovereign, the Fortress layout and intel cost
+nothing and the balance stays 600; off again, a Defiant is "Not enough
+credits" and the flag persists. Smoke test: zero console errors in four
+passes.
 
 v0.44.0 (the third script kind. `tools/campaign.js --battles 12`, seed 1,
 `--soloscript brawler`, `--fleetscripts` the Wolf pack on every hull of
@@ -1974,7 +2005,8 @@ script; learning off since 0.31; plays shadowed by the script since 0.21):
 | 0.42 (done) | The frozen fight (an escort whose last ally died called a stance setter removed in 0.37; the tools now exit on a page error); the warbird measured at stat 1.8 and 2.0 with the fix (the tank dies too: it stays at 1.6); the hull-lost penalty scaled by the reward multiple, measured over two 12-battle runs (§8 v0.42) |
 | 0.43 (done) | A script per fight kind: a hull flies one script in fleet and boss fights and may fly another alone (`soloScriptByBuild`, two assign buttons, `--soloscript`); the Warbird breaker answers the cube too, so one boss script serves a run. Measured over 12-battle runs in §8 v0.43 (the Brawler alone wins the solo fights a boss script lost) |
 | 0.44 (done) | The third script kind: a hull may fly its own script in a fleet skirmish (`fleetScriptByBuild`, the Wolf pack), so the pack is not fought with a boss script. Measured over 12-battle runs in §8 v0.44 |
-| next | Fleet-tier scaling: enemy scaling lands four times on a fleet encounter, and the pack at 8 wins costs both fleets two hulls (§8 v0.44); then skirmish modifiers (§10 "Skirmishes") and the third boss (damage the healer can race: phases, not a bigger hull) |
+| 0.45 (done) | Dev mode (nothing costs credits, to try builds); the fleet-tier scaling knob `enemyScaling.fleetFactor`, measured at 0.5 and shipped at 1: halving the pack's win bonus did not make it cheaper for the Wolf pack (§8 v0.45) |
+| next | The pack itself (its composition and payout against a two-hull repair bill: both fleets lose two hulls to it at 8 wins whatever the scaling), skirmish modifiers (§10 "Skirmishes"), the third boss (damage the healer can race: phases, not a bigger hull) |
 
 Known risks: the pivot touches nearly every file; 8 grids measured in 0.31
 (12 ms a frame headless without a GPU, the simulation negligible); the §8

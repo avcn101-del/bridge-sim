@@ -2,6 +2,22 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.45.0] — 2026-10-19 (dev mode; the fleet-tier scaling knob)
+
+### Added
+- **Dev mode** (`save.settings.devMode`, the *Dev mode* button by the save
+  buttons): while on, hulls, blocks, tuning and intel cost nothing and the
+  credit line reads "∞ cr · DEV MODE (n banked)"; the balance is kept and
+  battles still pay and bill. For trying builds.
+- `campaign.enemyScaling.fleetFactor`: the share of the win bonus a fleet
+  encounter takes. Measured at 0.5 (DESIGN §8 v0.45): the pack at 8 wins
+  was not cheaper for the Wolf pack (3 of 4 with a stalemate against 4 of
+  4), so it ships at 1.
+
+### Fixed
+- `state.encounter` is set before the enemies spawn (their strength can
+  read the encounter's kind).
+
 ## [0.44.0] — 2026-10-19 (the third script kind: fleet skirmishes)
 
 ### Added

@@ -14,12 +14,14 @@ BS.Hangar = (function () {
     game = gameRef;
     ["hangar-screen", "hg-credits", "hg-ship", "hg-ships", "hg-editor", "hg-palette", "hg-stats", "hg-msg", "hg-record", "hg-threat", "hg-intel-view", "hg-intel-info", "hg-plan", "hg-script", "hg-doctrine",
      "hg-presets", "hg-builds", "btn-mirror", "btn-fill", "btn-clear", "btn-revert", "btn-apply", "btn-savebuild", "hg-buildname", "hg-delta",
-     "btn-undock", "btn-export", "btn-import", "hg-import-file", "btn-reset"].forEach(function (id) { el[id] = $(id); });
+     "btn-undock", "btn-export", "btn-import", "hg-import-file", "btn-reset", "btn-dev"].forEach(function (id) { el[id] = $(id); });
     el["btn-undock"].addEventListener("click", function () {
       if (ed.dirty) { say("Apply or revert your build before undocking.", true); return; }
       hide(); game.startBattle();
     });
     el["btn-export"].addEventListener("click", exportSave);
+    // dev mode (0.45): nothing costs credits while it is on, so a build can be tried; the save keeps the real balance
+    el["btn-dev"].addEventListener("click", function () { C.setDevMode(!C.devMode()); render(); say(C.devMode() ? "Dev mode on: hulls, blocks, tuning and intel cost nothing. Your credits are kept." : "Dev mode off."); });
     el["btn-import"].addEventListener("click", function () { el["hg-import-file"].value = ""; el["hg-import-file"].click(); });
     el["hg-import-file"].addEventListener("change", importSave);
     el["btn-reset"].addEventListener("click", function () {
@@ -69,7 +71,7 @@ BS.Hangar = (function () {
       var lg0 = document.getElementById("btn-letgo"); if (lg0) lg0.addEventListener("click", function () { C.letGo(); render(); say("Let it go. The sector sends what it sends."); });
       return;
     }
-    var ship = BS.Ships.create(it.classId, { layout: it.rows, tuning: it.tuning || null, pos: { x: 0, y: 0 }, heading: 0, statMult: C.enemyStatMult(enc.aiProfile) });
+    var ship = BS.Ships.create(it.classId, { layout: it.rows, tuning: it.tuning || null, pos: { x: 0, y: 0 }, heading: 0, statMult: C.enemyStatMult(enc.aiProfile, enc.kind) });
     sc.intelShip = ship;
     c.save(); c.translate(cv.width / 2, cv.height / 2); var k = BS.Renderer.drawTopDown(c, ship, cv.width, cv.height, { tuning: true }); c.restore();
     drawPlanMarkers(c, cv, ship, k, enc);
@@ -94,12 +96,13 @@ BS.Hangar = (function () {
   function render() {
     var s = C.get(), cls = C.currentClass();
     if (ed.classId !== s.shipClass || !ed.rows) { ed.classId = s.shipClass; ed.rows = C.layoutFor(s.shipClass).slice(); ed.tuning = C.tuningFor(s.shipClass).slice(); ed.dirty = false; }
-    el["hg-credits"].textContent = s.credits.toLocaleString() + " cr";
+    el["hg-credits"].textContent = C.devMode() ? "∞ cr · DEV MODE (" + s.credits.toLocaleString() + " banked)" : s.credits.toLocaleString() + " cr";
+    el["btn-dev"].textContent = C.devMode() ? "Dev mode: ON" : "Dev mode: off"; el["btn-dev"].className = "lcars-btn " + (C.devMode() ? "c-orange" : "c-lilac");
     el["hg-record"].textContent = s.campaign.battlesWon + " won · " + s.campaign.battlesLost + " lost" + (s.campaign.cleanWins ? " · " + s.campaign.cleanWins + " clean" : "") + (s.campaign.streak > 1 ? " · streak " + s.campaign.streak : "");
     var enc = C.encounter();
     var docLabel = BS.Data.enemyAI.stateLabels[enc.doctrine] || enc.doctrine;
     var kindLabel = enc.kind === "boss" ? "BOSS" : enc.kind === "fleet" ? "Fleet" : "Solo";
-    el["hg-threat"].textContent = (enc.retry ? "Retry: " : "Next: ") + kindLabel + " · " + enc.label + " · strength " + Math.round(C.enemyStatMult(enc.aiProfile) * 100) + "% · " + enc.doctrine + " · " + enc.roster.length + " hull" + (enc.roster.length === 1 ? "" : "s") + " undock" + (enc.nextBoss !== null && enc.nextBoss !== undefined ? " · boss in " + (enc.nextBoss + 1) : "");
+    el["hg-threat"].textContent = (enc.retry ? "Retry: " : "Next: ") + kindLabel + " · " + enc.label + " · strength " + Math.round(C.enemyStatMult(enc.aiProfile, enc.kind) * 100) + "% · " + enc.doctrine + " · " + enc.roster.length + " hull" + (enc.roster.length === 1 ? "" : "s") + " undock" + (enc.nextBoss !== null && enc.nextBoss !== undefined ? " · boss in " + (enc.nextBoss + 1) : "");
     el["hg-threat"].title = "Sensors report a " + enc.cls.className + (enc.variantName ? " (" + enc.variantName + " layout)" : "") + ". Reward ×" + enc.rewardMult + ". Doctrine: " + enc.doctrine + ".";
     renderIntel(enc);
     renderPlan(enc);
@@ -265,7 +268,7 @@ BS.Hangar = (function () {
       "<div><label>Mobility</label><span>" + st.speed + " km/s <span class='dim'>(thrust " + st.thrust + " / mass " + st.mass + " = ×" + st.speedMult + ")</span> · lock " + st.lockTime + " s</span></div>";
     var net = delta.net;
     el["hg-delta"].textContent = ed.dirty ? (net > 0 ? "Costs " + net.toLocaleString() + " cr" : net < 0 ? "Refunds " + (-net).toLocaleString() + " cr" : "No cost change") + (delta.cost ? " (buy " + delta.cost.toLocaleString() + ", refund " + delta.refund.toLocaleString() + ")" : "") : "Build matches the current layout";
-    el["btn-apply"].disabled = !ed.dirty || !st.ok || net > s.credits;
+    el["btn-apply"].disabled = !ed.dirty || !st.ok || !C.canAfford(net);
     el["btn-apply"].textContent = ed.dirty ? "Apply build" + (net > 0 ? " · " + net.toLocaleString() + " cr" : "") : "Applied";
     el["btn-undock"].disabled = ed.dirty;
     el["btn-undock"].title = ed.dirty ? "Apply or revert your build first" : "";
