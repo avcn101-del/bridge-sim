@@ -197,6 +197,7 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `shipClasses.dderidex`, `enemyAI.warbird`, `blocks.plasma / tractor`, `modules.tractor`, `ew.tractor` (`rangeKm`, `hold`, `aiMinCap`), `campaign.encounters[].name`, `script.enemyScripts.warbird`, `script.templates.warbreaker`, `save.campaign.bossesBeaten` | The second boss (0.41): the warbird's hull and layout, its profile (it hunts reactors), the plasma bolt, the tractor beam's reach, hold time and the capacitor the AI keeps for it, its name, its bridge rules and callouts, the template that beats it, and the boss order (a boss slot takes the first boss not yet beaten) |
 | `campaign.fleetMax`, `balance.fleetSpacingKm`, `save.fleet` | Hulls a side, how far apart they spawn, which owned hulls undock with the flagship on fleet and boss fights (the shipyard's "Add to fleet" buttons; the harness sets it with `--fleet`) |
 | `campaign.run.bossEvery / bossFromWins / fleetMinHulls`, `campaign.encounters[].kind` | Runs (0.35): every n-th battle is a boss fight once the roster has the hulls and the wins; which encounters are solo (the flagship alone), fleet (the roster undocks, two hulls needed) or boss |
+| `campaign.credits.win / loss / hullLostPenaltyPerPct / hullLostScalesWithReward / winStreakBonus` | Credits per battle (0.42: the hull-lost penalty is per percent of the side's block hp, times the encounter's reward multiple when the flag is on, so a boss docks for the hulls it cost) |
 | `campaign.repair.destroyedBlock / lostHull` | Repair bills (0.35): the share of a destroyed block's price and of a lost hull's block value paid after a fight, capped at the credits in hand |
 | `campaign.*` | Economy |
 | `balance.capCurve / lockBase / zoom` | Capacitor curve, lock time, zoom |
@@ -216,7 +217,7 @@ index.html      entry point
 css/            LCARS interface styles
 js/             data, grid, game loop, ships, modules, weapons, crew voices, enemy AI (the doctrine machine), fleet, scripts, campaign, hangar, UI, renderer, effects
 assets/         optional sprites / sounds (empty in MVP)
-tools/          harness.js (accelerated balance runs, DESIGN.md §8: forced encounter, equal-hull duels, tuning per side, fleets on both sides, --perf cost), campaign.js (a whole run headless: encounters as the game picks them, credits and repairs settled between fights) and smoke.js (headless interface check, desktop, phone and a fleet of four); plain Node + Playwright, not needed to play
+tools/          harness.js (accelerated balance runs, DESIGN.md §8: forced encounter, equal-hull duels, tuning per side, fleets on both sides, --perf cost; exits on a page error), campaign.js (a whole run headless: encounters as the game picks them, credits and repairs settled between fights) and smoke.js (headless interface check, desktop, phone and a fleet of four); plain Node + Playwright, not needed to play
 DESIGN.md       full game design and data structures
 CHANGELOG.md    version history
 CLAUDE.md       rules for AI-assisted development sessions

@@ -2,6 +2,32 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.42.0] — 2026-10-19 (the frozen fight, the warbird measured, the hull-lost penalty)
+
+### Fixed
+- **A frozen fight**: a ship escorting an ally (the Lifeline) whose last
+  ally died fell back to `BS.EnemyAI.setStance`, removed in 0.37, and the
+  battle threw every step from then on (a losing boss fight froze at its
+  end). It falls back to the default doctrine now. This was the v0.41 row
+  "never finished": the harness waited for a dry run that could not end.
+- `tools/harness.js` and `tools/campaign.js` print a page error and exit
+  instead of hanging; `tools/campaign.js` takes `--eval` like the harness.
+
+### Changed
+- **Hull-lost penalty scales with the reward** (`campaign.credits.hullLostScalesWithReward`):
+  3 cr per percent of the side's block hp lost, times the encounter's
+  `rewardMult`. A boss that pays ×8 docks ×8 for the hulls it cost: four
+  Cube breakers that win the warbird by losing the Galaxy now net −896 cr
+  on that fight, the mixed fleet +4,170 (DESIGN §8 v0.42).
+
+### Measured (DESIGN §8 v0.42)
+- The warbird at stat 1.8 and 2.0 with the fix: a bigger hull makes the
+  fight longer and a longer fight kills the tank too (both fleets 1 of 2
+  at stat 2.0). It stays at stat 1.6, where the pair wins in 4:18–4:42
+  keeping 77–86% and four breakers win in 2:21 losing the Galaxy.
+- Two 12-battle runs per fleet; references unchanged; smoke test zero
+  console errors in four passes.
+
 ## [0.41.0] — 2026-10-19 (the second boss: the warbird and its tractor beam)
 
 ### Added

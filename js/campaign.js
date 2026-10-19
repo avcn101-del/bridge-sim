@@ -315,7 +315,7 @@ BS.Campaign = (function () {
       save.campaign.battlesWon++; save.campaign.streak++;
       if (state.encounter && state.encounter.kind === "boss") { var bb = save.campaign.bossesBeaten = save.campaign.bossesBeaten || []; if (bb.indexOf(state.encounter.id) < 0) bb.push(state.encounter.id); }   // 0.41: the boss slot moves on
       var mult = state.encounter ? state.encounter.rewardMult : 1;
-      earned = cr.win * mult - hullLostPct * cr.hullLostPenaltyPerPct + Math.min(5, save.campaign.streak - 1) * cr.winStreakBonus;
+      earned = cr.win * mult - hullLostPct * cr.hullLostPenaltyPerPct * (cr.hullLostScalesWithReward ? mult : 1) + Math.min(5, save.campaign.streak - 1) * cr.winStreakBonus;
       // a clean bridge (no bridge call spent) pays script.bridgeCall.noCallBonus on the win credits, before salvage
       if (clean) { cleanBonus = Math.round(Math.max(50, earned) * (D().script.bridgeCall.noCallBonus - 1)); save.campaign.cleanWins = (save.campaign.cleanWins || 0) + 1; }
       // every enemy hull still in one piece pays by how it ended: a disabled hull is worth more than a wreck
