@@ -97,7 +97,7 @@ BS.Game = (function () {
       var t = BS.Fleet.nearestHostile(pl) || enemy;
       pl.target = t; pl.selected = t;
       BS.EnemyAI.setDoctrine(pl, t, BS.Data.helm.defaultDoctrine);   // the helm flies the default doctrine from the start
-      BS.Script.start(pl, t, (i === 0 && opts.script) || BS.Campaign.scriptFor(pl.classId));
+      BS.Script.start(pl, t, (i === 0 && opts.script) || BS.Campaign.scriptFor(pl.classId, state.encounter ? state.encounter.kind : "solo"));   // 0.43: the solo script when alone
     });
     BS.Crew.reset(player, enemy);
     state.phase = "battle";

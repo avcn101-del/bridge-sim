@@ -2,6 +2,30 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.43.0] — 2026-10-19 (a script per fight kind)
+
+### Added
+- **A hull flies one script in a fleet and may fly another alone**
+  (`save.soloScriptByBuild[classId]`, `BS.Campaign.scriptFor(classId,
+  kind)`): the Script section has two assign buttons, *Fleet & boss* and
+  *Alone*; unset, the fleet script flies alone too. A boss script with no
+  1v1 rules never has to fight a solo encounter. `tools/campaign.js
+  --soloscript <id>`.
+
+### Changed
+- **Warbird breaker** carries the cube's two answers too (skirmish on the
+  afterburner while a beam charges on us, the aft side), so one boss
+  script serves a whole run: without them a fleet flying it stalemated the
+  cube at 11:00.
+
+### Measured (DESIGN §8 v0.43)
+- Two 12-battle runs with the Brawler alone: the role fleet 12 of 12,
+  600 → 11,503 cr, one hull lost; four Cube breakers 11 of 12, 600 → 631
+  cr, four hulls lost (the pack with three hulls, the warbird with the
+  Galaxy). The new Warbird breaker beats the warbird in 2:38–2:56 (was
+  4:18–4:42) and the cube in 5:29–6:22. Smoke test zero console errors in
+  four passes.
+
 ## [0.42.0] — 2026-10-19 (the frozen fight, the warbird measured, the hull-lost penalty)
 
 ### Fixed
