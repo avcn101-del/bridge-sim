@@ -147,6 +147,7 @@ BS.Hangar = (function () {
     if (ed.mode === "tune") { renderTunePalette(box); return; }
     Object.keys(BS.Data.blocks).forEach(function (type) {
       var d = BS.Data.blocks[type];
+      if (d.enemyOnly) return;   // boss weapons (0.33) are not for sale
       var b = document.createElement("button"); b.className = "pal" + (ed.brush === type ? " active" : "");
       b.innerHTML = "<b>" + d.name + "</b><small>" + (d.cost ? d.cost + " cr" : "free") + " · " + d.hp + " hp</small>";
       b.insertBefore(BS.Renderer.blockIcon(type, 22), b.firstChild);
@@ -600,7 +601,7 @@ BS.Hangar = (function () {
       var add = document.createElement("select"); add.className = "add";
       var first = document.createElement("option"); first.value = ""; first.textContent = keys.length ? "+ and…" : (optional ? "+ until…" : (mode === "cond" ? "+ condition…" : "+ action…")); add.appendChild(first);
       Object.keys(V).forEach(function (k) {
-        if (mode === "act" && (k === "doctrine")) return;
+        if (mode === "act" && (k === "doctrine" || V[k].enemyOnly)) return;
         if (mode === "act" && k === "modules") { Object.keys(BS.Data.modules).forEach(function (id) { if (BS.Data.modules[id].kind === "turretGroup" || BS.Data.modules[id].kind === "launcherGroup") return; var o = document.createElement("option"); o.value = "modules." + id; o.textContent = BS.Data.modules[id].name + " on / off"; add.appendChild(o); }); return; }
         if (keys.indexOf(k) >= 0) return;
         var o = document.createElement("option"); o.value = k; o.textContent = plainLabel(V[k].label); add.appendChild(o);
@@ -653,6 +654,7 @@ BS.Hangar = (function () {
         case "stance": return sel(Object.keys(BS.Data.enemyAI.stanceLabels).map(function (st) { return [st, BS.Data.enemyAI.stanceLabels[st]]; }), obj[k], function (v) { obj[k] = v; });
         case "aiming": return sel(Object.keys(BS.Data.enemyAI.aimLabels).map(function (st) { return [st, BS.Data.enemyAI.aimLabels[st]]; }), obj[k], function (v) { obj[k] = v; });
         case "band": return sel(Object.keys(SD().rangeBands).map(function (st) { return [st, SD().rangeBands[st]]; }), obj[k], function (v) { obj[k] = v; });
+        case "subject": return sel(Object.keys(SD().subjects).map(function (id) { return [id, SD().subjects[id]]; }), obj[k], function (v) { obj[k] = v; });
         default: return null;
       }
     }

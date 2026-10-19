@@ -134,6 +134,11 @@ BS.Script = (function () {
         case "outnumbered": return BS.Fleet.hostiles(ship).filter(BS.Fleet.fighting).length > BS.Fleet.fightingAllies(ship).length + 1;
         case "enemiesAtMost": return BS.Fleet.hostiles(ship).filter(BS.Fleet.fighting).length <= v;
         case "unfocused": { var fo = BS.Fleet.subject(ship, "focus"); return !!fo && fo !== BS.Fleet.targetOf(ship); }
+        // 0.33: bosses
+        case "notTargeting": { var nt = BS.Fleet.subject(ship, v); return !!nt && nt !== BS.Fleet.targetOf(ship); }
+        case "enemiesAtLeast": return BS.Fleet.hostiles(ship).filter(BS.Fleet.fighting).length >= v;
+        case "lanceCharging": return BS.Fleet.hostiles(ship).some(function (o) { return M.chargingOn(o, ship).length > 0; });
+        case "allyLanced": { var al2 = BS.Fleet.fightingAllies(ship); return BS.Fleet.hostiles(ship).some(function (o) { return o.grid.blocks.some(function (b) { return b.alive && b.charging > 0 && b.chargeTarget && al2.indexOf(b.chargeTarget) >= 0; }); }); }
         default: return false;
       }
     }
@@ -203,6 +208,8 @@ BS.Script = (function () {
     if (act.board) { var br = BS.Boarding.start(ship, target); if (br !== "ok") note = "boarding: " + br; }
     if (act.roll) { if (!BS.EnemyAI.roll(ship, target)) note = "cannot come about"; }
     if (act.remodulate) { var rn = S.remodulate(ship, act.remodulate, target); if (rn) note = "remodulate: " + rn; }
+    if (act.summon) { var sn = BS.Game.summon(ship); if (sn) note = "summon: " + sn; }
+    if (act.overdrive) { var on = BS.Ships.overdrive(ship); if (on) note = "overdrive: " + on; }
     if (act.aim !== undefined) { var an = aim(ship, target, act.aim); if (an) { note = an; if (ship.script && /scan/.test(an)) ship.script.waitingAim = act.aim; } else if (ship.script) ship.script.waitingAim = null; }
     return note;
   }
@@ -335,7 +342,8 @@ BS.Script = (function () {
     x.allyWeakestMin = Math.min(x.allyWeakestMin === undefined ? 1 : x.allyWeakestMin, al.length ? Math.min.apply(null, al.map(function (a) { return S.shieldFrac(a, S.weakestFacing(a)); })) : 1);
     x.allyHullMin = Math.min(x.allyHullMin === undefined ? 1 : x.allyHullMin, al.length ? Math.min.apply(null, al.map(function (a) { return a.hull / a.hullMax; })) : 1);
     x.enemiesMin = Math.min(x.enemiesMin === undefined ? 99 : x.enemiesMin, hs.length);
-    ["scanned", "boardable", "overloaded", "cloaked", "cloakOff", "noCloak", "noTubes", "noPhasers", "enemyReactorsGone", "enemyShieldsDown", "enemyCharging", "enemyCloaking", "enemyCloaked", "enemyRolling", "enemyBreaching", "enemyKiting", "enemyAfterburner", "enemyAmmoBeatsOurShields", "ourAmmoBeaten", "remodulating", "allyUnderFire", "outnumbered", "unfocused"].forEach(function (k) {
+    x.enemiesMax = Math.max(x.enemiesMax === undefined ? 0 : x.enemiesMax, hs.length);
+    ["scanned", "boardable", "overloaded", "cloaked", "cloakOff", "noCloak", "noTubes", "noPhasers", "enemyReactorsGone", "enemyShieldsDown", "enemyCharging", "enemyCloaking", "enemyCloaked", "enemyRolling", "enemyBreaching", "enemyKiting", "enemyAfterburner", "enemyAmmoBeatsOurShields", "ourAmmoBeaten", "remodulating", "allyUnderFire", "outnumbered", "unfocused", "lanceCharging", "allyLanced"].forEach(function (k) {
       if (!x.ever[k]) { var w = {}; w[k] = true; if (conditions(ship, target, w, sc.t)) x.ever[k] = sc.t; }
     });
     // per rule: whether all its conditions ever held together, and each condition on its own (for the report)
@@ -381,6 +389,8 @@ BS.Script = (function () {
             case "allyShieldBelow": if (!(x.allyWeakestMin < v)) why = "no ally's weakest shield fell under " + pct(v) + " (lowest " + pct(x.allyWeakestMin === undefined ? 1 : x.allyWeakestMin) + ")"; break;
             case "allyHullBelow": if (!(x.allyHullMin < v)) why = "no ally's hull fell under " + pct(v) + " (lowest " + pct(x.allyHullMin === undefined ? 1 : x.allyHullMin) + ")"; break;
             case "enemiesAtMost": if (!(x.enemiesMin <= v)) why = "never " + v + " or fewer enemies left (at least " + (x.enemiesMin === undefined ? "?" : x.enemiesMin) + ")"; break;
+            case "enemiesAtLeast": if (!(x.enemiesMax >= v)) why = "never " + v + " or more enemies (at most " + (x.enemiesMax === undefined ? "?" : x.enemiesMax) + ")"; break;
+            case "notTargeting": if (!(sc.everKey && sc.everKey[i] && sc.everKey[i][k])) why = "we were always firing at " + subjectLabel(v); break;
             default:
               if (V[k] && V[k].kind === "flag" && v !== false && !(x.ever && x.ever[k])) why = "\"" + V[k].label + "\" never happened";
               else if (V[k] && (V[k].kind === "stance" || V[k].kind === "aiming" || V[k].kind === "band" || V[k].kind === "state" || V[k].kind === "type") && !(sc.everKey && sc.everKey[i] && sc.everKey[i][k])) why = V[k].kind === "type" ? "they never shot at our " + fmtValue("type", v) : "they were never " + fmtValue(V[k].kind, v);
@@ -410,7 +420,7 @@ BS.Script = (function () {
   function describeWhen(when, about) {
     var V = D().conditions, keys = Object.keys(when || {});
     if (!keys.length) return "otherwise";
-    return (about && about !== "target" ? "about " + subjectLabel(about) + ", " : "") + "when " + keys.map(function (k) { var c = V[k]; if (!c) return k; if (c.kind === "bool" && !when[k] && c.negLabel) return c.negLabel; return c.label.replace("{v}", fmtValue(c.kind, when[k])); }).join(" and ");
+    return (about && about !== "target" ? "about " + subjectLabel(about) + ", " : "") + "when " + keys.map(function (k) { var c = V[k]; if (!c) return k; if (c.kind === "bool" && !when[k] && c.negLabel) return c.negLabel; return c.label.replace("{v}", c.kind === "subject" ? subjectLabel(when[k]) : fmtValue(c.kind, when[k])); }).join(" and ");
   }
   function describeDo(act) {
     var A = D().actions, parts = [];

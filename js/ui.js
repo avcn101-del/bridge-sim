@@ -714,7 +714,7 @@ BS.UI = (function () {
     if (st2.cloakCover && st2.cloakCover.sources) html += "<div class='sl'><label>Cloak</label><span class='v'>" + st2.cloakCover.sources + " device" + (st2.cloakCover.sources > 1 ? "s" : "") + " · field " + pct(st2.cloakCover.frac) + (st2.cloakCover.exposed ? " <span class='good'>(" + st2.cloakCover.exposed + " out: cannot cloak)</span>" : "") + "</span></div>";
     if (st2.jamCover && st2.jamCover.sources) html += "<div class='sl'><label>ECM</label><span class='v'>" + st2.jamCover.sources + " jammer" + (st2.jamCover.sources > 1 ? "s" : "") + " · field " + pct(st2.jamCover.frac) + (st2.jamCover.exposed ? " · " + st2.jamCover.exposed + " out" : " (breaks locks)") + "</span></div>";
     html += "</div><div><h4>Systems</h4>";
-    var order = ["phaser", "disruptor", "pulse", "torpedo", "reactor", "shield", "engine", "sensor", "jammer", "cloak", "decoy", "neut", "quarters"];
+    var order = ["lance", "phaser", "disruptor", "pulse", "torpedo", "reactor", "shield", "engine", "sensor", "jammer", "cloak", "decoy", "neut", "quarters"];
     order.forEach(function (t) { var n = st2.counts[t]; if (!n) return; var a = st2.alive[t] || 0; html += "<div class='sl'><label>" + D.blocks[t].short + "</label><span class='v " + (a === 0 ? "bad" : a < n ? "warn" : "") + "'>" + a + " / " + n + "</span></div>"; });
     var cw = st2.crew || { manning: 1, supply: 0, need: 0 };
     html += "<div class='sl'><label>Crew</label><span class='v " + cls(cw.manning, 0.7, 1) + "'>" + cw.supply + " / " + cw.need + " · " + pct(cw.manning) + "</span></div>";
@@ -724,6 +724,8 @@ BS.UI = (function () {
     html += "<div class='sl'><label>Cap</label><span class='v " + (ecap < 0.15 ? "good" : ecap < 0.4 ? "warn" : "") + "' title='Their capacitor: a neutraliser drains it; dry, their modules shut down'>" + Math.round(e.capacitor) + " / " + e.capMax + " · " + pct(ecap) + (ecap <= 0.02 ? " <span class='good'>DRY</span>" : "") + "</span></div>";
     var ebd = BS.Boarding.canBoard(p, e);
     html += "<div class='sl'><label>Boarding</label><span class='v " + (ebd === "ok" ? "good" : "") + "'>" + (ebd === "ok" ? "window open: press T" : ebd === "busy" ? "party aboard" : boardReasons[ebd]) + " · " + Math.round(BS.Boarding.defenders(e)) + " defenders</span></div>";
+    var chg = BS.Modules.chargingOn(e, null);
+    if (chg.length) html += "<div class='sl'><label>Charging</label><span class='v bad'>" + chg.map(function (c) { return c.block.def.name.toLowerCase() + " on " + (c.block.chargeTarget ? escapeHtml(c.block.chargeTarget.name) : "?") + ": " + c.left.toFixed(1) + " s"; }).join(" · ") + "</span></div>";
     html += "</div><div><h4>Tactical</h4>";
     var total = st2.weapons.filter(function (b) { return b.alive; }).length, bearing = BS.EnemyAI.bearingCount(e, p, false);
     html += "<div class='sl'><label>Bearing</label><span class='v " + (bearing === 0 ? "good" : bearing >= total * 0.6 ? "bad" : "warn") + "'>" + bearing + " of " + total + " weapons on us</span></div>";

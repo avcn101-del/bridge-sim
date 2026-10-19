@@ -2,6 +2,37 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.33.0] — 2026-10-19 (the first boss: the Borg cube; 0.33 of DESIGN §10)
+
+### Added
+- **Borg cube** (`shipClasses.borg_cube`, encounter `cube`, `kind: "boss"`):
+  a 24×24 hull with cutting beams on three faces, cannons on four, shields
+  everywhere but the aft, the reactors behind the bare aft. Profile
+  `enemyAI.boss` (never retreats, `statMult` 1.8, `shieldMult` 4).
+- **Cutting beam** (block `lance`, `enemyOnly`): charges 6 s (event
+  `weaponCharging`: Tactical calls it, the block glows, the scan panel
+  lists it), then fires at the ship it charged on, 8 blocks deep, tracking
+  0.35. Conditions `lanceCharging`, `allyLanced`.
+- **Boss script** (`enemyScripts.borg`) with callouts: turn on the nearest
+  ship every 30 s, remodulate when beaten, **summon** two escorts at 60%
+  hull (`BS.Game.summon`, encounter `reinforcements`, event
+  `reinforcements`), **overdrive** at 7 min (`enemyAI.overdrive`: damage
+  ×1.5, speed ×1.25), roll when blind.
+- Template **Cube breaker**: skirmish on the afterburner under a charging
+  beam, escorts first, retune the ammo, then the cube's aft and reactors.
+- Subject `smallest`; conditions `notTargeting: <subject>`,
+  `enemiesAtLeast`; actions `summon`, `overdrive` (enemy only, not in the
+  editor). Enemy-only blocks are out of the palette and fail validation on
+  a Federation hull. Callouts from every enemy hull reach Tactical.
+- The smoke test's fleet pass fights the cube.
+
+### Measured (DESIGN §8)
+- Four hulls vs the cube: Brawler **0 of 4** (lost in 7–9 min), Wolf pack
+  0 of 2, **Cube breaker 4 of 4** in 4:31–5:31 keeping 83–93%. Without
+  the aft side the breaker still wins but takes 8–9 min; without the dodge
+  rule nothing changes (no beam faces aft). Cost with the cube and four
+  hulls: 10 ms a frame headless.
+
 ## [0.32.0] — 2026-10-19 (fleet scripts: subjects and the target action; 0.32 of DESIGN §10)
 
 ### Added

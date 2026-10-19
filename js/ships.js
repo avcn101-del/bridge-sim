@@ -183,6 +183,14 @@ BS.Ships = (function () {
   // Shields are projected only with the cloak off and the decloak surge over; cloaked or surging, the pools are kept but
   // absorb nothing, so an ambusher comes out of cloak with the shields it went in with.
   function shieldsUp(ship) { return ship.cloak.state === "off" && ship.cloak.surge <= 0 && !(ship.remod && ship.remod.kind === "shields"); }
+  // ---- overdrive (0.33, enemyAI.overdrive): a boss reroutes everything to its weapons for the rest of the fight ----------
+  function overdrive(ship) {
+    var O = BS.Data.enemyAI.overdrive;
+    if (ship.overdriven) return "already in overdrive";
+    ship.overdriven = true; ship.mods.damageMult *= O.damageMult; ship.mods.speedMult *= O.speedMult;
+    BS.Events.emit("overdrive", { ship: ship, damageMult: O.damageMult, speedMult: O.speedMult });
+    return null;
+  }
   // ---- remodulation (BS.Data.tuning.remodulate) ---------------------------------------------------------------
   // The modulation that beats `mod` on the ring (the one before it), and the one it beats.
   function beats(mod) { var o = BS.Data.tuning.order, i = o.indexOf(mod); return i < 0 ? null : o[(i + o.length - 1) % o.length]; }
@@ -488,6 +496,6 @@ BS.Ships = (function () {
     distanceTo: distanceTo, distanceKm: distanceKm, bearingTo: bearingTo, angularVelocity: angularVelocity, speedKmS: speedKmS,
     setCommand: setCommand, setAlert: setAlert, startReinforce: startReinforce, startLock: startLock, clearLock: clearLock, lockTime: lockTime,
     trackingMult: trackingMult, maxSpeed: maxSpeed, firingBearings: firingBearings, shieldsUp: shieldsUp, effectiveAim: effectiveAim, setAimBlock: setAimBlock, cloakFieldComplete: cloakFieldComplete, debrisHit: debrisHit, capRechargeMult: capRechargeMult, blockTypes: blockTypes,
-    isCloaked: isCloaked, visibility: visibility, detectRangeKm: detectRangeKm, setCloak: setCloak, contact: contact, contactKm: contactKm, remodulate: remodulate, beats: beats,
+    isCloaked: isCloaked, visibility: visibility, detectRangeKm: detectRangeKm, setCloak: setCloak, contact: contact, contactKm: contactKm, remodulate: remodulate, beats: beats, overdrive: overdrive,
   };
 })();

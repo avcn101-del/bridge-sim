@@ -550,6 +550,7 @@ BS.Grid = (function () {
       if (!t) { errors.push("Unknown block '" + ch + "'"); continue; }
       counts[t] = (counts[t] || 0) + 1;
       if (t === "bridge") bridges++;
+      if (BS.Data.blocks[t].enemyOnly && cls.faction === "federation") errors.push(BS.Data.blocks[t].name + " is not a Starfleet system.");
     }
     if (bridges !== 1) errors.push("Exactly one bridge is required (" + bridges + " placed).");
     Object.keys(counts).forEach(function (t) { if (t !== "bridge" && BS.Data.blocks[t].unique && counts[t] > 1) errors.push("Only one " + BS.Data.blocks[t].name.toLowerCase() + " per ship."); });
