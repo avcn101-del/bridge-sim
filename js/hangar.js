@@ -518,7 +518,8 @@ BS.Hangar = (function () {
     if (sc.dry && sc.dry.out) {
       var o = sc.dry.out, d2 = document.createElement("div"); d2.className = "sc-dry";
       var res = o.result === "victory" ? "Victory" + (o.how === "captured" ? " (captured)" : o.how === "disabled" ? " (disabled)" : "") : o.result === "defeat" ? "Defeat" : "Stalemate";
-      d2.innerHTML = "<b>" + res + "</b> in " + U.formatTime(o.time) + " · our blocks " + o.hullPct + "% · their hull " + o.enemyHullPct + "%" + (o.scanned ? " · scanned" : " · never scanned") + "<br>" +
+      var fleetLine = (o.ships && o.ships.length > 1) || (o.enemies && o.enemies.length > 1) ? "<br><span class='t'>ours: " + o.ships.map(function (x) { return escapeHtml(x.name) + " " + (x.destroyed ? "lost" : x.disabled ? "disabled" : x.hullPct + "%"); }).join(", ") + " · theirs: " + o.enemies.map(function (x) { return escapeHtml(x.name) + " " + (x.destroyed ? "destroyed" : x.captured ? "captured" : x.disabled ? "disabled" : x.hullPct + "%"); }).join(", ") + "</span>" : "";
+      d2.innerHTML = "<b>" + res + "</b> in " + U.formatTime(o.time) + " · our blocks " + o.hullPct + "% · their hull " + o.enemyHullPct + "%" + (o.scanned ? " · scanned" : " · never scanned") + fleetLine + "<br>" +
         o.trace.slice(0, 8).map(function (e) { return "<span class='t'>" + U.formatTime(e.t) + "</span> " + (e.rule !== null && e.rule !== undefined ? (e.rule + 1) + ". " : "") + escapeHtml(e.text); }).join("<br>") + (o.trace.length > 8 ? "<br><span class='t'>… " + (o.trace.length - 8) + " more</span>" : "") +
         (o.neverFired && o.neverFired.length ? "<br>" + o.neverFired.slice(0, 3).map(function (e) { return "<span class='nf'>Rule " + (e.rule + 1) + " never fired: " + escapeHtml(e.reason) + "</span>"; }).join("<br>") : "");
       box.appendChild(d2);
@@ -537,6 +538,14 @@ BS.Hangar = (function () {
     kind.value = r.once ? "once" : r.every ? "every" : "standing";
     kind.addEventListener("change", function () { delete r.once; delete r.every; if (kind.value === "once") r.once = true; else if (kind.value === "every") r.every = 20; if (kind.value !== "standing") { delete r.until; delete r.holdMax; } sc.dirty = true; renderScript(); });
     top.appendChild(kind);
+    // about (0.32): which enemy the rule's conditions read (script.subjects); shown once the rule has a condition
+    if (!isDefault || r.about) {
+      var ab = document.createElement("select"); ab.className = "lcars-select kind"; ab.disabled = ro; ab.title = "Which enemy this rule is about";
+      Object.keys(SD().subjects).forEach(function (id) { var o = document.createElement("option"); o.value = id; o.textContent = "about " + SD().subjects[id]; ab.appendChild(o); });
+      ab.value = r.about || "target";
+      ab.addEventListener("change", function () { if (ab.value === "target") delete r.about; else r.about = ab.value; sc.dirty = true; renderScript(); });
+      top.appendChild(ab);
+    }
     if (r.every) { var ev = document.createElement("input"); ev.type = "number"; ev.min = 1; ev.max = 600; ev.value = r.every; ev.disabled = ro; ev.style.width = "52px"; ev.addEventListener("change", function () { r.every = Math.max(1, parseFloat(ev.value) || 20); sc.dirty = true; renderSentence(); }); top.appendChild(ev); top.appendChild(document.createTextNode("s")); }
     if (!ro) {
       var up = document.createElement("button"); up.className = "lcars-btn c-blue sq"; up.textContent = "▲"; up.disabled = i === 0; up.addEventListener("click", function () { def.rules.splice(i, 1); def.rules.splice(i - 1, 0, r); sc.dirty = true; renderScript(); });
@@ -618,7 +627,7 @@ BS.Hangar = (function () {
     if (k.indexOf("modules.") === 0) { obj.modules = obj.modules || {}; obj.modules[k.slice(8)] = true; return; }
     var V = mode === "cond" ? SD().conditions : SD().actions, d = V[k];
     if (mode === "cond") obj[k] = d.kind === "flag" ? true : d.kind === "bool" ? (d.def !== undefined ? d.def : true) : d.def;
-    else obj[k] = { stance: "engage", play: "alpha", side: "blind", aim: "reactor", weapons: true, governor: true, repair: "shield", reinforce: true, scan: true, board: true, roll: true, remodulate: "shields" }[k];
+    else obj[k] = { stance: "engage", play: "alpha", side: "blind", aim: "reactor", weapons: true, governor: true, repair: "shield", reinforce: true, scan: true, board: true, roll: true, remodulate: "shields", target: "focus" }[k];
   }
   function removeTerm(k, obj, mode) {
     if (k.indexOf("modules.") === 0) { delete obj.modules[k.slice(8)]; if (!Object.keys(obj.modules).length) delete obj.modules; return; }
@@ -653,6 +662,7 @@ BS.Hangar = (function () {
       case "side": return sel(Object.keys(BS.Data.helm.sides).map(function (id) { return [id, BS.Data.helm.sides[id].label.toLowerCase()]; }), obj[k], function (v) { obj[k] = v; });
       case "weapons": case "governor": return sel([["on", "on"], ["off", "off"]], obj[k] ? "on" : "off", function (v) { obj[k] = v === "on"; });
       case "remodulate": return sel([["shields", "shields (frequency that beats their ammo)"], ["ammo", "weapons (ammo that beats their shields)"]], obj[k], function (v) { obj[k] = v; });
+      case "target": return sel(Object.keys(SD().subjects).map(function (id) { return [id, SD().subjects[id]]; }), obj[k], function (v) { obj[k] = v; });
       case "repair": return sel([["", "automatic"]].concat(Object.keys(BS.Data.blocks).map(function (b) { return [b, BS.Data.blocks[b].name.toLowerCase() + "s"]; })), obj[k] || "", function (v) { obj[k] = v || null; });
       case "aim": {
         var opts = [["hull", "anything (full accuracy)"], ["exposed", "bare hull"], ["structure", "their necks and pylons"]];

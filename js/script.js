@@ -34,7 +34,7 @@ BS.Script = (function () {
     if (!sc || !target) return false;
     ship.script = { def: sc, target: target, active: -1, activeSince: 0, t: 0, tick: 0, fired: {}, lastFire: {}, suspended: false, waiting: null, firedRules: {}, everTrue: {}, firstTrue: {}, extremes: null };
     ship.scriptTrace = [];
-    ship.scanned = ship.scanned || false; ship.scanning = ship.scanning || 0;
+    ship.scannedOf = ship.scannedOf || {}; ship.scanned = !!ship.scannedOf[target.id]; ship.scanning = ship.scanning || 0;
     return true;
   }
   function stop(ship) { ship.script = null; }
@@ -127,6 +127,13 @@ BS.Script = (function () {
         case "enemyAmmoBeatsOurShields": { if (!ship.scanned) return false; var ta = BS.Grid.dominantTune(BS.Grid.tuningSummary(target.grid).ammo), of = BS.Grid.dominantTune(BS.Grid.tuningSummary(ship.grid).frequency); return !!(ta && of) && BS.Grid.tuneMult(ta, of) > 1; }
         case "ourAmmoBeaten": { if (!ship.scanned) return false; var oa = BS.Grid.dominantTune(BS.Grid.tuningSummary(ship.grid).ammo), tf = BS.Grid.dominantTune(BS.Grid.tuningSummary(target.grid).frequency); return !!(oa && tf) && BS.Grid.tuneMult(oa, tf) < 1; }
         case "remodulating": return !!ship.remod;
+        // 0.32: the rest of our side and the count of theirs (BS.Fleet)
+        case "allyShieldBelow": return BS.Fleet.fightingAllies(ship).some(function (a) { return S.shieldFrac(a, S.weakestFacing(a)) < v; });
+        case "allyHullBelow": return BS.Fleet.fightingAllies(ship).some(function (a) { return a.hull / a.hullMax < v; });
+        case "allyUnderFire": { var al = BS.Fleet.fightingAllies(ship); return BS.Fleet.hostiles(ship).some(function (o) { return o.target && al.indexOf(o.target) >= 0; }); }
+        case "outnumbered": return BS.Fleet.hostiles(ship).filter(BS.Fleet.fighting).length > BS.Fleet.fightingAllies(ship).length + 1;
+        case "enemiesAtMost": return BS.Fleet.hostiles(ship).filter(BS.Fleet.fighting).length <= v;
+        case "unfocused": { var fo = BS.Fleet.subject(ship, "focus"); return !!fo && fo !== BS.Fleet.targetOf(ship); }
         default: return false;
       }
     }
@@ -180,6 +187,8 @@ BS.Script = (function () {
   // Apply a rule's actions. Returns a note for the trace when something could not be done yet.
   function apply(ship, target, act, rule) {
     var note = null;
+    // switch our fire (0.32): the subject becomes the ship's target before the rest of the actions act on it
+    if (act.target) { var ts = BS.Fleet.subject(ship, act.target); if (!ts) note = "no " + subjectLabel(act.target); else if (ts !== BS.Fleet.targetOf(ship)) { BS.Fleet.retarget(ship, ts, "script"); target = ts; } }
     var flying = ship.ai && !ship.ai.suspended;
     if (act.play) { if (!(ship.play && ship.play.id === act.play) && BS.Plays.start(ship, target, act.play) !== true) note = "no " + act.play + " play"; }
     else if (act.stance) { if (!(flying && !ship.play && ship.stance === act.stance)) { BS.Plays.stop(ship); BS.EnemyAI.setStance(ship, target, act.stance); } }
@@ -190,7 +199,7 @@ BS.Script = (function () {
     if (act.governor !== undefined) ship.heatGovernor = !!act.governor;
     if (act.repair !== undefined) ship.repairPriority = act.repair || null;
     if (act.reinforce) S.startReinforce(ship);
-    if (act.scan) { if (!ship.scanned && !ship.scanning) { ship.scanning = BS.Data.science.scanDuration; BS.Events.emit("scanStarted", { ship: ship, target: target, time: ship.scanning }); } }
+    if (act.scan) { if (!ship.scanned && !ship.scanning) { ship.scanning = BS.Data.science.scanDuration; ship.scanTarget = target; BS.Events.emit("scanStarted", { ship: ship, target: target, time: ship.scanning }); } }
     if (act.board) { var br = BS.Boarding.start(ship, target); if (br !== "ok") note = "boarding: " + br; }
     if (act.roll) { if (!BS.EnemyAI.roll(ship, target)) note = "cannot come about"; }
     if (act.remodulate) { var rn = S.remodulate(ship, act.remodulate, target); if (rn) note = "remodulate: " + rn; }
@@ -247,11 +256,13 @@ BS.Script = (function () {
   // ---- update ------------------------------------------------------------------------------------------------
   function update(ship, dt) {
     // the scan runs even while the script is paused: beams hold fire until it is done
-    if (ship.scanning > 0) { ship.scanning -= dt; if (ship.scanning <= 0) { ship.scanning = 0; ship.scanned = true; BS.Events.emit("scanned", { ship: ship, target: ship.script ? ship.script.target : null }); } }
+    if (ship.scanning > 0) { ship.scanning -= dt; if (ship.scanning <= 0) { ship.scanning = 0; var scOf = ship.scanTarget || (ship.script ? ship.script.target : null); ship.scannedOf = ship.scannedOf || {}; if (scOf) ship.scannedOf[scOf.id] = true; var cur = ship.script ? ship.script.target : scOf; ship.scanned = !!(cur && ship.scannedOf[cur.id]); BS.Events.emit("scanned", { ship: ship, target: scOf }); } }
     var sc = ship.script;
     if (!sc || sc.suspended || ship.flags.destroyed || ship.flags.disabled) return;
     var target = sc.target;
     if (!target || target.flags.destroyed) return;
+    // a rule's subject (0.32): the enemy its conditions are about; the current target unless `about` says otherwise
+    function subj(r) { if (!r.about || r.about === "target") return target; return BS.Fleet.subject(ship, r.about) || target; }
     sc.t += dt; sc.tick -= dt;
     if (sc.tick > 0) return;
     sc.tick = D().tickSeconds;
@@ -265,7 +276,7 @@ BS.Script = (function () {
       if (!r.once && !r.every) continue;
       if (r.once && sc.fired[i]) continue;
       if (r.every && sc.lastFire[i] !== undefined && sc.t - sc.lastFire[i] < r.every) continue;
-      if (!conditions(ship, target, r.when, sc.t)) continue;
+      if (!conditions(ship, subj(r), r.when, sc.t)) continue;
       var note = apply(ship, target, r.do || {}, r);
       if (note && r.once) continue;   // a once rule that could not act yet tries again (a scan not yet done)
       sc.fired[i] = true; sc.lastFire[i] = sc.t;
@@ -280,7 +291,7 @@ BS.Script = (function () {
       trace(ship, null, "bridge call over: the script has the conn", "call");
     }
     // standing orders: the first standing rule whose conditions hold; a held rule keeps the orders
-    var held = sc.active >= 0 && rules[sc.active] && rules[sc.active].until && !conditions(ship, target, rules[sc.active].until, sc.t) && !(rules[sc.active].holdMax && sc.t - sc.activeSince > rules[sc.active].holdMax);
+    var held = sc.active >= 0 && rules[sc.active] && rules[sc.active].until && !conditions(ship, subj(rules[sc.active]), rules[sc.active].until, sc.t) && !(rules[sc.active].holdMax && sc.t - sc.activeSince > rules[sc.active].holdMax);
     var pick = -1, dflt = -1;
     for (i = 0; i < rules.length; i++) {
       r = rules[i];
@@ -288,7 +299,7 @@ BS.Script = (function () {
       var empty = !r.when || !Object.keys(r.when).length;
       if (empty) { if (dflt < 0) dflt = i; continue; }
       if (held && i >= sc.active) break;   // nothing below the held rule may take over
-      if (conditions(ship, target, r.when, sc.t)) { pick = i; break; }
+      if (conditions(ship, subj(r), r.when, sc.t)) { pick = i; break; }
     }
     if (pick < 0 && held) pick = sc.active;
     if (pick < 0) pick = dflt;
@@ -320,17 +331,21 @@ BS.Script = (function () {
     x.incomingMax = Math.max(x.incomingMax, BS.Weapons.incoming(ship, 99));
     x.eheatMax = Math.max(x.eheatMax || 0, est.heatCap ? target.heat / est.heatCap : 0);
     x.blindMax = Math.max(x.blindMax || 0, ship.ai ? ship.ai.blindTimer || 0 : 0);
-    ["scanned", "boardable", "overloaded", "cloaked", "cloakOff", "noCloak", "noTubes", "noPhasers", "enemyReactorsGone", "enemyShieldsDown", "enemyCharging", "enemyCloaking", "enemyCloaked", "enemyRolling", "enemyBreaching", "enemyKiting", "enemyAfterburner", "enemyAmmoBeatsOurShields", "ourAmmoBeaten", "remodulating"].forEach(function (k) {
+    var al = BS.Fleet.fightingAllies(ship), hs = BS.Fleet.hostiles(ship).filter(BS.Fleet.fighting);
+    x.allyWeakestMin = Math.min(x.allyWeakestMin === undefined ? 1 : x.allyWeakestMin, al.length ? Math.min.apply(null, al.map(function (a) { return S.shieldFrac(a, S.weakestFacing(a)); })) : 1);
+    x.allyHullMin = Math.min(x.allyHullMin === undefined ? 1 : x.allyHullMin, al.length ? Math.min.apply(null, al.map(function (a) { return a.hull / a.hullMax; })) : 1);
+    x.enemiesMin = Math.min(x.enemiesMin === undefined ? 99 : x.enemiesMin, hs.length);
+    ["scanned", "boardable", "overloaded", "cloaked", "cloakOff", "noCloak", "noTubes", "noPhasers", "enemyReactorsGone", "enemyShieldsDown", "enemyCharging", "enemyCloaking", "enemyCloaked", "enemyRolling", "enemyBreaching", "enemyKiting", "enemyAfterburner", "enemyAmmoBeatsOurShields", "ourAmmoBeaten", "remodulating", "allyUnderFire", "outnumbered", "unfocused"].forEach(function (k) {
       if (!x.ever[k]) { var w = {}; w[k] = true; if (conditions(ship, target, w, sc.t)) x.ever[k] = sc.t; }
     });
     // per rule: whether all its conditions ever held together, and each condition on its own (for the report)
     sc.everKey = sc.everKey || {};
     (sc.def.rules || []).forEach(function (r, i) {
       if (!r.when) return;
-      var ek = sc.everKey[i] || (sc.everKey[i] = {});
-      Object.keys(r.when).forEach(function (k) { if (!ek[k]) { var w1 = {}; w1[k] = r.when[k]; if (conditions(ship, target, w1, sc.t)) ek[k] = sc.t; } });
+      var ek = sc.everKey[i] || (sc.everKey[i] = {}), rt = r.about && r.about !== "target" ? (BS.Fleet.subject(ship, r.about) || target) : target;
+      Object.keys(r.when).forEach(function (k) { if (!ek[k]) { var w1 = {}; w1[k] = r.when[k]; if (conditions(ship, rt, w1, sc.t)) ek[k] = sc.t; } });
       if (sc.everTrue[i]) return;
-      if (Object.keys(r.when).length && conditions(ship, target, r.when, sc.t)) { sc.everTrue[i] = true; sc.firstTrue[i] = { t: sc.t, above: sc.override ? "call" : sc.active }; }
+      if (Object.keys(r.when).length && conditions(ship, rt, r.when, sc.t)) { sc.everTrue[i] = true; sc.firstTrue[i] = { t: sc.t, above: sc.override ? "call" : sc.active }; }
     });
   }
   // Why a rule never fired, in a sentence: the first of its conditions that never held, with how close it came.
@@ -363,6 +378,9 @@ BS.Script = (function () {
             case "scanned": if (v && !x.ever.scanned) why = "we never scanned them"; break;
             case "enemyHeatAbove": if (!(x.eheatMax > v)) why = "their heat never rose over " + pct(v) + " (peak " + pct(x.eheatMax || 0) + ")"; break;
             case "blindFor": if (!(x.blindMax > v)) why = "our guns never lost them for " + v + " s (at most " + Math.round(x.blindMax || 0) + " s)"; break;
+            case "allyShieldBelow": if (!(x.allyWeakestMin < v)) why = "no ally's weakest shield fell under " + pct(v) + " (lowest " + pct(x.allyWeakestMin === undefined ? 1 : x.allyWeakestMin) + ")"; break;
+            case "allyHullBelow": if (!(x.allyHullMin < v)) why = "no ally's hull fell under " + pct(v) + " (lowest " + pct(x.allyHullMin === undefined ? 1 : x.allyHullMin) + ")"; break;
+            case "enemiesAtMost": if (!(x.enemiesMin <= v)) why = "never " + v + " or fewer enemies left (at least " + (x.enemiesMin === undefined ? "?" : x.enemiesMin) + ")"; break;
             default:
               if (V[k] && V[k].kind === "flag" && v !== false && !(x.ever && x.ever[k])) why = "\"" + V[k].label + "\" never happened";
               else if (V[k] && (V[k].kind === "stance" || V[k].kind === "aiming" || V[k].kind === "band" || V[k].kind === "state" || V[k].kind === "type") && !(sc.everKey && sc.everKey[i] && sc.everKey[i][k])) why = V[k].kind === "type" ? "they never shot at our " + fmtValue("type", v) : "they were never " + fmtValue(V[k].kind, v);
@@ -388,10 +406,11 @@ BS.Script = (function () {
     if (kind === "band") return D().rangeBands[v] || String(v);
     return String(v);
   }
-  function describeWhen(when) {
+  function subjectLabel(id) { return (D().subjects && D().subjects[id]) || String(id); }
+  function describeWhen(when, about) {
     var V = D().conditions, keys = Object.keys(when || {});
     if (!keys.length) return "otherwise";
-    return "when " + keys.map(function (k) { var c = V[k]; if (!c) return k; if (c.kind === "bool" && !when[k] && c.negLabel) return c.negLabel; return c.label.replace("{v}", fmtValue(c.kind, when[k])); }).join(" and ");
+    return (about && about !== "target" ? "about " + subjectLabel(about) + ", " : "") + "when " + keys.map(function (k) { var c = V[k]; if (!c) return k; if (c.kind === "bool" && !when[k] && c.negLabel) return c.negLabel; return c.label.replace("{v}", fmtValue(c.kind, when[k])); }).join(" and ");
   }
   function describeDo(act) {
     var A = D().actions, parts = [];
@@ -409,6 +428,7 @@ BS.Script = (function () {
       else if (k === "governor") text = "heat governor " + (v ? "on" : "off");
       else if (k === "repair") text = v ? a.label.replace("{v}", BS.Data.blocks[v] ? BS.Data.blocks[v].name.toLowerCase() + "s" : v) : "damage control on automatic";
       else if (k === "remodulate") text = a.label.replace("{v}", v === "ammo" ? "weapons to the ammo that beats their shields" : "shields to the frequency that beats their ammo");
+      else if (k === "target") text = a.label.replace("{v}", subjectLabel(v));
       else text = a.label;
       parts.push(text);
     });
@@ -425,8 +445,8 @@ BS.Script = (function () {
     return "?";
   }
   function describe(rule, def) {
-    var s = (rule.call ? "" : describeWhen(rule.when) + ": ") + describeDo(rule.do);
-    if (rule.until) s += " — until " + describeWhen(rule.until).replace(/^when /, "");
+    var s = (rule.call ? "" : describeWhen(rule.when, rule.about) + ": ") + describeDo(rule.do);
+    if (rule.until) s += " — until " + describeWhen(rule.until, rule.about).replace(/^(about [^,]+, )?when /, "$1");
     if (rule.holdMax) s += " (at most " + rule.holdMax + " s)";
     if (rule.once) s += " (once)";
     if (rule.every) s += " (every " + rule.every + " s)";
@@ -440,5 +460,5 @@ BS.Script = (function () {
     return out;
   }
 
-  return { start: start, stop: stop, suspend: suspend, resume: resume, update: update, bridgeCall: bridgeCall, callRule: callRule, explain: explain, conditions: conditions, apply: apply, describe: describe, describeScript: describeScript, describeWhen: describeWhen, describeDo: describeDo, resolve: resolve, focusType: focusType, stanceOf: stanceOf, aimingAt: aimingAt, rangeBand: rangeBand };
+  return { start: start, stop: stop, suspend: suspend, resume: resume, update: update, bridgeCall: bridgeCall, callRule: callRule, explain: explain, conditions: conditions, apply: apply, describe: describe, describeScript: describeScript, describeWhen: describeWhen, describeDo: describeDo, subjectLabel: subjectLabel, resolve: resolve, focusType: focusType, stanceOf: stanceOf, aimingAt: aimingAt, rangeBand: rangeBand };
 })();

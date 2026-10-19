@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.31.0",
+  version: "0.32.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -1458,6 +1458,9 @@ BS.Data = {
     maxRules: 12,                  // rules per script in the editor
     maxScripts: 12,                // own scripts a save holds (Copy as new refuses beyond it)
     rangeBands: { beam: "inside our beam optimal", torpedo: "inside our torpedo range", out: "beyond our reach" },   // condition rangeBand, measured off the fitted weapons
+    // subjects (0.32, BS.Fleet.subject): a rule's `about` picks which enemy its conditions read ("target" = the ship we
+    // are fighting); the action `target` switches our fire to one. "hunter" is null when nobody is shooting at us.
+    subjects: { target: "the ship we are fighting", nearest: "the nearest enemy", weakest: "the enemy with the least hull", biggest: "the biggest enemy", hunter: "the enemy shooting at us", focus: "the enemy most of us are fighting" },
     // bridge calls (BS.Script.bridgeCall, BS.Game.bridgeCall): the captain's `tokens` interventions per battle, never
     // refilled. A play or side call is an override that stands for holdSeconds and then hands back to the script;
     // Disengage stands until the weakest shield is back over disengageUntil (or holdSeconds); Reinforce acts at once;
@@ -1511,6 +1514,13 @@ BS.Data = {
       enemyAmmoBeatsOurShields: { label: "their ammo beats our shield frequency", kind: "flag" },
       ourAmmoBeaten:    { label: "their shield frequency beats our ammo", kind: "flag" },
       remodulating:     { label: "we are remodulating", kind: "flag" },
+      // 0.32: the rest of our side and the count of theirs (a fleet; alone, the ally conditions never hold)
+      allyShieldBelow:  { label: "an ally's weakest shield is under {v}", kind: "pct", def: 0.3 },
+      allyHullBelow:    { label: "an ally's hull is under {v}", kind: "pct", def: 0.4 },
+      allyUnderFire:    { label: "an ally is under fire", kind: "flag" },
+      outnumbered:      { label: "they outnumber us", kind: "flag" },
+      enemiesAtMost:    { label: "{v} or fewer enemies are left", kind: "count", def: 1 },
+      unfocused:        { label: "we are not firing at the ship most of us are fighting", kind: "flag" },
     },
     actions: {
       stance:    { label: "fly {v}", kind: "stance" },
@@ -1527,6 +1537,7 @@ BS.Data = {
       board:     { label: "send the boarding party", kind: "flag" },
       roll:      { label: "come about to bring guns round", kind: "flag" },   // BS.EnemyAI.roll: a reposition toward the side with the most fire
       remodulate:{ label: "remodulate our {v}", kind: "remod" },   // "shields" (frequency that beats their ammo, deflector down meanwhile) or "ammo" (ammo that beats their frequency, weapons cold meanwhile)
+      target:    { label: "switch our fire to {v}", kind: "subject" },   // 0.32: script.subjects; the helm, lock and aim follow (BS.Fleet.retarget)
     },
     policies: {
       lock:      { label: "keep a lock on the target" },
@@ -1542,6 +1553,14 @@ BS.Data = {
     templates: {
       brawler: { name: "Brawler", desc: "Engage and keep guns on them; the helm flips sides for guns and shields.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto", neut: "auto" },
         rules: [
+          { when: {}, do: { stance: "engage", weapons: true, modules: { shield_hardener: true }, governor: true } },
+        ] },
+      // 0.32: the first fleet template. Everyone on the same ship: whoever is closest to breaking, else the ship most of
+      // us are already fighting. Alone it is the Brawler.
+      wolfpack: { name: "Wolf pack", desc: "Fleet: finish the enemy closest to breaking, otherwise all guns on the ship most of us are fighting.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto", neut: "auto" },
+        rules: [
+          { when: { enemyHullBelow: 0.4 }, about: "weakest", do: { target: "weakest", stance: "engage", weapons: true, modules: { shield_hardener: true }, governor: true } },
+          { when: { unfocused: true }, do: { target: "focus" }, every: 8 },
           { when: {}, do: { stance: "engage", weapons: true, modules: { shield_hardener: true }, governor: true } },
         ] },
       siege: { name: "Siege", desc: "Hold at torpedo range with everything that reaches; fight close only when they come inside 5 km.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto" },
@@ -1597,6 +1616,7 @@ BS.Data = {
                         { when: {}, do: { doctrine: "encounter" } } ] },
       raider:        { name: "Raider", rules: [
                         { when: { scanned: false, dKmBelow: 12 }, do: { scan: true }, once: true },
+                        { when: { unfocused: true }, do: { target: "focus" }, every: 10, callout: "They're shifting fire to the ship their pack is on." },
                         { when: { scanned: true, enemyAmmoBeatsOurShields: true, remodulating: false }, do: { remodulate: "shields" }, every: 45, callout: "They're remodulating their shields, Captain. Ten seconds with the deflector down." },
                         { when: { scanned: true, ourAmmoBeaten: true, remodulating: false }, do: { remodulate: "ammo" }, every: 45, callout: "They're retuning their weapons to our shield frequency." },
                         { when: { blindFor: 3 }, do: { roll: true }, every: 8, callout: "They're coming about to bring their guns round on us." },
@@ -1608,6 +1628,7 @@ BS.Data = {
       torpedoBoat:   { name: "Torpedo boat", rules: [ { when: {}, do: { play: "siege" } } ] },
       cruiser:       { name: "Cruiser", rules: [
                         { when: { scanned: false, dKmBelow: 14 }, do: { scan: true }, once: true },
+                        { when: { unfocused: true }, do: { target: "focus" }, every: 10, callout: "The cruiser is shifting fire to the ship its escorts are on." },
                         { when: { scanned: true, enemyAmmoBeatsOurShields: true, remodulating: false }, do: { remodulate: "shields" }, every: 45, callout: "The cruiser is remodulating its shields: ten seconds with its deflector down." },
                         { when: { scanned: true, ourAmmoBeaten: true, remodulating: false }, do: { remodulate: "ammo" }, every: 45, callout: "The cruiser is retuning its disruptors to our shield frequency." },
                         { when: { blindFor: 2.5 }, do: { roll: true }, every: 10, callout: "The cruiser is coming about to bring its batteries round." },
