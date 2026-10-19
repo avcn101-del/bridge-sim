@@ -9,16 +9,17 @@
 //   --layouts a:preset,b:preset   a preset per class; --scripts a:id,b:id a template per class; --script <id> the flagship's
 //   --credits <n>       starting credits (default campaign.startingCredits)
 //   --max <s>           stalemate after this many simulated seconds (default 600)
+//   --eval "<js>"       run this in the page before the run (a data tweak, as tools/harness.js)
 var path = require("path"), pw = require("playwright");
 var args = {}; process.argv.slice(2).forEach(function (a, i, all) { if (a.indexOf("--") === 0) { var v = all[i + 1]; args[a.slice(2)] = v === undefined || v.indexOf("--") === 0 ? true : v; } });
 var opts = { battles: parseInt(args.battles || "12", 10), seed: parseInt(args.seed || "1", 10), ship: args.ship || "constitution", fleet: args.fleet ? String(args.fleet).split(",") : null,
-  layouts: args.layouts || null, scripts: args.scripts || null, script: args.script || null, credits: args.credits ? parseInt(args.credits, 10) : null, max: parseInt(args.max || "600", 10) };
+  layouts: args.layouts || null, scripts: args.scripts || null, script: args.script || null, credits: args.credits ? parseInt(args.credits, 10) : null, max: parseInt(args.max || "600", 10), eval: args.eval || null };
 function fmt(t) { var m = Math.floor(t / 60), s = Math.floor(t % 60); return m + ":" + (s < 10 ? "0" : "") + s; }
 
 (async function () {
   var browser = await pw.chromium.launch({ executablePath: process.env.CHROMIUM || undefined });
   var page = await browser.newPage({ viewport: { width: 1280, height: 800 } }), errors = [];
-  page.on("pageerror", function (e) { errors.push(String(e)); });
+  page.on("pageerror", function (e) { errors.push(String(e)); console.log("PAGE ERROR (the fight will not end): " + String(e)); process.exitCode = 1; setTimeout(function () { process.exit(1); }, 200); });
   page.on("console", function (m) { if (m.type() === "error" && !/fonts\.g|ERR_|net::/.test(m.text())) errors.push(m.text()); });
   await page.goto("file://" + path.resolve(__dirname, "..", "index.html"));
   await page.waitForFunction(function () { return window.BS && BS.Game && BS.Campaign; });
@@ -33,6 +34,7 @@ function fmt(t) { var m = Math.floor(t / 60), s = Math.floor(t % 60); return m +
     if (o.script) save.scriptByBuild[o.ship] = o.script;
     if (o.credits !== null) save.credits = o.credits;
     BS.Data.script.dryRun.maxSeconds = o.max;
+    if (o.eval) (new Function(o.eval))();   // 0.42: a data tweak before the run, as the fight harness's --eval
   }, opts);
   var rows = [];
   for (var i = 0; i < opts.battles; i++) {

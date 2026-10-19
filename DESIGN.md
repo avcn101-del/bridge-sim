@@ -1197,8 +1197,13 @@ Enemy side beaten → Victory; player side beaten → Defeat. Result overlay
 with stats.
 
 ### Campaign (`BS.Campaign`)
-- **Credits**: win 500 × encounter `rewardMult` − 3 per % hull lost + 50 per
-  consecutive win (max 5), loss 120, never below 50. Start with 600.
+- **Credits**: win 500 × encounter `rewardMult` − 3 per % of the side's
+  block hp lost × `rewardMult` (0.42, `credits.hullLostScalesWithReward`: a
+  boss that pays ×8 docks ×8 for the hulls it cost, so the fleet that keeps
+  its biggest hull out-earns the one that wins by losing it; before 0.42
+  the penalty was flat and a lost Galaxy cost 123 cr of a 5,600 cr payout)
+  + 50 per consecutive win (max 5), loss 120, never below 50. Start with
+  600.
 - **Salvage** (`campaign.salvage`): a win also pays a share of the block
   value still alive on the enemy: 10% of a destroyed ship's remains, 25% of
   a disabled ship (captured intact). Aiming at weapons and engines to
@@ -1286,6 +1291,7 @@ campaign.firstFight: { weakPointChance }; campaign.encounters[].script; tuning (
 campaign.salvage: { destroyed, disabled, captured }; enemyAI.*: drainedBelow, drainedUntil, drainedTime
 0.31: balance.fleetSpacingKm; campaign.fleetMax; campaign.encounters[].ships: [{ enemyClass, layout, doctrine, script, damageMult }]; save.fleet: [classId]; ship: team, target, contacts{}, flags.captured; state: teams { player: [], enemy: [] }, enemyFlag
 0.32: script.subjects; rule.about; action target; conditions allyShieldBelow / allyHullBelow / allyUnderFire / outnumbered / enemiesAtMost / unfocused; templates.wolfpack; ship: scannedOf{}, scanTarget
+0.42: campaign.credits.hullLostScalesWithReward; tools/campaign.js --eval; the tools exit on a page error instead of waiting for a dry run that never ends
 0.41: blocks plasma / tractor (enemyOnly); modules plasma_group / tractor (effect.tractor); ew.tractor { rangeKm, hold, aiMinCap }; shipClasses.dderidex; enemyAI.warbird; tuning.factionDefault.romulan; campaign.encounters[].name, encounter warbird; save.campaign.bossesBeaten; ship.tractored / tractoredBy / tractorBlock, BS.Ships.tractor / heldBy; conditions tractored / allyTractored; allySubjects.heldAlly; templates.warbreaker; enemyScripts.warbird; support.repairPerBlock 45 → 300; the Anchor preset's armoured nacelle rows
 0.40: grid.heat, blocks.*.weapon.heat, ship.heat / overload / heatGovernor / governorHold, stats.heatCap / heatDissipation, conditions heatAbove / enemyHeatAbove / enemyHeatBelow, action governor, doctrine kite, the retired templates, event overload: all gone; tools/campaign.js
 0.39: script.conditions 53 → 33 (the 1v1 micro conditions gone; a save's rule naming one is dropped and save.notice says so); enemyAI.stanceLabels / aimLabels, script.rangeBands / chargingKmS gone; campaign.encounters[].minHulls; encounters variant, interceptor, bombard, bulwark, pulser, warlord and the Bird-of-Prey variants interceptor, bulwark, pulser, bombard gone; the hangar's tuning dropdowns (rows unchanged)
@@ -1334,6 +1340,53 @@ harness is in the repository: `tools/harness.js` (Playwright, one
 `campaign.encounters`, seeded `Math.random`, `--noreact` for the 0.24 enemy
 bridge, `--eval` for a data tweak, `--debug` for what each bridge saw) and
 `tools/smoke.js` (the headless interface check).
+
+v0.42.0 (the frozen fight, the warbird at a bigger hull, the hull-lost
+penalty. Same fleets and commands as v0.41, `--max 660`; the warbird at
+×2.4 damage, repair 300, no escorts; "stat" is `enemyAI.warbird.statMult`):
+
+The v0.41 row that "never finished" was a crash, not a cost: when the
+Lifeline's escorted ally (the Galaxy) died with no other ally left, the
+script's escort fallback called `BS.EnemyAI.setStance`, removed in 0.37,
+and the dry run threw every step while the harness waited for an end that
+never came. In the game the same fight would have frozen at the end of a
+losing boss battle. Found with a CDP profile of the stepped fight (the
+first 130 s cost 110–190 ms per 10 simulated seconds, then the exception);
+fixed (the default doctrine), and both tools now print the page error and
+exit instead of hanging.
+
+| Warbird | Four breakers | Mixed |
+|---|---|---|
+| stat 1.6 (shipped, from v0.41) | 2 of 2 in 2:21–2:23 keeping 71%, the Galaxy lost both times | 2 of 2 in 4:18–4:42 keeping 77–86% |
+| stat 1.8 | 2 of 2 in 2:05–3:19 keeping 64–72%, the Galaxy at 32% and disabled | 2 of 2 in 3:56–5:03 keeping 54–74%, the Galaxy and the Excelsior lost once |
+| stat 2.0 | 1 of 2 (4:22 keeping 68%, two hulls disabled; a loss at 4:59, two lost) | 1 of 2 (5:36 keeping 68%, the Galaxy lost; a loss at 6:46 with the warbird at 58%, it dealt 51k) |
+
+Honest reading: a bigger hull makes the fight longer, and a longer fight
+kills the tank too. Against 23k of block hp the healer's 50 hp/s buys
+about two more minutes, not a fight of any length, so stat 2.0 turns the
+pair's win into the same coin flip the breakers get. The warbird stays at
+stat 1.6: the fleet that is built to be held wins in four and a half
+minutes and keeps its hulls, the one that is not wins in two and loses its
+Galaxy. The §10 target ("the naive fleet loses") is not reachable with
+this boss by numbers; a third boss needs damage the healer can race
+(phases) rather than more hull (§10 "next").
+
+Economy (`tools/campaign.js --battles 12`, seed 1, both fleets; the
+Warbird breaker and the Cube breaker have no 1v1 rules, so the solo
+battles of these runs are flown with a boss template):
+
+| Run | Boss fights | Credits |
+|---|---|---|
+| Four Cube breakers, penalty flat (0.41) | cube at 6: won 5:30 keeping 90%, +4,171 +307 −990; warbird at 12 (10 wins, so stat 2.0): won 6:57 keeping 48%, the Galaxy lost, +5,510 +679 **−5,624** | 600 → 11,342 (11 of 12 won) |
+| Four Cube breakers, penalty × reward (0.42) | the same fights; the warbird paid +4,049 +679 −5,624: **a boss win that lost credits** | 600 → 9,648 |
+| Mixed, penalty × reward (0.42) | cube at 6: won 7:43 keeping 89%, +4,356 +874 −956; warbird at 12: won 4:36 keeping 77%, +5,025 +707 −1,562 | 600 → 9,050 (9 of 12: three solo fights lost or stalemated with the boss template) |
+
+Honest reading: per boss the differential is now real (the mixed fleet
+nets +4,170 on the warbird, the breakers −896), and the run totals still
+favour the breakers because the Warbird breaker loses solo fights the
+Brawler wins; a per-fight script choice (solo and fleet templates for one
+hull) is a hangar question for later. References unchanged (the fix is
+reached only when every ally of an escorting ship is gone).
 
 v0.41.0 (the second boss. `--enemy warbird --wins 4`, the fleet Constitution +
 Galaxy + Excelsior + Defiant, "four breakers" = the Cube breaker on every
@@ -1854,7 +1907,8 @@ script; learning off since 0.31; plays shadowed by the script since 0.21):
 | 0.39 (done) | 20 micro conditions cut (53 → 33), saves migrated with a notice; tuning per ship; the solo tier eight entries with `minHulls` on fleet fights (the `pair` wall of 0.35 closed); the hangar in the loop's order; §8 history in Appendix A. Measured in §8 v0.39 |
 | 0.40 (done) | `tools/campaign.js` (a whole run headless) and the heat cut, both measured in §8 v0.40 |
 | 0.41 (done) | The second boss: the warbird, its tractor beam and plasma cannons, the Warbird breaker; the healer's repair 45 → 300, the Anchor's nacelle rims plated; boss progression (`bossesBeaten`). Measured in §8 v0.41 |
-| next | The beacon as a choice: a boss rule that turns on the biggest hull (not the loudest), so a breaker fleet's Galaxy is held without being built for it; economy after two bosses (repair bills vs boss payouts, §8 v0.40 / v0.41 runs); a solo-tier template with a cloak answer |
+| 0.42 (done) | The frozen fight (an escort whose last ally died called a stance setter removed in 0.37; the tools now exit on a page error); the warbird measured at stat 1.8 and 2.0 with the fix (the tank dies too: it stays at 1.6); the hull-lost penalty scaled by the reward multiple, measured over two 12-battle runs (§8 v0.42) |
+| next | A solo-tier template with a cloak answer (the Shadow stalemates a boss template); the healer's ceiling: a longer boss fight kills the tank through 50 hp/s of repair, so a third boss needs damage the healer can race (phases, not a bigger hull); skirmish modifiers (§10 "Skirmishes") |
 
 Known risks: the pivot touches nearly every file; 8 grids measured in 0.31
 (12 ms a frame headless without a GPU, the simulation negligible); the §8

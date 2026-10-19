@@ -188,7 +188,7 @@ BS.Script = (function () {
     if (pol.hardener === "auto") setModules(ship, { shield_hardener: cap > 0.15 && ship.cloak.state === "off" });
     // 0.34: the supported ally is re-picked every tick; an escort whose ally is lost picks the subject again
     if (pol.support === "auto") { var wa = BS.Fleet.ally(ship, "weakestAlly"); if (wa) ship.support = wa; }
-    if (ship.escortSubject && (!ship.escorting || ship.escorting.flags.destroyed)) { var ne = BS.Fleet.ally(ship, ship.escortSubject); if (ne) BS.EnemyAI.escort(ship, ne); else { ship.escortSubject = null; BS.EnemyAI.setStance(ship, target, BS.Data.helm.defaultStance); } }
+    if (ship.escortSubject && (!ship.escorting || ship.escorting.flags.destroyed)) { var ne = BS.Fleet.ally(ship, ship.escortSubject); if (ne) BS.EnemyAI.escort(ship, ne); else { ship.escortSubject = null; BS.EnemyAI.setDoctrine(ship, target, BS.Data.helm.defaultDoctrine); } }   // the last ally gone: back to the default doctrine (0.42: this called the stance setter removed in 0.37 and froze the fight)
   }
 
   // ---- trace -------------------------------------------------------------------------------------------------

@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.41.0",
+  version: "0.42.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -1363,7 +1363,10 @@ BS.Data = {
 
   campaign: {
     startingCredits: 600,
-    credits: { win: 500, loss: 120, hullLostPenaltyPerPct: 3, winStreakBonus: 50 },   // per battle
+    // per battle. hullLostPenaltyPerPct is per percent of the side's block hp lost, times the encounter's rewardMult
+    // since 0.42 (hullLostScalesWithReward): a boss that pays ×8 docks ×8 for the hulls it cost, so a fleet that wins by
+    // losing its biggest hull earns less than one that keeps it (DESIGN §8 v0.42)
+    credits: { win: 500, loss: 120, hullLostPenaltyPerPct: 3, hullLostScalesWithReward: true, winStreakBonus: 50 },
     // salvage: credits for the enemy's surviving block value after a win; a ship disabled (no weapons, no engines) pays more than a wreck
     salvage: { destroyed: 0.1, disabled: 0.25 },
     // intel: a layout you held a lock on for intelMinLockSeconds is remembered (save.intel[encounterId]) and drawn in the
