@@ -36,9 +36,8 @@ These rules apply to every session working in this repository.
   - `js/weapons.js` — turret blocks (tracking/falloff) and launcher blocks (signature/velocity), hit resolution, decoys
   - `js/boarding.js` — boarding parties: transporter window, party vs defenders, capture
   - `js/crew.js` — crew voices: instant commands with reports, warnings
-  - `js/enemyai.js` — doctrine machine for every ship (enemy doctrines, player stances, auto-flip)
+  - `js/enemyai.js` — the doctrine machine for every ship (one doctrine list, build-derived ranges for the labelled ones, auto-flip)
   - `js/fleet.js` — teams, target selection and retargeting, team elimination
-  - `js/plays.js` — plays: scripted phase sequences (stance/doctrine, module policy, governor, aim, exit conditions) from `helm.plays`
   - `js/script.js` — bridge scripts: ordered when → do rules with policies and call-outs, run by both bridges; sentences from `script.conditions/actions`
   - `js/campaign.js` — progress between battles: save/load/export/import, credits, ownership, fitting rules, fit stats, real-time skills, enemy scaling
   - `js/hangar.js` — hangar screen DOM: ship, fitting, market, skills, save buttons
@@ -55,14 +54,14 @@ These rules apply to every session working in this repository.
   the fight: build, intel, plan and a bridge script (`BS.Script`, when → do
   rules written in the hangar). In battle both bridges run their scripts;
   the player watches and has `script.bridgeCall.tokens` (2) **bridge
-  calls** (`BS.Game.bridgeCall`: play, side, disengage, reinforce, focus
-  block), overrides that stand for a while and hand back. The hand-flown
-  controls (`BS.Game.command(id, args)` → `BS.Crew.command`: stance, play,
-  side, aim, modules, keys) still exist behind `settings.manualBridge` for
-  debugging and the harness; a manual order pauses the script. Movement is
-  always the helm's: a stance or doctrine is flown by `BS.EnemyAI` with the
-  same doctrine machine and the same `BS.Ships.setCommand` /
-  `BS.Modules.setActive` the enemy uses.
+  calls** (`BS.Game.bridgeCall`: fly a doctrine, side, disengage,
+  reinforce, focus block, remodulate), overrides that stand for a while and
+  hand back. There is no hand-flown bridge (removed in 0.37): the only live
+  inputs are the calls, Hail, Red alert and the heat governor. Movement is
+  always the helm's: every ship flies a doctrine from the one list
+  (`enemyAI.doctrines`; the labelled ones take their ranges from the build)
+  with the same machine and the same `BS.Ships.setCommand` /
+  `BS.Modules.setActive` on both sides.
 - **Battles are N ships against M.** `BS.Game.state.ships` holds every hull,
   `state.teams.player / .enemy` the sides, `ship.team` the side; each ship
   fights its own `ship.target`, chosen and re-chosen by `BS.Fleet`. `state.player`

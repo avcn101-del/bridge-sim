@@ -34,84 +34,12 @@ BS.Crew = (function () {
   // ---- commands from the interface ----------------------------------------
   // All execute immediately on the player ship and are acknowledged by the
   // responsible officer.
+  // The top bar's live inputs (0.37: everything else is the script's): red alert, the heat governor, a hail.
   function command(id, args) {
     args = args || {};
     if (!ship || ship.flags.destroyed) return;
-    var target = args.target || ship.lock.target || ship.selected;
     switch (id) {
-      case "stance": {
-        if (!target) return report("helm", "stanceNoTarget");
-        BS.Script.suspend(ship, "stance");
-        BS.Plays.stop(ship);
-        if (BS.EnemyAI.setStance(ship, target, args.stance)) report("helm", "stance_" + args.stance);
-        break;
-      }
-      case "play": {
-        if (!target) return report("helm", "stanceNoTarget");
-        BS.Script.suspend(ship, "play");
-        var P = BS.Data.helm.plays[args.play], pr = P ? BS.Plays.start(ship, target, args.play) : false;
-        if (pr === "requires") report("helm", "playRequires", { module: BS.Data.blocks[P.requires] ? BS.Data.blocks[P.requires].name.toLowerCase() : P.requires }, "warn");
-        else if (pr === true && P.say) say("helm", P.say);
-        break;
-      }
-      case "flyTo": BS.Script.suspend(ship, "fly-to"); BS.Plays.stop(ship); BS.EnemyAI.suspend(ship); S.setCommand(ship, "flyTo", { point: args.point }); report("helm", "flyTo"); break;
-      case "stop": BS.Script.suspend(ship, "all stop"); BS.Plays.stop(ship); BS.EnemyAI.suspend(ship); S.setCommand(ship, "idle"); report("helm", "stop"); break;
-      case "select": ship.selected = args.target || null; break;
-      case "lock": {
-        if (!target) return report("tactical", "lockNoTarget");
-        var r = S.startLock(ship, target);
-        if (r === "ok") report("tactical", "lockStart", { name: target.name });
-        else if (r === "outOfRange") report("tactical", "lockOutOfRange", { range: ship.cls.lockRangeKm });
-        else if (r === "jammed") report("tactical", "lockJammed", {}, "warn");
-        else if (r === "cloaked") report("tactical", "lockCloaked", {}, "warn");
-        break;
-      }
-      case "unlock": S.clearLock(ship, "unlock"); if (ship.ai) ship.ai.relock = false; report("tactical", "unlock"); break;
-      case "side": {
-        if (!target) return report("helm", "sideNoTarget");
-        BS.Script.suspend(ship, "attack side");
-        if (BS.EnemyAI.setAttackSide(ship, target, args.side)) report("helm", "side_" + args.side);
-        break;
-      }
-      case "aimBlock": {   // focus fire on one block of the locked ship (scan panel click or a weak-point line)
-        if (!target) return report("tactical", "lockNoTarget");
-        var same = ship.aimType === "block" && ship.aimBlock && ship.aimBlock.block === args.block;
-        if (!args.block || same) { S.setAimBlock(ship, null, null); report("tactical", "targetHull"); }
-        else { S.setAimBlock(ship, target, args.block); if (args.label) report("tactical", "aimWeak", { label: args.label }); else report("tactical", "aimBlock", { name: args.block.structural ? "structure" : args.block.def.name.toLowerCase(), x: args.block.x, y: args.block.y }); }
-        shieldedState = null;
-        break;
-      }
-      case "aim": {
-        var bt = args.type;
-        if (!bt || ship.aimType === bt || !(BS.Data.blocks[bt] || bt === "exposed" || bt === "structure")) { ship.aimType = null; report("tactical", "targetHull"); }
-        else { ship.aimType = bt; if (bt === "exposed") report("tactical", "aimExposed"); else if (bt === "structure") report("tactical", "aimStructure"); else say("tactical", BS.Data.blockReports[bt].aim); }
-        shieldedState = null;
-        break;
-      }
-      case "module": BS.Modules.toggle(ship, args.module); break;
-      case "board": {   // transporter: send the spare crew across (BS.Boarding)
-        var Bd = BS.Data.grid.boarding, bt = ship.lock.target || target;
-        var br = BS.Boarding.start(ship, bt);
-        if (br === "ok") report("security", "board_transport", { party: ship.boarding.party });
-        else if (br === "range") report("security", "board_range", { range: Bd.rangeKm }, "warn");
-        else if (br === "crew") report("security", "board_crew", { spare: BS.Boarding.spareCrew(ship), min: Bd.minParty }, "warn");
-        else report("security", "board_" + br, {}, "warn");
-        break;
-      }
       case "governor": ship.heatGovernor = args.on !== undefined ? !!args.on : !ship.heatGovernor; report("engineering", ship.heatGovernor ? "governorOn" : "governorOff"); break;
-      case "repair": {
-        var rs = args.type;
-        if (!rs || ship.repairPriority === rs || !BS.Data.blocks[rs]) { ship.repairPriority = null; report("engineering", "repairAuto"); }
-        else { ship.repairPriority = rs; report("engineering", "repair", { label: BS.Data.blocks[rs].name.toLowerCase() + "s" }); }
-        break;
-      }
-      case "reinforce": {
-        var res = S.startReinforce(ship);
-        if (res === "cooldown") report("engineering", "reinforceShields_cooldown");
-        else if (res) report("engineering", "reinforceShields", { weak: res.to, strong: res.from });
-        else report("engineering", "reinforceShields_none");
-        break;
-      }
       case "redAlert": S.setAlert(ship, "red"); BS.Events.emit("alertChanged", { ship: ship, alert: "red" }); report("tactical", "redAlert"); break;
       case "hail":
         if (enemy && !enemy.flags.destroyed) {
@@ -259,7 +187,6 @@ BS.Crew = (function () {
       else if (e.state === "broadside" && e.prev === "approach") say("tactical", ev.enemyBroadside);
     });
     BS.Events.on("enemyRolled", function (e) { if (e.ship === enemy && now() - (e.ship._rollReported || -99) > 25 && e.ship.ai.timer > 1) { e.ship._rollReported = now(); say("tactical", D().events.enemyRoll); } });
-    BS.Events.on("playPhase", function (e) { if (e.ship === ship && e.phase > 0 && e.def.say) say(e.def.officer || "helm", e.def.say); });
     BS.Events.on("orbitFlipped", function (e) { if (e.ship === enemy) say("helm", D().events.enemyFlip); else if (e.ship === ship) report("helm", e.reason === "shield" ? "autoFlipShield" : "autoFlip"); });
     BS.Events.on("shipDestroyed", function (e) { if (e.ship === enemy) say("tactical", D().events.enemyDestroyed); else if (e.ship === ship) report("engineering", "shipDead", {}, "warn"); });
     // targeted part behind an intact shield

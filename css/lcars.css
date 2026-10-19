@@ -364,9 +364,7 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
 }
 
 /* ------------------------------------------------------ bridge calls, trace, speed */
-#manual-helm, .manual-only { display: none; }
-body.manual-bridge #manual-helm { display: block; } body.manual-bridge .manual-only { display: block; }
-body:not(.manual-bridge) #module-bar .module { cursor: default; } body:not(.manual-bridge) #module-bar .module:hover { border-color: #3a3a55; }
+#module-bar .module { cursor: default; } #module-bar .module:hover { border-color: #3a3a55; }
 #bridge-calls { display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; }
 #bridge-calls .call-row { display: grid; grid-template-columns: 1fr auto; gap: 4px; align-items: stretch; }
 #bridge-calls .call-row .lcars-select { max-width: none; min-width: 0; }
@@ -382,7 +380,6 @@ body:not(.manual-bridge) #module-bar .module { cursor: default; } body:not(.manu
 #speed-buttons { display: flex; gap: 2px; }
 #speed-buttons .lcars-btn { border-radius: 6px; min-width: 40px; padding: 0 8px; }
 #speed-buttons .lcars-btn.active { background: var(--c-orange); }
-.hg-manual { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; cursor: pointer; }
 
 /* -------------------------------------------------------- battle report: script timeline */
 .rs-script { margin-top: 10px; font-size: 12.5px; text-align: left; }

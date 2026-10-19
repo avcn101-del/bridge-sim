@@ -1,6 +1,6 @@
 # DESIGN.md — Bridge Sim
 
-Version: 0.36.0 (the vision, first cut); direction in §10. Keep this file in sync with the game.
+Version: 0.37.0 (plays and the manual bridge out, one doctrine list); direction in §10. Keep this file in sync with the game.
 
 ## 1. Concept: WoW raids, in Trek ships, in an arena
 
@@ -47,8 +47,8 @@ loop in §2 does it serve?** A system that serves none is cut (§10,
    every sixth battle once the fleet has two hulls. Skirmishes teach a
    mechanic; the boss tests it.
 3. **Battle** = watch. Every bridge runs its script; the crew calls out
-   the boss's tells; the player has two bridge calls (play, side,
-   disengage, reinforce, focus a block). 3–7 minutes.
+   the boss's tells; the player has two bridge calls (doctrine, side,
+   disengage, reinforce, focus a block, remodulate). 3–7 minutes.
 4. **Report** = the combat log. Victory or defeat, time, damage, which
    rule stood when the damage landed, which rules never fired and why,
    each hull's fate, credits, salvage, the repair bill. Return to the
@@ -132,7 +132,7 @@ The enemy's script itself stays hidden; what it did is on record.
 The tactical view is the screen; the captain does not fly. Left panel as
 before (ship, blocks, target). The right panel opens with **Bridge calls**:
 `script.bridgeCall.tokens` (2) per battle, shown as ● ● → ○ ○, never
-refilled. Buttons: *Change play* (a helm play for `holdSeconds` 45 s),
+refilled. Buttons: *Fly* (a labelled doctrine for `holdSeconds` 45 s),
 *Change side* (45 s), *Disengage* (until the weakest shield is back over
 `disengageUntil` 60%, at most 45 s), *Reinforce* (at once), *Focus block*
 (tap a block on the scan drawing, a weak-point line or the enemy on the
@@ -148,12 +148,12 @@ The **trace band** under the log ticker shows the last three rule firings
 log keeps them all. The scan panel adds *Standing* (the rule in force, or
 the call) and *Aiming* (what the weapons are on, and a focus candidate
 waiting for confirmation). **Speed** 1× / 2× / 4× (`balance.speeds`,
-`balance.maxStepsPerFrame`) in the top bar; Space pauses. The old helm
-column (lock, stances, sides, plays, stop, transporter), the top-bar
-Reinforce, aim chips, module clicks, canvas steering and the keys are the
-**manual bridge**: hidden unless `settings.manualBridge` (hangar checkbox
-"Manual bridge (debug)", `body.manual-bridge`); a manual order pauses the
-script. On a phone the ORDERS drawer is now BRIDGE.
+`balance.maxStepsPerFrame`) in the top bar; Space pauses. Since 0.37 there
+is no hand-flown bridge at all: a click or tap on an enemy block only
+nominates it for the Focus call, the module bar, subsystem rows and part
+chips are displays, and the keys are Space, G (log) and Escape. The top
+bar keeps Hail, Red alert and the heat governor. On a phone the ORDERS
+drawer is BRIDGE.
 
 ### Hangar: plan and script editor (0.22, `js/hangar.js`)
 The left column of the hangar carries the pre-battle thinking:
@@ -171,7 +171,7 @@ The left column of the hangar carries the pre-battle thinking:
   are built from dropdowns whose labels are the sentences in
   `script.conditions / actions` (`{v}` becomes a number box for km, s and
   counts, a 0–100% slider in steps of 5 for fractions, on / off, or a
-  dropdown of stances, plays, sides, block types, weak-point kinds and plan
+  dropdown of doctrines, sides, block types, weak-point kinds and plan
   targets; modules appear as "<module> on / off"). Under each card the rule
   reads back as a sentence from `BS.Script.describe`; warnings under it
   say when an aim needs a scan rule, when an Otherwise rule sits above
@@ -222,23 +222,17 @@ Erase is the palette entry. Every keyboard shortcut has a button.
 
 ### Input
 
-- Click enemy: select and start lock. Click a part of a locked enemy: aim
-  at that part (again: hull). Hover shows part health and "SHIELDED n%".
-- Right-click enemy: Engage stance. Right-click / double-click empty
-  space: fly there (helm on manual until a stance is picked). Wheel: zoom.
-- Keys: F1–F8 toggle modules (F6 jammer, F7 cloak when fitted), L lock,
-  1–4 stances (Engage, Skirmish, Standoff, Disengage), 5–0 plays (Alpha
-  strike, Siege, Turtle, Hunter, Ambush, Hit & fade), S stop (manual),
-  R red alert, H heat governor, Space pause.
-- Wheel and +/− scale a zoom bias; the camera itself follows the player,
-  leans a third of the way toward the enemy and zooms so both ships fit.
-- **Stances** (Helm panel, `helm.stances`): the captain picks how to
-  fight; the helm flies it and reverses the orbit on its own when the
-  other side has more guns to bear or a fresher shield. No orbit, keep,
-  approach, come-about or reverse buttons any more.
-- Overview rows: click selects, double-click locks.
-- Left panel: click a subsystem row to make it repair priority (again: auto).
-  Enemy part chips in the Target block set the aim.
+- The script has the conn; the live inputs are the two bridge calls
+  (right panel), Hail, Red alert and the heat governor (top bar), the
+  speed buttons and pause (Space), the log toggle (G), zoom (wheel, +/−,
+  pinch) and the Focus candidate (click or tap a block of the enemy on
+  the display or the scan panel, or a weak-point line).
+- The camera follows the viewer, leans toward the centre of everything
+  in view and zooms so every ship fits; wheel and +/− scale a bias.
+- Overview rows show every ship's range, speed, angular velocity and
+  state. (0.37: the hand-flown bridge of 0.3–0.36, with its stances, plays,
+  sides, aim chips, module clicks, fly-to and keys, is gone: it was a
+  second game under the script.)
 
 ## 4. Mechanics
 
@@ -260,25 +254,32 @@ Erase is the palette entry. Every keyboard shortcut has a button.
   station (stopped, guns on them); closer, open the range on the kite bearing
   at full speed. Before 0.10.0 `keep` flew abeam at 35% and ran tail-on
   below the band, so bow tubes fired at a third of their rate on both sides.
-- **Player helm** (`helm`, `BS.EnemyAI.setStance`): the captain picks a
-  stance and the helm runs the matching doctrine (same machine as the
-  enemy, below) with ranges derived from the fitted weapons
-  (`stances[].ranges`: `[ref, fraction, ..., fallbackKm]`, ref `phaser` =
-  phaser optimal range, `torpedo` = torpedo range):
-  - **Engage** (1, default at battle start): brawl doctrine, orbit at
-    phaser optimal × 0.5 (4 km), afterburner only above 70% cap.
-  - **Skirmish** (2): brawl at phaser optimal × 0.35 (2.8 km) with the
+- **One doctrine list** (`enemyAI.doctrines`, `BS.EnemyAI.setDoctrine`,
+  0.37): every ship, player or enemy, flies a doctrine from the same list
+  with the same machine. A doctrine may carry `ranges`
+  (`[ref, fraction, ..., fallbackKm]`, ref `phaser` = the longest turret
+  optimal, `torpedo` = the longest launcher range): its range fields are
+  then taken from the ship's own fitted weapons when it is set
+  (`doctrineFor`). The four labelled ones are the player's set, the old
+  stances of 0.8–0.36 with the same ids, so templates and saved scripts
+  read the same (`do: { doctrine: "engage" }`; a save's `stance` action is
+  migrated):
+  - **Engage** (default at undock): brawl, orbit at phaser optimal × 0.5
+    (4 km), afterburner only above 70% cap.
+  - **Skirmish**: brawl at phaser optimal × 0.35 (2.8 km) with the
     afterburner on above 30% cap: too fast to track, costs capacitor.
-  - **Standoff** (3): standoff doctrine, hold at torpedo range × 0.5
-    (15 km; phaser optimal × 1.0 without tubes), kite below × 0.32 to × 0.6.
-  - **Disengage** (4): evade doctrine, keep at torpedo range × 0.8 (24 km)
-    on the afterburner until another stance is picked.
-  The helm owns the afterburner; everything else stays the captain's.
-  Stop (S) or fly-to puts the helm on manual (`ai.suspended`) until a
-  stance is picked again; the Helm row reads "Manual · …" meanwhile. The
-  tactical officer re-locks a target the captain locked before whenever
-  the lock drops and the target is in range (`ai.relock`).
-- **Attack side** (`helm.sides`, `helm.shadow`, command `side`, key B,
+  - **Standoff**: hold at torpedo range × 0.5 (15 km; phaser optimal × 1.0
+    without tubes), kite below × 0.32 to × 0.6.
+  - **Disengage**: evade, keep at torpedo range × 0.8 (24 km) on the
+    afterburner until the script says otherwise.
+  The fixed-range doctrines the enemy encounters name (strafe, brawl,
+  `dogfight` for the Interceptor and `bombard` for the Torpedo boat, the
+  former fixed `skirmish` and `standoff`, broadside, ambush, siege, kite,
+  watch, closein, evade) have no `ranges` and fly the same numbers for any
+  hull, so the 0.3–0.36 enemy behaviour is unchanged. The helm owns the
+  afterburner. The tactical officer re-locks a target whenever the lock
+  drops and the target is in range (`ai.relock`).
+- **Attack side** (`helm.sides`, `helm.shadow`, script action `side`,
   `BS.EnemyAI.setAttackSide`): in Engage or Skirmish the helm can shadow
   one side of the target instead of circling. The `shadow` movement command
   holds a station point at the orbit range on a bearing measured from the
@@ -300,32 +301,12 @@ Erase is the palette entry. Every keyboard shortcut has a button.
   facing is below 30% while the opposite one is above 60%; at most once
   per 8 s. Helm calls it ("Coming about, bringing the other battery to
   bear" / "showing them a fresh shield").
-- **Plays** (`helm.plays`, `js/plays.js`, keys 5–0): a play is a sequence
-  of phases the bridge runs on its own. Each phase sets a stance or a
-  doctrine for the helm, a module policy (`weapons` or a module id → on /
-  off), the heat governor, the aim and the repair priority, and names its
-  exit: any condition in `until`, or every condition in `untilAll`
-  (`dKmBelow/Above`, `heatAbove/Below`, `facingBelow/Above` for the engaged
-  facing, `weakestBelow/Above` for the weakest, `capBelow/Above`, `time`,
-  `cloakOff`, `cloaked`, `overloaded`, `noTubes`, `noPhasers`,
-  `noCloak`, `enemyReactorsGone`, `enemyShieldsDown`), never before the phase's
-  `minTime` (default 3 s). `next` names the following phase (default: the
-  next one, wrapping). Standing policies: `booster: "auto"` (booster when
-  the weakest facing < 50% and cap > 40%), `reinforce: true` (Reinforce when
-  the weakest facing < 30%). `requires` names a module the ship must carry
-  (Ambush: cloak); the button greys out without it. Picking a stance, Stop or
-  fly-to ends the play; module toggles by hand are allowed and the play
-  re-applies its policy only on the next phase. The Helm row reads
-  "Play · phase · state"; the helm narrates phase changes (`say`).
-
-  | Play | Phases |
-  |---|---|
-  | **Alpha strike** | close in (`closein` doctrine, weapons cold, hardener) until 4.5 km → strike (Engage, governor off, everything on, booster auto, Reinforce) until heat > 90% or an overload → venting (Engage, weapons off, governor on) until heat < 30% → strike again. Only differs from Engage on builds whose salvo beats the heat cap |
-  | **Siege** | Standoff holding station with every weapon that reaches, hardener, booster auto → when the tubes are gone or they come inside 5 km, Engage with everything → back to bombarding after 30 s or once they are beyond 9 km. For torpedo builds against slow or standoff ships |
-  | **Turtle** | `broadside` doctrine (4.5–7 km band, come about, roll a fresh shield every 30 s or below 30%), hardener, booster auto, Reinforce, shield repair priority |
-  | **Hunter** | Engage aiming at reactors → when none are left, or after 60 s, aim at exposed hull |
-  | **Ambush** (needs a cloak) | cloak and close (`closein`) until 3.5 km or cap < 15% → decloak → strike (Engage, governor off, aim reactors, booster auto, Reinforce) for the decloak strike window: 8–12 s, or heat > 85% or the weakest facing < 25% → slip away cloaked (Disengage, booster auto) until cloaked with the weakest facing back above 60%, 40 s or cap < 20% → repeat |
-  | **Hit & fade** | Engage (hardener, booster auto) until the weakest facing < 25% → Skirmish (tight afterburner orbit, booster auto, Reinforce) until the weakest facing > 60%, at most 45 s → repeat |
+- **Plays** (0.9–0.36, `js/plays.js`): removed in 0.37. A play was a
+  phase sequence under the script, a second scripting layer; every play
+  was already a template of rules (Siege, Hunter, Ambush) or retired.
+  The Torpedo boat's Siege play is three rules in `enemyScripts.torpedoBoat`
+  (brawl when the tubes are gone or inside 5 km, else the encounter's
+  `bombard` doctrine), measured in §8 v0.37.
 
 ### Lock
 - `lockTime = lockBase × (lockRefSignature / targetSignature) ×
@@ -642,20 +623,12 @@ through `enemyAI.stateLabels` and Tactical calls the changes.
 Enemy damage is ×1.5 for a Bird-of-Prey (`damageMult`; an encounter may
 override it: Torpedo boat ×1.25, Shadow ×1.2) and strength 140% + 4% per win.
 
-**Enemy plays** (`campaign.encounters[].play`): an encounter may name a play
-from `helm.plays`; the enemy bridge then runs the same phase machine as the
-player's (`BS.Plays.update` for both ships, `BS.Plays.available` falls back
-to the doctrine when the required module is missing). While an enemy runs a
-play its weapons, hardener and booster follow the phase policies; jammer,
-aim re-rolls and the once-per-battle retreat stay with the profile, and a
-new phase keeps the retreat flag and pass count (`carryAI`). The Overview
-status reads "Play · state". The Torpedo boat runs **Siege** (it holds
-station and fires every tube, hence its ×1.25). The Shadow keeps its ambush
-doctrine and the K't'inga Siege its siege doctrine: both were measured on
-the Ambush / Siege plays and turned unkillable (12 s decloaked windows) or
-trivial (ran from a closing Galaxy without firing). The Gunboat ran Hit &
-fade in 0.10.0–0.11.0 and went back to the brawl doctrine in 0.12.0: with
-cannons its fade phase produced 8–10 minute stalemates.
+**Enemy plays** are gone with the plays (0.37): an enemy bridge is its
+doctrine plus its script. The Torpedo boat holds station and fires every
+tube (hence its ×1.25), brawls when its tubes are gone or the enemy is
+inside 5 km. The Shadow keeps its ambush doctrine and the K't'inga Siege
+its siege doctrine; the Gunboat brawls (its Hit & fade of 0.10–0.11
+produced 8–10 minute stalemates with cannons).
 
 | Doctrine | Used by | Behaviour |
 |---|---|---|
@@ -828,11 +801,11 @@ intel, script); in the fight the bridge runs the script. A script is
   changing the standing orders: scan, reinforce, the boarding party. A
   once rule that could not act yet (a scan still running) tries again.
 - **Policies** run every tick: `lock` (keep a lock), `booster` / `reinforce`
-  (the play policies, `helm.playPolicy`), `hardener`, `decoy` (drop one
+  (`helm.policy`), `hardener`, `decoy` (drop one
   when torpedoes are inside `ew.decoy.aiIncomingKm`), `neut` (run it in
   range).
-- **Conditions** (`script.conditions`, each with a sentence): every play
-  condition (`dKm`, `facing`, `weakest`, `heat`, `cap`, `time`, cloak and
+- **Conditions** (`script.conditions`, each with a sentence): the ship's
+  own state (`dKm`, `facing`, `weakest`, `heat`, `cap`, `time`, cloak and
   weapon states, `enemyReactorsGone`, `enemyShieldsDown`) plus `scanned`,
   `hullBelow`, `incomingTorpedoes`, `boardable`, `enemyFacingBelow`,
   `enemyCapBelow`, `enemyHullBelow`, `enemyCharging` (running in and
@@ -849,8 +822,8 @@ intel, script); in the fight the bridge runs the script. A script is
   build), `enemyAfterburner`, `enemyHeatAbove / Below`, `blindFor` (seconds
   none of our weapons have borne on them, `ship.ai.blindTimer`). All
   conditions in a rule must hold.
-- **Actions** (`script.actions`): `stance` (player ranges from the build),
-  `doctrine` (fixed ranges: enemy scripts), `play`, `side`, `aim` (block
+- **Actions** (`script.actions`): `doctrine` (any doctrine; the labelled
+  ones take their ranges from the build), `side`, `aim` (block
   type, `exposed`, `structure`, `{ weak: kind }`, `{ plan: n }`), `weapons`,
   `modules`, `governor`, `repair`, `reinforce`, `scan`, `board`, `roll`
   (0.25: come about to the side with the most fire, `BS.EnemyAI.roll`, a
@@ -868,22 +841,20 @@ intel, script); in the fight the bridge runs the script. A script is
   scanned, so its scripts carry a scan rule (Raider inside 12 km, K't'inga
   inside 14 km, Siege inside 20 km). A scan also records intel.
 - **Sentences**: `BS.Script.describe(rule)` turns a rule into "When they
-  are closer than 5 km: run the Alpha strike play (at most 30 s)";
+  are closer than 5 km: fly Engage (at most 30 s)";
   `describeScript` lists a script. The trace (`ship.scriptTrace`, event
   `scriptRule`, read into the log by the computer) records every takeover
   and call-out with the reason an action could not be done.
 - **Templates** (`script.templates`): Brawler (the default fight: Engage,
-  weapons, hardener, governor), Siege, Hunter, Ambush, each the play
-  rewritten as rules. Alpha strike, Turtle and Hit & fade moved to
+  weapons, hardener, governor), Siege, Hunter, Ambush (the plays of 0.9
+  rewritten as rules, the plays themselves gone since 0.37). Alpha strike, Turtle and Hit & fade moved to
   `script.retiredTemplates` (§10): not in the hangar list, still readable
   by the harness; a save that assigned one undocks with the default. A hull undocks with
   `save.scriptByBuild[classId]` (an own script by id, PR B's editor, or a
-  template), else `script.defaultTemplate`. A manual helm order (stance,
-  play, side, fly-to, stop) suspends the player's script: the Helm row
-  reads "Manual".
+  template), else `script.defaultTemplate`.
 - **Enemy scripts** (`script.enemyScripts`, `campaign.encounters[].script`):
   `doctrine: "encounter"` flies the doctrine the encounter rolled; the
-  Torpedo boat runs the Siege play as before; the Raider, K't'inga and
+  Torpedo boat's rules replace its Siege play; the Raider, K't'inga and
   Siege cruiser scan first. The enemy AI keeps its own module policies in
   `enemyai.js`; a script that sets an aim keeps it (`ship.scriptAim`).
 - **Plans** (`save.plans[encounterId].targets`, up to `script.planTargets`
@@ -992,7 +963,7 @@ each with a callout Tactical reads out, and the plain `doctrine` script
 Enemy scripts never set modules: `enemyai.js` keeps weapons, hardener,
 booster, jammer, neutraliser and decoy on its own policy every decision
 tick, so a script rule and the profile never fight over a module. The
-Torpedo boat (Siege play) does not react: measured in 0.21, any change
+Torpedo boat does not react beyond its three rules: measured in 0.21, any change
 to it breaks the fight. The blind-sector roll moved out of `enemyai.js`
 (`blindTolerance` is gone; `blindTimer` stays, counted only in the firing
 states) into the scripts, so the harness's `--noreact` enemy (scan, blind
@@ -1012,8 +983,8 @@ A battle holds N ships on the player's side and M on the enemy's.
 - **Targets.** Every ship has `ship.target`. `BS.Fleet.update` runs each
   step: a ship without a live target takes the nearest hostile by contact
   range (ships still able to fight before disabled ones). `BS.Fleet.retarget`
-  rebinds the script (`script.target`), the play, the helm (it re-enters
-  the stance or the doctrine it was flying against the new ship, which
+  rebinds the script (`script.target`), the helm (it re-enters
+  the doctrine it was flying against the new ship, which
   re-issues the movement command), clears a lock on another ship (the lock
   policy and the AI re-lock on their tick) and an aim block on another ship,
   and emits `targetChanged`. `BS.EnemyAI.update(ship, BS.Fleet.targetOf(ship))`
@@ -1161,7 +1132,7 @@ The role layer of §10: roles are what a hull carries on its **role cells**.
   (`BS.Fleet.ally`). Actions **`support: <ally>`** (sets `ship.support`,
   what the transfer and repair modules work on) and **`escort: <ally>`**
   (`BS.EnemyAI.escort`: the doctrine machine stands down and the helm
-  keeps station `support.escortKm` 2.5 km from that ally until a stance
+  keeps station `support.escortKm` 2.5 km from that ally until a doctrine
   or doctrine is set; a lost ally re-picks the subject each tick). Policy
   `support: "auto"` re-picks the weakest ally every tick.
 - **Subject `loudest`** (largest signature). The Borg cube now turns on the
@@ -1295,9 +1266,9 @@ Game logic is untouched: everything is driven by `blockDestroyed`,
 ```js
 units: { pxPerKm }
 balance: { ..., capCurve, lockBase, lockRefSignature, lockRefSensor, zoom: { min, max, step, start, autoMin, autoMax, fitMargin, lerp, biasMin, biasMax } }
-helm: { defaultStance, reactionDelay, stances: { id: { label, key, doctrine, desc, ranges: { field: [ref, fraction, ..., fallbackKm] } } }, flipMinInterval, flipShieldLow, flipShieldHigh,
-        playPolicy: { boosterBelow, boosterMinCap, reinforceBelow, minPhaseTime },
-        plays: { id: { label, key, desc, say, requires?, phases: [{ label, stance | doctrine, modules, governor, aim, repair, booster, reinforce, minTime, until, untilAll, next, say }] } } }
+helm: { defaultDoctrine, reactionDelay, repositionDuration, flipMinInterval, flipShieldLow, flipShieldHigh, bearingStep, keepBand, keepRunBelow, holdSpeed, keepFireFraction, kiteMinBearing, sides, shadow,
+        policy: { boosterBelow, boosterMinCap, reinforceBelow } }
+enemyAI.doctrines: { id: { kind, ...ranges and timers, label?, desc?, ranges?: { field: [ref, fraction, ..., fallbackKm] } } }   // labelled = the player's set (0.37)
 subsystems: { weapons, torpedoes, engines, shields, sensors, bridge: { label, short, effect, targetReport, damaged, repaired } }
 subsystemEffects: { sensorsAccuracyFloor, sensorsLockMaxMult, bridgeCapMinMult, targetAccuracyMult }
 modules: { id: { slot, kind: turret|launcher|active|passive, name, short, cycle, cap, pg, cpu, cost, desc, ...stats, effect } }
@@ -1316,6 +1287,7 @@ campaign.firstFight: { weakPointChance }; campaign.encounters[].script; tuning (
 campaign.salvage: { destroyed, disabled, captured }; enemyAI.*: drainedBelow, drainedUntil, drainedTime
 0.31: balance.fleetSpacingKm; campaign.fleetMax; campaign.encounters[].ships: [{ enemyClass, layout, doctrine, script, damageMult }]; save.fleet: [classId]; ship: team, target, contacts{}, flags.captured; state: teams { player: [], enemy: [] }, enemyFlag
 0.32: script.subjects; rule.about; action target; conditions allyShieldBelow / allyHullBelow / allyUnderFire / outnumbered / enemiesAtMost / unfocused; templates.wolfpack; ship: scannedOf{}, scanTarget
+0.37: helm.defaultDoctrine, helm.policy; enemyAI.doctrines[].label / desc / ranges (engage, skirmish, standoff, disengage; dogfight and bombard are the fixed former skirmish / standoff); script action doctrine (stance and play gone; saves migrated); settings.manualBridge gone; enemyScripts.torpedoBoat rules
 0.35: campaign.run { bossEvery, bossFromWins, fleetMinHulls }; campaign.repair { destroyedBlock, lostHull }; campaign.encounters[].kind: solo | fleet | boss; encounter(): kind, roster, battles, bossSlot, nextBoss; retry.battles; settleBattle(): repairs, repairLines[]
 0.34: mask letter r (block.roleCell); blocks transfer / repairbeam / beacon (roleOnly); modules shield_transfer / remote_repair / beacon (effect.sigMult); support { rangeKm, transferPerBlock, repairPerBlock, escortKm }; script.allySubjects; actions support / escort; policy support; subject loudest; templates anchor / lifeline; presets galaxy.anchor / excelsior.lifeline; ship: support, escorting, escortSubject
 0.33: blocks.lance (enemyOnly, weapon.charge); modules.lance_group; shipClasses.borg_cube; enemyAI.boss (shieldMult, shieldRegenMult), enemyAI.overdrive; campaign.encounters[].kind / reinforcements; script.enemyScripts.borg; templates.cubebreaker; conditions notTargeting / enemiesAtLeast / lanceCharging / allyLanced; actions summon / overdrive; tuning.factionDefault.borg; block: charging, chargeTarget; ship: overdriven; state: summoned
@@ -1334,7 +1306,7 @@ Runtime ship: `pos, vel, heading, speed, hull, shields{4}, capacitor, capMax,
 subsystems{6}, lock{target, progress, locked, time}, selected, targetSubsystem,
 cmd{type, target, range, point, orbitDir, facing}, modules[{id, def, slot,
 active, running, cycleLeft, cycleTime, state}], fitEffects, activeEffects,
-repairPriority, reinforce, stats, mods, aiProfile, ai{state, timer, suspended, relock, ...}, stance, doctrine, play{id, def, phase, t, target},
+repairPriority, reinforce, stats, mods, aiProfile, ai{state, timer, suspended, relock, ...}, doctrine, doctrineId,
 neuted, boarding{target, phase, t, party, partyMax, defenders, defendersMax}, script{def, target, active, activeSince, t, fired, lastFire, suspended},
 scriptTrace[], scanned, scanning, scriptAim`; `grid.crewAway`; torpedo: `lured`; `BS.Weapons.decoys[]`;
 block: `covered, coverBy` from derive.
@@ -1344,7 +1316,7 @@ block: `covered, coverBy` from derive.
 moduleOffline, shieldBoosted, phaserFired, torpedoLaunched, torpedoHit,
 torpedoExpired, shieldHit, hullHit, blockDestroyed, sectionLost,
 blockExploded, shipDisabled, shipDestroyed, overload, jammed, cloakChanged,
-alertChanged, stateChanged, orbitFlipped, stanceChanged, playChanged, playPhase, enemyRolled, commandGiven,
+alertChanged, stateChanged, orbitFlipped, stanceChanged (a doctrine set), enemyRolled, commandGiven,
 decoyLaunched, decoyExpired, torpedoLured, torpedoDecoyed, neutralised, boardingStarted, boardingAborted,
 boardingFight, boardingEnded, shipCaptured, scriptRule, scriptSuspended, scriptAim, scanStarted, scanned, bridgeCall, bridgeCallRefused, speedChanged,
 log, battleStarted, battleEnded, skillTrained`.
@@ -1360,6 +1332,22 @@ harness is in the repository: `tools/harness.js` (Playwright, one
 `campaign.encounters`, seeded `Math.random`, `--noreact` for the 0.24 enemy
 bridge, `--eval` for a data tweak, `--debug` for what each bridge saw) and
 `tools/smoke.js` (the headless interface check).
+
+v0.37.0 (plays and the hand-flown bridge out, one doctrine list; seeds
+1–4 for the 1v1 rows, 1–2 for the fleets; every hull's script set):
+
+| Matchup | Before (0.36) | After |
+|---|---|---|
+| Constitution vs Raider (0 wins), Brawler | 3 of 4 in 2:35–2:59 keeping 73–92% | identical |
+| Constitution vs Torpedo boat (1 win), Brawler | 4 of 4 in 2:57–3:51 keeping 92–98% | 4 of 4 in 2:24–3:55 keeping 86–98% (its Siege play is now three rules) |
+| Constitution vs Interceptor (2 wins), Brawler | 2 of 4, 2 stalemates, 6:53–7:40 | identical (`dogfight` is the former fixed `skirmish`) |
+| Four hulls vs `pack` (0 wins), Wolf pack on all | 2 of 2 in 3:21–3:49 keeping 72–73% | 2 of 2 in 3:21–4:54 keeping 63–69% (the pack's torpedo boat flies the new rules) |
+| Four Cube breakers vs `cube` (0 wins) | 2 of 2 in 4:38–5:15 keeping 86–88% | identical |
+
+Honest reading: folding the stances into the doctrine list changed no
+player-side number (the four references that carry no torpedo boat are
+identical to the second); the torpedo boat's three rules fight a little
+differently from its play, within the same outcome. Nothing was re-tuned.
 
 v0.35.0 (runs, roster, repair bills; the role numbers pass: cutting beam
 extra penetration 4, Anchor v2; `--max 600`, seeds 1–4 for the rows that
@@ -2041,6 +2029,7 @@ than slower (it is nearly untouched, as intended).
 | v0.33.0 (done) | The first boss (§4 "Bosses"): the Borg cube, the cutting beam with a charge tell, summoned escorts, overdrive, the boss script with callouts, the Cube breaker template, enemy-only blocks and actions |
 | v0.32.0 (done) | Fleet scripts (§4): subjects (`about`), the `target` action, ally and count conditions, scans per ship, the Wolf pack template, enemy packs that concentrate fire, the report per hull |
 | v0.31.0 (done) | Fleet engine (§4, §10): teams, N ships against M, target selection and retargeting, team elimination, viewer and primary enemy, camera over every ship, encounters with `ships`, `save.fleet`, harness fleets and `--perf`, deterministic harness, learning zeroed |
+| v0.37.0 (done) | Plays and the hand-flown bridge removed; stances folded into one doctrine list (§4 "One doctrine list"): labelled doctrines with build-derived ranges, the `doctrine` action for both bridges, a Fly bridge call; the Torpedo boat's Siege play as rules |
 | v0.36.0 (done) | The vision (§1–§2: WoW raids in Trek ships in an arena) and the first cut (§10 "Streamline"): learning, signatures, the opening book, the counter table and the doctrine table removed; the report keeps the rule pair and the tuning line |
 | v0.35.0 (done) | Runs, roster and repair bills (§4): encounter kinds solo / fleet / boss, a boss slot every 6th battle from 4 wins with two hulls, the shipyard's roster buttons, repair bills per destroyed block and lost hull with a Repairs row in the report; cutting beam penetration 4 and the Anchor v2 preset; §8 re-measured with every hull's script set (correction to the 0.33–0.34 fleet rows) |
 | v0.5 PR 3 (done) | Masks for Miranda, Defiant, Excelsior, Galaxy, Sovereign; K't'inga; enemy layouts, random variants and encounters; fragments and shatter; balance pass |
@@ -2214,7 +2203,7 @@ script; learning off since 0.31; plays shadowed by the script since 0.21):
 | PR | Scope |
 |---|---|
 | 0.36 (done) | §1–§2 rewritten as the vision; learning, signatures, the book, the counter table and the doctrine table removed (`campaign.learn`, `save.signatures / book`, `enemyAI.counters / signatureCounters / doctrineTable`, `encounters[].counter`, harness `--signature / --learn / --sigtune`); the report keeps the rule pair and the tuning line. Measured unchanged: 1v1 3 of 4, Wolf pack 2 of 2 |
-| 0.37 | Plays and the hand-flown bridge out; stances folded into doctrines |
+| 0.37 (done) | Plays, `js/plays.js` and the hand-flown bridge (manual helm, stances, sides, aim chips, module clicks, fly-to, keys, `settings.manualBridge`) out; stances folded into `enemyAI.doctrines` as labelled doctrines with `ranges`; one `doctrine` action; bridge call *Fly*; the Torpedo boat's play as rules. Measured in §8 v0.37 |
 | 0.38 | Boarding, crew manning, real-time skills and science out |
 | 0.39 | Script vocabulary cut with a save migration (a rule naming a removed condition is dropped and the hangar says so); tuning per ship; the solo list trimmed; the hangar regrouped by the loop; §8 history moved to an appendix |
 | then | The second boss (damage one afterburner burst cannot dodge, so the pair pays off); a campaign harness that plays a whole run |

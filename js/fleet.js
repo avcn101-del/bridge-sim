@@ -1,7 +1,7 @@
 // js/fleet.js — teams and target selection (0.31). A battle holds N ships on the player's side and M on the enemy's
 // (ship.team: "player" | "enemy"); every ship fights its own current target (ship.target), chosen here: the nearest
 // hostile it can see, re-chosen when that target is destroyed. Retargeting rebinds everything that was tied to the old
-// target: the script, the running play, the doctrine machine (the helm re-enters its stance or doctrine against the new
+// target: the script, the doctrine machine (the helm re-enters its doctrine against the new
 // ship), the lock and the selection. A team is beaten when none of its ships can still fight (destroyed, disabled or
 // captured). Nothing here reads the interface; the viewer (state.player) and the primary enemy (state.enemy) the panels
 // follow are picked in game.js.
@@ -66,21 +66,19 @@ BS.Fleet = (function () {
     }
   }
 
-  // Point every layer of a ship at `t`. The helm re-enters the stance (player side) or doctrine (enemy side) it was
+  // Point every layer of a ship at `t`. The helm re-enters the doctrine it was
   // flying, which re-issues the movement command; the lock policy and the AI re-lock on their own tick.
   function retarget(ship, t, why) {
     if (!t || t === ship.target) return false;
     var prev = ship.target;
     ship.target = t; ship.selected = t;
     if (ship.script) ship.script.target = t;
-    if (ship.play) ship.play.target = t;
     if (ship.lock.target && ship.lock.target !== t) S.clearLock(ship, "retarget");
     if (ship.aimBlock && ship.aimBlock.ship !== t) S.setAimBlock(ship, null, null);
     ship.scanned = !!(ship.scannedOf && ship.scannedOf[t.id]);   // a scan is of one ship (0.32)
     if (ship.ai && !ship.ai.suspended) {
       ship.ai.player = t;
-      if (ship.stance) BS.EnemyAI.setStance(ship, t, ship.stance);
-      else if (ship.doctrineId) BS.EnemyAI.setDoctrine(ship, t, ship.doctrineId);
+      if (ship.doctrineId) BS.EnemyAI.setDoctrine(ship, t, ship.doctrineId);
     }
     if (ship.cmd && ship.cmd.target && ship.cmd.target !== t && ship.cmd.type !== "flyTo") ship.cmd.target = t;
     BS.Events.emit("targetChanged", { ship: ship, target: t, prev: prev, why: why || "pick" });

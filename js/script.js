@@ -10,12 +10,12 @@
 //   - a CALL-OUT (`once: true` or `every: N`) fires its actions whenever its conditions hold, once ever or at most
 //     every N seconds, without disturbing the standing orders: scan, reinforce, a boarding party.
 //   - POLICIES run every tick: lock the target, pulse the booster when a shield is low, reinforce when it is very
-//     low, drop a decoy when torpedoes close, run the neutraliser in range (helm.playPolicy numbers).
+//     low, drop a decoy when torpedoes close, run the neutraliser in range (helm.policy numbers).
 // Conditions and actions are named in BS.Data.script.conditions / .actions with a sentence each, and
 // BS.Script.describe(rule) turns a rule into one, so the trace, the editor and the battle report never show data.
 // Aiming at a scanned weak point or a planned target needs a scan first (action `scan`: science.scanDuration
 // seconds with the beam turrets holding fire; sets ship.scanned). Every firing is appended to ship.scriptTrace and
-// emitted as `scriptRule`. A manual helm order suspends the player's script (`scriptSuspended`).
+// emitted as `scriptRule`.
 window.BS = window.BS || {};
 
 BS.Script = (function () {
@@ -39,13 +39,13 @@ BS.Script = (function () {
   }
   function stop(ship) { ship.script = null; }
   // A bridge call: an override rule that stands above every scripted rule for a while, then hands back.
-  // call = { kind: "play" | "side" | "disengage" | "reinforce" | "focus", value } → the rule it becomes, or null.
+  // call = { kind: "doctrine" | "side" | "disengage" | "reinforce" | "focus" | "remodShields" | "remodAmmo", value } → the rule it becomes, or null.
   function callRule(call) {
     var BC = BS.Data.script.bridgeCall;
     switch (call.kind) {
-      case "play": return { when: {}, do: { play: call.value }, holdMax: BC.holdSeconds, call: true };
+      case "doctrine": return { when: {}, do: { doctrine: call.value }, holdMax: BC.holdSeconds, call: true };
       case "side": return { when: {}, do: { side: call.value }, holdMax: BC.holdSeconds, call: true };
-      case "disengage": return { when: {}, do: { stance: "disengage" }, until: { weakestAbove: BC.disengageUntil }, holdMax: BC.holdSeconds, call: true };
+      case "disengage": return { when: {}, do: { doctrine: "disengage" }, until: { weakestAbove: BC.disengageUntil }, holdMax: BC.holdSeconds, call: true };
       case "reinforce": return { when: {}, do: { reinforce: true }, once: true, call: true };
       case "focus": return { when: {}, do: { aim: { x: call.value.x, y: call.value.y } }, holdMax: BC.focusSeconds, call: true };
       case "remodShields": return { when: {}, do: { remodulate: "shields" }, once: true, call: true };
@@ -63,8 +63,6 @@ BS.Script = (function () {
     trace(ship, null, "BRIDGE CALL: " + describe(r, sc.def) + (n1 ? " (" + n1 + ")" : ""), "call");
     return true;
   }
-  function suspend(ship, why) { if (ship.script && !ship.script.suspended) { ship.script.suspended = true; trace(ship, null, "manual: " + (why || "helm order") + ", script paused", "manual"); BS.Events.emit("scriptSuspended", { ship: ship, why: why }); } }
-  function resume(ship) { if (ship.script) { ship.script.suspended = false; ship.script.active = -1; trace(ship, null, "script resumed", "manual"); } }
 
   // ---- conditions ---------------------------------------------------------------------------------------------
   // All conditions in `when` must hold. Values: km, fractions 0–1, seconds, counts, block types.
@@ -195,9 +193,7 @@ BS.Script = (function () {
     // switch our fire (0.32): the subject becomes the ship's target before the rest of the actions act on it
     if (act.target) { var ts = BS.Fleet.subject(ship, act.target); if (!ts) note = "no " + subjectLabel(act.target); else if (ts !== BS.Fleet.targetOf(ship)) { BS.Fleet.retarget(ship, ts, "script"); target = ts; } }
     var flying = ship.ai && !ship.ai.suspended;
-    if (act.play) { if (!(ship.play && ship.play.id === act.play) && BS.Plays.start(ship, target, act.play) !== true) note = "no " + act.play + " play"; }
-    else if (act.stance) { if (!(flying && !ship.play && ship.stance === act.stance)) { BS.Plays.stop(ship); ship.escortSubject = null; BS.EnemyAI.setStance(ship, target, act.stance); } }
-    else if (act.doctrine) { if (!(flying && !ship.play && !ship.stance && ship.doctrineId === act.doctrine)) { BS.Plays.stop(ship); BS.EnemyAI.setDoctrine(ship, target, act.doctrine); } }
+    if (act.doctrine) { if (!(flying && ship.doctrineId === act.doctrine)) { ship.escortSubject = null; BS.EnemyAI.setDoctrine(ship, target, act.doctrine); } }
     if (act.side && ship.attackSide !== act.side) BS.EnemyAI.setAttackSide(ship, target, act.side);
     if (act.modules) setModules(ship, act.modules);
     if (act.weapons !== undefined) setModules(ship, { weapons: !!act.weapons });
@@ -238,7 +234,7 @@ BS.Script = (function () {
 
   // ---- policies ----------------------------------------------------------------------------------------------
   function policies(ship, target, pol) {
-    var P = BS.Data.helm.playPolicy, EW = BS.Data.ew;
+    var P = BS.Data.helm.policy, EW = BS.Data.ew;
     if (pol.lock !== false && !ship.lock.target && ship.jammed <= 0 && !S.isCloaked(target) && S.distanceKm(ship, target) <= ship.cls.lockRangeKm) { S.startLock(ship, target); if (ship.ai) ship.ai.relock = true; }
     var weak = S.shieldFrac(ship, S.weakestFacing(ship)), cap = ship.capMax ? ship.capacitor / ship.capMax : 0;
     if (pol.booster === "auto") setModules(ship, { shield_booster: weak < P.boosterBelow && cap > P.boosterMinCap });
@@ -434,10 +430,8 @@ BS.Script = (function () {
       var a = A[k], v = act[k];
       if (!a) return;
       var text;
-      if (k === "stance") text = a.label.replace("{v}", BS.Data.helm.stances[v] ? BS.Data.helm.stances[v].label : v);
-      else if (k === "play") text = a.label.replace("{v}", BS.Data.helm.plays[v] ? BS.Data.helm.plays[v].label : v);
-      else if (k === "side") text = a.label.replace("{v}", BS.Data.helm.sides[v] ? BS.Data.helm.sides[v].label.toLowerCase() : v);
-      else if (k === "doctrine") text = a.label.replace("{v}", v);
+      if (k === "side") text = a.label.replace("{v}", BS.Data.helm.sides[v] ? BS.Data.helm.sides[v].label.toLowerCase() : v);
+      else if (k === "doctrine") { var dd = BS.Data.enemyAI.doctrines[v]; text = a.label.replace("{v}", dd && dd.label ? dd.label : "the " + v + " doctrine"); }
       else if (k === "aim") text = a.label.replace("{v}", aimLabel(v));
       else if (k === "modules") text = Object.keys(v).map(function (id) { var m = BS.Data.modules[id]; return (id === "weapons" ? "weapons" : m ? m.name.toLowerCase() : id) + (v[id] ? " on" : " off"); }).join(", ");
       else if (k === "weapons") text = "weapons " + (v ? "on" : "off");
@@ -477,5 +471,5 @@ BS.Script = (function () {
     return out;
   }
 
-  return { start: start, stop: stop, suspend: suspend, resume: resume, update: update, bridgeCall: bridgeCall, callRule: callRule, explain: explain, conditions: conditions, apply: apply, describe: describe, describeScript: describeScript, describeWhen: describeWhen, describeDo: describeDo, subjectLabel: subjectLabel, allyLabel: allyLabel, resolve: resolve, focusType: focusType, stanceOf: stanceOf, aimingAt: aimingAt, rangeBand: rangeBand };
+  return { start: start, stop: stop, update: update, bridgeCall: bridgeCall, callRule: callRule, explain: explain, conditions: conditions, apply: apply, describe: describe, describeScript: describeScript, describeWhen: describeWhen, describeDo: describeDo, subjectLabel: subjectLabel, allyLabel: allyLabel, resolve: resolve, focusType: focusType, stanceOf: stanceOf, aimingAt: aimingAt, rangeBand: rangeBand };
 })();

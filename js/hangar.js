@@ -27,8 +27,6 @@ BS.Hangar = (function () {
     });
     el["btn-mirror"].addEventListener("click", function () { ed.mirror = !ed.mirror; renderEditor(); });
     el["btn-tune"].addEventListener("click", function () { ed.mode = ed.mode === "tune" ? "blocks" : "tune"; if (ed.mode === "tune" && !ed.tuneBrush) ed.tuneBrush = "default"; renderPalette(); renderEditor(); el["btn-tune"].classList.toggle("active", ed.mode === "tune"); });
-    var manual = document.getElementById("hg-manual");
-    if (manual) manual.addEventListener("change", function () { var s = C.get(); s.settings.manualBridge = manual.checked; C.persist(); BS.UI.setManual(manual.checked); });
     el["btn-fill"].addEventListener("click", function () { fillEmpty("A"); });
     el["btn-clear"].addEventListener("click", function () { clearAll(); });
     el["btn-revert"].addEventListener("click", function () { ed.rows = C.layoutFor(ed.classId).slice(); ed.tuning = C.tuningFor(ed.classId).slice(); ed.dirty = false; renderEditor(); say("Build reverted to the current layout."); });
@@ -99,7 +97,6 @@ BS.Hangar = (function () {
     var s = C.get(), cls = C.currentClass();
     if (ed.classId !== s.shipClass || !ed.rows) { ed.classId = s.shipClass; ed.rows = C.layoutFor(s.shipClass).slice(); ed.tuning = C.tuningFor(s.shipClass).slice(); ed.dirty = false; }
     el["hg-credits"].textContent = s.credits.toLocaleString() + " cr";
-    var mb = document.getElementById("hg-manual"); if (mb) mb.checked = !!(s.settings && s.settings.manualBridge);
     el["hg-record"].textContent = s.campaign.battlesWon + " won · " + s.campaign.battlesLost + " lost" + (s.campaign.cleanWins ? " · " + s.campaign.cleanWins + " clean" : "") + (s.campaign.streak > 1 ? " · streak " + s.campaign.streak : "");
     var enc = C.encounter();
     var docLabel = BS.Data.enemyAI.stateLabels[enc.doctrine] || enc.doctrine;
@@ -635,7 +632,7 @@ BS.Hangar = (function () {
     if (k.indexOf("modules.") === 0) { obj.modules = obj.modules || {}; obj.modules[k.slice(8)] = true; return; }
     var V = mode === "cond" ? SD().conditions : SD().actions, d = V[k];
     if (mode === "cond") obj[k] = d.kind === "flag" ? true : d.kind === "bool" ? (d.def !== undefined ? d.def : true) : d.def;
-    else obj[k] = { stance: "engage", play: "alpha", side: "blind", aim: "reactor", weapons: true, governor: true, repair: "shield", reinforce: true, scan: true, board: true, roll: true, remodulate: "shields", target: "focus" }[k];
+    else obj[k] = { doctrine: "engage", side: "blind", aim: "reactor", weapons: true, governor: true, repair: "shield", reinforce: true, scan: true, board: true, roll: true, remodulate: "shields", target: "focus" }[k];
   }
   function removeTerm(k, obj, mode) {
     if (k.indexOf("modules.") === 0) { delete obj.modules[k.slice(8)]; if (!Object.keys(obj.modules).length) delete obj.modules; return; }
@@ -666,8 +663,7 @@ BS.Hangar = (function () {
       }
     }
     switch (k) {
-      case "stance": return sel(Object.keys(BS.Data.helm.stances).map(function (id) { return [id, BS.Data.helm.stances[id].label]; }), obj[k], function (v) { obj[k] = v; });
-      case "play": return sel(Object.keys(BS.Data.helm.plays).map(function (id) { return [id, BS.Data.helm.plays[id].label]; }), obj[k], function (v) { obj[k] = v; });
+      case "doctrine": { var DD = BS.Data.enemyAI.doctrines, ids = Object.keys(DD).filter(function (id) { return DD[id].label || id === obj[k]; }); return sel(ids.map(function (id) { return [id, DD[id].label || "the " + id + " doctrine"]; }), obj[k], function (v) { obj[k] = v; }); }
       case "side": return sel(Object.keys(BS.Data.helm.sides).map(function (id) { return [id, BS.Data.helm.sides[id].label.toLowerCase()]; }), obj[k], function (v) { obj[k] = v; });
       case "weapons": case "governor": return sel([["on", "on"], ["off", "off"]], obj[k] ? "on" : "off", function (v) { obj[k] = v === "on"; });
       case "remodulate": return sel([["shields", "shields (frequency that beats their ammo)"], ["ammo", "weapons (ammo that beats their shields)"]], obj[k], function (v) { obj[k] = v; });

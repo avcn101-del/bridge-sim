@@ -1,9 +1,10 @@
 // js/enemyai.js — the doctrine machine. Every ship, enemy and player, flies by a doctrine
 // (enemyAI.doctrines): strafe (hit-and-run passes), brawl (close orbit that flips sides), standoff
 // (torpedo range, kites when chased), broadside (slow cruiser presenting fresh shields), ambush
-// (cloaked stalk) or evade (open the range). The enemy's encounter names its doctrine; the player's
-// helm runs the doctrine of the chosen stance (helm.stances) with ranges taken from the fitted
-// weapons. Enemy-only: module management, target choice and the once-per-battle retreat.
+// (cloaked stalk) or evade (open the range). The enemy's encounter names its doctrine; a script sets
+// one with the `doctrine` action. A doctrine with `ranges` takes its range fields from the ship's
+// fitted weapons (the player's labelled set). Enemy-only: module management, target choice and the
+// once-per-battle retreat.
 window.BS = window.BS || {};
 
 BS.EnemyAI = (function () {
@@ -61,39 +62,28 @@ BS.EnemyAI = (function () {
     });
     return best;
   }
-  // The stance's doctrine with its range fields replaced by build-derived values (helm.stances[].ranges).
-  function doctrineFor(ship, stance) {
-    var base = BS.Data.enemyAI.doctrines[stance.doctrine], d = {};
-    Object.keys(base).forEach(function (k) { d[k] = base[k]; });
-    Object.keys(stance.ranges || {}).forEach(function (k) {
-      var spec = stance.ranges[k], v = null;
+  // The doctrine with its range fields replaced by build-derived values (doctrines[].ranges), when it has any.
+  function doctrineFor(ship, base) {
+    if (!base.ranges) return base;
+    var d = {};
+    Object.keys(base).forEach(function (k) { if (k !== "ranges") d[k] = base[k]; });
+    Object.keys(base.ranges).forEach(function (k) {
+      var spec = base.ranges[k], v = null;
       for (var i = 0; i + 1 < spec.length; i += 2) { var ref = weaponRef(ship, spec[i]); if (ref !== null) { v = ref * spec[i + 1]; break; } }
       d[k] = v === null ? spec[spec.length - 1] : v;
     });
     return d;
   }
-  function setStance(ship, target, stanceId) {
-    var st = BS.Data.helm.stances[stanceId];
-    if (!st || !target) return false;
-    ship.stance = stanceId; ship.doctrine = doctrineFor(ship, st); ship.doctrineId = st.doctrine; ship.escorting = null;
-    ship.ai = carryAI(ship, newAI(target));
-    if (S.distanceKm(ship, target) < ship.doctrine.engageKm) enter(ship, target, ship.doctrine);
-    else S.setCommand(ship, "approach", { target: target });
-    BS.Events.emit("stanceChanged", { ship: ship, stance: stanceId });
-    return true;
-  }
-  // A play may hand the helm a doctrine directly (no stance; ranges as in the doctrine).
   function setDoctrine(ship, target, doctrineId) {
-    var d = BS.Data.enemyAI.doctrines[doctrineId];
-    if (!d || !target) return false;
-    ship.stance = null; ship.doctrine = d; ship.doctrineId = doctrineId; ship.escorting = null;
+    var base = BS.Data.enemyAI.doctrines[doctrineId];
+    if (!base || !target) return false;
+    var d = doctrineFor(ship, base);
+    ship.doctrine = d; ship.doctrineId = doctrineId; ship.escorting = null;
     ship.ai = carryAI(ship, newAI(target));
     if (S.distanceKm(ship, target) < d.engageKm) enter(ship, target, d); else S.setCommand(ship, "approach", { target: target });
-    BS.Events.emit("stanceChanged", { ship: ship, stance: null, doctrine: doctrineId });
+    BS.Events.emit("stanceChanged", { ship: ship, doctrine: doctrineId });
     return true;
   }
-  // Manual helm: the doctrine stops driving until a stance is picked again.
-  function suspend(ship) { if (ship.ai) ship.ai.suspended = true; }
   // Escort (0.34, script action `escort`): the helm keeps station support.escortKm from an ally instead of flying a
   // doctrine, until a stance or doctrine is set again. The weapons still fire at the lock.
   function escort(ship, ally) {
@@ -191,9 +181,8 @@ BS.EnemyAI = (function () {
     if (target.breach > 0 && ai.state !== "clear") { setState(ship, "clear"); keep(ship, target, BS.Data.grid.breach.radiusKm * 1.6); setModule(ship, "afterburner", true); return; }
     if (ai.state === "clear") { if (target.breach <= 0) enter(ship, target, d); return; }
     if (enemy) {
-      // module management shared by all states: weapons stay on whenever there is capacitor for them. An enemy running a
-      // play (ship.play) leaves weapons, hardener and booster to the play's phase policies.
-      if (!ship.play) {
+      // module management shared by all states: weapons stay on whenever there is capacitor for them
+      {
         var weaponsOn = capPct > 0.12;
         M.weapons(ship).forEach(function (m) { if (m.active !== weaponsOn) M.setActive(ship, m, weaponsOn); });
         setModule(ship, "shield_booster", facingPct < p.boosterBelow && capPct > p.boosterMinCap);
@@ -351,5 +340,5 @@ BS.EnemyAI = (function () {
     }
   }
 
-  return { attach: attach, update: update, setStance: setStance, setDoctrine: setDoctrine, suspend: suspend, escort: escort, doctrineFor: doctrineFor, bearingCount: bearingCount, setAttackSide: setAttackSide, sideBearing: sideBearing, roll: roll, weaponRef: weaponRef };
+  return { attach: attach, update: update, setDoctrine: setDoctrine, escort: escort, doctrineFor: doctrineFor, bearingCount: bearingCount, setAttackSide: setAttackSide, sideBearing: sideBearing, roll: roll, weaponRef: weaponRef };
 })();

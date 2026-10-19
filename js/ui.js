@@ -17,20 +17,16 @@ BS.UI = (function () {
     ["own-speed", "own-cmd", "own-subsystems", "enemy-subsystems", "gauge", "help-screen", "btn-help", "btn-help-close",
      "target-none", "target-info", "tg-name", "tg-hull", "tg-hull-val", "tg-shield", "tg-shield-val", "tg-range", "tg-angular", "tg-chance", "tg-aim",
      "clock", "alert-label", "btn-pause", "btn-redalert", "btn-zoom-in", "btn-zoom-out", "pause-overlay", "start-screen", "result-screen", "result-title", "result-sub", "result-head",
-     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "rs-credits", "rs-salvage", "rs-repairs", "heat-bar", "heat-num", "btn-governor", "own-heat", "own-crew", "own-boarding", "own-boarding-row", "btn-board", "scan-view", "scan-info", "btn-log", "side-buttons", "ship-name", "view", "module-bar", "overview", "sel-name", "play-buttons", "trace", "speed-buttons", "call-tokens", "call-play", "call-side", "btn-focus", "bridge-calls", "rs-clean", "rs-script", "btn-retry"]
+     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "rs-credits", "rs-salvage", "rs-repairs", "heat-bar", "heat-num", "btn-governor", "own-heat", "own-crew", "own-boarding", "own-boarding-row", "scan-view", "scan-info", "btn-log", "ship-name", "view", "module-bar", "overview", "trace", "speed-buttons", "call-tokens", "call-doctrine", "call-side", "btn-focus", "bridge-calls", "rs-clean", "rs-script", "btn-retry"]
       .forEach(function (id) { el[id] = $(id); });
     logList = $("log");
     buildGauge();
     buildSubsystemWidgets();
-    buildPlayButtons();
 
     document.querySelectorAll("[data-cmd]").forEach(function (btn) {
       btn.addEventListener("click", function () {
         var args = {};
         if (btn.hasAttribute("data-range")) args.rangeKm = parseFloat(btn.getAttribute("data-range"));
-        if (btn.hasAttribute("data-stance")) args.stance = btn.getAttribute("data-stance");
-        if (btn.hasAttribute("data-play")) args.play = btn.getAttribute("data-play");
-        if (btn.hasAttribute("data-side")) args.side = btn.getAttribute("data-side");
         game.command(btn.getAttribute("data-cmd"), args); btn.blur();
       });
     });
@@ -48,12 +44,8 @@ BS.UI = (function () {
     bindCanvas();
     bindKeys();
     bindBridge();
-    setManual(!!(BS.Campaign.get().settings || {}).manualBridge);
     if (!subscribed) { subscribe(); subscribed = true; }
   }
-  // Manual bridge (debug): the hand-flown controls and their keys; off, the script fights and the captain has calls.
-  function setManual(on) { document.body.classList.toggle("manual-bridge", !!on); }
-  function manual() { return document.body.classList.contains("manual-bridge"); }
 
   // ---- bridge calls and speed ---------------------------------------------------------------------------------
   // A call button arms itself for script.bridgeCall.confirmSeconds and fires on the second press; a focus call
@@ -70,14 +62,14 @@ BS.UI = (function () {
     armTimer = setTimeout(disarm, BS.Data.script.bridgeCall.confirmSeconds * 1000);
   }
   function bindBridge() {
-    var P = BS.Data.helm.plays, sp = el["call-play"], ss = el["call-side"];
-    Object.keys(P).forEach(function (id) { var o = document.createElement("option"); o.value = id; o.textContent = P[id].label; sp.appendChild(o); });
+    var DD = BS.Data.enemyAI.doctrines, sp = el["call-doctrine"], ss = el["call-side"];
+    Object.keys(DD).forEach(function (id) { if (!DD[id].label) return; var o = document.createElement("option"); o.value = id; o.textContent = DD[id].label; sp.appendChild(o); });
     Object.keys(BS.Data.helm.sides).forEach(function (id) { var o = document.createElement("option"); o.value = id; o.textContent = BS.Data.helm.sides[id].label; ss.appendChild(o); });
     ss.value = "blind";
     document.querySelectorAll("#bridge-calls [data-call]").forEach(function (b) {
       b.addEventListener("click", function () {
         var kind = b.getAttribute("data-call"), call = { kind: kind };
-        if (kind === "play") call = { kind: "play", value: sp.value };
+        if (kind === "doctrine") call = { kind: "doctrine", value: sp.value };
         if (kind === "side") call = { kind: "side", value: ss.value };
         if (kind === "focus") { if (!pendingFocus) return; call = { kind: "focus", value: { x: pendingFocus.x, y: pendingFocus.y } }; }
         armOrFire(b, call); b.blur();
@@ -116,7 +108,7 @@ BS.UI = (function () {
       if (!row || !scanWeak) return;
       var wp = scanWeak[parseInt(row.getAttribute("data-wp"), 10)];
       if (!wp) return;
-      if (manual()) game.command("aimBlock", { block: wp.block, label: wp.label }); else pickFocus(wp.block);
+      pickFocus(wp.block);
     });
     el["scan-view"].addEventListener("click", function (ev) {
       var e = game.state.enemy, p = game.state.player, cv = el["scan-view"];
@@ -125,13 +117,7 @@ BS.UI = (function () {
       var cx = (ev.clientX - r.left) * cv.width / r.width, cy = (ev.clientY - r.top) * cv.height / r.height;
       var lx = (cv.height / 2 - cy) / k, ly = (cx - cv.width / 2) / k, b = BS.Grid.blockAtWorld(e, lx, ly, 1);
       if (!b || !b.alive) return;
-      if (manual()) game.command("aimBlock", { block: b }); else pickFocus(b);
-    });
-    Object.keys(BS.Data.helm.sides).forEach(function (id) {
-      var sd = BS.Data.helm.sides[id], b = document.createElement("button");
-      b.className = "lcars-btn c-blue"; b.setAttribute("data-cmd", "side"); b.setAttribute("data-side", id); b.textContent = sd.label; b.title = sd.desc;
-      b.addEventListener("click", function () { game.command("side", { side: id }); b.blur(); });
-      el["side-buttons"].appendChild(b);
+      pickFocus(b);
     });
     BS.Events.on("alertChanged", function (e) { if (e.ship.isPlayer) setAlert(e.alert); });
   }
@@ -142,37 +128,23 @@ BS.UI = (function () {
     el["own-subsystems"].innerHTML = ""; el["enemy-subsystems"].innerHTML = "";
     Object.keys(blocks).forEach(function (type) {
       var d = blocks[type];
-      var row = document.createElement("div"); row.className = "row"; row.title = d.name + ": " + d.desc + " Click to make it the repair priority.";
+      var row = document.createElement("div"); row.className = "row"; row.title = d.name + ": " + d.desc;
       row.innerHTML = '<label>' + d.name.split(" ")[0] + '</label><div class="bar sub"><div class="fill"></div></div><span class="num">0</span>';
       row.querySelector("label").insertBefore(BS.Renderer.blockIcon(type, 12), row.querySelector("label").firstChild);
-      row.addEventListener("click", function () { game.command("repair", { type: type }); });
       el["own-subsystems"].appendChild(row);
       el["sub-" + type] = row.querySelector(".fill"); el["sub-" + type + "-val"] = row.querySelector(".num"); el["subrow-" + type] = row;
-      var chip = document.createElement("span"); chip.className = "chip"; chip.title = "Aim at their " + d.name.toLowerCase() + "s";
+      var chip = document.createElement("span"); chip.className = "chip"; chip.title = "Their " + d.name.toLowerCase() + "s";
       chip.appendChild(BS.Renderer.blockIcon(type, 12)); var chipText = document.createElement("span"); chipText.textContent = d.short; chip.appendChild(chipText);
-      chip.addEventListener("click", function () { game.command("aim", { type: type }); });
       el["enemy-subsystems"].appendChild(chip); el["en-" + type] = chip;
     });
     // hull outside every shield bubble: hits there skip the shield entirely
-    var ex = document.createElement("span"); ex.className = "chip exposed"; ex.title = "Aim at hull outside their shield cover: nothing absorbs those hits (−15% accuracy)";
-    ex.textContent = "EXP 0"; ex.addEventListener("click", function () { game.command("aim", { type: "exposed" }); });
+    var ex = document.createElement("span"); ex.className = "chip exposed"; ex.title = "Hull outside their shield cover: nothing absorbs hits there (the aim action \"bare hull\")";
+    ex.textContent = "EXP 0";
     el["enemy-subsystems"].appendChild(ex); el["en-exposed"] = ex;
     var sx = document.createElement("span"); sx.className = "chip exposed"; sx.title = "Aim at their structural members (necks, pylons): 400 hp each, torpedoes do double to them, and a cut section takes everything on it (−15% accuracy)";
-    sx.textContent = "STRUCT"; sx.addEventListener("click", function () { game.command("aim", { type: "structure" }); });
+    sx.textContent = "STRUCT";
     el["enemy-subsystems"].appendChild(sx); el["en-structure"] = sx;
   }
-  var playEls = {};
-  function buildPlayButtons() {
-    var plays = BS.Data.helm.plays;
-    el["play-buttons"].innerHTML = ""; playEls = {};
-    Object.keys(plays).forEach(function (id) {
-      var P = plays[id], b = document.createElement("button");
-      b.className = "lcars-btn c-peach"; b.setAttribute("data-cmd", "play"); b.setAttribute("data-play", id);
-      b.textContent = P.label; b.title = P.key + ": " + P.desc;   // the generic [data-cmd] handler sends the command
-      el["play-buttons"].appendChild(b); playEls[id] = b;
-    });
-  }
-
   // Circular ship gauge: hull (centre), four shield facings (middle), capacitor (outer).
   var gauge = {};
   function arcPath(cx, cy, r, a0, a1) {
@@ -229,7 +201,6 @@ BS.UI = (function () {
       var capText = m.def.capText || (m.def.cap ? m.def.cap + " cap" : (BS.Data.blocks[m.def.block].weapon.cap + " cap/shot"));
       b.innerHTML = '<span class="key">F' + (i + 1) + '</span><div class="ring"></div><span class="short">' + m.def.short + '</span><span class="capcost">' + capText + '</span><span class="state"></span>';
       b.title = m.def.name + " — " + m.def.desc + (m.def.cycle ? " Cycle " + m.def.cycle + " s, " + m.def.cap + " capacitor per cycle." : "");
-      b.addEventListener("click", function () { if (manual()) game.command("module", { module: m }); });
       el["module-bar"].appendChild(b);
       moduleEls.push({ el: b, m: m, ring: b.querySelector(".ring"), state: b.querySelector(".state") });
     });
@@ -286,24 +257,8 @@ BS.UI = (function () {
     view.addEventListener("mouseleave", function () { game.setHover(null); view.classList.remove("can-target", "on-hardpoint"); });
     view.addEventListener("click", function (ev) {
       if (performance.now() - lastTouchAt < 700) return;   // a tap was handled by the touch code below
-      var s = game.state, h = hoverAt(ev);
-      if (!h) return;
-      var p = s.player, e = s.enemy;
-      if (p.lock.target !== e) { game.command("select", { target: e }); game.command("lock", { target: e }); return; }
-      if (!manual()) { if (h.block) pickFocus(h.block); return; }
-      if (h.block && !h.block.structural) game.command("aim", { type: h.block.type });
-    });
-    view.addEventListener("dblclick", function (ev) {
       var h = hoverAt(ev);
-      if (h || !manual()) return;
-      game.command("flyTo", { point: worldAt(ev) });
-    });
-    view.addEventListener("contextmenu", function (ev) {
-      ev.preventDefault();
-      var s = game.state, h = hoverAt(ev);
-      if (s.phase !== "battle" || !manual()) return;
-      if (h) { game.command("select", { target: s.enemy }); game.command("stance", { target: s.enemy, stance: "engage" }); }
-      else game.command("flyTo", { point: worldAt(ev) });
+      if (h && h.block) pickFocus(h.block);   // a block of the enemy: the Focus bridge call's candidate
     });
     view.addEventListener("wheel", function (ev) {
       ev.preventDefault();
@@ -313,34 +268,18 @@ BS.UI = (function () {
     bindTouch(view, hoverAt, worldAt);
   }
 
-  // Touch: tap the enemy = select and lock, tap one of its blocks (locked) = aim at that type, long-press the enemy =
-  // Engage, long-press or double-tap empty space = fly there, two fingers = pinch zoom. Mouse events keep working;
-  // the compatibility click a tap also fires is ignored for 700 ms (lastTouchAt).
+  // Touch: tap a block of the enemy = the Focus call's candidate, two fingers = pinch zoom. Mouse events keep
+  // working; the compatibility click a tap also fires is ignored for 700 ms (lastTouchAt).
   var lastTouchAt = -1e9;
   function bindTouch(view, hoverAt, worldAt) {
     var touches = {}, start = null, longTimer = null, lastTap = null, pinch = null;
     function count() { return Object.keys(touches).length; }
     function clearLong() { if (longTimer) { clearTimeout(longTimer); longTimer = null; } }
-    function tapOrPress(ev, press, onEnemyAtStart) {   // onEnemyAtStart: the finger landed on the enemy (it may have moved during a long press)
-      var s = game.state; if (s.phase !== "battle") return;
+    function tapOrPress(ev, press) {
+      var s = game.state; if (s.phase !== "battle" || press) return;
       lastTouchAt = performance.now();
-      var h = hoverAt(ev, true), p = s.player, e = s.enemy;
-      if (press) {
-        if (!manual()) return;   // the script flies; long presses steer only on the manual bridge
-        if (h || onEnemyAtStart) { game.command("select", { target: e }); game.command("stance", { target: e, stance: "engage" }); }
-        else game.command("flyTo", { point: worldAt(ev) });
-        return;
-      }
-      if (h) {
-        if (p.lock.target !== e) { game.command("select", { target: e }); game.command("lock", { target: e }); }
-        else if (!manual()) { if (h.block) pickFocus(h.block); }
-        else if (h.block && !h.block.structural) game.command("aim", { type: h.block.type });
-        lastTap = null;
-        return;
-      }
-      var now = performance.now();
-      if (lastTap && now - lastTap.t < 350 && Math.abs(lastTap.x - ev.clientX) < 30 && Math.abs(lastTap.y - ev.clientY) < 30) { game.command("flyTo", { point: worldAt(ev) }); lastTap = null; }
-      else lastTap = { t: now, x: ev.clientX, y: ev.clientY };
+      var h = hoverAt(ev, true);
+      if (h && h.block) pickFocus(h.block);
     }
     view.addEventListener("pointerdown", function (ev) {
       if (ev.pointerType !== "touch") return;
@@ -388,22 +327,6 @@ BS.UI = (function () {
       if (ev.code === "Space" && s.phase === "battle") { ev.preventDefault(); game.togglePause(); return; }
       if (s.phase !== "battle") return;
       if (ev.key.toLowerCase() === "g") { document.getElementById("comms").classList.toggle("expanded"); return; }
-      if (!manual()) return;   // the script has the conn; the keys below are the manual bridge
-      var fk = /^F(\d)$/.exec(ev.key);
-      if (fk) { var i = parseInt(fk[1], 10) - 1; if (moduleEls[i]) { ev.preventDefault(); game.command("module", { module: moduleEls[i].m }); } return; }
-      var stances = BS.Data.helm.stances, stanceKey = Object.keys(stances).filter(function (id) { return stances[id].key === ev.key; })[0];
-      if (stanceKey) { game.command("stance", { stance: stanceKey }); return; }
-      var plays = BS.Data.helm.plays, playKey = Object.keys(plays).filter(function (id) { return plays[id].key === ev.key; })[0];
-      if (playKey) { game.command("play", { play: playKey }); return; }
-      switch (ev.key.toLowerCase()) {
-        case "l": game.command("lock"); break;
-        case "h": game.command("governor"); break;
-        case "b": { var ids = Object.keys(BS.Data.helm.sides), cur = ids.indexOf(game.state.player.attackSide); game.command("side", { side: ids[(cur + 1) % ids.length] }); break; }
-        case "g": document.getElementById("comms").classList.toggle("expanded"); break;
-        case "s": game.command("stop"); break;
-        case "t": game.command("board"); break;
-        case "r": game.command("redAlert"); break;
-      }
     });
   }
 
@@ -553,16 +476,12 @@ BS.UI = (function () {
   // Boarding row and the transporter button: progress while a party is away, otherwise why the button is off.
   var boardReasons = { nolock: "needs a lock", range: "closer than " + BS.Data.grid.boarding.rangeKm + " km", shields: "their facing shield must be 0", crew: "needs " + BS.Data.grid.boarding.minParty + " spare crew", busy: "party away" };
   function updateBoarding(p) {
-    var bd = p.boarding, row = el["own-boarding-row"], btn = el["btn-board"], e = game.state.enemy;
+    var bd = p.boarding, row = el["own-boarding-row"];
     row.style.display = bd ? "" : "none";
     if (bd) {
       el["own-boarding"].textContent = bd.phase === "transport" ? "beaming " + Math.round(bd.party) + " · " + Math.max(0, BS.Data.grid.boarding.transportTime - bd.t).toFixed(1) + " s" : Math.ceil(bd.party) + " vs " + Math.ceil(bd.defenders) + " aboard";
       el["own-boarding"].style.color = bd.phase === "fight" && bd.party < bd.defenders ? "#e0463c" : "#f2c14e";
     }
-    var why = e ? BS.Boarding.canBoard(p, e) : "nolock", ok = why === "ok";
-    btn.classList.toggle("off", !ok && why !== "busy");
-    btn.classList.toggle("active", why === "busy");
-    btn.textContent = ok ? "Board · transporter" : why === "busy" ? "Boarding party away" : "Board · " + boardReasons[why];
   }
 
   // ---- per-frame update ---------------------------------------------------
@@ -576,12 +495,10 @@ BS.UI = (function () {
     if (p.tumble > 0) st = "TUMBLING";
     if (p.breach > 0) st = "CORE BREACH " + p.breach.toFixed(0) + " s";
     if (p.scanning > 0) st = "SCANNING " + p.scanning.toFixed(1) + " s · " + st;
-    var sc = p.script && !p.script.suspended && p.script.active >= 0 ? "Script " + (p.script.active + 1) + " · " : (p.script && p.script.suspended ? "Manual · " : "");
-    if (p.play && p.ai && !p.ai.suspended) { var ph = p.play.def.phases[p.play.phase]; return sc + p.play.def.label + " · " + ph.label + " · " + st; }
+    var sc = p.script && p.script.active >= 0 ? "Script " + (p.script.active + 1) + " · " : "";
     if (p.escorting && p.ai && p.ai.suspended) return sc + "Escorting " + p.escorting.name + (p.support ? " · supporting " + p.support.name : "");
-    if (p.ai && !p.ai.suspended && p.stance) return sc + BS.Data.helm.stances[p.stance].label + " · " + st + (p.support ? " · supporting " + p.support.name : "");
-    if (p.ai && !p.ai.suspended) return sc + (p.doctrineId || "helm") + " · " + st;
-    return p.cmd.type === "flyTo" ? "Manual · flying to point" : "Manual · all stop";
+    if (p.ai && !p.ai.suspended) { var dd = BS.Data.enemyAI.doctrines[p.doctrineId]; return sc + (dd && dd.label ? dd.label : p.doctrineId || "helm") + " · " + st + (p.support ? " · supporting " + p.support.name : ""); }
+    return sc + "helm idle";
   }
 
   function update(state) {
@@ -648,12 +565,6 @@ BS.UI = (function () {
     // overview
     updateOverview(state);
     updateScan(state);
-    el["sel-name"].textContent = p.selected ? p.selected.name : "nothing";
-    var auto = p.ai && !p.ai.suspended;
-    document.querySelectorAll("[data-cmd='stance']").forEach(function (b) { b.classList.toggle("active", !!auto && !p.play && p.stance === b.getAttribute("data-stance")); });
-    document.querySelectorAll("[data-cmd='side']").forEach(function (b) { b.classList.toggle("active", p.attackSide === b.getAttribute("data-side")); });
-    Object.keys(playEls).forEach(function (id) { playEls[id].classList.toggle("active", !!p.play && p.play.id === id); playEls[id].classList.toggle("off", !BS.Plays.available(p, id)); });
-    document.querySelectorAll("[data-cmd='stop']").forEach(function (b) { b.classList.toggle("active", !auto); });
 
     // module bar
     for (var i = 0; i < moduleEls.length; i++) {
@@ -731,7 +642,7 @@ BS.UI = (function () {
     prof.forEach(function (q) { sec[q.deg] = Math.round(q.w); });
     html += "<div class='sl'><label>Sectors</label><span class='v' title='Their fire (dps) toward their bow / starboard / stern / port: shadow the weakest'>bow " + (sec[0] || 0) + " · stbd " + (sec[90] || 0) + " · aft " + (sec[-180] || 0) + " · port " + (sec[-90] || 0) + "</span></div>";
     var stLabel = e.ai ? (D.enemyAI.stateLabels[e.ai.state] || e.ai.state) : "";
-    html += "<div class='sl'><label>Orders</label><span class='v'>" + (e.play ? e.play.def.label + " · " + e.play.def.phases[e.play.phase].label + " · " : (e.doctrineId || "") + " · ") + stLabel + "</span></div>";
+    html += "<div class='sl'><label>Orders</label><span class='v'>" + (e.doctrineId || "") + " · " + stLabel + "</span></div>";
     html += "<div class='sl'><label>Motion</label><span class='v'>" + fmtKm(S.distanceKm(p, e)) + " · " + S.speedKmS(e).toFixed(1) + " km/s · " + S.angularVelocity(p, e).toFixed(2) + " rad/s</span></div>";
     var theirTube = st2.weapons.filter(function (b) { return b.alive && b.def.weapon.kind === "launcher"; })[0];
     var theirTurret = st2.weapons.filter(function (b) { return b.alive && b.def.weapon.kind === "turret"; })[0];
@@ -739,7 +650,7 @@ BS.UI = (function () {
     if (theirTurret) threat.push(theirTurret.def.short + " " + pct(BS.Weapons.turretHitChance(e, p, theirTurret.def.weapon)) + " to hit us");
     if (theirTube) threat.push("torpedoes " + pct(BS.Weapons.torpedoDamageMult(theirTube.def.weapon, p)) + " damage on us");
     html += "<div class='sl'><label>Threat</label><span class='v'>" + (threat.length ? threat.join(" · ") : "unarmed") + "</span></div>";
-    if (p.script) { var psc = p.script, stRule = psc.override ? "BRIDGE CALL · " + BS.Script.describeDo(psc.override.rule.do) : psc.suspended ? "manual helm, script paused" : psc.active >= 0 && psc.def.rules[psc.active] ? "rule " + (psc.active + 1) + " · " + BS.Script.describe(psc.def.rules[psc.active], psc.def) : "waiting for a rule"; html += "<div class='sl'><label>Standing</label><span class='v' title='" + escapeHtml(stRule) + "'>" + escapeHtml(stRule.length > 70 ? stRule.slice(0, 68) + "…" : stRule) + "</span></div>"; }
+    if (p.script) { var psc = p.script, stRule = psc.override ? "BRIDGE CALL · " + BS.Script.describeDo(psc.override.rule.do) : psc.active >= 0 && psc.def.rules[psc.active] ? "rule " + (psc.active + 1) + " · " + BS.Script.describe(psc.def.rules[psc.active], psc.def) : "waiting for a rule"; html += "<div class='sl'><label>Standing</label><span class='v' title='" + escapeHtml(stRule) + "'>" + escapeHtml(stRule.length > 70 ? stRule.slice(0, 68) + "…" : stRule) + "</span></div>"; }
     html += "<div class='sl'><label>Aiming</label><span class='v'>" + (p.aimType === "block" && p.aimBlock ? (p.aimBlock.block.structural ? "structure" : p.aimBlock.block.def.name.toLowerCase()) + " at " + p.aimBlock.block.x + "," + p.aimBlock.block.y : p.aimType === "exposed" ? "bare hull" : p.aimType === "structure" ? "necks and pylons" : p.aimType ? D.blocks[p.aimType].name.toLowerCase() + "s" : "anything") + (pendingFocus ? " · <span class='warn'>focus ready: " + escapeHtml(pendingFocus.label) + " (confirm in Bridge)</span>" : "") + "</span></div>";
     html += "<div class='sl'><label>Scan</label><span class='v'>" + (p.scanned ? "<span class='good'>scanned: weak points readable</span>" : p.scanning > 0 ? "scanning " + p.scanning.toFixed(1) + " s" : "not scanned (scan is a script action)") + (e.scanned ? " · they have scanned us" : "") + "</span></div>";
     html += "<div class='sl'><label>Tuning</label><span class='v'>" + (p.scanned ? escapeHtml(BS.Grid.tuningText(e.grid)) + (e.remod ? " <span class='warn'>(remodulating " + e.remod.kind + " " + e.remod.t.toFixed(0) + " s)</span>" : "") : "<span class='dim'>unknown until scanned</span>") + (p.remod ? " · <span class='warn'>ours: remodulating " + p.remod.kind + " " + p.remod.t.toFixed(0) + " s</span>" : "") + "</span></div>";
@@ -748,7 +659,7 @@ BS.UI = (function () {
     if (!scanWeak.length) html += "<div class='dim'>Nothing stands out.</div>";
     scanWeak.forEach(function (wp, i) {
       var on = p.aimType === "block" && p.aimBlock && p.aimBlock.block === wp.block;
-      html += "<div class='wp" + (on ? " on" : "") + "' data-wp='" + i + "' title='" + (manual() ? "Click: focus every weapon on this block (−15% accuracy). Click again to stop." : "Tap: make this block the Focus bridge call, then confirm in the Bridge panel.") + "'>" + (on ? "▶ " : "") + wp.label + "</div>";
+      html += "<div class='wp" + (on ? " on" : "") + "' data-wp='" + i + "' title='Tap: make this block the Focus bridge call, then confirm in the Bridge panel.'>" + (on ? "▶ " : "") + wp.label + "</div>";
     });
     html += "</div>";
     if (html !== scanHtmlLast) { el["scan-info"].innerHTML = html; scanHtmlLast = html; }
@@ -762,8 +673,6 @@ BS.UI = (function () {
       if (!row) {
         row = document.createElement("tr");
         row.innerHTML = '<td class="name"></td><td></td><td></td><td></td><td></td>';
-        row.addEventListener("click", function () { game.command("select", { target: s }); });
-        row.addEventListener("dblclick", function () { game.command("select", { target: s }); game.command("lock", { target: s }); });
         tbody.appendChild(row); overviewRows[s.id] = row;
       }
       var cells = row.children;
@@ -773,7 +682,6 @@ BS.UI = (function () {
       cells[2].textContent = s.flags.destroyed ? "—" : S.speedKmS(s).toFixed(1);
       cells[3].textContent = s.flags.destroyed ? "—" : S.angularVelocity(p, s).toFixed(2);
       var stLabel = s.ai ? (BS.Data.enemyAI.stateLabels[s.ai.state] || s.ai.state) : "";
-      if (s.play && s.cloak.state === "off") stLabel = s.play.def.label + " · " + stLabel;
       if (s.tumble > 0) stLabel = "tumbling";
       if (s.breach > 0) stLabel = "CORE BREACH " + s.breach.toFixed(0) + " s";
       cells[4].textContent = s.flags.destroyed ? "destroyed" : s.flags.disabled ? "disabled" : s.cloak.state !== "off" ? s.cloak.state : stLabel;
@@ -788,5 +696,5 @@ BS.UI = (function () {
 
   function setShipName(name) { el["ship-name"].textContent = name; }
 
-  return { init: init, update: update, addLog: addLog, clearLog: clearLog, setAlert: setAlert, showStart: showStart, hideOverlays: hideOverlays, showResult: showResult, setShipName: setShipName, buildModuleBar: buildModuleBar, setManual: setManual };
+  return { init: init, update: update, addLog: addLog, clearLog: clearLog, setAlert: setAlert, showStart: showStart, hideOverlays: hideOverlays, showResult: showResult, setShipName: setShipName, buildModuleBar: buildModuleBar };
 })();
