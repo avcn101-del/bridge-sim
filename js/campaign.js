@@ -219,6 +219,8 @@ BS.Campaign = (function () {
       if (kind === "fleet") return hulls >= (e.minHulls || R.fleetMinHulls);
       return true;
     });
+    // a boss slot takes the first boss not yet beaten (0.41, save.campaign.bossesBeaten); all beaten: any of them by weight
+    if (bossSlot && pool.length) { var beaten = c.bossesBeaten || [], fresh = pool.filter(function (e) { return beaten.indexOf(e.id) < 0; }); if (fresh.length) pool = [fresh[0]]; }
     if (!pool.length) pool = D().campaign.encounters.filter(function (e) { return (e.kind || "solo") === "solo" && wonAt >= e.minWins; });
     var total = pool.reduce(function (a, e) { return a + e.weight; }, 0), r = rng() * total, pick = pool[0];
     for (var i = 0; i < pool.length; i++) { r -= pool[i].weight; if (r < 0) { pick = pool[i]; break; } }
@@ -226,7 +228,7 @@ BS.Campaign = (function () {
     if (pick.layout === "random") { rows = BS.Grid.randomVariant(cls, cls.layout, rng); variantName = "Variant"; }
     else if (pick.layout !== "default" && cls.variants && cls.variants[pick.layout]) { rows = cls.variants[pick.layout].rows; variantName = cls.variants[pick.layout].name; }
     else rows = cls.layout;
-    var names = D().campaign.klingonNames, name = names.length ? names[Math.floor(rng() * names.length)] : cls.name;
+    var names = D().campaign.klingonNames, name = pick.name || (names.length ? names[Math.floor(rng() * names.length)] : cls.name);   // a boss carries its own name (0.41)
     var doc = pick.doctrine; if (Array.isArray(doc)) doc = doc[Math.floor(rng() * doc.length)];
     var script = pick.script || "doctrine";
     // the very first fight: no weak-point hunting (campaign.firstFight)
@@ -311,6 +313,7 @@ BS.Campaign = (function () {
     var earned, salvage = 0, cleanBonus = 0, clean = won && !(state.callsUsed > 0);
     if (won) {
       save.campaign.battlesWon++; save.campaign.streak++;
+      if (state.encounter && state.encounter.kind === "boss") { var bb = save.campaign.bossesBeaten = save.campaign.bossesBeaten || []; if (bb.indexOf(state.encounter.id) < 0) bb.push(state.encounter.id); }   // 0.41: the boss slot moves on
       var mult = state.encounter ? state.encounter.rewardMult : 1;
       earned = cr.win * mult - hullLostPct * cr.hullLostPenaltyPerPct + Math.min(5, save.campaign.streak - 1) * cr.winStreakBonus;
       // a clean bridge (no bridge call spent) pays script.bridgeCall.noCallBonus on the win credits, before salvage

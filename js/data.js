@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.40.0",
+  version: "0.41.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -110,7 +110,7 @@ BS.Data = {
     // random enemy variants: a fraction of the base layout's cells is re-rolled (armor → system, system → armor) and the result re-validated
     variant: { fraction: 0.12, attempts: 12, systemWeights: { phaser: 2, disruptor: 3, pulse: 2, shield: 3, reactor: 2, engine: 2, armor: 6, quarters: 1, sensor: 1, torpedo: 1, jammer: 1, decoy: 1, neut: 1 } },
     maskLegend: { ".": "empty", "#": "fillable", "n": "nacelle (engine ×2)", "p": "structure (fixed)", "r": "role cell (fillable; the only place for role blocks)" },
-    layoutLegend: { A: "armor", P: "phaser", D: "disruptor", U: "pulse", T: "torpedo", S: "shield", R: "reactor", E: "engine", N: "sensor", B: "bridge", Q: "quarters", J: "jammer", C: "cloak", Y: "decoy", X: "neut", L: "lance", W: "transfer", H: "repairbeam", K: "beacon" },
+    layoutLegend: { A: "armor", P: "phaser", D: "disruptor", U: "pulse", T: "torpedo", S: "shield", R: "reactor", E: "engine", N: "sensor", B: "bridge", Q: "quarters", J: "jammer", C: "cloak", Y: "decoy", X: "neut", L: "lance", W: "transfer", H: "repairbeam", K: "beacon", M: "plasma", G: "tractor" },
   },
 
   editor: {
@@ -154,6 +154,11 @@ BS.Data = {
     // afterburner is nearly immune, a ship holding station or closing is not.
     lance:    { letter: "L", name: "Cutting beam",    short: "CB", hp: 90, mass: 4, cost: 600, power: 10, color: "#7dff9e", glyph: "lens", enemyOnly: true, desc: "Boss weapon: charges for 6 s, then a beam with 4 extra penetration points (through two plates of armor) into the ship it charged on, every 22 s. Tracking 0.35 rad/s: outrun it on the afterburner, or be the ship built to take it.",
                 weapon: { kind: "turret", damage: 600, cycle: 22, cap: 30, optimalKm: 7, falloffKm: 2.5, tracking: 0.35, accuracy: 1, arc: 100, pierceBonus: 4, charge: 6, color: "#9dffb0", coreColor: "#ffffff", beamLife: 0.9 } },
+    // the second boss's systems (0.41, enemy only): a plasma cannon, a heavier bolt with better tracking than a disruptor
+    // cannon, and the tractor emitter: no weapon of its own, the `tractor` module holds the locked ship (ew.tractor)
+    plasma:   { letter: "M", name: "Plasma cannon",   short: "PC", hp: 60, mass: 3, cost: 300, power: 6, color: "#7cff8a", glyph: "bolt", enemyOnly: true, desc: "Boss weapon: a 30-damage plasma bolt every 2 s with an extra penetration point, optimal 7 km, falloff 4 km, tracking 0.6 rad/s. A ship held in a tractor beam cannot outrun it.",
+                weapon: { kind: "turret", damage: 30, cycle: 2, cap: 2, optimalKm: 7, falloffKm: 4, tracking: 0.6, accuracy: 0.95, arc: 160, pierceBonus: 1, bolt: true, color: "#7cff8a", coreColor: "#eaffe6", beamLife: 0.35 } },
+    tractor:  { letter: "G", name: "Tractor emitter", short: "TR", hp: 120, mass: 3, cost: 400, power: 8, color: "#9ad7ff", glyph: "dish", enemyOnly: true, desc: "Boss system: with a lock inside 9 km the tractor beam holds the target for 20 s of every 30: it cannot move, and every bolt lands. The hold breaks when every emitter is destroyed." },
     neut:     { letter: "X", name: "Energy neutraliser", short: "NT", hp: 40, mass: 2, cost: 110, power: 4, color: "#ff6ad5", glyph: "drain", desc: "Module (F-key, 6 s cycle, 20 cap, needs a lock inside 4 km): drains 30 capacitor per neutraliser block from the target each cycle. A ship with no capacitor loses its booster, hardener, afterburner and cloak and fires nothing. It drains your own capacitor too: fit reactors." },
   },
 
@@ -162,6 +167,7 @@ BS.Data = {
   modules: {
     phaser_group:  { kind: "turretGroup",   block: "phaser",  name: "Phaser emitters", short: "PHA", desc: "All phaser emitters fire at the locked target when their arc allows." },
     lance_group:   { kind: "turretGroup",   block: "lance",   name: "Cutting beams",   short: "CUT", desc: "Boss: every cutting beam charges on the locked target, then fires." },
+    plasma_group:  { kind: "turretGroup",   block: "plasma",  name: "Plasma cannons",  short: "PLA", desc: "Boss: every plasma cannon fires at the locked target when its arc allows." },
     disruptor_group: { kind: "turretGroup", block: "disruptor", name: "Disruptor cannons", short: "DIS", desc: "All disruptor cannons fire at the locked target: heavy bolts, short optimal, extra penetration, poor tracking." },
     pulse_group:   { kind: "turretGroup",   block: "pulse",   name: "Pulse phasers",   short: "PUL", desc: "All pulse phasers fire at the locked target: light rapid hits with the best tracking, knife range." },
     torpedo_group: { kind: "launcherGroup", block: "torpedo", name: "Torpedo tubes",   short: "TOR", desc: "All tubes fire forward at the locked target." },
@@ -172,9 +178,10 @@ BS.Data = {
     cloak: { kind: "cloak", block: "cloak", name: "Cloaking device", short: "CLK", cycle: 0, cap: 0, capText: "8 cap/s", desc: "Cloak in 3 s: unlockable and unseen beyond their sensors. Shields down, weapons cold, capacitor drains. Decloak takes 2 s; shields recover 5 s later; 10 s decloak strike: double damage, 60% of it straight through their shields." },
     decoy: { kind: "active", block: "decoy", name: "Decoy", short: "DCY", cycle: 20, cap: 15, effect: { decoy: true }, desc: "Drops one decoy per launcher block astern for 8 s; torpedoes hunting you within 3 km of it turn on the decoy and blow up on it. Time it for when the volley is 2–4 km out." },
     shield_transfer: { kind: "active", block: "transfer", name: "Shield transfer", short: "XFER", cycle: 5, cap: 24, effect: { transfer: true }, desc: "Every 5 s: 100 shield per emitter from our strongest facing to the supported ally's weakest, within 4 km." },
-    remote_repair: { kind: "active", block: "repairbeam", name: "Remote repair", short: "RREP", cycle: 6, cap: 18, effect: { repair: true }, desc: "Every 6 s: 45 hp per projector to the supported ally's damaged blocks, within 4 km." },
+    remote_repair: { kind: "active", block: "repairbeam", name: "Remote repair", short: "RREP", cycle: 6, cap: 18, effect: { repair: true }, desc: "Every 6 s: 300 hp per projector to the supported ally's damaged blocks (destroyed blocks stay gone), within 4 km." },
     beacon: { kind: "active", block: "beacon", name: "Signature beacon", short: "BCN", cycle: 4, cap: 6, effect: { sigMult: 2.5 }, desc: "While running: signature ×2.5. The loudest contact draws the boss." },
     neut: { kind: "active", block: "neut", name: "Energy neutraliser", short: "NEUT", cycle: 6, cap: 20, effect: { neut: true }, desc: "Every 6 s, with a lock inside 4 km: drains 30 capacitor per neutraliser block from the target. Starves their booster, hardener, afterburner and cloak." },
+    tractor: { kind: "active", block: "tractor", name: "Tractor beam", short: "TRAC", cycle: 30, cap: 40, effect: { tractor: true }, desc: "Boss (0.41): every 30 s, with a lock inside 9 km, holds the target for 20 s. A held ship cannot move; it breaks free when every emitter is gone." },
   },
   builtInModules: ["shield_booster", "shield_hardener", "afterburner"],
 
@@ -565,9 +572,9 @@ BS.Data = {
       ],
       visual: { kind: "grid", sprite: null, nacelleColor: "90,160,255", hullTint: "#d2d7e3" },
       presets: {
-        anchor: { name: "Anchor", desc: "Tank: the default Galaxy with a signature beacon on a role cell and its saucer-rim reactors moved inboard, out of a cutting beam's reach. Switched on, the beacon makes it the loudest thing in the sky, so a boss that turns on the loudest ship turns on it.", rows: [
+        anchor: { name: "Anchor", desc: "Tank: the default Galaxy with a signature beacon on a role cell and its saucer-rim reactors moved inboard, out of a cutting beam's reach. The outer row of each nacelle is plate (0.41), so a boss that strips the rim cannot leave it without thrust. Switched on, the beacon makes it the loudest thing in the sky, so a boss that turns on the loudest ship turns on it.", rows: [
           "....................................",
-          "..EEEEEEEESA..........AAAPAAAA......",
+          "..AAAAAAAASA..........AAAPAAAA......",
           "..EEEEEEEEAA........AAAAAAAAAAAP....",
           "...................AAAAAAAAAAAQAA...",
           "..................AAAAAAAAAAAAAAAA..",
@@ -584,7 +591,7 @@ BS.Data = {
           "..................AAAAAAAAAAAAAAAA..",
           "...................AAAAAAAAAAAQAA...",
           "..EEEEEEEEAA........AAAAAAAAAAAP....",
-          "..EEEEEEEESA..........AAAPAAAA......",
+          "..AAAAAAAASA..........AAAPAAAA......",
           "...................................."
         ] },
         fortress: { name: "Fortress", desc: "Twenty-eight shield emitters, ten reactors spread apart, nine crew quarters. Sits at 6 km and soaks it up.", rows: [
@@ -920,6 +927,74 @@ BS.Data = {
       ],
       visual: { kind: "grid", sprite: null, nacelleColor: "120,255,150", hullTint: "#3d4a40" },
     },
+    // The second boss (0.41, DESIGN §10): a Romulan D'deridex warbird. A hollow ring of a hull, 44×26 cells, with a
+    // neck of structure cells to the head that carries the four tractor emitters and the torpedo tubes; plasma cannons
+    // and disruptors along the outside of both wings, shield emitters spread over the ring and the head, reactors inside
+    // the wings, the bridge at the tail between the nacelles.
+    dderidex: {
+      id: "dderidex", name: "IRW Valdore", className: "D'deridex class warbird",
+      role: "Boss", faction: "romulan", cost: 0, purchasable: false,
+      speed: 220, turnRate: 30, signature: 1100, lockRangeKm: 60,
+      powerBase: 80,
+      aiProfile: "warbird",
+      mask: [
+        "..........#########.........................",
+        "........#############.......................",
+        "......#################.....................",
+        "....#####################...................",
+        "...#######################..................",
+        "..n########ppppppp#########.................",
+        "..n######ppppppppppp#######.................",
+        ".nn####ppppppppppppppp######................",
+        ".nn###ppppppppppppppppp#####................",
+        "nnn###ppppppppppppppppp######.....#######...",
+        "nnn##ppppppppppppppppppp#####...###########.",
+        "nnn##ppppppppppppppppppp#####pp#############",
+        "nnn##ppppppppppppppppppp#####pp#############",
+        "nnn##ppppppppppppppppppp#####pp#############",
+        "nnn##ppppppppppppppppppp#####pp#############",
+        "nnn###ppppppppppppppppp######...###########.",
+        ".nn###ppppppppppppppppp#####......#######...",
+        ".nn####ppppppppppppppp######................",
+        "..n######ppppppppppp#######.................",
+        "..n########ppppppp#########.................",
+        "...#######################..................",
+        "....#####################...................",
+        "......#################.....................",
+        "........#############.......................",
+        "..........#########.........................",
+        "............................................"
+      ],
+      layout: [
+        "..........AAAMAADAM.........................",
+        "........MAAAARAAARAAA.......................",
+        "......DAAAAAAAAAAAAAAAA.....................",
+        "....AAASAAASAAASAAASAAAMA...................",
+        "...MAAAAAAAAAAAAAAAAAAAAAA..................",
+        "..EAARQAARA.......QAARAAQRD.................",
+        "..EAAAAAA...........AAAAAAA.................",
+        ".EESAAA...............ASAAAM................",
+        ".EEAAA.................AAAAA................",
+        "EEEAAR.................AARAAA.....MAAMAAM...",
+        "EEEAA...................QAAAA...AAAAAAAAAAA.",
+        "EEESA...................AAASA..AAASAAAASAAAT",
+        "EEEAB...................AAAAA..AARAAGGNAAAAT",
+        "EEEAN...................ARAAA..AARAAGGNAAAAT",
+        "EEEAA...................AAAAA..AAASAAAASAAAT",
+        "EEESAA.................SQAASA...AAAAAAAAAAA.",
+        ".EEAAA.................AAAAM......MAAMAAM...",
+        ".EEAARA...............AAARAA................",
+        "..EAAAAAA...........AAAAAAA.................",
+        "..ESAAASAAA.......ASAAASAAD.................",
+        "...AAAQAAAAAQAAAAAQAAAAAQA..................",
+        "....MAAAARAAARAAARAAARAAM...................",
+        "......DAAAAAAAAAAAAAAAA.....................",
+        "........AMASAAASAAAMA.......................",
+        "..........AAAAMADAA.........................",
+        "............................................"
+      ],
+      visual: { kind: "grid", sprite: null, nacelleColor: "120,230,170", hullTint: "#3f5a48" },
+    },
     ktinga: {
       id: "ktinga", name: "IKS Amar", className: "K't'inga class battlecruiser",
       role: "Battlecruiser", faction: "klingon", cost: 0, purchasable: false,
@@ -1067,6 +1142,9 @@ BS.Data = {
       repairIn: "Repair teams from the {name} are on our hull.",
       escort: "Helm answering: keeping station on the {name}.",
       lanceOnAlly: "Cutting beam charging on the {name}: {t} seconds.",
+      tractorOnUs: "Tractor beam has us, Captain! Helm is dead in the water: {t} seconds.",
+      tractorOnAlly: "The {name} is caught in their tractor beam.",
+      tractorFree: "Tractor beam is off us. Helm answering.",
       aimWeak: "Aye. {label}.",
       reinforceShields: "Reinforcing the {weak} shield from the {strong} grid.",
       reinforceShields_none: "Shields are already balanced, Captain.",
@@ -1186,7 +1264,7 @@ BS.Data = {
       polaron:    { digit: "4", name: "Polaron",    short: "PO", color: "#7fd8a0", how: "Polaron beats Antiproton: a polaron charge cancels an antiproton stream before it annihilates on the target." },
       antiproton: { digit: "5", name: "Antiproton", short: "AP", color: "#ffd166", how: "Antiproton beats Graviton: antiproton annihilation overloads a graviton lattice faster than it can re-form." },
     },
-    factionDefault: { federation: "nadion", klingon: "polaron", borg: "antiproton" },
+    factionDefault: { federation: "nadion", klingon: "polaron", borg: "antiproton", romulan: "tetryon" },
     offFactionCost: 0.15,
     // Remodulating in battle (BS.Ships.remodulate, script action `remodulate`, bridge calls Remodulate shields / ammo):
     // every emitter takes the frequency that beats the other ship's dominant ammo, with the deflector down for
@@ -1255,6 +1333,20 @@ BS.Data = {
     },
     // overdrive (0.33, script action `overdrive`): a boss's enrage, damage and speed multiplied for the rest of the fight
     overdrive: { damageMult: 1.5, speedMult: 1.25 },
+    // The second boss (0.41): holds the loudest ship in its tractor beam and pounds it with plasma cannons; never
+    // retreats, never hunts weak points; its answers are in its script (script.enemyScripts.warbird)
+    warbird: {
+      doctrine: "broadside",
+      accuracyMult: 0.85, reactionDelay: 1.5, statMult: 1.6, damageMult: 2.4,   // measured in DESIGN §8 v0.41: at 1.0–1.8 four breakers never lost a hull
+      shieldMult: 3, shieldRegenMult: 2,
+      retreatHull: 0, retreatMinTime: 8, retreatMaxTime: 16,
+      repositionShield: 0.15, repositionDuration: 8,
+      orbitRangeKm: 6, retreatRangeKm: 20,
+      boosterBelow: 0.4, boosterMinCap: 0.3, afterburnerMinCap: 0.3, weakPointChance: 0,
+      drainedBelow: 0.08, drainedUntil: 0.35, drainedTime: 20,
+      weakPointKinds: [],
+      targetWeights: { reactor: 0.45, none: 0.35, shield: 0.2 },   // it hunts reactors: a rim reactor under a plasma bolt goes up with its neighbours
+    },
     // K't'inga: slower to react, holds a longer orbit, fights to the end rather than running
     ktinga: {
       doctrine: "broadside",
@@ -1308,8 +1400,13 @@ BS.Data = {
         ships: [{ enemyClass: "bird_of_prey", layout: "gunboat", doctrine: "brawl", script: "raider" }] },
       // the first boss (0.33; in the pool since 0.35 on every campaign.run.bossEvery-th battle): `kind: "boss"`, its own
       // script with the mechanics, `reinforcements` summoned by the script
-      { id: "cube",     kind: "boss", enemyClass: "borg_cube", layout: "default", doctrine: "broadside", script: "borg", minWins: 4, weight: 1, rewardMult: 6,
+      { id: "cube",     kind: "boss", enemyClass: "borg_cube", layout: "default", doctrine: "broadside", script: "borg", name: "Borg cube", minWins: 4, weight: 1, rewardMult: 6,
         reinforcements: [{ enemyClass: "bird_of_prey", layout: "default", doctrine: "strafe", script: "raider" }, { enemyClass: "bird_of_prey", layout: "gunboat", doctrine: "brawl", script: "raider" }] },
+      // the second boss (0.41): the warbird. In a boss slot the pool is the bosses not yet beaten, in this order
+      // (save.campaign.bossesBeaten); once every boss is beaten the slot rolls among all of them by weight.
+      // No escorts: the hold is its mechanic (measured with two Birds-of-Prey at half hull, DESIGN §8 v0.41: a role fleet
+      // that fights a minute longer than four breakers is eaten by the escorts, so the fight was about them, not the hold).
+      { id: "warbird",  kind: "boss", enemyClass: "dderidex", layout: "default", doctrine: "broadside", script: "warbird", name: "IRW Valdore", minWins: 4, weight: 1, rewardMult: 8 },
       { id: "pack",     kind: "fleet", enemyClass: "bird_of_prey", layout: "default", doctrine: "strafe",    script: "raider",  minWins: 5, minHulls: 4, weight: 2, rewardMult: 3.2,
         ships: [{ enemyClass: "bird_of_prey", layout: "gunboat", doctrine: "brawl", script: "raider" }, { enemyClass: "bird_of_prey", layout: "torpedo", doctrine: "bombard", script: "torpedoBoat" }, { enemyClass: "bird_of_prey", layout: "jammer", doctrine: "brawl", script: "raider" }] },
     ],
@@ -1320,8 +1417,10 @@ BS.Data = {
 
   // electronic warfare: ECM rolls jam / (jam + target sensors); cloak timings in seconds; detection grows with sensor arrays
   // support (0.34): the healer's reach, what each emitter and projector moves per cycle, and how close an escort keeps
-  support: { rangeKm: 4, transferPerBlock: 100, repairPerBlock: 45, escortKm: 2.5 },
+  support: { rangeKm: 4, transferPerBlock: 100, repairPerBlock: 300, escortKm: 2.5 },   // repairPerBlock 45 → 300 in 0.41: a healer that moves 7 hp/s never held a tank under a boss (DESIGN §8 v0.41)
   ew: {
+    // the warbird's tractor beam (0.41, module `tractor`): reach, how long a hold lasts, the capacitor the AI keeps for it
+    tractor: { rangeKm: 9, hold: 20, aiMinCap: 0.2 },
     cloakDetectRangeKm: 10,   // a cloaked ship inside this range (plus detectPerSensor per sensor) is a contact jamPerBlock: 3, jamDuration: 4, cloakTime: 3, decloakTime: 2, surgeTime: 5, cloakDrain: 8, cloakMinCap: 5, detectPerSensor: 1, ghostAlpha: 0.25, ownCloakAlpha: 0.35,
         // fields (cells from the block): a ship cloaks only with every block inside a cloak field; a jam breaks the lock only
         // with every block inside an ECM field, otherwise it just forces their fire onto the blocks outside it
@@ -1354,7 +1453,7 @@ BS.Data = {
     // are fighting); the action `target` switches our fire to one. "hunter" is null when nobody is shooting at us.
     subjects: { target: "the ship we are fighting", nearest: "the nearest enemy", weakest: "the enemy with the least hull", biggest: "the biggest enemy", smallest: "the smallest enemy", loudest: "the loudest enemy (largest signature)", hunter: "the enemy shooting at us", focus: "the enemy most of us are fighting" },
     // ally subjects (0.34): who a support or escort action is for
-    allySubjects: { weakestAlly: "the ally with the weakest shield", hurtAlly: "the ally with the least hull", huntedAlly: "the ally the most enemies are firing at", flagship: "the flagship" },
+    allySubjects: { weakestAlly: "the ally with the weakest shield", hurtAlly: "the ally with the least hull", huntedAlly: "the ally the most enemies are firing at", heldAlly: "the ally held in a tractor beam", flagship: "the flagship" },
     // bridge calls (BS.Script.bridgeCall, BS.Game.bridgeCall): the captain's `tokens` interventions per battle, never
     // refilled. A play or side call is an override that stands for holdSeconds and then hands back to the script;
     // Disengage stands until the weakest shield is back over disengageUntil (or holdSeconds); Reinforce acts at once;
@@ -1395,6 +1494,9 @@ BS.Data = {
       enemiesAtLeast:   { label: "{v} or more enemies are left", kind: "count", def: 2 },
       lanceCharging:    { label: "a cutting beam is charging on us", kind: "flag" },
       allyLanced:       { label: "a cutting beam is charging on an ally", kind: "flag" },
+      // 0.41: the warbird's tractor beam (ship.tractored, BS.Ships.tractor)
+      tractored:        { label: "we are held in a tractor beam", kind: "flag" },
+      allyTractored:    { label: "an ally is held in a tractor beam", kind: "flag" },
     },
     actions: {
       doctrine:  { label: "fly {v}", kind: "doctrine" },   // a labelled doctrine (ranges from the build) or any other
@@ -1442,12 +1544,14 @@ BS.Data = {
       // Lifeline is the healer: escorts the ally under most fire, supports the weakest shield, runs transfer and repair.
       anchor: { name: "Anchor", desc: "Tank: light the beacon so the boss turns on us, engage the biggest enemy with the hardener up, reinforce when a shield falls.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto", neut: "auto" },
         rules: [
+          { when: { tractored: true }, do: { reinforce: true, repair: "shield" }, every: 20 },
           { when: { weakestBelow: 0.3 }, do: { reinforce: true }, every: 20 },
           { when: {}, do: { target: "biggest", doctrine: "engage", weapons: true, modules: { beacon: true, shield_hardener: true }, repair: "shield" } },
         ] },
       lifeline: { name: "Lifeline", desc: "Healer: keep station on the ally under most fire, transfer shields and repair the weakest, skirmish away from a charging beam. Needs transfer emitters or repair projectors.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto", support: "auto" },
         rules: [
           { when: { lanceCharging: true }, do: { doctrine: "skirmish", modules: { afterburner: true } }, until: { lanceCharging: false }, holdMax: 9 },
+          { when: { allyTractored: true }, do: { escort: "heldAlly", support: "heldAlly", weapons: true, modules: { shield_transfer: true, remote_repair: true, shield_hardener: true } } },
           { when: {}, do: { escort: "huntedAlly", weapons: true, modules: { shield_transfer: true, remote_repair: true, shield_hardener: true } } },
         ] },
       // 0.33: the intended answer to the first boss (DESIGN §4 "Bosses"): outrun the cutting beam on the afterburner
@@ -1459,6 +1563,17 @@ BS.Data = {
           { when: { scanned: false, dKmBelow: 15 }, do: { scan: true }, once: true },
           { when: { scanned: true, ourAmmoBeaten: true, remodulating: false }, do: { remodulate: "ammo" }, every: 45 },
           { when: {}, do: { target: "biggest", doctrine: "engage", side: "aft", aim: "reactor", weapons: true, modules: { shield_hardener: true } } },
+        ] },
+      // 0.41: the intended answer to the second boss (DESIGN §4 "Bosses: the warbird"): the escorts first (a breaker that
+      // flipped between the boss and the escorts every hold dealt a third of its damage), disarm the cannons while an
+      // ally is held, the ammo retuned, then the reactors inside the wings.
+      warbreaker: { name: "Warbird breaker", desc: "Boss: finish the escorts first; while an ally is held in the tractor beam, shoot the plasma cannons; retune the ammo; then engage the biggest enemy and shoot the reactors.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto", neut: "auto" },
+        rules: [
+          { when: { enemiesAtLeast: 2 }, about: "smallest", do: { target: "smallest", doctrine: "engage", weapons: true, modules: { shield_hardener: true } } },
+          { when: { allyTractored: true }, do: { target: "biggest", doctrine: "engage", aim: "plasma", weapons: true, modules: { shield_hardener: true } } },
+          { when: { scanned: false, dKmBelow: 15 }, do: { scan: true }, once: true },
+          { when: { scanned: true, ourAmmoBeaten: true, remodulating: false }, do: { remodulate: "ammo" }, every: 45 },
+          { when: {}, do: { target: "biggest", doctrine: "engage", aim: "reactor", weapons: true, modules: { shield_hardener: true } } },
         ] },
       siege: { name: "Siege", desc: "Hold at torpedo range with everything that reaches; fight close only when they come inside 5 km.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto" },
         rules: [
@@ -1514,6 +1629,15 @@ BS.Data = {
                         { when: { time: 420 }, do: { overdrive: true }, once: true, callout: "The cube is rerouting everything to its weapons. Finish it now or not at all." },
                         { when: { blindFor: 4 }, do: { roll: true }, every: 12, callout: "The cube is rolling a fresh face toward us." },
                         { when: {}, do: { doctrine: "encounter" } } ] },
+      // the second boss (0.41): the tractor beam is a module the AI runs whenever its target is inside ew.tractor.rangeKm
+      // (enemyai.js); the rules are the public mechanics with their callouts
+      warbird:       { name: "Warbird", rules: [
+                        { when: { scanned: false, dKmBelow: 20 }, do: { scan: true }, once: true },
+                        { when: { notTargeting: "loudest" }, do: { target: "loudest" }, every: 30, callout: "The warbird is turning on the loudest ship." },
+                        { when: { scanned: true, enemyAmmoBeatsOurShields: true, remodulating: false }, do: { remodulate: "shields" }, every: 45, callout: "The warbird is remodulating its shields." },
+                        { when: { time: 480 }, do: { overdrive: true }, once: true, callout: "The warbird is venting its singularity into the weapons. Finish it now or not at all." },
+                        { when: { blindFor: 4 }, do: { roll: true }, every: 12, callout: "The warbird is coming about to bring the other wing round." },
+                        { when: {}, do: { doctrine: "encounter" } } ] },
       cruiser:       { name: "Cruiser", rules: [
                         { when: { scanned: false, dKmBelow: 14 }, do: { scan: true }, once: true },
                         { when: { unfocused: true }, do: { target: "focus" }, every: 10, callout: "The cruiser is shifting fire to the ship its escorts are on." },
@@ -1541,7 +1665,7 @@ BS.Data = {
     fleet: [],                         // owned class ids that undock with the hangar's ship (0.31, campaign.fleetMax in all); empty = alone
     layouts: {},                       // classId → array of layout rows; missing = class default layout
     builds: {},                        // classId → [{ name, rows, tuning }] named builds (up to editor.maxSavedBuilds)
-    campaign: { missionIndex: 0, battlesWon: 0, battlesLost: 0, streak: 0, cleanWins: 0, retry: null },   // retry: { encounterId, seed, battlesWon } pins the last enemy for the next fight
+    campaign: { missionIndex: 0, battlesWon: 0, battlesLost: 0, streak: 0, cleanWins: 0, retry: null, bossesBeaten: [] },   // bossesBeaten (0.41): encounter ids of the bosses won, the boss slot takes the first not in it   // retry: { encounterId, seed, battlesWon } pins the last enemy for the next fight
     intel: {},                         // encounterId → { rows, classId, layoutName, seed } layouts scanned in battle or bought
     scripts: [],                       // [{ id, name, policies, rules }] the player's bridge scripts (BS.Script); templates live in script.templates
     scriptByBuild: {},                 // classId → script id or template id the ship undocks with (missing: script.defaultTemplate)

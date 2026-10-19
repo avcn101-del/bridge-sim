@@ -194,6 +194,7 @@ BS.EnemyAI = (function () {
       var EW = BS.Data.ew;
       setModule(ship, "neut", engaged && capPct > EW.neut.aiMinCap && dKm <= EW.neut.rangeKm && ship.cloak.state === "off" && ship.lock.locked);
       setModule(ship, "decoy", ship.cloak.state === "off" && BS.Weapons.incoming(ship, EW.decoy.aiIncomingKm) > 0);
+      setModule(ship, "tractor", engaged && capPct > EW.tractor.aiMinCap && dKm <= EW.tractor.rangeKm && ship.lock.locked && live);   // the warbird's hold (0.41)
       if (ai.timer > 20 && engaged && !ship.scriptAim) { ship.aimType = pickTarget(p, ship, target); ai.timer = 0; }   // a script that set the aim keeps it
       // retreat is shared by all doctrines: once per battle, when the hull gets low
       if (engaged && hullPct < p.retreatHull && ai.canRetreat) {

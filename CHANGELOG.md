@@ -2,6 +2,52 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.41.0] — 2026-10-19 (the second boss: the warbird and its tractor beam)
+
+### Added
+- **The warbird** (`shipClasses.dderidex`, encounter `warbird`, `kind:
+  "boss"`): a Romulan D'deridex, 44×26 cells around a frame of structure
+  cells, plasma cannons and disruptors along both wings, torpedo tubes
+  and four tractor emitters in the head, the bridge at the tail. Its
+  profile `enemyAI.warbird` never retreats and hunts reactors; its script
+  `enemyScripts.warbird` turns on the loudest ship every 30 s, remodulates
+  and overdrives at 8 minutes. No escorts (measured: with them the fight
+  was about the escorts, DESIGN §8).
+- **Tractor beam** (block `tractor`, module `tractor`, `ew.tractor`): with
+  a lock inside 9 km the warbird holds its target for 20 s of every 30.
+  A held ship cannot move: the afterburner moves nothing and every bolt
+  lands. The hold breaks when its time is up or every emitter is gone.
+  Helm and Tactical call it, the scan panel lists who is held, the beam
+  is drawn. Conditions `tractored` and `allyTractored`, ally subject
+  `heldAlly`, events `tractored` and `tractorReleased`.
+- **Plasma cannon** (block `plasma`, module `plasma_group`): the boss's
+  30-damage bolt every 2 s with an extra penetration point.
+- **Warbird breaker** template: escorts first; while an ally is held, shoot
+  the plasma cannons; retune the ammo; then the reactors. The Anchor
+  reinforces while held, the Lifeline escorts and supports the held ally.
+- **Boss progression** (`save.campaign.bossesBeaten`): a boss slot takes
+  the first boss not yet beaten (the cube, then the warbird); all beaten,
+  it rolls among them. Bosses carry their own name (`encounters[].name`).
+- Smoke test: a fourth pass fights the warbird; `tuning.factionDefault.romulan`.
+
+### Changed
+- **Healer numbers**: `support.repairPerBlock` 45 → 300 (a projector moves
+  50 hp/s, not 7: measured, 7 never held a tank under a boss). The Anchor
+  preset's outer nacelle rows are plate, so a boss stripping the rim cannot
+  leave it without thrust.
+- The cube is named "Borg cube" instead of a Klingon name.
+
+### Measured (DESIGN §8 v0.41)
+- The warbird at ×2.4 damage, stat 1.6, no escorts: four Cube breakers win 2 of 2 in 2:21–2:23 keeping 71% and lose the Galaxy both times;
+  the mixed fleet (Anchor, Lifeline, two Warbird breakers) wins 2 of 2 in 4:18–4:42 keeping 77–86%. The
+  hold lands on the loudest ship every time and the pair keeps its hulls
+  where the breakers lose the Galaxy; not yet "the naive fleet loses" (the
+  honest reading and the next lever are in §8).
+- References unchanged: 1v1 3 of 4, the pack 4 of 4, four Cube breakers vs
+  the cube 2 of 2; the mixed fleet vs the cube 2 of 2 in 5:29–6:22.
+- Smoke test zero console errors in four passes; the campaign harness over
+  12 battles: the mixed fleet (Warbird breaker on the DPS hulls) 9 of 12, the cube at battle 6 (won 7:43) and the warbird at battle 12 (won 4:36 keeping 77%), 600 → 9,838 cr; the Warbird breaker is a boss template and lost two solo fights.
+
 ## [0.40.0] — 2026-10-19 (the campaign harness; heat measured and removed)
 
 ### Added

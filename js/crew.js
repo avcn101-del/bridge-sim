@@ -132,6 +132,9 @@ BS.Crew = (function () {
     BS.Events.on("escortChanged", function (e) { if (e.ship === ship) report("helm", "escort", { name: e.ally.name }); });
     // a charging weapon (0.33): the tell every bridge hears
     BS.Events.on("weaponCharging", function (e) { if (!ship || !e.target || e.target.team !== ship.team) return; if (e.target === ship) report("tactical", "lanceOnUs", { t: Math.round(e.time) }, "warn"); else report("tactical", "lanceOnAlly", { name: e.target.name, t: Math.round(e.time) }, "warn"); });
+    // the tractor beam (0.41): the hold on us or on an ally, and the release
+    BS.Events.on("tractored", function (e) { if (!ship || !e.target || e.target.team !== ship.team) return; if (e.target === ship) report("helm", "tractorOnUs", { t: Math.round(e.time) }, "warn"); else report("tactical", "tractorOnAlly", { name: e.target.name }, "warn"); });
+    BS.Events.on("tractorReleased", function (e) { if (ship && e.ship === ship) report("helm", "tractorFree"); });
     // second-generation EW
     BS.Events.on("decoyLaunched", function (e) { if (e.ship === ship) report("tactical", e.incoming > 0 ? "decoyLaunched" : "decoyNoTorpedoes"); else if (e.ship === enemy) report("tactical", "enemyDecoy"); });
     BS.Events.on("torpedoLured", function (e) { if (e.ship === ship && now() - (ship._luredReported || -99) > 6) { ship._luredReported = now(); report("tactical", "decoyLured"); } });

@@ -584,6 +584,34 @@ BS.Renderer = (function () {
     ctx.restore();
   }
 
+  // The tractor beam (0.41): a wide pale cone from the holder's emitter to the held ship, pulsing, with a ring on the
+  // held hull. Read off ship.tractoredBy / tractorBlock, nothing else.
+  function drawTractors(ships, alpha, t) {
+    for (var i = 0; i < ships.length; i++) {
+      var s = ships[i], h = s.tractoredBy;
+      if (!(s.tractored > 0) || !h) continue;
+      var hh = U.lerpAngle(h.prevHeading, h.heading, alpha), hx = U.lerp(h.prevPos.x, h.pos.x, alpha), hy = U.lerp(h.prevPos.y, h.pos.y, alpha);
+      var b = s.tractorBlock, c = Math.cos(hh), si = Math.sin(hh);
+      var x1 = b ? hx + b.lx * c - b.ly * si : hx, y1 = b ? hy + b.lx * si + b.ly * c : hy;
+      var x2 = U.lerp(s.prevPos.x, s.pos.x, alpha), y2 = U.lerp(s.prevPos.y, s.pos.y, alpha);
+      var dx = x2 - x1, dy = y2 - y1, d = Math.sqrt(dx * dx + dy * dy) || 1, nx = -dy / d, ny = dx / d;
+      var pulse = 0.55 + 0.25 * Math.sin(t * 7), w0 = 3, w1 = s.visual.width * 0.45;
+      ctx.save(); ctx.globalCompositeOperation = "lighter";
+      var g = ctx.createLinearGradient(x1, y1, x2, y2);
+      g.addColorStop(0, "rgba(150,215,255," + (0.45 * pulse).toFixed(3) + ")"); g.addColorStop(1, "rgba(150,215,255," + (0.12 * pulse).toFixed(3) + ")");
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.moveTo(x1 + nx * w0, y1 + ny * w0); ctx.lineTo(x2 + nx * w1, y2 + ny * w1); ctx.lineTo(x2 - nx * w1, y2 - ny * w1); ctx.lineTo(x1 - nx * w0, y1 - ny * w0); ctx.closePath(); ctx.fill();
+      // bands travelling down the beam
+      ctx.strokeStyle = "rgba(200,240,255," + (0.35 * pulse).toFixed(3) + ")"; ctx.lineWidth = 1.2;
+      for (var k = 0; k < 6; k++) {
+        var f = ((t * 0.6 + k / 6) % 1), bx = x1 + dx * f, by = y1 + dy * f, bw = w0 + (w1 - w0) * f;
+        ctx.beginPath(); ctx.moveTo(bx + nx * bw, by + ny * bw); ctx.lineTo(bx - nx * bw, by - ny * bw); ctx.stroke();
+      }
+      ctx.strokeStyle = "rgba(150,215,255," + (0.5 * pulse).toFixed(3) + ")"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x2, y2, s.visual.length * 0.55 + 2 * Math.sin(t * 9), 0, U.TAU); ctx.stroke();
+      ctx.restore();
+    }
+  }
   function drawTorpedoes(alpha, t) {
     var torps = BS.Weapons.torpedoes;
     ctx.save(); ctx.globalCompositeOperation = "lighter";
@@ -741,6 +769,7 @@ BS.Renderer = (function () {
     drawParticles();
     for (var i = 0; i < ships.length; i++) drawShip(ships[i], alpha, time);
     for (var j = 0; j < ships.length; j++) drawShields(ships[j], alpha, time);
+    drawTractors(ships, alpha, time);
     drawBeams(alpha, time);
     drawBolts(time);
     drawTorpedoes(alpha, time);

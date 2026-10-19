@@ -4,12 +4,13 @@
 //   NODE_PATH=/opt/node-tools/node_modules node tools/smoke.js [--seconds 40]
 // A third pass (0.31) undocks a fleet of four against the "cube" boss encounter (0.33: the cube, its summoned escorts,
 // its callouts and the charging beam) and runs the battle to its end (at most --fleet-seconds 420 simulated), so the
-// panels, the viewer hand-over and the result screen are exercised with the biggest grids the game has.
+// panels, the viewer hand-over and the result screen are exercised with the biggest grids the game has. A fourth
+// (0.41) does the same against the "warbird" boss (the tractor beam held and drawn, the plasma cannons).
 var path = require("path"), pw = require("playwright");
 var seconds = parseInt((process.argv.indexOf("--seconds") >= 0 ? process.argv[process.argv.indexOf("--seconds") + 1] : "40"), 10);
 var fleetSeconds = parseInt((process.argv.indexOf("--fleet-seconds") >= 0 ? process.argv[process.argv.indexOf("--fleet-seconds") + 1] : "420"), 10);
 
-async function play(browser, label, ctxOpts, fleet) {
+async function play(browser, label, ctxOpts, fleet) {   // fleet: a boss encounter id, the fleet pass
   var ctx = await browser.newContext(ctxOpts), page = await ctx.newPage(), errors = [];
   page.on("pageerror", function (e) { errors.push(String(e)); });
   page.on("console", function (m) { if (m.type() === "error" && !/fonts\.g|ERR_|net::/.test(m.text())) errors.push(m.text()); });
@@ -18,7 +19,7 @@ async function play(browser, label, ctxOpts, fleet) {
   await page.evaluate(function () { BS.Campaign.reset(); });
   await page.reload(); await page.waitForFunction(function () { return window.BS && BS.Game; });
   if (fleet) {   // four hulls against the pack: the save owns them, the encounter pool holds only the pack
-    await page.evaluate(function () { var sv = BS.Campaign.get(); ["miranda", "defiant", "excelsior"].forEach(function (id) { if (sv.ownedShips.indexOf(id) < 0) sv.ownedShips.push(id); }); BS.Campaign.setFleet(["miranda", "defiant", "excelsior"]); BS.Data.campaign.encounters = BS.Data.campaign.encounters.filter(function (e) { return e.id === "cube"; }).map(function (e) { return Object.assign({}, e, { minWins: 0 }); }); BS.Data.campaign.run = { bossEvery: 1, bossFromWins: 0, fleetMinHulls: 1 }; ["miranda", "defiant", "excelsior", "constitution"].forEach(function (id) { sv.scriptByBuild[id] = "cubebreaker"; }); });
+    await page.evaluate(function (boss) { var sv = BS.Campaign.get(); ["miranda", "defiant", "excelsior"].forEach(function (id) { if (sv.ownedShips.indexOf(id) < 0) sv.ownedShips.push(id); }); BS.Campaign.setFleet(["miranda", "defiant", "excelsior"]); BS.Data.campaign.encounters = BS.Data.campaign.encounters.filter(function (e) { return e.id === boss; }).map(function (e) { return Object.assign({}, e, { minWins: 0 }); }); BS.Data.campaign.run = { bossEvery: 1, bossFromWins: 0, fleetMinHulls: 1 }; ["miranda", "defiant", "excelsior", "constitution"].forEach(function (id) { sv.scriptByBuild[id] = boss === "cube" ? "cubebreaker" : "warbreaker"; }); }, fleet);
     seconds = fleetSeconds;
   }
   // start screen → hangar → Undock, through the real buttons
@@ -46,7 +47,8 @@ async function play(browser, label, ctxOpts, fleet) {
   var n = 0;
   n += await play(browser, "desktop", { viewport: { width: 1440, height: 900 } });
   n += await play(browser, "phone", { viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
-  n += await play(browser, "fleet", { viewport: { width: 1440, height: 900 } }, true);
+  n += await play(browser, "fleet", { viewport: { width: 1440, height: 900 } }, "cube");
+  n += await play(browser, "warbird", { viewport: { width: 1440, height: 900 } }, "warbird");
   await browser.close();
   if (n) { console.log("FAIL: " + n + " console error(s)"); process.exit(1); }
   console.log("OK: zero console errors");
