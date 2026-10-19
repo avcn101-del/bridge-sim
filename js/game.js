@@ -143,7 +143,7 @@ BS.Game = (function () {
   // One enemy hull from an encounter spec (BS.Campaign.encounter().ships / .reinforcements), not yet fighting.
   function spawnEnemy(sp, pos, heading) {
     var prof = BS.Data.enemyAI[sp.aiProfile] || BS.Data.enemyAI.default;
-    var e = BS.Ships.create(sp.classId, { name: sp.name, team: "enemy", layout: sp.rows, tuning: sp.tuning || null, pos: pos, heading: heading, statMult: BS.Campaign.enemyStatMult(sp.aiProfile, state.encounter ? state.encounter.kind : null), mods: { damageMult: sp.damageMult || prof.damageMult, shieldMaxMult: prof.shieldMult || 1, shieldRegenMult: prof.shieldRegenMult || 1 } });
+    var e = BS.Ships.create(sp.classId, { name: sp.name, team: "enemy", layout: sp.rows, tuning: sp.tuning || null, pos: pos, heading: heading, statMult: BS.Campaign.enemyStatMult(sp.aiProfile, state.encounter ? state.encounter.kind : null), mods: { damageMult: BS.Campaign.enemyDamageMult(sp, state.encounter ? state.encounter.kind : null), shieldMaxMult: prof.shieldMult || 1, shieldRegenMult: prof.shieldRegenMult || 1 } });
     e.spec = sp;
     return e;
   }

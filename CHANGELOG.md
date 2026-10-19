@@ -2,6 +2,20 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.46.0] — 2026-10-19 (the pack as a farm fight)
+
+### Changed
+- **Fleet encounters are scaled back** (`campaign.enemyScaling.fleetStatMult
+  / fleetDamageMult` 0.8): their ships were built on the 1v1 profiles
+  (stat ×1.4, damage ×1.5, sized to challenge one scripted hull), so a
+  4v4 compounded them four times and the pack at 8 wins cost every fleet
+  one or two hulls. Measured (DESIGN §8 v0.46): the pack at 8 wins goes
+  from 4:02–5:07 with hulls lost every fight to 2:08–3:22 with none; the
+  12-battle runs end 600 → 16,185 (mixed, no hull lost) and 8,665
+  (breakers) against 9,873 and 3,486.
+- A disengage rule for the hunted ship in the Wolf pack was tried and not
+  kept (1 of 4 at 8 wins: the Defiant was dead before it could fire).
+
 ## [0.45.0] — 2026-10-19 (dev mode; the fleet-tier scaling knob)
 
 ### Added

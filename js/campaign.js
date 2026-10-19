@@ -202,7 +202,13 @@ BS.Campaign = (function () {
   // kind (0.45): a fleet encounter takes enemyScaling.fleetFactor of the win bonus
   function enemyStatMult(profileId, kind) {
     var sc = D().campaign.enemyScaling, prof = D().enemyAI[profileId || "default"] || D().enemyAI.default;
-    return prof.statMult + Math.min(sc.maxBonus, sc.perWin * save.campaign.battlesWon) * (kind === "fleet" ? (sc.fleetFactor === undefined ? 1 : sc.fleetFactor) : 1);
+    var fleet = kind === "fleet", bonus = Math.min(sc.maxBonus, sc.perWin * save.campaign.battlesWon) * (fleet && sc.fleetFactor !== undefined ? sc.fleetFactor : 1);
+    return (prof.statMult + bonus) * (fleet && sc.fleetStatMult !== undefined ? sc.fleetStatMult : 1);
+  }
+  // the damage multiplier of an enemy hull: its spec's or its profile's, scaled back in a fleet encounter (0.46)
+  function enemyDamageMult(sp, kind) {
+    var sc = D().campaign.enemyScaling, prof = D().enemyAI[sp.aiProfile || "default"] || D().enemyAI.default;
+    return (sp.damageMult || prof.damageMult) * (kind === "fleet" && sc.fleetDamageMult !== undefined ? sc.fleetDamageMult : 1);
   }
   // dev mode (0.45, save.settings.devMode): nothing costs credits, so a build can be tried
   function devMode() { return !!(save.settings && save.settings.devMode); }
@@ -362,5 +368,5 @@ BS.Campaign = (function () {
     currentClass: currentClass, layoutFor: layoutFor, setLayout: setLayout, battleLayout: battleLayout, buyShip: buyShip, selectShip: selectShip, fleet: fleet, setFleet: setFleet,
     layoutDelta: layoutDelta, countBlocks: countBlocks, applyLayout: applyLayout, tuningFor: tuningFor, battleTuning: battleTuning, builds: builds, saveBuild: saveBuild, deleteBuild: deleteBuild, intelFor: intelFor, buyIntel: buyIntel, layoutCost: layoutCost, effectiveCost: effectiveCost,
     scriptFor: scriptFor, scriptIdFor: scriptIdFor, setScriptFor: setScriptFor, saveScript: saveScript, deleteScript: deleteScript, planFor: planFor, setPlan: setPlan, setRetry: setRetry, letGo: letGo,
-    layoutStats: layoutStats, enemyStatMult: enemyStatMult, encounter: encounter, settleBattle: settleBattle, devMode: devMode, setDevMode: setDevMode, canAfford: canAfford };
+    layoutStats: layoutStats, enemyStatMult: enemyStatMult, enemyDamageMult: enemyDamageMult, encounter: encounter, settleBattle: settleBattle, devMode: devMode, setDevMode: setDevMode, canAfford: canAfford };
 })();
