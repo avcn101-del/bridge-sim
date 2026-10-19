@@ -77,7 +77,7 @@ BS.Hangar = (function () {
     sc.intelShip = ship;
     c.save(); c.translate(cv.width / 2, cv.height / 2); var k = BS.Renderer.drawTopDown(c, ship, cv.width, cv.height, { tuning: true }); c.restore();
     drawPlanMarkers(c, cv, ship, k, enc);
-    var st = ship.stats, wps = BS.Grid.weakPoints(ship);
+    var st = ship.stats, wps = BS.Grid.weakPoints(ship, { grid: Gr.build(BS.Data.shipClasses[ed.classId], ed.rows, 1, ed.tuning) });
     var weapons = {};
     st.weapons.forEach(function (b) { weapons[b.def.short] = (weapons[b.def.short] || 0) + 1; });
     var facings = BS.Ships.FACINGS.map(function (f) { return f.charAt(0).toUpperCase() + " " + ship.shieldMax[f]; }).join(" · ");
@@ -94,7 +94,7 @@ BS.Hangar = (function () {
     var T = BS.Data.tuning, it0 = C.intelFor(enc), ecls = enc.cls, eDflt = T.list[T.factionDefault[ecls.faction]].name;
     var theirs = it0 ? Gr.tuningText(Gr.build(ecls, it0.rows, 1, it0.tuning || null)) + " (intel)" : eDflt + " throughout unless tuned: scan or buy intel to be sure";
     var elLine = "<div class='hg-element'>Tuning: theirs " + escapeHtml(theirs) + " · yours " + escapeHtml(Gr.tuningText(Gr.build(BS.Data.shipClasses[ed.classId], ed.rows, 1, ed.tuning))) + "</div>";
-    var b = C.bookFor(enc), lr = elLine + (enc.learned ? "<div class='warn hg-learned'>They have watched your last " + enc.learned.fights + " fight" + (enc.learned.fights === 1 ? "" : "s") + " (" + escapeHtml(enc.learned.tags.join(" · ")) + "): " + escapeHtml(enc.learned.reason) + ".</div>" : "");
+    var b = C.bookFor(enc), lr = elLine + (enc.learned ? "<div class='warn hg-learned'>They have watched your last " + enc.learned.fights + " fight" + (enc.learned.fights === 1 ? "" : "s") + " (" + escapeHtml(enc.learned.tags.join(" · ")) + "): " + escapeHtml(enc.learned.reason) + ".</div>" : "") + (enc.learnedTuning ? "<div class='warn hg-learned'>They have read your tuning: " + escapeHtml(enc.learnedTuning) + ".</div>" : "");
     return lr + bookLine0(b);
   }
   function bookLine0(b) {
@@ -618,7 +618,7 @@ BS.Hangar = (function () {
     if (k.indexOf("modules.") === 0) { obj.modules = obj.modules || {}; obj.modules[k.slice(8)] = true; return; }
     var V = mode === "cond" ? SD().conditions : SD().actions, d = V[k];
     if (mode === "cond") obj[k] = d.kind === "flag" ? true : d.kind === "bool" ? (d.def !== undefined ? d.def : true) : d.def;
-    else obj[k] = { stance: "engage", play: "alpha", side: "blind", aim: "reactor", weapons: true, governor: true, repair: "shield", reinforce: true, scan: true, board: true, roll: true }[k];
+    else obj[k] = { stance: "engage", play: "alpha", side: "blind", aim: "reactor", weapons: true, governor: true, repair: "shield", reinforce: true, scan: true, board: true, roll: true, remodulate: "shields" }[k];
   }
   function removeTerm(k, obj, mode) {
     if (k.indexOf("modules.") === 0) { delete obj.modules[k.slice(8)]; if (!Object.keys(obj.modules).length) delete obj.modules; return; }
@@ -652,6 +652,7 @@ BS.Hangar = (function () {
       case "play": return sel(Object.keys(BS.Data.helm.plays).map(function (id) { return [id, BS.Data.helm.plays[id].label]; }), obj[k], function (v) { obj[k] = v; });
       case "side": return sel(Object.keys(BS.Data.helm.sides).map(function (id) { return [id, BS.Data.helm.sides[id].label.toLowerCase()]; }), obj[k], function (v) { obj[k] = v; });
       case "weapons": case "governor": return sel([["on", "on"], ["off", "off"]], obj[k] ? "on" : "off", function (v) { obj[k] = v === "on"; });
+      case "remodulate": return sel([["shields", "shields (frequency that beats their ammo)"], ["ammo", "weapons (ammo that beats their shields)"]], obj[k], function (v) { obj[k] = v; });
       case "repair": return sel([["", "automatic"]].concat(Object.keys(BS.Data.blocks).map(function (b) { return [b, BS.Data.blocks[b].name.toLowerCase() + "s"]; })), obj[k] || "", function (v) { obj[k] = v || null; });
       case "aim": {
         var opts = [["hull", "anything (full accuracy)"], ["exposed", "bare hull"], ["structure", "their necks and pylons"]];

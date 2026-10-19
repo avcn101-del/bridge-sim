@@ -169,9 +169,19 @@ BS.Grid = (function () {
   // a reactor that alone powers the most systems (blackout), a block whose loss severs the most hull from the bridge
   // (neck: lost blocks per hp), a crew quarters whose loss undermans the ship, and wounded systems open to a critical.
   // Each: { kind, block, label, score, n }. Used by the scan panel (click to focus fire) and by cunning enemies.
-  function weakPoints(ship) {
+  function weakPoints(ship, attacker) {
     var grid = ship.grid, g = G(), W = g.weakPoints, out = [], blocks = grid.blocks.filter(function (b) { return b.alive; }), st = grid.stats || derive(grid);
     var systems = blocks.filter(function (b) { return !b.structural && (b.def.crew || 0) > 0; });
+    // 0. a facing whose emitters' frequency the attacker's dominant ammo beats (BS.Data.tuning): the attacker's edge
+    if (attacker && attacker.grid) {
+      var T = BS.Data.tuning, ammo = dominantTune(tuningSummary(attacker.grid).ammo);
+      if (ammo) {
+        var byFacing = {};
+        blocks.forEach(function (b) { if (b.type === "shield" && b.tune && tuneMult(ammo, b.tune) > 1) { var f = facingOf(b); if (!byFacing[f]) byFacing[f] = { n: 0, block: b }; byFacing[f].n++; } });
+        var bestF = null; Object.keys(byFacing).forEach(function (f) { if (!bestF || byFacing[f].n > byFacing[bestF].n) bestF = f; });
+        if (bestF) out.push({ kind: "frequency", block: byFacing[bestF].block, n: byFacing[bestF].n, score: 6 + byFacing[bestF].n, label: "Their " + bestF + " emitters are " + T.list[byFacing[bestF].block.tune].name + ": our " + T.list[ammo].name + " ammo hits ×" + T.bonus + " there" });
+      }
+    }
     // 1. the emitter that covers the most blocks
     var coverCount = {};
     blocks.forEach(function (b) { if (b.coverBy) coverCount[b.coverBy.id] = (coverCount[b.coverBy.id] || 0) + 1; });

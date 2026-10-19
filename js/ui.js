@@ -688,7 +688,7 @@ BS.UI = (function () {
     }
     if (scanFrame % 6 !== 1) return;
     var st2 = e.stats, D = BS.Data, hull = e.hull / e.hullMax;
-    if (scanFrame % 60 === 1 || !scanWeak) scanWeak = BS.Grid.weakPoints(e);   // the analysis once a second
+    if (scanFrame % 60 === 1 || !scanWeak) scanWeak = BS.Grid.weakPoints(e, p);   // the analysis once a second
     function pct(x) { return Math.round(x * 100) + "%"; }
     function cls(x, lo, hi) { return x < lo ? "bad" : x < hi ? "warn" : "good"; }
     var html = "<div><h4>Hull & shields</h4>";
@@ -726,7 +726,7 @@ BS.UI = (function () {
     if (p.script) { var psc = p.script, stRule = psc.override ? "BRIDGE CALL · " + BS.Script.describeDo(psc.override.rule.do) : psc.suspended ? "manual helm, script paused" : psc.active >= 0 && psc.def.rules[psc.active] ? "rule " + (psc.active + 1) + " · " + BS.Script.describe(psc.def.rules[psc.active], psc.def) : "waiting for a rule"; html += "<div class='sl'><label>Standing</label><span class='v' title='" + escapeHtml(stRule) + "'>" + escapeHtml(stRule.length > 70 ? stRule.slice(0, 68) + "…" : stRule) + "</span></div>"; }
     html += "<div class='sl'><label>Aiming</label><span class='v'>" + (p.aimType === "block" && p.aimBlock ? (p.aimBlock.block.structural ? "structure" : p.aimBlock.block.def.name.toLowerCase()) + " at " + p.aimBlock.block.x + "," + p.aimBlock.block.y : p.aimType === "exposed" ? "bare hull" : p.aimType === "structure" ? "necks and pylons" : p.aimType ? D.blocks[p.aimType].name.toLowerCase() + "s" : "anything") + (pendingFocus ? " · <span class='warn'>focus ready: " + escapeHtml(pendingFocus.label) + " (confirm in Bridge)</span>" : "") + "</span></div>";
     html += "<div class='sl'><label>Scan</label><span class='v'>" + (p.scanned ? "<span class='good'>scanned: weak points readable</span>" : p.scanning > 0 ? "scanning " + p.scanning.toFixed(1) + " s" : "not scanned (scan is a script action)") + (e.scanned ? " · they have scanned us" : "") + "</span></div>";
-    html += "<div class='sl'><label>Tuning</label><span class='v'>" + (p.scanned ? escapeHtml(BS.Grid.tuningText(e.grid)) : "<span class='dim'>unknown until scanned</span>") + "</span></div>";
+    html += "<div class='sl'><label>Tuning</label><span class='v'>" + (p.scanned ? escapeHtml(BS.Grid.tuningText(e.grid)) + (e.remod ? " <span class='warn'>(remodulating " + e.remod.kind + " " + e.remod.t.toFixed(0) + " s)</span>" : "") : "<span class='dim'>unknown until scanned</span>") + (p.remod ? " · <span class='warn'>ours: remodulating " + p.remod.kind + " " + p.remod.t.toFixed(0) + " s</span>" : "") + "</span></div>";
     html += "<div class='sl'><label>Cloak</label><span class='v'>" + (e.cloak.state !== "off" ? e.cloak.state : e.cloak.surge > 0 ? "surge: shields down" : e.cloak.strike > 0 ? "<span class='bad'>decloak strike " + e.cloak.strike.toFixed(0) + " s</span>" : "off") + (vis < 1 ? " · ghost contact" : "") + "</span></div>";
     html += "</div><div><h4>Weak points · click to focus fire</h4>";
     if (!scanWeak.length) html += "<div class='dim'>Nothing stands out.</div>";

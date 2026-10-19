@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.29.0",
+  version: "0.30.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -1063,6 +1063,11 @@ BS.Data = {
       bridgeCall: "Bridge call, aye: {text}. {left} left.",
       bridgeCallNone: "No bridge calls left, Captain. The script has the conn.",
       scanDone: "Scan complete. We have their layout and their weak points.",
+      remodShields: "Remodulating shields to {mod}, Captain: {t} seconds with the deflector down.",
+      remodAmmo: "Retuning every weapon to {mod}: {t} seconds cold.",
+      remodDone: "Remodulation complete: {what} on {mod}.",
+      remodNothing: "Nothing to remodulate, Captain: {why}.",
+      enemyRemodDone: "Their {what} are back, retuned to {mod}.",
       enemyScanning: "They're scanning us, Captain. They're reading our layout.",
       aimWeak: "Aye. {label}.",
       reinforceShields: "Reinforcing the {weak} shield from the {strong} grid.",
@@ -1257,6 +1262,12 @@ BS.Data = {
     },
     factionDefault: { federation: "nadion", klingon: "polaron" },
     offFactionCost: 0.15,
+    // Remodulating in battle (BS.Ships.remodulate, script action `remodulate`, bridge calls Remodulate shields / ammo):
+    // every emitter takes the frequency that beats the other ship's dominant ammo, with the deflector down for
+    // shieldsSeconds; or every weapon block takes the ammo that beats their dominant frequency, with the weapons cold for
+    // ammoSeconds. The other ship's tuning is read only once scanned (script conditions), so a remodulation is an answer
+    // to something seen, never a guess at hidden data.
+    remodulate: { shieldsSeconds: 10, ammoSeconds: 5 },
     tunable: { shield: "frequency", armor: "alloy", phaser: "ammo", pulse: "ammo", disruptor: "ammo", torpedo: "ammo" },
     measured: { ring: "equal hulls, ×1.5 / ×0.5: ammo that beats the defence 4 of 4, a beaten defence 1 of 4, beaten ammo 0 of 4, a hybrid hull against ammo beating one half 0 of 4 (DESIGN §8 v0.29)" },
   },
@@ -1291,7 +1302,7 @@ BS.Data = {
       orbitRangeKm: 6, retreatRangeKm: 22,
       boosterBelow: 0.45, boosterMinCap: 0.35, afterburnerMinCap: 0.25, weakPointChance: 0.25,   // chance each re-roll to aim at your top weak point instead
       drainedBelow: 0.08, drainedUntil: 0.35, drainedTime: 20,   // neutralised under drainedBelow cap: open the range past the neutraliser until drainedUntil cap or drainedTime s
-      weakPointKinds: ["emitter", "chain", "blackout", "crew"],   // a raider neither cuts necks nor finishes wounded systems: measured, both turned Engage into a coin flip
+      weakPointKinds: ["frequency", "emitter", "chain", "blackout", "crew"],   // a raider neither cuts necks nor finishes wounded systems: measured, both turned Engage into a coin flip
       targetWeights: { none: 0.3, exposed: 0.1, phaser: 0.15, reactor: 0.15, engine: 0.12, shield: 0.13, bridge: 0.05 },   // none = spray the hull, no −15% aim penalty; exposed = hull outside shield cover
     },
     // K't'inga: slower to react, holds a longer orbit, fights to the end rather than running
@@ -1303,7 +1314,7 @@ BS.Data = {
       orbitRangeKm: 7, retreatRangeKm: 18,
       boosterBelow: 0.5, boosterMinCap: 0.3, afterburnerMinCap: 0.35, weakPointChance: 0.6,
       drainedBelow: 0.06, drainedUntil: 0.3, drainedTime: 25,
-      weakPointKinds: ["emitter", "chain", "blackout", "neck", "crew", "wounded"],   // the cruiser cuts necks
+      weakPointKinds: ["frequency", "emitter", "chain", "blackout", "neck", "crew", "wounded"],   // the cruiser cuts necks
       targetWeights: { none: 0.2, exposed: 0.1, phaser: 0.18, reactor: 0.17, engine: 0.12, shield: 0.13, bridge: 0.1 },
     },
     // The public doctrine table (0.26): who beats whom, measured (DESIGN §8, Constitution templates vs Bird-of-Prey
@@ -1399,7 +1410,8 @@ BS.Data = {
     // enemyAI.signatureCounters row matching the dominant tag of those wins: its layout, doctrine and script, provided the
     // counter layout's effective cost (block cost × the enemy's stat multiplier) is within costBand of the player's build
     // cost, so the answer is a ship of the same weight. The hangar says so. Fights 0–2 stay naive.
-    learn: { fromWins: 3, chance: 0.6, remember: 3, costBand: 0.25, tagFraction: 0.3, cloakFraction: 0.1, longRangeKm: 9, closeRangeKm: 4 },
+    learn: { fromWins: 3, chance: 0.6, remember: 3, costBand: 0.25, tagFraction: 0.3, cloakFraction: 0.1, longRangeKm: 9, closeRangeKm: 4,
+             tuneChance: 0.6 },   // tuneChance: from fromWins on, the enemy's shields take the frequency that beats the ammo of the remembered wins and its ammo the modulation that beats their shields
     klingonNames: ["IKS Rotarran", "IKS Hegh'ta", "IKS Pagh", "IKS Koraga", "IKS Vorn", "IKS Amar", "IKS Gr'oth", "IKS Bortas", "IKS Ch'Tang", "IKS Maht-H'a"],
   },
 
@@ -1484,6 +1496,10 @@ BS.Data = {
       enemyHeatAbove:   { label: "their heat is over {v}", kind: "pct", def: 0.6 },
       enemyHeatBelow:   { label: "their heat is under {v}", kind: "pct", def: 0.35 },
       blindFor:         { label: "none of our weapons have borne on them for {v}", kind: "sec", def: 3 },
+      // 0.30: tuning, readable only once we have scanned them (BS.Data.tuning)
+      enemyAmmoBeatsOurShields: { label: "their ammo beats our shield frequency", kind: "flag" },
+      ourAmmoBeaten:    { label: "their shield frequency beats our ammo", kind: "flag" },
+      remodulating:     { label: "we are remodulating", kind: "flag" },
     },
     actions: {
       stance:    { label: "fly {v}", kind: "stance" },
@@ -1499,6 +1515,7 @@ BS.Data = {
       scan:      { label: "scan them (4 s, beams hold fire)", kind: "flag" },
       board:     { label: "send the boarding party", kind: "flag" },
       roll:      { label: "come about to bring guns round", kind: "flag" },   // BS.EnemyAI.roll: a reposition toward the side with the most fire
+      remodulate:{ label: "remodulate our {v}", kind: "remod" },   // "shields" (frequency that beats their ammo, deflector down meanwhile) or "ammo" (ammo that beats their frequency, weapons cold meanwhile)
     },
     policies: {
       lock:      { label: "keep a lock on the target" },
@@ -1508,7 +1525,7 @@ BS.Data = {
       decoy:     { label: "drop a decoy when torpedoes close" },
       neut:      { label: "run the neutraliser in range" },
     },
-    weakKinds: { emitter: "the emitter covering the most hull", chain: "reactors that touch", blackout: "the reactor that alone powers a part of them", neck: "the block that severs the most hull", crew: "their crew decks", wounded: "a wounded system", any: "whatever stands out most" },
+    weakKinds: { emitter: "the emitter covering the most hull", chain: "reactors that touch", blackout: "the reactor that alone powers a part of them", neck: "the block that severs the most hull", crew: "their crew decks", wounded: "a wounded system", frequency: "the facing whose shield frequency our ammo beats", any: "whatever stands out most" },
     // Templates: the six plays and the default fight written as rules. `until` holds a rule until its condition
     // (or holdMax s); a rule without conditions is the default. once / every make call-outs.
     templates: {
@@ -1564,6 +1581,8 @@ BS.Data = {
                         { when: {}, do: { doctrine: "encounter" } } ] },
       raider:        { name: "Raider", rules: [
                         { when: { scanned: false, dKmBelow: 12 }, do: { scan: true }, once: true },
+                        { when: { scanned: true, enemyAmmoBeatsOurShields: true, remodulating: false }, do: { remodulate: "shields" }, every: 45, callout: "They're remodulating their shields, Captain. Ten seconds with the deflector down." },
+                        { when: { scanned: true, ourAmmoBeaten: true, remodulating: false }, do: { remodulate: "ammo" }, every: 45, callout: "They're retuning their weapons to our shield frequency." },
                         { when: { blindFor: 3 }, do: { roll: true }, every: 8, callout: "They're coming about to bring their guns round on us." },
                         { when: { enemyFocusing: "shield" }, do: { reinforce: true, roll: true }, every: 20, callout: "They're reinforcing and turning that emitter away from us." },
                         { when: { enemyHeatAbove: 0.6, dKmBelow: 6 }, do: { doctrine: "kite" }, until: { enemyHeatBelow: 0.35 }, holdMax: 20, callout: "They're opening the range, riding out our strike." },
@@ -1573,6 +1592,8 @@ BS.Data = {
       torpedoBoat:   { name: "Torpedo boat", rules: [ { when: {}, do: { play: "siege" } } ] },
       cruiser:       { name: "Cruiser", rules: [
                         { when: { scanned: false, dKmBelow: 14 }, do: { scan: true }, once: true },
+                        { when: { scanned: true, enemyAmmoBeatsOurShields: true, remodulating: false }, do: { remodulate: "shields" }, every: 45, callout: "The cruiser is remodulating its shields: ten seconds with its deflector down." },
+                        { when: { scanned: true, ourAmmoBeaten: true, remodulating: false }, do: { remodulate: "ammo" }, every: 45, callout: "The cruiser is retuning its disruptors to our shield frequency." },
                         { when: { blindFor: 2.5 }, do: { roll: true }, every: 10, callout: "The cruiser is coming about to bring its batteries round." },
                         { when: { enemyFocusing: "shield" }, do: { reinforce: true, roll: true }, every: 25, callout: "The cruiser is reinforcing and rolling that emitter away." },
                         { when: { enemyHeatAbove: 0.6, dKmBelow: 6 }, do: { doctrine: "kite" }, until: { enemyHeatBelow: 0.35 }, holdMax: 15, callout: "The cruiser is opening the range under our strike." },
@@ -1581,6 +1602,8 @@ BS.Data = {
                         { when: {}, do: { doctrine: "encounter" } } ] },
       siegeCruiser:  { name: "Siege cruiser", rules: [
                         { when: { scanned: false, dKmBelow: 20 }, do: { scan: true }, once: true },
+                        { when: { scanned: true, enemyAmmoBeatsOurShields: true, remodulating: false }, do: { remodulate: "shields" }, every: 45, callout: "The cruiser is remodulating its shields: ten seconds with its deflector down." },
+                        { when: { scanned: true, ourAmmoBeaten: true, remodulating: false }, do: { remodulate: "ammo" }, every: 45, callout: "The cruiser is retuning its torpedoes to our shield frequency." },
                         { when: { blindFor: 2.5 }, do: { roll: true }, every: 10, callout: "The cruiser is coming about to bring its batteries round." },
                         { when: { enemyFocusing: "shield" }, do: { reinforce: true, roll: true }, every: 25, callout: "The cruiser is reinforcing and rolling that emitter away." },
                         { when: { enemyCloaked: true }, do: { doctrine: "watch" }, until: { enemyCloaked: false }, holdMax: 60, callout: "The cruiser is holding at five klicks, waiting for us to decloak." },

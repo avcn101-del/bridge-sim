@@ -182,7 +182,39 @@ BS.Ships = (function () {
   }
   // Shields are projected only with the cloak off and the decloak surge over; cloaked or surging, the pools are kept but
   // absorb nothing, so an ambusher comes out of cloak with the shields it went in with.
-  function shieldsUp(ship) { return ship.cloak.state === "off" && ship.cloak.surge <= 0; }
+  function shieldsUp(ship) { return ship.cloak.state === "off" && ship.cloak.surge <= 0 && !(ship.remod && ship.remod.kind === "shields"); }
+  // ---- remodulation (BS.Data.tuning.remodulate) ---------------------------------------------------------------
+  // The modulation that beats `mod` on the ring (the one before it), and the one it beats.
+  function beats(mod) { var o = BS.Data.tuning.order, i = o.indexOf(mod); return i < 0 ? null : o[(i + o.length - 1) % o.length]; }
+  // Start retuning every shield emitter (kind "shields": to the frequency that beats the target's dominant ammo) or every
+  // weapon block (kind "ammo": to the ammo that beats the target's dominant frequency). Returns null, or why not.
+  function remodulate(ship, kind, target) {
+    var T = BS.Data.tuning, R = T.remodulate, sum = Gr.tuningSummary(target.grid, true);
+    if (ship.remod) return "already remodulating";
+    if (!ship.scanned) return "scan them first";   // their tuning is read off a scan, for both bridges
+    var theirs = kind === "shields" ? Gr.dominantTune(sum.ammo) : Gr.dominantTune(sum.frequency);
+    if (!theirs) return kind === "shields" ? "they carry no tuned weapons" : "they carry no shields";
+    var to = beats(theirs), ours = Gr.tuningSummary(ship.grid), have = kind === "shields" ? ours.frequency : ours.ammo;
+    var keys = Object.keys(have); if (keys.length === 1 && keys[0] === to) return "already on " + T.list[to].name;
+    if (!keys.length) return kind === "shields" ? "no emitters left" : "no weapons left";
+    ship.remod = { kind: kind, to: to, t: kind === "shields" ? R.shieldsSeconds : R.ammoSeconds, total: kind === "shields" ? R.shieldsSeconds : R.ammoSeconds };
+    BS.Events.emit("remodulateStarted", { ship: ship, kind: kind, to: to, time: ship.remod.t });
+    return null;
+  }
+  function updateRemod(ship, dt) {
+    var r = ship.remod; if (!r) return;
+    r.t -= dt; if (r.t > 0) return;
+    var T = BS.Data.tuning, digit = T.list[r.to].digit;
+    ship.grid.blocks.forEach(function (b) {
+      var k = T.tunable[b.type]; if (!k) return;
+      if ((r.kind === "shields" && k === "frequency") || (r.kind === "ammo" && k === "ammo")) {
+        b.tune = r.to;
+        if (ship.tuningRows && ship.tuningRows[b.y]) ship.tuningRows[b.y] = ship.tuningRows[b.y].slice(0, b.x) + digit + ship.tuningRows[b.y].slice(b.x + 1);
+      }
+    });
+    ship.remod = null;
+    BS.Events.emit("remodulated", { ship: ship, kind: r.kind, to: r.to });
+  }
   // What a shot at `target` is steered at: a partial jam (their ECM field does not cover the whole ship) forces the
   // attacker's fire onto the blocks outside that field; otherwise the captain's aim.
   function effectiveAim(ship, target) {
@@ -443,6 +475,7 @@ BS.Ships = (function () {
   function update(ship, dt) {
     if (ship.flags.destroyed) { ship.destroyedTimer += dt; ship.prevPos.x = ship.pos.x; ship.prevPos.y = ship.pos.y; ship.prevHeading = ship.heading; ship.vel.x = ship.vel.y = 0; return; }
     BS.Modules.update(ship, dt);
+    updateRemod(ship, dt);
     updateLock(ship, dt);
     updateCommand(ship, dt);
     updateMovement(ship, dt);
@@ -455,6 +488,6 @@ BS.Ships = (function () {
     distanceTo: distanceTo, distanceKm: distanceKm, bearingTo: bearingTo, angularVelocity: angularVelocity, speedKmS: speedKmS,
     setCommand: setCommand, setAlert: setAlert, startReinforce: startReinforce, startLock: startLock, clearLock: clearLock, lockTime: lockTime,
     trackingMult: trackingMult, maxSpeed: maxSpeed, firingBearings: firingBearings, shieldsUp: shieldsUp, effectiveAim: effectiveAim, setAimBlock: setAimBlock, cloakFieldComplete: cloakFieldComplete, debrisHit: debrisHit, capRechargeMult: capRechargeMult, blockTypes: blockTypes,
-    isCloaked: isCloaked, visibility: visibility, detectRangeKm: detectRangeKm, setCloak: setCloak, contact: contact, contactKm: contactKm,
+    isCloaked: isCloaked, visibility: visibility, detectRangeKm: detectRangeKm, setCloak: setCloak, contact: contact, contactKm: contactKm, remodulate: remodulate, beats: beats,
   };
 })();
