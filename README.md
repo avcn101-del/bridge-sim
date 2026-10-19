@@ -225,7 +225,9 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `modules.*` (booster, hardener, afterburner) | Built-in active systems |
 | `shipClasses.*.presets` | Preset builds offered in the editor |
 | `editor.refund / maxSavedBuilds` | Refund on removed blocks, saved builds per hull |
-| `campaign.encounters / enemyScaling / klingonNames` | Which enemy shows up when, which play it runs (`play`), its own damage multiplier (`damageMult`), how it scales, what it pays |
+| `campaign.encounters / enemyScaling / klingonNames` | Which enemy shows up when, which play it runs (`play`), its own damage multiplier (`damageMult`), how it scales, what it pays; `ships` lists the hulls that come with it (a fleet encounter) |
+| `campaign.fleetMax`, `balance.fleetSpacingKm`, `save.fleet` | Hulls a side, how far apart they spawn, which owned hulls undock with the hangar's ship (set by the fleet hangar of 0.35; the harness sets it with `--fleet`) |
+| `campaign.learn.chance / tuneChance` | 0 since 0.31: the enemy no longer answers your last wins (DESIGN §10); the harness forces the path with `--learn` |
 | `campaign.*`, `skills.*` | Economy, training |
 | `balance.capCurve / lockBase / zoom` | Capacitor curve, lock time, zoom |
 | `enemyAI.doctrines` | How each doctrine flies (enemy encounters and player stances): strafe pass range and timing, brawl orbit and flip timer, standoff hold and kite ranges, broadside band and roll timer, evade range, the reaction doctrines `kite` (9 km) and `watch` (5 km) |
@@ -244,7 +246,7 @@ index.html      entry point
 css/            LCARS interface styles
 js/             data, grid, game loop, ships, modules, weapons, boarding, crew, enemy AI, plays, scripts, campaign, hangar, UI, renderer, effects
 assets/         optional sprites / sounds (empty in MVP)
-tools/          harness.js (accelerated balance runs, DESIGN.md §8: forced encounter, enemy variant, learning path, equal-hull duels, tuning per side) and smoke.js (headless interface check); plain Node + Playwright, not needed to play
+tools/          harness.js (accelerated balance runs, DESIGN.md §8: forced encounter, enemy variant, learning path, equal-hull duels, tuning per side, fleets on both sides, --perf cost) and smoke.js (headless interface check, desktop, phone and a fleet of four); plain Node + Playwright, not needed to play
 DESIGN.md       full game design and data structures
 CHANGELOG.md    version history
 CLAUDE.md       rules for AI-assisted development sessions

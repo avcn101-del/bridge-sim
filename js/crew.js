@@ -275,7 +275,8 @@ BS.Crew = (function () {
   }
 
   function battleStart() {
-    var vars = { className: enemy ? enemy.cls.className : "vessel", name: enemy ? enemy.name : "", range: BS.Data.balance.arenaStartDistanceKm };
+    var n = BS.Game && BS.Game.state.teams ? BS.Game.state.teams.enemy.length : 1;
+    var vars = { className: n > 1 ? "squadron of " + n : enemy ? enemy.cls.className : "vessel", name: enemy ? enemy.name : "", range: BS.Data.balance.arenaStartDistanceKm };
     D().events.battleStart.forEach(function (m, i) {
       setTimeout(function () { say(m.officer, U.template(m.text, vars)); }, 400 + i * 1400);
     });

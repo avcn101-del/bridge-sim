@@ -14,13 +14,19 @@
 //   --side <side>       add "keep to their <side>" to every rule that sets a stance (blind, aft, port, starboard)
 //   --noreact           the enemy flies the 0.24 script (scan, blind roll, doctrine): no reaction rules
 //   --runs <n>          how many fights (default 4); --max <s> stalemate after this many simulated seconds (600)
-//   --seed <n>          first seed (Math.random is seeded per run: seed + run index), so runs repeat
+//   --seed <n>          first seed (Math.random is seeded per run: seed + run index), so runs repeat (since 0.31 the
+//                       page's frame loop is stopped, so a seed repeats exactly; 0.25–0.30 numbers drifted by a few seconds)
 //   --eval "<js>"       run this in the page before each fight (try a data tweak: "BS.Data.enemyAI.doctrines.watch.holdKm = 8")
 //   --debug             print the enemy's measured extremes (their heat peak, our blind time) after each run
 //   --signature a,b     pretend the last wins carried these style tags (campaign.learn): the enemy may answer them
 //   --learn             force the learning roll (campaign.learn.chance = 1) so the signature counter is always taken
 //   --variant <layout> --doctrine <id> --escript <id>   force the enemy's layout (a class variant or "default"), doctrine
 //                       and script regardless of the encounter (the matrix runs of DESIGN §8)
+//   --fleet a,b,c       the player's side (0.31): class ids that undock with --ship (save.fleet), each with its own
+//                       script (--script is the flagship's; the others fly their assigned or default template)
+//   --efleet id,id      extra enemy ships added to the encounter, each an encounter id whose first ship is taken
+//   --perf              no fights: set the battle up, step 600 fixed steps and draw 120 frames at 1280×800, print
+//                       ms per simulated second and ms per frame (headless, no GPU: an upper bound)
 // Each run is BS.Game.dryRun: the battle set up exactly as Undock would, stepped at 1/60 s with no interface.
 var fs = require("fs"), path = require("path");
 var pw = require("playwright");
@@ -33,6 +39,7 @@ var opts = {
   signature: args.signature ? String(args.signature).split(",") : null, learn: !!args.learn,
   variant: args.variant || null, doctrine: args.doctrine || null, escript: args.escript || null, rows: args.rows || null, equal: !!args.equal,
   tune: args.tune || null, etune: args.etune || null, sigtune: args.sigtune || null,
+  fleet: args.fleet ? String(args.fleet).split(",") : null, efleet: args.efleet ? String(args.efleet).split(",") : null, perf: !!args.perf,
 };
 if (fs.existsSync(opts.script)) opts.script = JSON.parse(fs.readFileSync(opts.script, "utf8"));
 
@@ -46,6 +53,9 @@ function fmt(t) { var m = Math.floor(t / 60), s = Math.floor(t % 60); return m +
   page.on("console", function (m) { if (m.type() === "error" && !/fonts\.g|ERR_|net::/.test(m.text())) errors.push(m.text()); });
   await page.goto("file://" + path.resolve(__dirname, "..", "index.html"));
   await page.waitForFunction(function () { return window.BS && BS.Game && BS.Campaign; });
+  // no frame loop: drawing consumes Math.random (beam flicker, screen shake) on wall-clock frames, which made a seeded
+  // run drift by a few seconds; the harness steps the battle itself (--perf draws its frames by hand)
+  await page.evaluate(function () { window.requestAnimationFrame = function () {}; });
   var results = [];
   for (var i = 0; i < opts.runs; i++) {
     var o = Object.assign({}, opts, { runSeed: opts.seed + i });
@@ -55,6 +65,7 @@ function fmt(t) { var m = Math.floor(t / 60), s = Math.floor(t % 60); return m +
         var a = o.runSeed >>> 0; Math.random = function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
         var save = BS.Campaign.reset();
         save.shipClass = o.ship; if (save.ownedShips.indexOf(o.ship) < 0) save.ownedShips.push(o.ship);
+        if (o.fleet) { o.fleet.forEach(function (id) { if (!BS.Data.shipClasses[id]) throw new Error("no class " + id); if (save.ownedShips.indexOf(id) < 0) save.ownedShips.push(id); }); save.fleet = o.fleet.slice(); }
         save.campaign.battlesWon = o.wins;
         var cls = BS.Data.shipClasses[o.ship];
         if (o.preset) { if (!cls.presets || !cls.presets[o.preset]) throw new Error("no preset " + o.preset); save.layouts[o.ship] = cls.presets[o.preset].rows.slice(); }
@@ -66,6 +77,7 @@ function fmt(t) { var m = Math.floor(t / 60), s = Math.floor(t % 60); return m +
         if (o.variant) { enc.layout = o.variant; enc.counter = false; }
         if (o.doctrine) enc.doctrine = o.doctrine;
         if (o.escript) enc.script = o.escript;
+        if (o.efleet) { enc.ships = (enc.ships || []).concat(o.efleet.map(function (id) { var x = BS.Data.campaign.encounters.filter(function (e) { return e.id === id; })[0]; if (!x) throw new Error("no encounter " + id); return { enemyClass: x.enemyClass, layout: x.layout, doctrine: x.doctrine, script: x.script, damageMult: x.damageMult }; })); }
         if (o.noreact) {
           // the 0.24 enemy bridge: a scan rule where the encounter had one, the blind-sector roll that enemyai.js used to
           // hard-code (blindTolerance 3 / 2.5), then the doctrine
@@ -87,6 +99,16 @@ function fmt(t) { var m = Math.floor(t / 60), s = Math.floor(t % 60); return m +
         if (!script) throw new Error("no script " + o.script);
         if (o.side) script.rules.forEach(function (r) { if (r.do && (r.do.stance || r.do.doctrine)) r.do.side = o.side; });
         var encInfo = BS.Campaign.encounter();
+        if (o.perf) {
+          BS.Game.startBattle({ dry: true, script: script });
+          var st0 = BS.Game.state, t0 = performance.now();
+          for (var k = 0; k < 600; k++) BS.Game.step(1 / 60);
+          var t1 = performance.now();
+          for (var f = 0; f < 120; f++) BS.Renderer.draw(st0, 0.5, 1 / 60);
+          var t2 = performance.now();
+          resolve({ perf: true, ships: st0.ships.length, blocks: st0.ships.reduce(function (a, s) { return a + s.grid.blocks.length; }, 0), msPerSimSec: +((t1 - t0) / 10).toFixed(2), msPerFrame: +((t2 - t1) / 120).toFixed(2), result: "perf", time: 10, enemy: { trace: [], doctrine: encInfo.doctrine, script: encInfo.script, variant: encInfo.variantName || "default", tuning: "", remods: 0 } });
+          return;
+        }
         BS.Game.dryRun(script, null, function (out) {
           var st = BS.Game.state, e = st.enemy;
           out.enemy = { name: e.name, doctrine: encInfo.doctrine, script: encInfo.script, counter: encInfo.counterReason || null, learned: (encInfo.learned ? encInfo.learned.reason : "") + (encInfo.learnedTuning ? " [tuning: " + encInfo.learnedTuning + "]" : "") || null, variant: encInfo.variantName || "default", tuning: BS.Grid.tuningText(e.grid), remods: (e.scriptTrace || []).filter(function (en) { return /remodulat/i.test(en.text); }).length, trace: (e.scriptTrace || []).map(function (en) { var r = e.script.def.rules[en.rule]; return { t: en.t, rule: en.rule, kind: en.kind, text: r && r.callout ? r.callout : en.text }; }) };
@@ -97,15 +119,18 @@ function fmt(t) { var m = Math.floor(t / 60), s = Math.floor(t % 60); return m +
       });
     }, o);
     results.push(out);
+    if (out.perf) { console.log("perf: " + out.ships + " ships, " + out.blocks + " blocks: " + out.msPerSimSec + " ms per simulated second, " + out.msPerFrame + " ms per frame"); continue; }
     var fired = {}; out.enemy.trace.forEach(function (en) { if (en.rule !== null && en.rule !== undefined) fired[en.rule] = (fired[en.rule] || 0) + 1; });
     console.log("run " + (i + 1) + ": " + (out.result === "victory" ? "WIN" + (out.how ? " (" + out.how + ")" : "") : out.result === "defeat" ? "LOSS" : "STALEMATE") + " " + fmt(out.time) + " · our blocks " + out.hullPct + "% · their hull " + out.enemyHullPct + "%" + (out.scanned ? " · scanned" : "") + " · enemy rules fired: " + (Object.keys(fired).map(function (k) { return "r" + (parseInt(k, 10) + 1) + "×" + fired[k]; }).join(" ") || "none"));
+    if ((out.ships && out.ships.length > 1) || (out.enemies && out.enemies.length > 1)) console.log("    ours: " + out.ships.map(function (s) { return s.name + " " + (s.destroyed ? "lost" : s.disabled ? "disabled" : s.hullPct + "%"); }).join(", ") + " · theirs: " + out.enemies.map(function (s) { return s.name + " " + (s.destroyed ? "destroyed" : s.captured ? "captured" : s.disabled ? "disabled" : s.hullPct + "%"); }).join(", "));
     out.enemy.trace.filter(function (en) { return en.kind === "callout" || en.kind === "standing"; }).slice(0, 12).forEach(function (en) { console.log("    " + fmt(en.t) + " r" + (en.rule + 1) + " " + en.text); });
     if (opts.debug) { var px = out.extremes || {}; console.log("    we: heat peak " + Math.round((px.heatMax || 0) * 100) + "%, cap min " + Math.round((px.capMin || 0) * 100) + "%, weakest shield min " + Math.round((px.weakestMin || 0) * 100) + "%"); (out.neverFired || []).forEach(function (nf) { console.log("    our r" + (nf.rule + 1) + " never fired: " + nf.reason); }); var x = out.enemy.extremes || {}; console.log("    enemy sees: our heat peak " + Math.round((x.eheatMax || 0) * 100) + "%, closest " + (x.dKmMin || 0).toFixed(1) + " km, blind at most " + Math.round(x.blindMax || 0) + " s, our hull min " + Math.round((x.ehullMin || 0) * 100) + "%"); (out.enemy.neverFired || []).forEach(function (nf) { console.log("    never fired r" + (nf.rule + 1) + ": " + nf.reason); }); }
   }
+  if (opts.perf) { if (errors.length) { console.log("PAGE ERRORS:\n" + errors.join("\n")); process.exitCode = 1; } await browser.close(); return; }
   var wins = results.filter(function (r) { return r.result === "victory"; });
   var kept = wins.map(function (r) { return r.hullPct; }).sort(function (a, b) { return a - b; });
   var times = wins.map(function (r) { return r.time; }).sort(function (a, b) { return a - b; });
-  console.log("\n" + opts.ship + (opts.preset ? " (" + opts.preset + ")" : "") + (opts.rows ? " (" + opts.rows + ")" : "") + (opts.equal ? " [equal]" : "") + (opts.tune ? " tune " + opts.tune : "") + (opts.etune ? " vs tune " + opts.etune : "") + " · " + (typeof opts.script === "string" ? opts.script : opts.script.name) + (opts.side ? " side " + opts.side : "") + " vs " + opts.enemy + " (" + opts.wins + " wins" + (results[0] ? ", " + results[0].enemy.doctrine + ", script " + results[0].enemy.script + (results[0].enemy.counter ? ", counter: " + results[0].enemy.counter : "") + (results[0].enemy.learned ? ", learned " + results[0].enemy.variant + ": " + results[0].enemy.learned : "") : "") + ")"
+  console.log("\n" + opts.ship + (opts.fleet ? " +" + opts.fleet.join("+") : "") + (opts.preset ? " (" + opts.preset + ")" : "") + (opts.rows ? " (" + opts.rows + ")" : "") + (opts.equal ? " [equal]" : "") + (opts.tune ? " tune " + opts.tune : "") + (opts.etune ? " vs tune " + opts.etune : "") + " · " + (typeof opts.script === "string" ? opts.script : opts.script.name) + (opts.side ? " side " + opts.side : "") + " vs " + opts.enemy + (opts.efleet ? " +" + opts.efleet.join("+") : "") + " (" + opts.wins + " wins" + (results[0] ? ", " + results[0].enemy.doctrine + ", script " + results[0].enemy.script + (results[0].enemy.counter ? ", counter: " + results[0].enemy.counter : "") + (results[0].enemy.learned ? ", learned " + results[0].enemy.variant + ": " + results[0].enemy.learned : "") : "") + ")"
     + (results[0] && results[0].enemy.tuning ? " [enemy " + results[0].enemy.tuning + (results[0].enemy.remods ? ", remodulated " + results.reduce(function (a, r) { return a + r.enemy.remods; }, 0) + "×" : "") + "]" : "") + ": "
     + wins.length + " of " + results.length + (wins.length ? " in " + fmt(times[0]) + "–" + fmt(times[times.length - 1]) + " keeping " + kept[0] + "–" + kept[kept.length - 1] + "%" : "")
     + (results.length - wins.length ? ", " + results.filter(function (r) { return r.result === "defeat"; }).length + " lost, " + results.filter(function (r) { return r.result !== "victory" && r.result !== "defeat"; }).length + " stalemate" : ""));

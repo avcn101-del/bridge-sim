@@ -1,6 +1,6 @@
 # DESIGN.md — Bridge Sim
 
-Version: 0.30.0 (remodulating); direction from 0.31 in §10. Keep this file in sync with the game.
+Version: 0.31.0 (fleet engine); direction in §10. Keep this file in sync with the game.
 
 ## 1. Concept
 
@@ -20,9 +20,9 @@ Decided parameters:
 | Control | EVE-style commands relative to the target; no direct steering keys |
 | Units | km and km/s in the interface (`units.pxPerKm` = 150); a Constitution measures about 1 km, three times its real size, so blocks stay readable at combat ranges. The camera auto-fits both ships (`balance.zoom.autoMin/autoMax/fitMargin`); wheel and +/− scale a bias on top |
 | Shields | Four facings kept (fore / starboard / aft / port) |
-| Enemies | One ship per battle, picked from `campaign.encounters` by battles won: Bird-of-Prey layouts and random variants, then the K't'inga battlecruiser; small groups later |
+| Enemies | One encounter per battle, picked from `campaign.encounters` by battles won: Bird-of-Prey layouts and random variants, then the K't'inga battlecruiser. Since 0.31 an encounter may list several ships (`ships`) and the player brings a fleet (`save.fleet`) |
 | Crew | Voices and warnings only; orders execute instantly |
-| From 0.31 | Fleet of up to four hulls, roles from blocks, skirmishes and bosses: §10 |
+| From 0.31 | Fleet of up to four hulls a side (engine done in 0.31), roles from blocks, skirmishes and bosses: §10 |
 | Battle length | 3–5 minutes for an attentive captain |
 | Sound | None yet; events exist for an audio module |
 | Camera | Follows the player ship; mouse-wheel zoom 0.5–1.6× |
@@ -1056,9 +1056,54 @@ rule's sentence; dry runs record nothing). The battle report shows the
 fight's enemy rules under *Their bridge*, the hangar Intel box the book.
 The enemy's script stays hidden; only what it did is known.
 
+### Fleet engine (0.31, `js/fleet.js`, `ship.team`, `state.teams`, `save.fleet`, `campaign.encounters[].ships`)
+A battle holds N ships on the player's side and M on the enemy's.
+- **Sides.** `BS.Campaign.fleet()` is the hangar's ship followed by
+  `save.fleet` (owned class ids, one hull per class since a class has one
+  layout, one tuning and one script in the save), at most `campaign.fleetMax`
+  4. `BS.Campaign.encounter()` returns `ships`: the encounter's ship as
+  before, then one spec per entry of `campaign.encounters[].ships`
+  (`{ enemyClass, layout, doctrine, script, damageMult }`, rolled from the
+  same seeded stream, no learning or counter for the extras). Both sides
+  spawn line abreast, `balance.fleetSpacingKm` 1.6 km between centres, the
+  enemy across its bearing at `arenaStartDistanceKm`.
+- **Targets.** Every ship has `ship.target`. `BS.Fleet.update` runs each
+  step: a ship without a live target takes the nearest hostile by contact
+  range (ships still able to fight before disabled ones). `BS.Fleet.retarget`
+  rebinds the script (`script.target`), the play, the helm (it re-enters
+  the stance or the doctrine it was flying against the new ship, which
+  re-issues the movement command), clears a lock on another ship (the lock
+  policy and the AI re-lock on their tick) and an aim block on another ship,
+  and emits `targetChanged`. `BS.EnemyAI.update(ship, BS.Fleet.targetOf(ship))`
+  for every ship. Contacts (`ship.contacts`, honest loss) are kept per ship
+  seen, so switching targets keeps the last positions of the others.
+- **End.** A side loses when none of its ships can fight
+  (`BS.Fleet.teamFighting`: not destroyed, disabled or captured);
+  `resultHow` is what happened to the last of them. Salvage counts every
+  enemy hull by how it ended (`campaign.salvage`), hull lost is read over
+  the whole side, the dry run reports `ships` and `enemies` per hull.
+- **Viewer and primary enemy.** `state.player` is the hull the panels, the
+  module bar and the crew voices follow: the flagship, then the next
+  fighting hull when it is lost (`viewerChanged`, the module bar is rebuilt);
+  `state.enemy` is the viewer's current target (`primaryEnemyChanged`): the
+  scan panel, the overlays, the report's "their bridge" and the opening
+  book (`state.enemyFlag`, the encounter's first ship) read it. They are
+  presentation, never logic. The camera leans two thirds of the way from the
+  viewer toward the centre of everything in view (a third toward the enemy
+  with two ships, as before) and fits every ship; only the viewer's hits
+  shake the screen. Attribution and style (§4 "why you lost") are booked
+  between the viewer and the primary enemy.
+- **What 0.31 leaves to 0.32+:** the scan panel, the enemy chips, click and
+  tap hit-testing and the crew voices follow the viewer and the primary
+  enemy only (allied hulls fight silently); `ship.scanned` is per ship, not
+  per target; script conditions have no subject (`enemy…` reads the ship's
+  current target) and no target action; the encounters `pair` and `pack`
+  stay out of the pool (`minWins` 999) until the fleet hangar of 0.35.
+
 ### Win / lose
-Enemy hull 0 → Victory; player hull 0 → Defeat; enemy bridge taken by a
-boarding party → Victory ("captured"). Result overlay with stats.
+Enemy side beaten → Victory; player side beaten → Defeat; the last enemy
+bridge taken by a boarding party → Victory ("captured"). Result overlay with
+stats.
 
 ### Campaign (`BS.Campaign`)
 - **Credits**: win 500 × encounter `rewardMult` − 3 per % hull lost + 50 per
@@ -1145,6 +1190,7 @@ script: { tickSeconds, chargingKmS, traceMax, planTargets, defaultTemplate, maxR
           templates: { id: { name, desc, requires?, policies, rules: [{ when, do, until?, holdMax?, once?, every? }] } }, enemyScripts: { id: { name, rules } } }
 campaign.firstFight: { weakPointChance }; campaign.encounters[].script; campaign.learn; tuning (order, list, factionDefault, offFactionCost, tunable, measured, bonus / malus); save.tuning{}, builds[].tuning, intel[].tuning, book[].tuning, signatures[].tuning; shipClasses.*.variants / presets[].element; enemyAI.doctrineTable / signatureCounters; save: scripts[], scriptByBuild{}, plans{}, book{}, signatures[], settings.manualBridge, campaign.cleanWins, campaign.retry
 campaign.salvage: { destroyed, disabled, captured }; enemyAI.*: drainedBelow, drainedUntil, drainedTime; enemyAI.counters[].when.neutMin
+0.31: balance.fleetSpacingKm; campaign.fleetMax; campaign.encounters[].ships: [{ enemyClass, layout, doctrine, script, damageMult }]; save.fleet: [classId]; ship: team, target, contacts{}, flags.captured; state: teams { player: [], enemy: [] }, enemyFlag
 shipClasses: { id: { name, className, role, faction, cost, purchasable, speed, turnRate, signature, lockRangeKm, powerBase,
                      mask: [rows], layout: [rows], presets: { id: { name, desc, rows } }, variants: { id: { name, desc, rows } } (enemies),
                      aiProfile?, visual: { kind, sprite, nacelleColor, hullTint } } }
@@ -1186,6 +1232,33 @@ harness is in the repository: `tools/harness.js` (Playwright, one
 `campaign.encounters`, seeded `Math.random`, `--noreact` for the 0.24 enemy
 bridge, `--eval` for a data tweak, `--debug` for what each bridge saw) and
 `tools/smoke.js` (the headless interface check).
+
+v0.31.0 (fleet engine; the harness now stops the page's frame loop, so a
+seed repeats exactly: the 0.25–0.30 rows drifted by a few seconds because
+drawing consumed `Math.random` on wall-clock frames, and are not
+seed-comparable with these):
+
+| Matchup | Captain | Outcome |
+|---|---|---|
+| Constitution vs Raider (0 wins) | Brawler, seeds 1–4 | **3 of 4** in 2:35–2:59 keeping 73–92%, one loss (4:31 keeping 41%); the same seeds before 0.31 (frame loop running): 4 of 4 in 2:21–6:14 |
+| Constitution alone vs `pair` (Raider + Gunboat, 0 wins) | Brawler | 0 of 3: disabled in 1:17–1:42 keeping 45–51%, both raiders over 79% |
+| Constitution + Miranda vs `pair` | Brawler on both | 0 of 3 in 2:08–2:49 keeping 29–39%: both hulls lost, the Gunboat down to 42–97% |
+| Constitution + Miranda + Defiant + Excelsior vs `pack` (four Birds-of-Prey) | Brawler on all | 1 of 2: a win at 5:33 keeping 55% (Reliant and Excelsior lost, all four raiders destroyed), a loss at 5:49 keeping 30% with one raider destroyed |
+
+Cost (headless Chromium, software rendering, `--perf`: 600 fixed steps,
+120 frames at 1280×800): 2 hulls (362 blocks) 5.1 ms per simulated second
+and 5.2 ms per frame; 8 hulls (1,386 blocks) 18.9 ms per simulated second
+(0.3 ms a step) and 11.9 ms per frame. The simulation is far from the
+limit at eight grids; the draw stays inside a 60 fps frame even without a
+GPU, with the hull plating the biggest share.
+
+Honest reading: the fleet fights are engine checks, not balance (the
+enemy's ×1.4 stat and ×1.6 damage multipliers make each Bird-of-Prey about
+a Constitution, so two of them beat one hull or a hull and a Miranda, and
+four Federation hulls split a pack 1 of 2). Both sides pick the nearest
+hostile, so fire concentrates by geometry, not by plan; the target action
+and subjects of 0.32 and the fleet economy of 0.35 decide the targets
+worth setting.
 
 v0.30.0 (remodulating; equal-hull Bird-of-Prey duels as in 0.29, 4 fights):
 
@@ -1721,7 +1794,8 @@ than slower (it is nearly untouched, as intended).
 | B (done, v0.4) | Hangar with slot fitting, market, credits, real-time skills, save |
 | v0.5 PR 1 (done) | Block grid hulls, nine block types, per-block damage with penetration, splash and section loss, grid renderer, build preview and statistics |
 | v0.5 PR 2 (done) | Hangar block editor (paint, erase, mirror, presets), block costs and refunds, saved builds |
-| v0.31–0.35 (planned) | Fleet direction, §10: N v M engine, script subjects and fleet actions, the first boss with three mechanics, role blocks (shield transfer, remote repair, beacon) on role cells, fleet hangar with roster and repair bills, skirmish-then-boss runs |
+| v0.31.0 (done) | Fleet engine (§4, §10): teams, N ships against M, target selection and retargeting, team elimination, viewer and primary enemy, camera over every ship, encounters with `ships`, `save.fleet`, harness fleets and `--perf`, deterministic harness, learning zeroed |
+| v0.32–0.35 (planned) | Fleet direction, §10: script subjects and fleet actions, the first boss with three mechanics, role blocks (shield transfer, remote repair, beacon) on role cells, fleet hangar with roster and repair bills, skirmish-then-boss runs |
 | v0.5 PR 3 (done) | Masks for Miranda, Defiant, Excelsior, Galaxy, Sovereign; K't'inga; enemy layouts, random variants and encounters; fragments and shatter; balance pass |
 | v0.5.3 (done) | Enemy doctrines: strafe, brawl, standoff, broadside; tail-chase detection; status labels and callouts |
 | v0.6.0 (done) | Cosmoteer ideas: reactor breaches that chain, line of fire blocked by the own hull, armor pierce cost, disabled ships and salvage |
@@ -1864,13 +1938,13 @@ Decisions:
 
 | PR | Scope |
 |---|---|
-| 0.31 | Engine for N v M: teams, ship arrays per side, target selection, camera fitting every ship, harness for fleets; measure fps with **8 block grids** on screen |
+| 0.31 (done) | Engine for N v M: teams, ship arrays per side, target selection, camera fitting every ship, harness for fleets; measured with **8 block grids** (§4 "Fleet engine", §8) |
 | 0.32 | Script subjects and the target / transfer actions; one script per hull; report per hull |
 | 0.33 | The first boss hull with the three mechanics, callouts, book; enrage |
 | 0.34 | Role blocks (shield transfer, remote repair, beacon) and role cells in the masks |
 | 0.35 | Fleet hangar (four hulls, roster per fight, repair bills), the skirmish-then-boss run in `campaign.encounters`, skirmish modifiers |
 
-Known risks: the pivot touches nearly every file; 8 grids at 60 fps is
-unmeasured; the §8 matrix must not be re-grown for 4v4 (measure intended
-solution vs pure Brawler only). `CLAUDE.md` still describes the single
-captain and is to be updated with 0.31.
+Known risks: the pivot touches nearly every file; 8 grids measured in 0.31
+(12 ms a frame headless without a GPU, the simulation negligible); the §8
+matrix must not be re-grown for 4v4 (measure intended solution vs pure
+Brawler only). `CLAUDE.md` was updated with 0.31.

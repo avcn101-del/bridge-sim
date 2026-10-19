@@ -67,17 +67,22 @@ BS.Renderer = (function () {
   }
 
   // --------------------------------------------------------------- camera
-  // Follows the player, leaning a third of the way toward the enemy, and zooms so both ships fit (balance.zoom);
-  // the manual zoom bias multiplies the fit. Writes the effective zoom back to state.zoom.
+  // Follows the viewer, leaning two thirds of the way toward the centre of everything in view (with two ships: a
+  // third of the way toward the enemy, as before), and zooms so every ship fits (balance.zoom); the manual zoom bias
+  // multiplies the fit. Writes the effective zoom back to state.zoom.
   function updateCamera(st, alpha, dt) {
-    var player = st.player, enemy = st.enemy, Z = BS.Data.balance.zoom;
+    var player = st.player, Z = BS.Data.balance.zoom;
     if (!player) return;
     var px = U.lerp(player.prevPos.x, player.pos.x, alpha), py = U.lerp(player.prevPos.y, player.pos.y, alpha);
     var tx = px, ty = py, fit = Z.autoMax;
-    if (enemy && !enemy.flags.destroyed && BS.Ships.visibility(enemy, player) > 0) {
-      var ex = U.lerp(enemy.prevPos.x, enemy.pos.x, alpha), ey = U.lerp(enemy.prevPos.y, enemy.pos.y, alpha);
-      tx = px + (ex - px) * 0.33; ty = py + (ey - py) * 0.33;
-      var span = U.dist(px, py, ex, ey) * 2 * 0.67 + player.visual.length + enemy.visual.length;
+    var seen = (st.ships || []).filter(function (s) { return s !== player && !s.flags.destroyed && BS.Ships.visibility(s, player) > 0; });
+    if (seen.length) {
+      var cx = px, cy = py, pts = [{ x: px, y: py, l: player.visual.length }];
+      seen.forEach(function (s) { var sx = U.lerp(s.prevPos.x, s.pos.x, alpha), sy = U.lerp(s.prevPos.y, s.pos.y, alpha); cx += sx; cy += sy; pts.push({ x: sx, y: sy, l: s.visual.length }); });
+      cx /= pts.length; cy /= pts.length;
+      tx = px + (cx - px) * 0.67; ty = py + (cy - py) * 0.67;
+      var reach = 0, lens = 0; pts.forEach(function (q) { reach = Math.max(reach, U.dist(tx, ty, q.x, q.y) + q.l * 0.5); lens += q.l; });
+      var span = reach * 2 + lens / pts.length;
       fit = U.clamp(Math.min(W, H) / (span * Z.fitMargin), Math.min(W, H) < Z.shortPx ? Z.autoMinShort : Z.autoMin, Z.autoMax);
     }
     if (!camera.initialised) { camera.x = tx; camera.y = ty; camera.zoom = fit; camera.initialised = true; }

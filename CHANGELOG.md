@@ -2,7 +2,56 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
-## [Unreleased] — direction from 0.31
+## [0.31.0] — 2026-10-19 (fleet engine: N ships against M; 0.31 of DESIGN §10)
+
+### Added
+- **Teams** (`js/fleet.js`, `ship.team`, `state.teams`): a battle holds the
+  player's fleet (`save.fleet`, up to `campaign.fleetMax` 4, the hangar's ship
+  first, one script per hull) against every ship of the encounter
+  (`campaign.encounters[].ships`). Both sides spawn line abreast
+  (`balance.fleetSpacingKm`). Every ship fights its own target: the nearest
+  hostile it can see, re-chosen when that one is destroyed; retargeting
+  rebinds the script, the play, the helm (it re-enters its stance or
+  doctrine), the lock and the aim. A side loses when none of its ships can
+  still fight (destroyed, disabled or captured); salvage counts every enemy
+  hull by how it ended; hull lost is read over the whole side.
+- The panels follow a **viewer** (`state.player`, the flagship until it is
+  lost, then the next fighting hull) and a **primary enemy** (`state.enemy`,
+  the viewer's current target). The camera fits every ship in view; only
+  the viewer's hits shake the screen. Contacts are kept per ship seen.
+- Encounters `pair` and `pack` (two and four Birds-of-Prey), out of the
+  campaign pool until the fleet hangar of 0.35; harness `--fleet a,b,c`,
+  `--efleet id,id` and `--perf`; `tools/smoke.js` runs a third pass with a
+  fleet of four to the end of the battle.
+
+### Changed
+- `campaign.learn.chance` and `tuneChance` are 0 (DESIGN §10): no encounter
+  answers the player's last wins any more; the machinery stays for the
+  harness (`--learn`) and for bosses.
+- The harness stops the page's frame loop: drawing consumed `Math.random`
+  (beam flicker, screen shake) on wall-clock frames, so a seeded run drifted
+  by a few seconds between invocations. Runs now repeat exactly; §8 numbers
+  from 0.31 on are not seed-comparable with 0.25–0.30.
+- `CLAUDE.md` describes the admiral, the scripts and the team model.
+
+### Not yet (0.32+)
+- The scan panel, the overlays, the enemy chips, click and tap hit-testing
+  and the crew voices follow the viewer and the primary enemy only; allied
+  hulls fight silently. `ship.scanned` is per ship, not per target. Script
+  conditions have no subject; `enemy…` reads the ship's current target.
+
+### Measured (DESIGN §8)
+- 1v1 unchanged in substance: Brawler vs Raider 3 of 4 (seeds 1–4, now
+  exact). Fleet engine: Constitution alone vs `pair` 0 of 3 (disabled in
+  1:17–1:42); Constitution + Miranda vs `pair` 0 of 3; four Federation hulls
+  vs `pack` 1 of 2 (5:33 keeping 55%). Not balance targets: the fleet
+  economy and role blocks come with 0.34–0.35.
+- Cost (headless, software rendering): 2 hulls 5 ms per simulated second
+  and 5 ms per frame; 8 hulls (1,386 blocks) 19 ms per simulated second
+  (0.3 ms a step) and 12 ms per frame. The simulation is not the limit; the
+  draw is within a 60 fps frame even without a GPU.
+
+### Direction
 
 - DESIGN §10 records the decided direction: a PvE fleet game (admiral,
   up to four hulls, roles from blocks on role cells, 1v1 / 4v4 / 4 vs

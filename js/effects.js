@@ -3,6 +3,8 @@
 window.BS = window.BS || {};
 
 BS.Effects = (function () {
+  // the ship the display follows (game.js state.player): only its hits shake the screen
+  function viewer(s) { return !!(s && BS.Game && BS.Game.state && s === BS.Game.state.player); }
   var U = BS.Util;
   var particles = [];   // { x, y, vx, vy, life, maxLife, size, color:[r,g,b], type, drag, grow }
   var ripples = [];     // { ship, angle, life, maxLife, strength, facing }
@@ -111,7 +113,7 @@ BS.Effects = (function () {
       ripples.push({ ship: e.ship, angle: e.angle, life: 0.55, maxLife: 0.55, strength: strength, facing: e.facing, emitter: e.emitter });
       flash(e.impact.x, e.impact.y, 10 + strength * 14, [150, 210, 255], 0.2);
       sparks(e.impact.x, e.impact.y, Math.round(3 + strength * 5), 90, [160, 220, 255]);
-      if (e.ship.isPlayer) addShake(e.kind === "torpedo" ? 5 : 1.5);
+      if (viewer(e.ship)) addShake(e.kind === "torpedo" ? 5 : 1.5);
     });
     BS.Events.on("hullHit", function (e) {
       var big = e.hullDamage > 40;
@@ -119,7 +121,7 @@ BS.Effects = (function () {
       if (e.exposed) sparks(e.impact.x, e.impact.y, 6, 140, [255, 120, 80]);   // bare hull: hotter sparks
       smoke(e.impact.x, e.impact.y, big ? 6 : 2);
       flash(e.impact.x, e.impact.y, big ? 26 : 12, [255, 200, 120], 0.25);
-      if (e.ship.isPlayer) addShake(big ? 9 : 3);
+      if (viewer(e.ship)) addShake(big ? 9 : 3);
       else if (big) addShake(2);
     });
     BS.Events.on("subsystemDamaged", function (e) {
@@ -161,7 +163,7 @@ BS.Effects = (function () {
       flash(e.pos.x, e.pos.y, 14, [255, 200, 140], 0.3); sparks(e.pos.x, e.pos.y, 14, 150); smoke(e.pos.x, e.pos.y, 4);
       debris(e.pos.x, e.pos.y, 4, 70, col);
       chunk(e.pos.x, e.pos.y, s.grid.cellPx * U.rand(0.5, 0.9), col, s.vel.x * 0.6, s.vel.y * 0.6);
-      if (s.isPlayer) addShake(4);
+      if (viewer(s)) addShake(4);
     });
     BS.Events.on("blockExploded", function (e) {
       var r = e.ship.grid.cellPx * (e.radius + 1.5);
@@ -169,9 +171,9 @@ BS.Effects = (function () {
       rings.push({ x: e.pos.x, y: e.pos.y, life: 0.6, maxLife: 0.6, radius: r * 2.4 });
       sparks(e.pos.x, e.pos.y, 40, 220, [255, 210, 120]); fire(e.pos.x, e.pos.y, 18); smoke(e.pos.x, e.pos.y, 10, [80, 70, 60], 40);
       debris(e.pos.x, e.pos.y, 10, 120, [242, 193, 78]);
-      addShake(e.ship.isPlayer ? 9 : 4);
+      addShake(viewer(e.ship) ? 9 : 4);
     });
-    BS.Events.on("coreBreach", function (e) { addShake(e.ship.isPlayer ? 5 : 2); });
+    BS.Events.on("coreBreach", function (e) { addShake(viewer(e.ship) ? 5 : 2); });
     BS.Events.on("coreBlast", function (e) {
       var s = e.ship;
       flash(s.pos.x, s.pos.y, e.radius * 0.9, [200, 230, 255], 1.2); flash(s.pos.x, s.pos.y, e.radius * 0.35, [255, 255, 255], 0.5);
@@ -181,7 +183,7 @@ BS.Effects = (function () {
     });
     BS.Events.on("criticalHit", function (e) {
       flash(e.pos.x, e.pos.y, 26, [255, 240, 200], 0.45); sparks(e.pos.x, e.pos.y, 22, 190, [255, 230, 140]); smoke(e.pos.x, e.pos.y, 5);
-      addShake(e.ship.isPlayer ? 7 : 3);
+      addShake(viewer(e.ship) ? 7 : 3);
     });
     BS.Events.on("sectionLost", function (e) {
       var V = BS.Data.visuals.fragments;
@@ -189,7 +191,7 @@ BS.Effects = (function () {
       fragmentFrom(e.ship, e.blocks, V.driftSpeed, V.sectionLife, false);
       e.positions.forEach(function (p, i) { if (i % 3 === 0) { sparks(p.x, p.y, 4, 60, [255, 220, 160]); smoke(p.x, p.y, 1); } });
       if (e.positions.length) { var p0 = e.positions[0]; flash(p0.x, p0.y, 22, [255, 220, 170], 0.4); }
-      if (e.ship.isPlayer) addShake(6);
+      if (viewer(e.ship)) addShake(6);
     });
     BS.Events.on("shieldBoosted", function (e) {
       var s = e.ship;
@@ -256,7 +258,7 @@ BS.Effects = (function () {
           var o = ships[si];
           if (o.flags.destroyed || own(o) || U.dist(f.x, f.y, o.pos.x, o.pos.y) > o.visual.length * 0.45 + f.radius) continue;
           f.solid = false; var dmg = V2.damagePerCell * f.cells.length;
-          BS.Ships.debrisHit(o, dmg, f.x, f.y); sparks(f.x, f.y, 18, 160, [255, 230, 170]); flash(f.x, f.y, 18, [255, 240, 210], 0.3); addShake(o.isPlayer ? 6 : 2);
+          BS.Ships.debrisHit(o, dmg, f.x, f.y); sparks(f.x, f.y, 18, 160, [255, 230, 170]); flash(f.x, f.y, 18, [255, 240, 210], 0.3); addShake(viewer(o) ? 6 : 2);
           BS.Events.emit("debrisHit", { ship: o, fragment: f, damage: dmg });
           f.vx *= -0.3; f.vy *= -0.3;
           break;
