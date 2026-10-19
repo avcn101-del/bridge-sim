@@ -38,7 +38,7 @@ BS.Modules = (function () {
     var ready = 0, fired = 0, reason = "ok";
     blocks.forEach(function (b) {
       var w = b.def.weapon;
-      var cycle = w.cycle * ship.mods.cycleMult / ((ship.stats.powerFactor || 1) * (ship.stats.crew ? ship.stats.crew.manning : 1) * (b.powerMult || 1));   // brownout / short crew / out of reactor range: slower cycling
+      var cycle = w.cycle * ship.mods.cycleMult / ((ship.stats.powerFactor || 1) * (b.powerMult || 1));   // brownout / out of reactor range: slower cycling
       // a charging weapon (w.charge, 0.33): the capacitor was spent when the charge began; it fires at the ship it charged
       // on when the time is up, arc or not, dead or not (a lost target wastes the shot)
       if (b.charging > 0) {

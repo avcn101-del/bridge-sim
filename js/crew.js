@@ -137,7 +137,7 @@ BS.Crew = (function () {
     BS.Events.on("escortChanged", function (e) { if (e.ship === ship) report("helm", "escort", { name: e.ally.name }); });
     // a charging weapon (0.33): the tell every bridge hears
     BS.Events.on("weaponCharging", function (e) { if (!ship || !e.target || e.target.team !== ship.team) return; if (e.target === ship) report("tactical", "lanceOnUs", { t: Math.round(e.time) }, "warn"); else report("tactical", "lanceOnAlly", { name: e.target.name, t: Math.round(e.time) }, "warn"); });
-    // second-generation EW and boarding
+    // second-generation EW
     BS.Events.on("decoyLaunched", function (e) { if (e.ship === ship) report("tactical", e.incoming > 0 ? "decoyLaunched" : "decoyNoTorpedoes"); else if (e.ship === enemy) report("tactical", "enemyDecoy"); });
     BS.Events.on("torpedoLured", function (e) { if (e.ship === ship && now() - (ship._luredReported || -99) > 6) { ship._luredReported = now(); report("tactical", "decoyLured"); } });
     BS.Events.on("neutralised", function (e) {
@@ -145,9 +145,6 @@ BS.Crew = (function () {
       else if (e.target === ship && now() - (ship._neutOnUsReported || -99) > 12) { ship._neutOnUsReported = now(); report("engineering", "neutOnUs", { amount: Math.round(e.drained) }, "warn"); }
     });
     BS.Events.on("moduleToggled", function (e) { if (e.ship === ship && e.on && e.module.id === "neut" && ship.lock.target && S.distanceKm(ship, ship.lock.target) > BS.Data.ew.neut.rangeKm) report("tactical", "neutRange", { range: BS.Data.ew.neut.rangeKm }); });
-    BS.Events.on("boardingAborted", function (e) { if (e.ship === ship) report("security", "board_aborted", {}, "warn"); });
-    BS.Events.on("boardingFight", function (e) { if (e.ship === ship) report("security", "board_fight", { party: Math.round(e.party), defenders: Math.round(e.defenders) }); });
-    BS.Events.on("boardingEnded", function (e) { if (e.ship === ship) report("security", e.result === "captured" ? "board_captured" : "board_repelled", {}, e.result === "captured" ? null : "warn"); });
     BS.Events.on("overload", function (e) { if (e.ship === ship) report("engineering", "overload", {}, "warn"); else if (e.ship === enemy) report("tactical", "enemyOverload"); });
     BS.Events.on("shipDisabled", function (e) { if (e.ship === enemy) report("tactical", "enemyDisabled"); else if (e.ship === ship) report("engineering", "shipDisabled", {}, "warn"); });
     BS.Events.on("lockAcquired", function (e) { if (e.ship === ship) { report("tactical", "lockDone"); if (ship.ai) ship.ai.relock = true; } else if (e.target === ship) say("tactical", D().events.enemyLocking, "warn"); });

@@ -52,8 +52,6 @@
         <div class="row"><label>Speed</label><span class="num wide" id="own-speed">0.0 km/s</span></div>
         <div class="row"><label>Helm</label><span class="num wide" id="own-cmd">All stop</span></div>
         <div class="row"><label>Heat</label><span class="num wide" id="own-heat">0 / 0</span></div>
-        <div class="row"><label>Crew</label><span class="num wide" id="own-crew" title="Crew on hand / posts to man. Short of crew, weapons and shields slow down. Spare crew is your boarding party.">0 / 0</span></div>
-        <div class="row" id="own-boarding-row"><label>Boarding</label><span class="num wide" id="own-boarding">—</span></div>
 
         <h3>Blocks <small>alive / total · click: repair priority</small></h3>
         <div class="sub-grid" id="own-subsystems"></div>
@@ -169,7 +167,6 @@
         <li>Phasers hit best inside 8 km and against slow targets; disruptor cannons hit harder and through a plate of armor but inside 5 km and only against slow orbits; pulse phasers are light, fast and track anything inside 4 km. Torpedoes always home in but lose damage against small fast ships.</li>
         <li>Weapons fire only where the hull does not block them, so a saucer fights best with the enemy on its beam; the helm reverses the orbit when the other side has more guns to bring to bear.</li>
         <li><b>Shield bubbles</b>: each emitter protects the blocks within 5 cells; the rings you see are that cover. Hull outside every ring takes hits unshielded. The <b>EXPOSED</b> chip aims at the enemy's bare hull; the hangar paints yours red.</li>
-        <li><b>Crew</b>: every system needs hands (the Ship panel shows crew on hand / posts). The bridge gives 10, each crew quarters 8; short of crew, weapons and shields run slower, and blocks far from any quarters repair at half speed. Lose crew decks in battle and the whole ship slows down.</li>
         <li><b>Cloak and ECM fields</b>: a cloaking device covers 10 cells and a jammer 7. You can cloak only when every block is inside a cloak field (the hangar frames the rest in purple), and a jam breaks the enemy's lock only when your whole ship is inside the ECM field; otherwise it just steers their fire onto the blocks outside it (green frames).</li>
         <li><b>The script has the conn</b>: every bridge fights by the rules written in the hangar. You have two bridge calls a battle (right panel): fly a doctrine, change side, disengage, reinforce, focus a block (tap one on the scan panel or the display first), remodulate. Space pauses, G opens the log, 1× / 2× / 4× sets the speed.</li>
         <li><b>Heat</b>: the bar under the module bar. Every shot adds heat (phasers a little, torpedoes a lot); at the cap weapons stop, and a salvo that crosses it overloads everything for six seconds. The pale mark shows where your next full salvo would land. <b>GOV</b> (H) is the heat governor: on, your weapons hold fire above 85% and resume at 60%; off, you can alpha-strike into an overload.</li>
@@ -204,9 +201,6 @@
           <div id="hg-ship" class="hg-ship"></div>
           <h3>Shipyard</h3>
           <div id="hg-ships" class="hg-list"></div>
-          <h3>Skills <small>real-time training</small></h3>
-          <div id="hg-training" class="dim hg-training"></div>
-          <div id="hg-skills" class="hg-list"></div>
         </section>
         <section class="hg-col hg-fit">
           <h3>Build <small>click or drag to paint · right-click erases · mirror keeps both sides equal</small></h3>
@@ -276,7 +270,6 @@
   <script src="js/modules.js"></script>
   <script src="js/ships.js"></script>
   <script src="js/weapons.js"></script>
-  <script src="js/boarding.js"></script>
   <script src="js/crew.js"></script>
   <script src="js/enemyai.js"></script>
   <script src="js/script.js"></script>

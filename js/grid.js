@@ -145,21 +145,6 @@ BS.Grid = (function () {
     s.speedMult = s.mass > 0 ? U.clamp(s.thrust * g.thrustPerPoint / s.mass, g.speedMultMin, g.speedMultMax) : g.speedMultMin;
     // brownout: with reactors gone the surviving systems share what is left
     s.powerFactor = s.powerUsed > s.powerMax ? Math.max(g.brownoutMin, s.powerMax / s.powerUsed) : 1;
-    // crew: systems need hands (blocks.*.crew), the bridge and the quarters supply them; manning = supply / need, and a
-    // system far from any quarters or the bridge (grid.crew.radius) is slow to repair (b.farCrew)
-    var cr = g.crew, need = 0, supply = (s.bridgeAlive ? cr.bridge : 0) - (grid.crewAway || 0), far = 0, hands = grid.blocks.filter(function (b) { return b.alive && (b.type === "quarters" || b.type === "bridge"); });   // crewAway: a boarding party sent across (BS.Boarding)
-    grid.blocks.forEach(function (b) {
-      if (!b.alive || b.structural) return;
-      if (b.type === "quarters") supply += cr.perQuarters;
-      var c = b.def.crew || 0; need += c; b.farCrew = false;
-      if (c > 0) {
-        var near = false;
-        for (var i = 0; i < hands.length && !near; i++) { var dx = hands[i].x - b.x, dy = hands[i].y - b.y; if (dx * dx + dy * dy <= cr.radius * cr.radius) near = true; }
-        if (!near) { b.farCrew = true; far++; }
-      }
-    });
-    supply = Math.max(0, supply);
-    s.crew = { need: need, supply: supply, far: far, away: grid.crewAway || 0, manning: need > 0 ? U.clamp(supply / need, cr.minManning, 1) : 1 };
     grid.stats = s; grid.dirty = false;
     return s;
   }
@@ -171,7 +156,7 @@ BS.Grid = (function () {
   // Each: { kind, block, label, score, n }. Used by the scan panel (click to focus fire) and by cunning enemies.
   function weakPoints(ship, attacker) {
     var grid = ship.grid, g = G(), W = g.weakPoints, out = [], blocks = grid.blocks.filter(function (b) { return b.alive; }), st = grid.stats || derive(grid);
-    var systems = blocks.filter(function (b) { return !b.structural && (b.def.crew || 0) > 0; });
+    var systems = blocks.filter(isSystem);
     // 0. a facing whose emitters' frequency the attacker's dominant ammo beats (BS.Data.tuning): the attacker's edge
     if (attacker && attacker.grid) {
       var T = BS.Data.tuning, ammo = dominantTune(tuningSummary(attacker.grid).ammo);
@@ -242,12 +227,6 @@ BS.Grid = (function () {
         }
       }
       if (bestCut) out.push({ kind: "neck", block: bestCut.block, pair: bestCut.pair, n: bestCut.lost, score: bestCutScore * 2, label: "Cut: the " + (bestCut.block.structural ? "structure" : bestCut.block.def.name.toLowerCase()) + " at " + bestCut.block.x + "," + bestCut.block.y + (bestCut.pair ? " and its neighbour" : "") + " (" + Math.round(bestCut.block.hp + (bestCut.pair ? bestCut.pair.hp : 0)) + " hp) severs " + bestCut.lost + " blocks" });
-    }
-    // 5. crew: one quarters short of the posts
-    var cw = st.crew;
-    if (cw && cw.need > 0 && cw.supply - g.crew.perQuarters < cw.need) {
-      var q0 = blocks.filter(function (b) { return b.type === "quarters"; }).sort(function (a, b) { return a.hp - b.hp; })[0];
-      if (q0) out.push({ kind: "crew", block: q0, n: 1, score: 12, label: "Crew decks: one quarters lost undermans them (" + cw.supply + " / " + cw.need + ")" });
     }
     // 6. wounded systems open to a critical hit
     var wounded = systems.filter(function (b) { return b.hp < b.maxHp * g.crits.below; }).sort(function (a, b) { return a.hp / a.maxHp - b.hp / b.maxHp; });
@@ -349,6 +328,8 @@ BS.Grid = (function () {
     return out;
   }
   function pierceCost(b) { return b.def.pierceCost || 1; }
+  // A system block: anything that is not armor, structure or the bridge (crits, power dimming, weak points read these)
+  function isSystem(b) { return !b.structural && b.type !== "armor" && b.type !== "bridge"; }
   // Blocks a beam with `points` penetration points reaches: it enters each block while points remain, and each block costs its pierceCost.
   function beamChain(ship, first, fromX, fromY, points) {   // points: grid.penetration plus the weapon's pierceBonus
     var chain = [first], left = points - pierceCost(first);
@@ -458,10 +439,10 @@ BS.Grid = (function () {
       var taken = Math.min(b.hp, d);
       b.hp -= taken; res.hits.push({ block: b, dmg: taken });
       if (b.hp <= 0) { b.alive = false; res.destroyed.push(b); if (b.def.explosion) toExplode.push(b); }
-      // critical hit on a wounded system (grid.crits): reactors and crew decks are lost outright, the rest is applied by the ship
-      else if (C && (b.def.crew || 0) > 0 && b.hp < b.maxHp * C.below && Math.random() < C.chance) {
+      // critical hit on a wounded system (grid.crits): reactors are lost outright, the rest is applied by the ship
+      else if (C && isSystem(b) && b.type !== "quarters" && b.hp < b.maxHp * C.below && Math.random() < C.chance) {
         res.crits.push({ block: b, kind: b.def.weapon ? "weapon" : b.type });
-        if (b.type === "reactor" || b.type === "quarters") { b.hp = 0; b.alive = false; res.destroyed.push(b); if (b.def.explosion) toExplode.push(b); }
+        if (b.type === "reactor") { b.hp = 0; b.alive = false; res.destroyed.push(b); if (b.def.explosion) toExplode.push(b); }
       }
       return taken;
     }
@@ -520,10 +501,9 @@ BS.Grid = (function () {
     var budget = rate * dt, pool = grid.blocks.filter(function (b) { return b.alive && b.hp < b.maxHp; });
     if (!pool.length) return;
     pool.sort(function (a, b) { return (b.type === priorityType) - (a.type === priorityType) || (a.hp / a.maxHp) - (b.hp / b.maxHp); });
-    var farMult = G().crew.farRepairMult;
     for (var i = 0; i < pool.length && budget > 0; i++) {
       var b = pool[i], d = Math.min(b.maxHp - b.hp, budget);
-      b.hp += b.farCrew ? d * farMult : d; budget -= d;   // a block far from the crew decks costs the same time for half the repair
+      b.hp += d; budget -= d;
     }
   }
 
@@ -561,7 +541,6 @@ BS.Grid = (function () {
     if (!st.weapons.length) errors.push("No weapons.");
     if (st.thrust === 0) errors.push("No engines.");
     if (st.powerUsed > st.powerMax) errors.push("Power grid overloaded: " + st.powerUsed + " / " + st.powerMax + ". Fewer systems or more reactors.");
-    if (st.crew.supply < st.crew.need) errors.push("Undermanned: " + st.crew.supply + " crew for " + st.crew.need + " posts. Add crew quarters (8 each) or fewer systems.");
     // warnings do not block undocking
     var warnings = [], masked = st.weapons.filter(function (b) { return arcCoverage(grid, b) <= 0; }).length;
     if (masked) warnings.push(masked + " weapon(s) cannot fire past the hull.");
@@ -574,9 +553,8 @@ BS.Grid = (function () {
       for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) { var q = grid.at[(b.x + dx) + "," + (b.y + dy)]; if (q && q !== b && (q.type === "reactor" || q.type === "bridge")) hot++; }
     });
     if (hot) warnings.push("Reactors touch each other or the bridge: one breach will chain.");
-    if (st.crew.far) warnings.push(st.crew.far + " system block(s) more than " + G().crew.radius + " cells from crew quarters or the bridge repair at half speed.");
     if ((st.alive.neut || 0) > 0 && st.cap < BS.Data.ew.neut.warnCapBelow) warnings.push("An energy neutraliser drains your own capacitor too (" + BS.Data.modules.neut.cap + " per " + BS.Data.modules.neut.cycle + " s): with under " + BS.Data.ew.neut.warnCapBelow + " capacitor it will starve your other systems. Fit reactors.");
-    var unp = grid.blocks.filter(function (b) { return b.alive && !b.structural && !b.powered && (b.def.crew || 0) > 0; }).length;
+    var unp = grid.blocks.filter(function (b) { return b.alive && !b.powered && isSystem(b); }).length;
     if (unp) warnings.push(unp + " system block(s) more than " + G().powerRadius + " cells from a reactor run at " + Math.round(100 * G().unpoweredFactor) + "% power (dim cells).");
     return { ok: errors.length === 0, errors: errors, warnings: warnings, counts: counts, stats: st, masked: masked, grid: grid };
   }
@@ -607,7 +585,7 @@ BS.Grid = (function () {
     return cost;
   }
 
-  return { tuneOf: tuneOf, tuneMult: tuneMult, blankTuning: blankTuning, tuningRowsFor: tuningRowsFor, tuningSummary: tuningSummary, dominantTune: dominantTune, tuningText: tuningText, build: build, derive: derive, facingOf: facingOf, worldToLocal: worldToLocal, localToWorld: localToWorld, cellOfLocal: cellOfLocal,
+  return { isSystem: isSystem, tuneOf: tuneOf, tuneMult: tuneMult, blankTuning: blankTuning, tuningRowsFor: tuningRowsFor, tuningSummary: tuningSummary, dominantTune: dominantTune, tuningText: tuningText, build: build, derive: derive, facingOf: facingOf, worldToLocal: worldToLocal, localToWorld: localToWorld, cellOfLocal: cellOfLocal,
     blockAtWorld: blockAtWorld, blockWorld: blockWorld, entryBlock: entryBlock, entryBlockThrough: entryBlockThrough, resolveEntry: resolveEntry, hit: hit, blockFacing: facingOf, lineOfFireClear: lineOfFireClear, arcCoverage: arcCoverage, weaponFacing: weaponFacingOf, bearingProfile: bearingProfile, fieldCover: fieldCover, weakPoints: weakPoints, repair: repair, pruneDisconnected: pruneDisconnected,
     layoutFromGrid: layoutFromGrid, validateLayout: validateLayout, randomVariant: randomVariant, layoutCost: layoutCost, typeForLetter: typeForLetter };
 })();

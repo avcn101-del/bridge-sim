@@ -1,6 +1,6 @@
 # DESIGN.md — Bridge Sim
 
-Version: 0.37.0 (plays and the manual bridge out, one doctrine list); direction in §10. Keep this file in sync with the game.
+Version: 0.38.0 (boarding, crew manning, skills and science out); direction in §10. Keep this file in sync with the game.
 
 ## 1. Concept: WoW raids, in Trek ships, in an arena
 
@@ -502,23 +502,9 @@ big one; the Overview and Helm rows read "tumbling".
 ### Repair
 Damage control restores hp to damaged (not destroyed) blocks at the ship's
 repair rate, the repair-priority type first, then the most damaged.
-Destroyed blocks stay gone for the battle. A block more than
-`grid.crew.radius` (6) cells from the nearest alive crew quarters or the
-bridge (`b.farCrew`) takes the same repair time for half the hp
-(`farRepairMult`); the hangar marks such blocks with an amber dot.
-
-### Crew (`grid.crew`, `blocks.*.crew`)
-Every system block needs hands: phaser and cannon 2, pulse 1, torpedo tube
-3, reactor 2, shield emitter 1, engine 1, sensor 1, jammer 1, cloaking
-device 2. The bridge supplies 10 and each crew quarters 8
-(`stats.crew = { need, supply, manning, far }`). **Manning** = supply /
-need, clamped to `minManning` (0.4): weapons cycle and shields regenerate
-at that fraction, exactly like a brownout, so quarters lost in battle
-(casualties) slow the whole ship down. A build short of crew cannot undock;
-the hangar shows "Crew x / y posts · manning n%" and the Ship panel the same
-in battle. Every default build, preset and enemy layout was re-fitted with
-6–13 quarters placed where they cover the most systems (Constitution 8,
-Galaxy 11, Bird-of-Prey 6, K't'inga 8); quarters draw no power.
+Destroyed blocks stay gone for the battle. Crew quarters add
+`grid.repairAdd` each (damage control teams); since 0.38 that is all a
+quarters block does.
 
 ### Electronic warfare (`BS.Data.ew`, blocks jammer and cloak)
 - **Fields** (`ew.cloakRadius` 10, `ew.jamRadius` 7, `BS.Grid.fieldCover`):
@@ -550,7 +536,7 @@ Galaxy 11, Bird-of-Prey 6, K't'inga 8); quarters draw no power.
   field is broken. 3 s to cloak. Cloaked, a ship cannot be locked (locks
   on it drop), its shields are down, its weapons are cold and its
   capacitor drains 8/s (it decloaks by itself below 5). It is invisible beyond the viewer's detection range
-  (`science.cloakDetectRangeKm` 10 km + 1 km per sensor array) and a faint
+  (`ew.cloakDetectRangeKm` 10 km + 1 km per sensor array) and a faint
   ghost inside it, still unlockable. Decloaking takes 2 s and shields stay
   down for 5 s more (surge). The helm loses an invisible target and holds
   course. `BS.Ships.visibility(ship, viewer)` is the one rule the renderer,
@@ -712,8 +698,7 @@ play phase and state), range, speed and angular velocity, the threat (its
 beam hit chance on us, its torpedo damage multiplier on us) and its cloak
 state including the decloak strike countdown. The bridge log moved into a
 two-line ticker at the top-left of the tactical view; LOG (key G) expands
-it to the full scrollable log. `science.scanDuration` stays reserved for a
-later science scan that gates this detail.
+it to the full scrollable log.
 
 ### Decoys (block `Y`, module `decoy`, `ew.decoy`)
 A decoy launcher is a one-cell block (90 cr, power 2, crew 1); its module
@@ -751,37 +736,11 @@ The enemy runs its own neutralisers whenever the target is inside reach and
 its capacitor is above `aiMinCap` 35%. The scan panel shows the enemy's
 capacitor.
 
-### Boarding (`BS.Boarding`, `grid.boarding`, command `board`, key T)
-Transporter window: a lock on the target, inside `rangeKm` 3, and the
-target's shield facing toward us under `gapStart` 2% of its maximum (or
-not projected: cloak surge), and at least `minParty` 4 spare crew (supply −
-need, shown in the Ship panel and the hangar's Crew line). The party is
-min(`partyMax` 12, spare crew); it leaves at once (`grid.crewAway`, read by
-`BS.Grid.derive`, so manning and with it weapon and shield rates drop for
-the rest of the battle) and beams for `transportTime` 3 s. The transport
-aborts, party home, if that facing comes back above `gapAbort` 15% (a
-booster pulse does it: the defender's counter) or the range opens past
-`rangeKm × abortRangeMult` (6 km). Aboard, the party fights `bridgeGuard` 2
-+ `defenderPerQuarters` 3 per alive crew quarters of the target by
-Lanchester's square law (`rate` 0.08 per second each way); under `floor`
-0.5 on a side ends it, the party checked first so even numbers go to the
-defenders. Captured → `shipCaptured` → victory with salvage `captured` 30%
-of the enemy's remaining block value (a prize, nearly intact); repelled →
-the party is lost. A full-crew raider holds 20 defenders against a party
-of 12, so the plan is: shoot its crew decks (the CQ chip, or the "crew"
-weak point) until the scan panel's Boarding line says the window would be
-won, close to Skirmish range, and press T when the facing drops. Security
-(Lt. Cdr. Giotto) calls the transport, the fight and the outcome; the Ship
-panel shows "beaming 12 · 2.0 s" then "11 vs 7 aboard"; the transporter
-button reads why it is off. Only the player boards in this version.
-
 ### Leech encounter and the neutraliser counter
 The **Leech** (Bird-of-Prey, two neutralisers in the hull where the Jammer
 boat carries its ECM, six disruptors, brawl, from win 3, ×1.2) drains you
 every six seconds inside 4 km: reactors and range are the answer, as for
-the ECM boat sensors were. Counter-doctrine rule: a battle layout with two
-or more neutralisers makes a flagged Bird-of-Prey stand off and a K't'inga
-siege ("they will stay out of your neutraliser range").
+the ECM boat sensors were.
 
 ### Bridge scripts (`js/script.js`, `BS.Data.script`, `save.scripts / scriptByBuild / plans`)
 The direction since 0.21: the contest is decided before the fight (build,
@@ -798,7 +757,7 @@ intel, script); in the fight the bridge runs the script. A script is
   it does.
 - **Call-outs** (`once: true` or `every: N`) fire their actions whenever
   their conditions hold, once ever or at most every N seconds, without
-  changing the standing orders: scan, reinforce, the boarding party. A
+  changing the standing orders: scan, reinforce, remodulate. A
   once rule that could not act yet (a scan still running) tries again.
 - **Policies** run every tick: `lock` (keep a lock), `booster` / `reinforce`
   (`helm.policy`), `hardener`, `decoy` (drop one
@@ -833,7 +792,7 @@ intel, script); in the fight the bridge runs the script. A script is
   takes over the engine emits `scriptCallout` and, for the enemy's rules,
   Tactical reads it out. The player's own callouts are silent (the trace
   already reads every rule).
-- **Scan** (`science.scanDuration` 4 s): the beam turrets hold fire
+- **Scan** (`script.scanSeconds` 4 s): the beam turrets hold fire
   (module state `scan`), then `ship.scanned` is set; aiming at a weak point
   or a plan target needs it (the rule still stands, the trace says
   "waiting for a scan"). The enemy reads weak points off a scan as well:
@@ -934,7 +893,7 @@ so the enemy may never win by information the player cannot have:
   one engine). Its strength is the shown percentage (`enemyStatMult`).
 - **Contact, not position**: `BS.Ships.contact(viewer, target)` gives the
   target itself while it is visible (not cloaked, or cloaked inside the
-  viewer's detect range `science.cloakDetectRangeKm` + `ew.detectPerSensor`
+  viewer's detect range `ew.cloakDetectRangeKm` + `ew.detectPerSensor`
   per sensor) and otherwise a ghost standing at the last contact. The
   doctrine machine (`BS.EnemyAI.update`: range, facing, blind time), the
   helm (`updateCommand`: approach / orbit / keep / shadow fly against the
@@ -1189,9 +1148,8 @@ The skirmish-then-boss run of §10 and the fleet hangar's roster.
   (v2). Measured in §8.
 
 ### Win / lose
-Enemy side beaten → Victory; player side beaten → Defeat; the last enemy
-bridge taken by a boarding party → Victory ("captured"). Result overlay with
-stats.
+Enemy side beaten → Victory; player side beaten → Defeat. Result overlay
+with stats.
 
 ### Campaign (`BS.Campaign`)
 - **Credits**: win 500 × encounter `rewardMult` − 3 per % hull lost + 50 per
@@ -1225,11 +1183,6 @@ stats.
 - **Build statistics**: dps assumes 80% beam hits and 85% torpedo damage;
   capacitor is simulated for 10 minutes with every active module running
   ("stable at n%" or "runs dry in n s").
-- **Skills** (`BS.Data.skills`): six skills, five levels each, trained one at
-  a time in real time (0.5 / 2 / 6 / 16 / 40 hours per level) using
-  timestamps, so training continues while the game is closed. Levels apply
-  as ship mods at battle start (+3% beam damage, +3% torpedo damage, +3%
-  speed, +4% shield regen, +4% cap recharge, −5% lock time per level).
 - **Save**: localStorage key `bridgesim.save`, `saveDefaults` shape
   (version 2). Export downloads `bridge-sim-save.json`; Import validates and
   migrates. Reset asks for confirmation.
@@ -1280,13 +1233,13 @@ modules: { phaser_group, torpedo_group, shield_booster, shield_hardener, afterbu
            decoy (block-bound active, effect.decoy), neut (block-bound active, effect.neut) }
 ew: { jamPerBlock, jamDuration, cloakTime, decloakTime, surgeTime, cloakDrain, cloakMinCap, detectPerSensor, ghostAlpha, ownCloakAlpha, cloakRadius, jamRadius, strike,
       decoy: { life, lureKm, speedKmS, hitKm, spreadDeg, aiIncomingKm }, neut: { rangeKm, perBlock, aiMinCap, warnCapBelow, drainMemory, fleeKm } }
-grid.boarding: { rangeKm, minParty, partyMax, transportTime, bridgeGuard, defenderPerQuarters, gapStart, gapAbort, abortRangeMult, rate, floor }
 script: { tickSeconds, chargingKmS, traceMax, planTargets, defaultTemplate, maxRules, dryRun: { maxSeconds, stepsPerChunk }, bridgeCall: { tokens, holdSeconds, focusSeconds, confirmSeconds, disengageUntil, noCallBonus }, conditions: { id: { label, kind, def, negLabel? } }, actions: { id: { label, kind } }, policies: { id: { label } }, weakKinds,
           templates: { id: { name, desc, requires?, policies, rules: [{ when, do, until?, holdMax?, once?, every? }] } }, enemyScripts: { id: { name, rules } } }
 campaign.firstFight: { weakPointChance }; campaign.encounters[].script; tuning (order, list, factionDefault, offFactionCost, tunable, measured, bonus / malus); save.tuning{}, builds[].tuning, intel[].tuning; shipClasses.*.variants / presets[].element; save: scripts[], scriptByBuild{}, plans{}, settings.manualBridge, campaign.cleanWins, campaign.retry
 campaign.salvage: { destroyed, disabled, captured }; enemyAI.*: drainedBelow, drainedUntil, drainedTime
 0.31: balance.fleetSpacingKm; campaign.fleetMax; campaign.encounters[].ships: [{ enemyClass, layout, doctrine, script, damageMult }]; save.fleet: [classId]; ship: team, target, contacts{}, flags.captured; state: teams { player: [], enemy: [] }, enemyFlag
 0.32: script.subjects; rule.about; action target; conditions allyShieldBelow / allyHullBelow / allyUnderFire / outnumbered / enemiesAtMost / unfocused; templates.wolfpack; ship: scannedOf{}, scanTarget
+0.38: grid.crew, blocks.*.crew, stats.crew, grid.boarding, ship.boarding, skills, save.skills / training, science (scanSeconds → script, cloakDetectRangeKm → ew), salvage.captured, flags.captured, condition boardable, action board, weak point kind crew, crit on quarters: all gone; BS.Grid.isSystem
 0.37: helm.defaultDoctrine, helm.policy; enemyAI.doctrines[].label / desc / ranges (engage, skirmish, standoff, disengage; dogfight and bombard are the fixed former skirmish / standoff); script action doctrine (stance and play gone; saves migrated); settings.manualBridge gone; enemyScripts.torpedoBoat rules
 0.35: campaign.run { bossEvery, bossFromWins, fleetMinHulls }; campaign.repair { destroyedBlock, lostHull }; campaign.encounters[].kind: solo | fleet | boss; encounter(): kind, roster, battles, bossSlot, nextBoss; retry.battles; settleBattle(): repairs, repairLines[]
 0.34: mask letter r (block.roleCell); blocks transfer / repairbeam / beacon (roleOnly); modules shield_transfer / remote_repair / beacon (effect.sigMult); support { rangeKm, transferPerBlock, repairPerBlock, escortKm }; script.allySubjects; actions support / escort; policy support; subject loudest; templates anchor / lifeline; presets galaxy.anchor / excelsior.lifeline; ship: support, escorting, escortSubject
@@ -1299,7 +1252,7 @@ enemyAI: { doctrines: { id: { kind: strafe|brawl|standoff|broadside|ambush|evade
            default | ktinga: { doctrine, accuracyMult, reactionDelay, statMult, damageMult, retreat*, reposition*, retreatRangeKm, booster*, afterburnerMinCap, targetWeights (none = spray) } }
 campaign: { startingCredits, credits, salvage: { destroyed, disabled }, enemyScaling, encounters: [{ id, enemyClass, layout, doctrine, minWins, weight, rewardMult }], klingonNames }
 visuals: { starLayers, nebulae, shieldColors, shake*, fragments: { sectionLife, deathLife, deathPieces, driftSpeed, deathSpeed, spin, fadeFrom } }
-skills (real-time training), science, saveDefaults (version 2: layouts, builds, skills)
+saveDefaults (version 2: layouts, builds, scripts, tuning, fleet)
 ```
 
 Runtime ship: `pos, vel, heading, speed, hull, shields{4}, capacitor, capMax,
@@ -1307,8 +1260,8 @@ subsystems{6}, lock{target, progress, locked, time}, selected, targetSubsystem,
 cmd{type, target, range, point, orbitDir, facing}, modules[{id, def, slot,
 active, running, cycleLeft, cycleTime, state}], fitEffects, activeEffects,
 repairPriority, reinforce, stats, mods, aiProfile, ai{state, timer, suspended, relock, ...}, doctrine, doctrineId,
-neuted, boarding{target, phase, t, party, partyMax, defenders, defendersMax}, script{def, target, active, activeSince, t, fired, lastFire, suspended},
-scriptTrace[], scanned, scanning, scriptAim`; `grid.crewAway`; torpedo: `lured`; `BS.Weapons.decoys[]`;
+neuted, script{def, target, active, activeSince, t, fired, lastFire, suspended},
+scriptTrace[], scanned, scanning, scriptAim`; torpedo: `lured`; `BS.Weapons.decoys[]`;
 block: `covered, coverBy` from derive.
 
 ## 7. Events
@@ -1317,11 +1270,10 @@ moduleOffline, shieldBoosted, phaserFired, torpedoLaunched, torpedoHit,
 torpedoExpired, shieldHit, hullHit, blockDestroyed, sectionLost,
 blockExploded, shipDisabled, shipDestroyed, overload, jammed, cloakChanged,
 alertChanged, stateChanged, orbitFlipped, stanceChanged (a doctrine set), enemyRolled, commandGiven,
-decoyLaunched, decoyExpired, torpedoLured, torpedoDecoyed, neutralised, boardingStarted, boardingAborted,
-boardingFight, boardingEnded, shipCaptured, scriptRule, scriptSuspended, scriptAim, scanStarted, scanned, bridgeCall, bridgeCallRefused, speedChanged,
+decoyLaunched, decoyExpired, torpedoLured, torpedoDecoyed, neutralised, scriptRule, scriptSuspended, scriptAim, scanStarted, scanned, bridgeCall, bridgeCallRefused, speedChanged,
 log, battleStarted, battleEnded, skillTrained`.
 
-## 8. Measured balance (accelerated simulation, scripted captains, default builds, no skills)
+## 8. Measured balance (accelerated simulation, scripted captains, default builds)
 
 Harness: `BS.Game.state.paused = true`, `BS.Game.step(1/60)` in a loop, the
 captain script runs once per simulated second. Enemy strength as at the
@@ -1332,6 +1284,25 @@ harness is in the repository: `tools/harness.js` (Playwright, one
 `campaign.encounters`, seeded `Math.random`, `--noreact` for the 0.24 enemy
 bridge, `--eval` for a data tweak, `--debug` for what each bridge saw) and
 `tools/smoke.js` (the headless interface check).
+
+v0.38.0 (boarding, crew manning, skills and science out; seeds 1–4 for
+the 1v1 and the pack, 1–2 for the rest; every hull's script set):
+
+| Matchup | Before (0.37) | After |
+|---|---|---|
+| Constitution vs Raider (0 wins), Brawler | 3 of 4 in 2:35–2:59 keeping 73–92% | identical |
+| Four hulls vs `pack` (0 wins), Wolf pack on all | 2 of 2 in 3:21–4:54 keeping 63–69% | **4 of 4** in 3:57–6:56 keeping 42–73%: longer and costlier |
+| Four Cube breakers vs `cube` (0 wins) | 2 of 2 in 4:38–5:15 keeping 86–88% | 2 of 2 in 3:50–5:27 keeping 84–91% |
+| Constitution vs Leech (3 wins), Brawler | not measured since 0.2x | 1 of 2 (4:28 keeping 76%, one loss) |
+
+Honest reading: nothing a player can see changed in the 1v1 reference,
+and the boss is the same outcome. The pack fight is harder without
+manning: hits on crew decks used to slow a raider's guns and shields
+(casualties were a hidden debuff on both sides, and the Wolf pack's
+focus fire profited from it); now a raider shoots at full rate until it
+dies. The outcome holds (4 of 4) at a higher price; nothing was re-tuned
+in this PR, so the fleet tier's numbers are re-measured in 0.39 after the
+vocabulary cut.
 
 v0.37.0 (plays and the hand-flown bridge out, one doctrine list; seeds
 1–4 for the 1v1 rows, 1–2 for the fleets; every hull's script set):
@@ -2029,6 +2000,7 @@ than slower (it is nearly untouched, as intended).
 | v0.33.0 (done) | The first boss (§4 "Bosses"): the Borg cube, the cutting beam with a charge tell, summoned escorts, overdrive, the boss script with callouts, the Cube breaker template, enemy-only blocks and actions |
 | v0.32.0 (done) | Fleet scripts (§4): subjects (`about`), the `target` action, ally and count conditions, scans per ship, the Wolf pack template, enemy packs that concentrate fire, the report per hull |
 | v0.31.0 (done) | Fleet engine (§4, §10): teams, N ships against M, target selection and retargeting, team elimination, viewer and primary enemy, camera over every ship, encounters with `ships`, `save.fleet`, harness fleets and `--perf`, deterministic harness, learning zeroed |
+| v0.38.0 (done) | Boarding (`js/boarding.js`), crew manning (`grid.crew`, `blocks.*.crew`, manning multipliers, far-from-quarters repair, the crew weak point), real-time skills and science removed; quarters are damage-control blocks; `script.scanSeconds`, `ew.cloakDetectRangeKm` |
 | v0.37.0 (done) | Plays and the hand-flown bridge removed; stances folded into one doctrine list (§4 "One doctrine list"): labelled doctrines with build-derived ranges, the `doctrine` action for both bridges, a Fly bridge call; the Torpedo boat's Siege play as rules |
 | v0.36.0 (done) | The vision (§1–§2: WoW raids in Trek ships in an arena) and the first cut (§10 "Streamline"): learning, signatures, the opening book, the counter table and the doctrine table removed; the report keeps the rule pair and the tuning line |
 | v0.35.0 (done) | Runs, roster and repair bills (§4): encounter kinds solo / fleet / boss, a boss slot every 6th battle from 4 wins with two hulls, the shipyard's roster buttons, repair bills per destroyed block and lost hull with a Repairs row in the report; cutting beam penetration 4 and the Anchor v2 preset; §8 re-measured with every hull's script set (correction to the 0.33–0.34 fleet rows) |
@@ -2204,7 +2176,7 @@ script; learning off since 0.31; plays shadowed by the script since 0.21):
 |---|---|
 | 0.36 (done) | §1–§2 rewritten as the vision; learning, signatures, the book, the counter table and the doctrine table removed (`campaign.learn`, `save.signatures / book`, `enemyAI.counters / signatureCounters / doctrineTable`, `encounters[].counter`, harness `--signature / --learn / --sigtune`); the report keeps the rule pair and the tuning line. Measured unchanged: 1v1 3 of 4, Wolf pack 2 of 2 |
 | 0.37 (done) | Plays, `js/plays.js` and the hand-flown bridge (manual helm, stances, sides, aim chips, module clicks, fly-to, keys, `settings.manualBridge`) out; stances folded into `enemyAI.doctrines` as labelled doctrines with `ranges`; one `doctrine` action; bridge call *Fly*; the Torpedo boat's play as rules. Measured in §8 v0.37 |
-| 0.38 | Boarding, crew manning, real-time skills and science out |
+| 0.38 (done) | Boarding, crew manning, real-time skills and science out: no step of the loop read them (no role boards, no boss tests manning, training is idle time). Quarters stay as damage-control blocks so no layout changes. Measured in §8 v0.38 |
 | 0.39 | Script vocabulary cut with a save migration (a rule naming a removed condition is dropped and the hangar says so); tuning per ship; the solo list trimmed; the hangar regrouped by the loop; §8 history moved to an appendix |
 | then | The second boss (damage one afterburner burst cannot dodge, so the pair pays off); a campaign harness that plays a whole run |
 
