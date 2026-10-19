@@ -51,7 +51,6 @@
         <h3>Ship</h3>
         <div class="row"><label>Speed</label><span class="num wide" id="own-speed">0.0 km/s</span></div>
         <div class="row"><label>Helm</label><span class="num wide" id="own-cmd">All stop</span></div>
-        <div class="row"><label>Heat</label><span class="num wide" id="own-heat">0 / 0</span></div>
 
         <h3>Blocks <small>alive / total · click: repair priority</small></h3>
         <div class="sub-grid" id="own-subsystems"></div>
@@ -77,13 +76,7 @@
       <div id="hud">
         <div id="gauge" title="Hull (centre), shield facings (middle ring), capacitor (outer ring)"></div>
         <div id="hud-right">
-          <div id="module-bar" title="Click or press F1–F8 to toggle a module"></div>
-          <div id="heat-bar" title="Heat: every shot adds heat; at the cap weapons stop and a salvo past it overloads the ship for six seconds. The pale mark shows where the next full salvo would put you.">
-            <span class="hb-label">HEAT</span>
-            <div class="hb-track"><div class="hb-zone warn"></div><div class="hb-zone danger"></div><div class="hb-fill"></div><div class="hb-salvo"></div><div class="hb-gov"></div></div>
-            <span class="hb-num" id="heat-num">0 / 0</span>
-            <button id="btn-governor" class="hb-gov-btn active" title="H: heat governor. On: weapons hold fire above 85% heat and resume at 60%, so you never overload. Off: fire until the ship overloads (alpha strike).">GOV</button>
-          </div>
+          <div id="module-bar" title="The fitted modules: the script switches them"></div>
         </div>
       </div>
       <div id="comms" title="Bridge log: the last two reports. LOG opens the full log.">
@@ -169,11 +162,10 @@
         <li><b>Shield bubbles</b>: each emitter protects the blocks within 5 cells; the rings you see are that cover. Hull outside every ring takes hits unshielded. The <b>EXPOSED</b> chip aims at the enemy's bare hull; the hangar paints yours red.</li>
         <li><b>Cloak and ECM fields</b>: a cloaking device covers 10 cells and a jammer 7. You can cloak only when every block is inside a cloak field (the hangar frames the rest in purple), and a jam breaks the enemy's lock only when your whole ship is inside the ECM field; otherwise it just steers their fire onto the blocks outside it (green frames).</li>
         <li><b>The script has the conn</b>: every bridge fights by the rules written in the hangar. You have two bridge calls a battle (right panel): fly a doctrine, change side, disengage, reinforce, focus a block (tap one on the scan panel or the display first), remodulate. Space pauses, G opens the log, 1× / 2× / 4× sets the speed.</li>
-        <li><b>Heat</b>: the bar under the module bar. Every shot adds heat (phasers a little, torpedoes a lot); at the cap weapons stop, and a salvo that crosses it overloads everything for six seconds. The pale mark shows where your next full salvo would land. <b>GOV</b> (H) is the heat governor: on, your weapons hold fire above 85% and resume at 60%; off, you can alpha-strike into an overload.</li>
         <li><b>Weak points</b>: the scan panel's last column reads the enemy's layout for you: the emitter that covers the most hull, reactors that touch (a breach chains), the reactor that alone powers a part of the ship, the block whose loss severs the most hull, crew decks one loss from undermanning, wounded systems open to a critical. Click one, or click any block on the drawing, to <b>focus every weapon on that block</b> (−15% accuracy; click again to stop). Cunning enemies do the same to you: Tactical calls what they are going for.</li>
         <li><b>Intel</b> (hangar): hold a lock on an enemy for 10 s and its layout is on file; the next time that encounter comes up the hangar draws it with its weak points, weapons and shields before you fit. Or buy it (150 cr).</li>
         <li><b>Cut the neck</b>: structural members (necks, pylons) have 700 hp, stop beams dead, and take triple from torpedoes. The <b>STRUCT</b> chip or a "Cut:" weak point puts the tubes on them; a severed section takes every block on it.</li>
-        <li><b>Scan panel</b> (bottom): once you hold a lock it shows the enemy's blocks and damage, shield bubbles and bare hull, cloak and ECM field gaps, its crew, power and heat, how many of its weapons bear on you, and what its torpedoes would do to you. The bridge log is the two-line ticker at the top of the display; <b>LOG</b> (G) opens the full log.</li>
+        <li><b>Scan panel</b> (bottom): once you hold a lock it shows the enemy's blocks and damage, shield bubbles and bare hull, cloak and ECM field gaps, its power, how many of its weapons bear on you, and what its torpedoes would do to you. The bridge log is the two-line ticker at the top of the display; <b>LOG</b> (G) opens the full log.</li>
         <li><b>Reactors power a range</b> of 15 cells: systems outside it run at half, so killing the reactors in one part of a ship browns out everything around them, and when the last reactor dies the <b>warp core breaches</b>: 8 seconds, then a 2 km blast. Get clear (Disengage, 4). Severed sections keep flying, burn their engines, blow their reactors and hit whatever they drift into.</li>
         <li><b>Critical hits</b>: a hit that leaves a system under half its hp may cripple it: a reactor breaches, an engine sends the ship tumbling with no helm for 3 s, a sensor drops the lock, a shield emitter bleeds its facing, a weapon mount jams, crew decks are lost, a cloak generator drops the cloak. Aimed fire at wounded systems is how a small ship guts a big one.</li>
         <li><b>Decoys and neutralisers</b> (blocks, then modules in the bar): a <b>decoy launcher</b> drops a flare astern for 8 s and every torpedo hunting you within 3 km of it turns on the flare and blows up on it: fire it when Tactical calls the volley 2–4 km out. An <b>energy neutraliser</b>, with a lock inside 4 km, drains 30 capacitor per block from the enemy every 6 s: their booster, hardener, afterburner and cloak starve, then their guns. The Leech raider does it to you; reactors and range are the answer.</li>

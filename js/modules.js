@@ -45,7 +45,7 @@ BS.Modules = (function () {
         b.charging -= dt;
         if (b.charging > 0) return;
         var ct = b.chargeTarget; b.charging = 0; b.chargeTarget = null;
-        if (ct && !ct.flags.destroyed && !ship.flags.destroyed) { BS.Weapons.fireTurretBlock(ship, b, ct); fired++; ship.heat += w.heat || 0; }
+        if (ct && !ct.flags.destroyed && !ship.flags.destroyed) { BS.Weapons.fireTurretBlock(ship, b, ct); fired++; }
         b.cycleLeft = cycle;
         BS.Events.emit("weaponCharged", { ship: ship, block: b, target: ct });
         return;
@@ -54,12 +54,9 @@ BS.Modules = (function () {
       if (b.cycleLeft <= 0) ready++;
       if (!m.active || b.cycleLeft > 0) return;
       if (!ship.flags.armed || ship.flags.disabled) { reason = "notarmed"; return; }
-      if (ship.overload > 0) { reason = "overload"; return; }
       if (ship.cloak.state !== "off") { reason = "cloaked"; return; }
       if (ship.scanning > 0 && w.kind === "turret") { reason = "scan"; return; }   // a science scan borrows the beam emitters
       if (ship.remod && ship.remod.kind === "ammo") { reason = "remodulate"; return; }   // weapons cold while their ammo is retuned
-      if (ship.heat >= ship.stats.heatCap || (ship.aiProfile && ship.heat > ship.stats.heatCap * BS.Data.grid.heat.aiFireBelow)) { reason = "heat"; return; }
-      if (ship.governorHold) { reason = "heat"; return; }
       if (!target) { reason = "nolock"; return; }
       var dKm = BS.Ships.distanceKm(ship, target);
       var maxKm = w.kind === "turret" ? w.optimalKm + w.falloffKm * 2.5 : w.rangeKm;
@@ -70,8 +67,6 @@ BS.Modules = (function () {
       if (w.charge) { b.charging = w.charge; b.chargeTarget = target; BS.Events.emit("weaponCharging", { ship: ship, block: b, target: target, time: w.charge, pos: BS.Grid.blockWorld(ship, b) }); return; }
       if (w.kind === "turret") BS.Weapons.fireTurretBlock(ship, b, target); else BS.Weapons.fireLauncherBlock(ship, b, target);
       b.cycleLeft = cycle; fired++;
-      ship.heat += w.heat || 0;
-      if (ship.heat > ship.stats.heatCap && ship.overload <= 0) { ship.overload = BS.Data.grid.heat.overloadTime; BS.Events.emit("overload", { ship: ship }); }
     });
     m.readiness = ready / blocks.length;
     m.running = m.active && fired > 0 || (m.active && ready < blocks.length);
@@ -85,7 +80,6 @@ BS.Modules = (function () {
       target = ship.lock.locked && ship.lock.target && !ship.lock.target.flags.destroyed ? ship.lock.target : null;
       if (!target) { m.state = "nolock"; return false; }
       if (BS.Ships.distanceKm(ship, target) > BS.Data.ew.neut.rangeKm) { m.state = "range"; return false; }
-      if (ship.overload > 0) { m.state = "overload"; return false; }
     }
     if (ship.capacitor < def.cap) { m.state = "nocap"; return false; }
     ship.capacitor -= def.cap;
@@ -155,12 +149,6 @@ BS.Modules = (function () {
   }
   function update(ship, dt) {
     var eff = { speedMult: 1, shieldResist: 0, lockMult: 1, trackingMult: 1, sigMult: 1 }, order = updateOrder(ship);
-    // heat governor: hold fire above the high mark until the heat falls below the low mark (hysteresis)
-    var H = BS.Data.grid.heat, hf = ship.stats.heatCap > 0 ? ship.heat / ship.stats.heatCap : 0;
-    if (ship.heatGovernor && !ship.aiProfile) {
-      if (!ship.governorHold && hf > H.governorHigh) { ship.governorHold = true; BS.Events.emit("governorHold", { ship: ship, holding: true }); }
-      else if (ship.governorHold && hf < H.governorLow) { ship.governorHold = false; BS.Events.emit("governorHold", { ship: ship, holding: false }); }
-    } else ship.governorHold = false;
     for (var i = 0; i < order.length; i++) {
       var m = order[i];
       if (isWeapon(m)) { updateWeaponGroup(ship, m, dt); continue; }
@@ -172,7 +160,6 @@ BS.Modules = (function () {
         m.state = cs === "off" ? (ship.cloak.surge > 0 ? "surge" : !BS.Ships.cloakFieldComplete(ship) ? "field" : "off") : cs;
         continue;
       }
-      if (ship.overload > 0) { m.state = m.active ? "overload" : "off"; continue; }   // overloaded: nothing cycles or starts
       if (m.running) {
         m.cycleLeft -= dt;
         if (m.cycleLeft <= 0) {
@@ -205,11 +192,5 @@ BS.Modules = (function () {
   }
   function weapons(ship) { return ship.modules.filter(isWeapon); }
 
-  // Heat of the next full salvo: every ready weapon that is active and could fire
-  function pendingSalvoHeat(ship) {
-    var total = 0;
-    ship.modules.forEach(function (m) { if (!isWeapon(m) || !m.active) return; weaponBlocks(ship, m).forEach(function (b) { if (b.cycleLeft <= 0 && b.facing !== null) total += b.def.weapon.heat || 0; }); });
-    return total;
-  }
-  return { fit: fit, update: update, setActive: setActive, pendingSalvoHeat: pendingSalvoHeat, toggle: toggle, find: find, weapons: weapons, isWeapon: isWeapon, weaponBlocks: weaponBlocks, blockCanFire: blockCanFire, chargingOn: chargingOn };
+  return { fit: fit, update: update, setActive: setActive, toggle: toggle, find: find, weapons: weapons, isWeapon: isWeapon, weaponBlocks: weaponBlocks, blockCanFire: blockCanFire, chargingOn: chargingOn };
 })();

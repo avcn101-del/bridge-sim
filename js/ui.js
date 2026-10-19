@@ -17,7 +17,7 @@ BS.UI = (function () {
     ["own-speed", "own-cmd", "own-subsystems", "enemy-subsystems", "gauge", "help-screen", "btn-help", "btn-help-close",
      "target-none", "target-info", "tg-name", "tg-hull", "tg-hull-val", "tg-shield", "tg-shield-val", "tg-range", "tg-angular", "tg-chance", "tg-aim",
      "clock", "alert-label", "btn-pause", "btn-redalert", "btn-zoom-in", "btn-zoom-out", "pause-overlay", "start-screen", "result-screen", "result-title", "result-sub", "result-head",
-     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "rs-credits", "rs-salvage", "rs-repairs", "heat-bar", "heat-num", "btn-governor", "own-heat", "scan-view", "scan-info", "btn-log", "ship-name", "view", "module-bar", "overview", "trace", "speed-buttons", "call-tokens", "call-doctrine", "call-side", "btn-focus", "bridge-calls", "rs-clean", "rs-script", "btn-retry"]
+     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "rs-credits", "rs-salvage", "rs-repairs", "scan-view", "scan-info", "btn-log", "ship-name", "view", "module-bar", "overview", "trace", "speed-buttons", "call-tokens", "call-doctrine", "call-side", "btn-focus", "bridge-calls", "rs-clean", "rs-script", "btn-retry"]
       .forEach(function (id) { el[id] = $(id); });
     logList = $("log");
     buildGauge();
@@ -32,7 +32,6 @@ BS.UI = (function () {
     });
     el["btn-pause"].addEventListener("click", function () { game.togglePause(); el["btn-pause"].blur(); });
     el["btn-redalert"].addEventListener("click", function () { game.command("redAlert"); el["btn-redalert"].blur(); });
-    el["btn-governor"].addEventListener("click", function () { game.command("governor"); el["btn-governor"].blur(); });
     el["btn-zoom-in"].addEventListener("click", function () { game.setZoom(game.state.zoom + BS.Data.balance.zoom.step); });
     el["btn-zoom-out"].addEventListener("click", function () { game.setZoom(game.state.zoom - BS.Data.balance.zoom.step); });
     $("btn-start").addEventListener("click", function () { game.openHangar(); });
@@ -159,7 +158,6 @@ BS.UI = (function () {
     mk("circle", { class: "bg", cx: C, cy: C, r: 50, "stroke-width": 7 });
     gauge.capbg = mk("path", { class: "capbg", d: arcPath(C, C, 50, -Math.PI / 2, Math.PI * 1.5 - 0.001), "stroke-width": 7 });
     gauge.cap = mk("path", { class: "cap", d: "", "stroke-width": 7 });
-    gauge.heat = mk("path", { class: "heat", d: "", "stroke-width": 3 });
     mk("circle", { class: "bg", cx: C, cy: C, r: 38, "stroke-width": 8 });
     // facings: fore top, starboard right, aft bottom, port left; each spans 80° around its centre
     gauge.sh = {};
@@ -185,11 +183,6 @@ BS.UI = (function () {
     gauge.cap.setAttribute("d", cf > 0.002 ? arcPath(C, C, 50, -Math.PI / 2, -Math.PI / 2 + U.TAU * Math.min(0.999, cf)) : "");
     gauge.cap.style.opacity = cf < 0.2 ? 0.5 + 0.5 * Math.sin(performance.now() / 100) : 1;
     gauge.capnum.textContent = "CAP " + Math.round(p.capacitor) + " / " + p.capMax;
-    var hf2 = p.stats.heatCap > 0 ? p.heat / p.stats.heatCap : 0;
-    gauge.heat.setAttribute("d", hf2 > 0.01 ? arcPath(C, C, 56, -Math.PI / 2, -Math.PI / 2 + U.TAU * Math.min(0.999, hf2)) : "");
-    gauge.heat.style.stroke = p.overload > 0 ? "#ff4040" : hf2 > 0.75 ? "#ff8a3d" : "#f2c14e";
-    gauge.heat.style.opacity = p.overload > 0 ? 0.5 + 0.5 * Math.sin(performance.now() / 80) : 1;
-    gauge.lbl.textContent = p.overload > 0 ? "OVERLOAD" : "HULL";
   }
 
   // Module bar: one round button per fitted module, F-key labelled.
@@ -455,19 +448,7 @@ BS.UI = (function () {
     return (theirs ? "Their " : "Our ") + T.list[ammo].name + " ammo vs " + (theirs ? "our" : "their") + " shields " + (fq ? T.list[fq].name + m(fq) : "none") + " · armor " + (al ? T.list[al].name + m(al) : "none");
   }
 
-  // Heat bar: fill, warning zones, where the next full salvo would land, governor state, overload countdown.
-  function updateHeatBar(p) {
-    var cap = p.stats.heatCap || 1, hf = U.clamp(p.heat / cap, 0, 1), bar = el["heat-bar"], track = bar.querySelector(".hb-track");
-    track.querySelector(".hb-fill").style.width = (hf * 100).toFixed(1) + "%";
-    var salvo = BS.Modules.pendingSalvoHeat(p), sm = track.querySelector(".hb-salvo");
-    if (salvo > 0 && p.overload <= 0) { sm.style.display = "block"; sm.style.left = (Math.min(1, (p.heat + salvo) / cap) * 100).toFixed(1) + "%"; sm.style.background = p.heat + salvo > cap ? "#ff4040" : "rgba(255,255,255,0.7)"; } else sm.style.display = "none";
-    bar.classList.toggle("hot", hf > 0.6 && p.overload <= 0);
-    bar.classList.toggle("overload", p.overload > 0);
-    bar.classList.toggle("holding", p.governorHold && p.overload <= 0);
-    el["heat-num"].textContent = p.overload > 0 ? "OVERLOAD " + p.overload.toFixed(1) + " s" : p.governorHold ? "HOLD " + Math.round(hf * 100) + "%" : Math.round(p.heat) + " / " + Math.round(cap);
-    el["btn-governor"].classList.toggle("active", p.heatGovernor);
-    el["own-heat"].textContent = Math.round(p.heat) + " / " + Math.round(cap) + " · −" + p.stats.heatDissipation.toFixed(0) + "/s" + (p.overload > 0 ? " · OVERLOAD" : p.governorHold ? " · holding" : "");
-  }
+
 
   // ---- per-frame update ---------------------------------------------------
   function pctColor(frac) { var c = BS.Renderer.shieldColor(frac); return "rgb(" + c[0] + "," + c[1] + "," + c[2] + ")"; }
@@ -495,7 +476,6 @@ BS.UI = (function () {
     el["pause-overlay"].classList.toggle("hidden", !state.paused);
 
     updateGauge(p);
-    updateHeatBar(p);
     var tok = el["call-tokens"]; if (tok) { var left = state.calls || 0, used = state.callsUsed || 0, dots = ""; for (var di = 0; di < left; di++) dots += "● "; for (var dj = 0; dj < used; dj++) dots += "○ "; tok.textContent = dots.trim() || "none"; tok.classList.toggle("none", left === 0); }
     document.querySelectorAll("#bridge-calls [data-call]").forEach(function (b) { if (b.id === "btn-focus") return; b.classList.toggle("off", (state.calls || 0) <= 0); });
     if (pendingFocus && e && e.grid.at[pendingFocus.x + "," + pendingFocus.y] && !e.grid.at[pendingFocus.x + "," + pendingFocus.y].alive) { pendingFocus = null; updateFocusButton(); }
@@ -557,14 +537,14 @@ BS.UI = (function () {
       me.el.classList.toggle("active", m.active);
       me.el.classList.toggle("running", m.running);
       var weapon = BS.Modules.isWeapon(m);
-      ["nocap", "nolock", "range", "notarmed", "arc", "none", "heat", "overload", "cloaked", "surge", "field", "scan"].forEach(function (st) { me.el.classList.toggle(st, (m.active || m.def.kind === "cloak") && m.state === st); });
+      ["nocap", "nolock", "range", "notarmed", "arc", "none", "cloaked", "surge", "field", "scan"].forEach(function (st) { me.el.classList.toggle(st, (m.active || m.def.kind === "cloak") && m.state === st); });
       me.ring.style.setProperty("--p", weapon ? (100 * (1 - m.readiness)).toFixed(1) : (m.running ? (100 * (1 - m.cycleLeft / m.cycleTime)).toFixed(1) : 0));
       me.el.classList.toggle("running", weapon ? m.active && m.readiness < 1 : m.running);
-      me.state.textContent = m.active && m.state !== "running" && m.state !== "off" && m.state !== "ok" ? ({ nocap: "no cap", nolock: "no lock", range: "range", notarmed: "safe", arc: "no arc", none: "lost", heat: "hot", overload: "OVERLOAD", cloaked: "cloaked", cloaking: "cloaking", decloaking: "decloak", surge: "surge", field: "no field", scan: "scanning" })[m.state] || "" : "";
+      me.state.textContent = m.active && m.state !== "running" && m.state !== "off" && m.state !== "ok" ? ({ nocap: "no cap", nolock: "no lock", range: "range", notarmed: "safe", arc: "no arc", none: "lost", cloaked: "cloaked", cloaking: "cloaking", decloaking: "decloak", surge: "surge", field: "no field", scan: "scanning" })[m.state] || "" : "";
     }
   }
 
-  // ---- enemy scan panel: the locked ship's blocks, cover, fields, crew, power, heat and what bears on us ----
+  // ---- enemy scan panel: the locked ship's blocks, cover, fields, power and what bears on us ----
   var scanFrame = 0, scanHtmlLast = "", scanWeak = null;
   function updateScan(state) {
     var p = state.player, e = state.enemy, cv = el["scan-view"], c = cv.getContext("2d");
@@ -611,7 +591,6 @@ BS.UI = (function () {
     var order = ["lance", "phaser", "disruptor", "pulse", "torpedo", "reactor", "shield", "engine", "sensor", "jammer", "cloak", "decoy", "neut", "quarters"];
     order.forEach(function (t) { var n = st2.counts[t]; if (!n) return; var a = st2.alive[t] || 0; html += "<div class='sl'><label>" + D.blocks[t].short + "</label><span class='v " + (a === 0 ? "bad" : a < n ? "warn" : "") + "'>" + a + " / " + n + "</span></div>"; });
     html += "<div class='sl'><label>Power</label><span class='v " + cls(st2.powerFactor, 0.7, 1) + "'>" + st2.powerUsed + " / " + st2.powerMax + " · " + pct(st2.powerFactor) + (st2.unpowered ? " · " + st2.unpowered + " dark" : "") + (e.breach > 0 ? " <span class='good'>BREACH " + e.breach.toFixed(0) + " s</span>" : "") + "</span></div>";
-    html += "<div class='sl'><label>Heat</label><span class='v'>" + Math.round(e.heat) + " / " + Math.round(st2.heatCap) + (e.overload > 0 ? " <span class='good'>OVERLOADED</span>" : "") + "</span></div>";
     var ecap = e.capMax ? e.capacitor / e.capMax : 0;
     html += "<div class='sl'><label>Cap</label><span class='v " + (ecap < 0.15 ? "good" : ecap < 0.4 ? "warn" : "") + "' title='Their capacitor: a neutraliser drains it; dry, their modules shut down'>" + Math.round(e.capacitor) + " / " + e.capMax + " · " + pct(ecap) + (ecap <= 0.02 ? " <span class='good'>DRY</span>" : "") + "</span></div>";
     var chg = BS.Modules.chargingOn(e, null);

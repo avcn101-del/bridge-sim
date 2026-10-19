@@ -168,20 +168,6 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
 /* --------------------------------------------------------- HUD */
 #hud { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; align-items: center; gap: 14px; }
 #hud-right { display: flex; flex-direction: column; align-items: stretch; gap: 4px; }
-#heat-bar { display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: 10px; background: rgba(8, 9, 22, 0.75); border: 1px solid #2a2a40; font-size: 11px; letter-spacing: 0.08em; }
-#heat-bar .hb-label { color: #ff8a3d; font-weight: 700; }
-#heat-bar .hb-track { position: relative; flex: 1; height: 10px; border-radius: 5px; background: #141530; overflow: hidden; }
-#heat-bar .hb-zone { position: absolute; top: 0; bottom: 0; }
-#heat-bar .hb-zone.warn { left: 60%; width: 25%; background: rgba(255, 170, 60, 0.18); }
-#heat-bar .hb-zone.danger { left: 85%; width: 15%; background: rgba(255, 70, 60, 0.28); }
-#heat-bar .hb-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: #f2c14e; border-radius: 5px; transition: width 0.1s linear, background-color 0.3s; }
-#heat-bar .hb-salvo { position: absolute; top: 0; bottom: 0; width: 2px; background: rgba(255, 255, 255, 0.7); display: none; }
-#heat-bar .hb-gov { position: absolute; top: 0; bottom: 0; left: 85%; width: 1px; background: rgba(255, 255, 255, 0.35); }
-#heat-bar .hb-num { min-width: 70px; text-align: right; color: var(--c-text); font-variant-numeric: tabular-nums; }
-#heat-bar.hot .hb-fill { background: #ff8a3d; }
-#heat-bar.overload .hb-fill { background: #ff4040; animation: blink 0.4s steps(2) infinite; }
-#heat-bar.overload .hb-label { color: #ff4040; animation: blink 0.4s steps(2) infinite; }
-#heat-bar.holding .hb-num { color: #ffd23f; }
 .hb-gov-btn { font-family: inherit; font-size: 10px; letter-spacing: 0.08em; padding: 2px 7px; border-radius: 6px; border: 1px solid #555; background: #1b1c33; color: #888; cursor: pointer; }
 .hb-gov-btn.active { background: #2a4a35; border-color: #35e08f; color: #35e08f; }
 @keyframes blink { 50% { opacity: 0.35; } }
@@ -335,10 +321,6 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
 .hg-msg { min-height: 18px; font-size: 12px; color: var(--c-peach); margin: 4px 0; }
 .hg-msg.bad { color: #ff8f7a; }
 .bad { color: #ff8f7a; }
-#gauge svg path.heat { fill: none; stroke-linecap: round; }
-#module-bar .module.heat .short { color: #ff8a3d; }
-#module-bar .module.overload { box-shadow: 0 0 10px #ff4040; }
-#module-bar .module.overload .short { color: #ff4040; }
 .warn { color: #f2c14e; }
 .hg-fit .lcars-btn.big { margin-top: 6px; font-size: 17px; padding: 9px 20px; }
 @media (max-width: 1000px) { .hangar-grid { grid-template-columns: 1fr; } }
@@ -459,8 +441,6 @@ h3.officer.helm { color: var(--c-blue); } h3.officer.tactical { color: var(--c-o
   #module-bar { gap: 6px; padding: 5px 8px; }
   .module { width: 46px; height: 46px; font-size: 11px; }
   .module .capcost { display: none; }
-  #heat-bar { padding: 2px 8px; font-size: 10px; }
-  #heat-bar .hb-num { min-width: 56px; }
   #comms { top: 4px; left: 8px; width: min(520px, 58%); }
   #trace { top: 46px; left: 8px; width: min(520px, 58%); font-size: 10.5px; }
   #speed-buttons .lcars-btn { min-width: 30px !important; padding: 0 5px; }

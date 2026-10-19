@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.39.0",
+  version: "0.40.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -97,9 +97,6 @@ BS.Data = {
     breach: { time: 8, radiusKm: 2.0, damage: 900 },
     // weak-point analysis (BS.Grid.weakPoints): what the scan panel offers to click and what a cunning enemy aims at
     weakPoints: { neckMinBlocks: 8, maxPoints: 5, cutHpWeight: 60, neckPairs: true },   // neckPairs: also look for two-block necks
-    // heat: every shot adds its weapon's heat; capacity grows with hull size, dissipation with hull surface (rim cells)
-    heat: { base: 80, perBlock: 2, dissipationBase: 6, dissipationPerRimCell: 0.25, overloadTime: 6, aiFireBelow: 0.85,
-            governorHigh: 0.85, governorLow: 0.6 },   // heat governor (H): holds fire above governorHigh until heat falls below governorLow
     hitScatter: 1.0,              // shots land anywhere across the facing: sideways offset up to this × the hull half-extent
     penetration: 2,               // beam penetration points: each block on the path costs its pierceCost (armor 2, structure 3, systems 1); the beam stops at 0
     lineOfFire: true,             // a weapon cannot fire through the ship's own alive blocks (editor shows masked weapons)
@@ -125,16 +122,16 @@ BS.Data = {
   blocks: {
     armor:    { letter: "A", name: "Armor plating",   short: "AR", hp: 60, mass: 2, cost: 20,  color: "#a3aabb", glyph: "plate", pierceCost: 2, desc: "Cheap and tough. Stops a beam dead: nothing behind a plate is hit until the plate is gone." },
     phaser:   { letter: "P", name: "Phaser emitter",  short: "PH", hp: 50, mass: 2, cost: 120, power: 5, color: "#ff8a3d", glyph: "lens", desc: "Beam weapon. Fires into the 180° arc facing away from the ship's centre.",
-                weapon: { kind: "turret", damage: 28, cycle: 2.6, cap: 2.5, heat: 6, optimalKm: 8, falloffKm: 7, tracking: 0.9, accuracy: 0.95, arc: 180, color: "#ff8a3d", coreColor: "#fff3e0", beamLife: 0.4 } },
+                weapon: { kind: "turret", damage: 28, cycle: 2.6, cap: 2.5, optimalKm: 8, falloffKm: 7, tracking: 0.9, accuracy: 0.95, arc: 180, color: "#ff8a3d", coreColor: "#fff3e0", beamLife: 0.4 } },
     // Beam trade-offs (EVE style): phaser = range and tracking at a middling punch; disruptor cannon = the hardest hit,
     // one extra penetration point (through a plate of armor), short optimal, poor tracking; pulse phaser = a stream of
     // light hits with the best tracking and the shortest reach. All turrets: damage × accuracy × tracking × falloff.
     disruptor: { letter: "D", name: "Disruptor cannon", short: "DC", hp: 50, mass: 2, cost: 130, power: 5, color: "#8cff6a", glyph: "bolt", desc: "Bolt: 32 damage every 2.5 s with an extra penetration point, so it punches through a plate of armor into the block behind. Optimal 5 km, falloff 6 km, tracking 0.75 rad/s: misses fast orbiters. Klingon standard.",
-                weapon: { kind: "turret", damage: 32, cycle: 2.5, cap: 2.6, heat: 7, optimalKm: 5, falloffKm: 6, tracking: 0.75, accuracy: 0.95, arc: 160, pierceBonus: 1, bolt: true, color: "#8cff6a", coreColor: "#eaffdd", beamLife: 0.3 } },
+                weapon: { kind: "turret", damage: 32, cycle: 2.5, cap: 2.6, optimalKm: 5, falloffKm: 6, tracking: 0.75, accuracy: 0.95, arc: 160, pierceBonus: 1, bolt: true, color: "#8cff6a", coreColor: "#eaffdd", beamLife: 0.3 } },
     pulse:    { letter: "U", name: "Pulse phaser",     short: "PP", hp: 45, mass: 2, cost: 110, power: 4, color: "#ffd36a", glyph: "burst", desc: "Rapid pulses: 9.5 damage every second with tracking 1.6 rad/s, the gun that still hits a Bird-of-Prey on the afterburner. Optimal 4 km, falloff 3 km: a knife-range weapon.",
-                weapon: { kind: "turret", damage: 9.5, cycle: 1.0, cap: 1.0, heat: 2.2, optimalKm: 4, falloffKm: 3, tracking: 1.6, accuracy: 0.95, arc: 180, color: "#ffd36a", coreColor: "#fffbe8", beamLife: 0.18 } },
+                weapon: { kind: "turret", damage: 9.5, cycle: 1.0, cap: 1.0, optimalKm: 4, falloffKm: 3, tracking: 1.6, accuracy: 0.95, arc: 180, color: "#ffd36a", coreColor: "#fffbe8", beamLife: 0.18 } },
     torpedo:  { letter: "T", name: "Torpedo tube",    short: "TT", hp: 50, mass: 3, cost: 180, power: 8, color: "#ff4d6d", glyph: "warhead", desc: "Heavy warhead, slow reload. Fires into the 220° arc facing away from the ship's centre: mount tubes where you want to shoot.",
-                weapon: { kind: "launcher", damage: 170, cycle: 11, cap: 14, heat: 30, rangeKm: 30, speedKmS: 4, explosionRadius: 280, explosionVelocity: 1.5, turnRate: 160, arc: 220, color: "#ff4d6d", coreColor: "#ffffff" } },
+                weapon: { kind: "launcher", damage: 170, cycle: 11, cap: 14, rangeKm: 30, speedKmS: 4, explosionRadius: 280, explosionVelocity: 1.5, turnRate: 160, arc: 220, color: "#ff4d6d", coreColor: "#ffffff" } },
     shield:   { letter: "S", name: "Shield emitter",  short: "SH", hp: 40, mass: 2, cost: 90,  power: 4,  color: "#3f8cff", glyph: "shield", desc: "+70 shield and +0.4/s regen on its facing; covers blocks within 4 cells. Hull outside every bubble takes hits unshielded." },
     reactor:  { letter: "R", name: "Reactor",         short: "RE", hp: 40, mass: 3, cost: 100, color: "#ffd23f", glyph: "core", explosion: { damage: 80, radius: 1 }, desc: "+80 capacitor and +15 power for the grid. Explodes when destroyed: 80 damage to every block around it, and a reactor next to it goes up too. Keep them apart and armored." },
     engine:   { letter: "E", name: "Impulse engine",  short: "EN", hp: 45, mass: 2, cost: 80,  power: 1,  color: "#5fe9ff", glyph: "thrust", desc: "Thrust. Counts double inside nacelles. Speed = thrust / mass." },
@@ -156,7 +153,7 @@ BS.Data = {
     // before it fires at the ship it was charging on, and cuts `pierceBonus` blocks deep. Low tracking: an orbit on the
     // afterburner is nearly immune, a ship holding station or closing is not.
     lance:    { letter: "L", name: "Cutting beam",    short: "CB", hp: 90, mass: 4, cost: 600, power: 10, color: "#7dff9e", glyph: "lens", enemyOnly: true, desc: "Boss weapon: charges for 6 s, then a beam with 4 extra penetration points (through two plates of armor) into the ship it charged on, every 22 s. Tracking 0.35 rad/s: outrun it on the afterburner, or be the ship built to take it.",
-                weapon: { kind: "turret", damage: 600, cycle: 22, cap: 30, heat: 20, optimalKm: 7, falloffKm: 2.5, tracking: 0.35, accuracy: 1, arc: 100, pierceBonus: 4, charge: 6, color: "#9dffb0", coreColor: "#ffffff", beamLife: 0.9 } },
+                weapon: { kind: "turret", damage: 600, cycle: 22, cap: 30, optimalKm: 7, falloffKm: 2.5, tracking: 0.35, accuracy: 1, arc: 100, pierceBonus: 4, charge: 6, color: "#9dffb0", coreColor: "#ffffff", beamLife: 0.9 } },
     neut:     { letter: "X", name: "Energy neutraliser", short: "NT", hp: 40, mass: 2, cost: 110, power: 4, color: "#ff6ad5", glyph: "drain", desc: "Module (F-key, 6 s cycle, 20 cap, needs a lock inside 4 km): drains 30 capacitor per neutraliser block from the target each cycle. A ship with no capacitor loses its booster, hardener, afterburner and cloak and fires nothing. It drains your own capacitor too: fit reactors." },
   },
 
@@ -1031,7 +1028,6 @@ BS.Data = {
       autoFlipShield: "Reversing our orbit, showing them a fresh shield.",
       helm_run_in: "Coming around for another pass.",
       helm_break_off: "Breaking off, opening the range.",
-      helm_kite: "They're closing. Kiting, keeping the range open.",
       aimExposed: "Targeting their hull outside the shield cover.",
       aimStructure: "Targeting their structural members, Captain. Torpedoes will do the cutting.",
       hitExposed: "They're hitting bare hull outside our shield cover!",
@@ -1083,12 +1079,6 @@ BS.Data = {
       moduleNoCap: "Capacitor is dry! {module} has shut down.",
       capLow: "Capacitor at {pct} percent, Captain.",
       capEmpty: "Capacitor empty! Everything's going offline.",
-      heatHigh: "Weapons are running hot, Captain. Ease off or we overload.",
-      governorOn: "Heat governor on: weapons hold fire above 85 percent and resume at 60.",
-      governorOff: "Heat governor off. Weapons will fire until we overload, Captain.",
-      governorHold: "Governor holding fire: letting the heat bleed off.",
-      overload: "Heat overload! Weapons and systems are down until it bleeds off!",
-      enemyOverload: "Their ship just overloaded, Captain. Everything they have is offline. Hit them now!",
       hail: "Hailing the Klingon vessel... they're responding, Captain.",
       hail_noResponse: "No response, Captain. They've cut the channel.",
       targetShielded: "Their {facing} shields are absorbing it, Captain. We need to drop that shield to reach their {label}.",
@@ -1229,13 +1219,12 @@ BS.Data = {
       standoff:  { label: "Standoff",  desc: "Hold at torpedo range and kite when they close.",
                    kind: "standoff", engageKm: 15, holdKm: 14, kiteBelowKm: 9, kiteToKm: 17, kiteMaxTime: 15, tailChaseAngular: 0.15, tailChaseTime: 99,
                    ranges: { engageKm: ["torpedo", 0.55, "phaser", 1.1, 15], holdKm: ["torpedo", 0.5, "phaser", 1.0, 14], kiteBelowKm: ["torpedo", 0.32, "phaser", 0.65, 9], kiteToKm: ["torpedo", 0.6, "phaser", 1.25, 17] } },
-      disengage: { label: "Disengage", desc: "Open the range at full burn; shields and heat recover. No return until the script says so.",
+      disengage: { label: "Disengage", desc: "Open the range at full burn; shields recover. No return until the script says so.",
                    kind: "evade", engageKm: 999, holdKm: 24, abMinCap: 0.25, tailChaseAngular: 0.15, tailChaseTime: 99, ranges: { holdKm: ["torpedo", 0.8, "phaser", 3.0, 24] } },
       ambush:    { kind: "ambush", engageKm: 22, decloakKm: 4.5, recloakKm: 9, passOrbitKm: 3, passTime: 12, breakKm: 10, breakMaxTime: 10, abMinCap: 0.5, tailChaseAngular: 0.15, tailChaseTime: 99 },
       siege:     { kind: "standoff", engageKm: 18, holdKm: 17, kiteBelowKm: 11, kiteToKm: 20, kiteMaxTime: 15, tailChaseAngular: 0.15, tailChaseTime: 99 },
-      // reaction doctrines (enemy scripts, 0.25): kite opens the range for a while under an alpha strike; watch holds
+      // reaction doctrine (enemy scripts, 0.25): watch holds
       // a few km off a cloaked opponent, afterburner cold, until it shows
-      kite:      { kind: "evade", engageKm: 999, holdKm: 9, abMinCap: 0.3, tailChaseAngular: 0.15, tailChaseTime: 99 },
       watch:     { kind: "evade", engageKm: 999, holdKm: 5, abMinCap: 2, tailChaseAngular: 0.15, tailChaseTime: 99 },
     },
     // Overview status text per AI state
@@ -1377,7 +1366,6 @@ BS.Data = {
       dKmAbove:         { label: "they are farther than {v}", kind: "km", def: 10 },
       weakestBelow:     { label: "our weakest shield is under {v}", kind: "pct", def: 0.25 },
       weakestAbove:     { label: "our weakest shield is over {v}", kind: "pct", def: 0.6 },
-      heatAbove:        { label: "our heat is over {v}", kind: "pct", def: 0.9 },
       capBelow:         { label: "our capacitor is under {v}", kind: "pct", def: 0.2 },
       hullBelow:        { label: "our hull is under {v}", kind: "pct", def: 0.4 },
       time:             { label: "more than {v} have passed", kind: "sec", def: 60 },
@@ -1390,8 +1378,6 @@ BS.Data = {
       enemyHullBelow:   { label: "their hull is under {v}", kind: "pct", def: 0.5 },
       enemyCloaked:     { label: "they are cloaked", kind: "flag" },
       enemyFocusing:    { label: "they are shooting at our {v}", kind: "type", def: "reactor" },
-      enemyHeatAbove:   { label: "their heat is over {v}", kind: "pct", def: 0.6 },
-      enemyHeatBelow:   { label: "their heat is under {v}", kind: "pct", def: 0.35 },
       blindFor:         { label: "none of our weapons have borne on them for {v}", kind: "sec", def: 3 },
       // 0.30: tuning, readable only once we have scanned them (BS.Data.tuning)
       enemyAmmoBeatsOurShields: { label: "their ammo beats our shield frequency", kind: "flag" },
@@ -1416,7 +1402,6 @@ BS.Data = {
       aim:       { label: "aim at {v}", kind: "aim" },
       weapons:   { label: "weapons {v}", kind: "bool" },
       modules:   { label: "{v}", kind: "modules" },
-      governor:  { label: "heat governor {v}", kind: "bool" },
       repair:    { label: "damage control to the {v}", kind: "type" },
       reinforce: { label: "reinforce the weakest shield", kind: "flag" },
       scan:      { label: "scan them (4 s, beams hold fire)", kind: "flag" },
@@ -1443,80 +1428,60 @@ BS.Data = {
     templates: {
       brawler: { name: "Brawler", desc: "Engage and keep guns on them; the helm flips sides for guns and shields.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto", neut: "auto" },
         rules: [
-          { when: {}, do: { doctrine: "engage", weapons: true, modules: { shield_hardener: true }, governor: true } },
+          { when: {}, do: { doctrine: "engage", weapons: true, modules: { shield_hardener: true } } },
         ] },
       // 0.32: the first fleet template. Everyone on the same ship: whoever is closest to breaking, else the ship most of
       // us are already fighting. Alone it is the Brawler.
       wolfpack: { name: "Wolf pack", desc: "Fleet: finish the enemy closest to breaking, otherwise all guns on the ship most of us are fighting.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto", neut: "auto" },
         rules: [
-          { when: { enemyHullBelow: 0.4 }, about: "weakest", do: { target: "weakest", doctrine: "engage", weapons: true, modules: { shield_hardener: true }, governor: true } },
+          { when: { enemyHullBelow: 0.4 }, about: "weakest", do: { target: "weakest", doctrine: "engage", weapons: true, modules: { shield_hardener: true } } },
           { when: { unfocused: true }, do: { target: "focus" }, every: 8 },
-          { when: {}, do: { doctrine: "engage", weapons: true, modules: { shield_hardener: true }, governor: true } },
+          { when: {}, do: { doctrine: "engage", weapons: true, modules: { shield_hardener: true } } },
         ] },
       // 0.34: role templates (DESIGN §10). Anchor is the tank: beacon lit, on the biggest enemy, hardener and reinforce.
       // Lifeline is the healer: escorts the ally under most fire, supports the weakest shield, runs transfer and repair.
       anchor: { name: "Anchor", desc: "Tank: light the beacon so the boss turns on us, engage the biggest enemy with the hardener up, reinforce when a shield falls.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto", neut: "auto" },
         rules: [
           { when: { weakestBelow: 0.3 }, do: { reinforce: true }, every: 20 },
-          { when: {}, do: { target: "biggest", doctrine: "engage", weapons: true, modules: { beacon: true, shield_hardener: true }, governor: true, repair: "shield" } },
+          { when: {}, do: { target: "biggest", doctrine: "engage", weapons: true, modules: { beacon: true, shield_hardener: true }, repair: "shield" } },
         ] },
       lifeline: { name: "Lifeline", desc: "Healer: keep station on the ally under most fire, transfer shields and repair the weakest, skirmish away from a charging beam. Needs transfer emitters or repair projectors.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto", support: "auto" },
         rules: [
           { when: { lanceCharging: true }, do: { doctrine: "skirmish", modules: { afterburner: true } }, until: { lanceCharging: false }, holdMax: 9 },
-          { when: {}, do: { escort: "huntedAlly", weapons: true, modules: { shield_transfer: true, remote_repair: true, shield_hardener: true }, governor: true } },
+          { when: {}, do: { escort: "huntedAlly", weapons: true, modules: { shield_transfer: true, remote_repair: true, shield_hardener: true } } },
         ] },
       // 0.33: the intended answer to the first boss (DESIGN §4 "Bosses"): outrun the cutting beam on the afterburner
       // while it charges, kill the escorts first, retune the ammo, and work the bare aft over the reactors.
       cubebreaker: { name: "Cube breaker", desc: "Boss: skirmish on the afterburner while a cutting beam charges on us, finish the escorts first, retune the ammo, then stay on their aft and shoot the reactors.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto", neut: "auto" },
         rules: [
           { when: { lanceCharging: true }, do: { doctrine: "skirmish", modules: { afterburner: true } }, until: { lanceCharging: false }, holdMax: 9 },
-          { when: { enemiesAtLeast: 2 }, about: "smallest", do: { target: "smallest", doctrine: "engage", weapons: true, modules: { shield_hardener: true }, governor: true } },
+          { when: { enemiesAtLeast: 2 }, about: "smallest", do: { target: "smallest", doctrine: "engage", weapons: true, modules: { shield_hardener: true } } },
           { when: { scanned: false, dKmBelow: 15 }, do: { scan: true }, once: true },
           { when: { scanned: true, ourAmmoBeaten: true, remodulating: false }, do: { remodulate: "ammo" }, every: 45 },
-          { when: {}, do: { target: "biggest", doctrine: "engage", side: "aft", aim: "reactor", weapons: true, modules: { shield_hardener: true }, governor: true } },
+          { when: {}, do: { target: "biggest", doctrine: "engage", side: "aft", aim: "reactor", weapons: true, modules: { shield_hardener: true } } },
         ] },
       siege: { name: "Siege", desc: "Hold at torpedo range with everything that reaches; fight close only when they come inside 5 km.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto" },
         rules: [
           { when: { noTubes: true }, do: { doctrine: "engage", weapons: true, modules: { shield_hardener: true } } },
           { when: { dKmBelow: 5 }, do: { doctrine: "engage", weapons: true, modules: { shield_hardener: true } }, until: { dKmAbove: 9 }, holdMax: 30 },
-          { when: {}, do: { doctrine: "standoff", weapons: true, modules: { shield_hardener: true }, governor: true } },
+          { when: {}, do: { doctrine: "standoff", weapons: true, modules: { shield_hardener: true } } },
         ] },
       hunter: { name: "Hunter", desc: "Engage aiming at their reactors; when they are gone, or after a minute, pick at bare hull.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto" },
         rules: [
           { when: { enemyReactorsGone: true }, do: { doctrine: "engage", aim: "exposed", weapons: true } },
           { when: { time: 60 }, do: { doctrine: "engage", aim: "exposed", weapons: true } },
-          { when: {}, do: { doctrine: "engage", aim: "reactor", weapons: true, modules: { shield_hardener: true }, governor: true } },
+          { when: {}, do: { doctrine: "engage", aim: "reactor", weapons: true, modules: { shield_hardener: true } } },
         ] },
       ambush: { name: "Ambush", desc: "Cloak in, decloak at knife range for the strike on their reactors, slip away cloaked and come again. Needs a cloak.", requires: "cloak", policies: { lock: true, booster: "auto", reinforce: "auto" },
         rules: [
-          { when: { noCloak: true }, do: { doctrine: "engage", weapons: true, modules: { shield_hardener: true }, governor: true } },
-          { when: { weakestBelow: 0.25 }, do: { doctrine: "disengage", weapons: false, modules: { shield_hardener: false, cloak: true }, governor: true }, until: { weakestAbove: 0.6, cloaked: true }, holdMax: 40 },
-          { when: { dKmBelow: 3.5 }, do: { doctrine: "engage", modules: { cloak: false, shield_hardener: true }, weapons: true, governor: false, aim: "reactor" }, until: { heatAbove: 0.85 }, holdMax: 14 },
-          { when: { capBelow: 0.15 }, do: { doctrine: "engage", modules: { cloak: false, shield_hardener: true }, weapons: true, governor: false, aim: "reactor" }, until: { heatAbove: 0.85 }, holdMax: 14 },
-          { when: {}, do: { doctrine: "closein", weapons: false, modules: { cloak: true, shield_hardener: false }, governor: true } },
+          { when: { noCloak: true }, do: { doctrine: "engage", weapons: true, modules: { shield_hardener: true } } },
+          { when: { weakestBelow: 0.25 }, do: { doctrine: "disengage", weapons: false, modules: { shield_hardener: false, cloak: true } }, until: { weakestAbove: 0.6, cloaked: true }, holdMax: 40 },
+          { when: { dKmBelow: 3.5 }, do: { doctrine: "engage", modules: { cloak: false, shield_hardener: true }, weapons: true, aim: "reactor" }, holdMax: 14 },
+          { when: { capBelow: 0.15 }, do: { doctrine: "engage", modules: { cloak: false, shield_hardener: true }, weapons: true, aim: "reactor" }, holdMax: 14 },
+          { when: {}, do: { doctrine: "closein", weapons: false, modules: { cloak: true, shield_hardener: false } } },
         ] },
     },
-    // Retired from the hangar list (DESIGN §10): written at 0.21 and never below the Brawler in the §8 matrix (Alpha's
-    // heat rules never fire on a stock hull, Turtle and Hit & fade lose to the strafe). Kept as syntax examples and for
-    // tools/harness.js --script; a save that assigned one falls back to defaultTemplate. Role templates replace them in 0.32.
-    retiredTemplates: {
-      alpha: { name: "Alpha strike", desc: "Close with weapons cold, dump everything with the governor off, vent, strike again.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto" },
-        rules: [
-          { when: { dKmAbove: 4.5, time: 0 }, do: { doctrine: "closein", weapons: false, modules: { shield_hardener: true }, governor: true }, until: { dKmBelow: 4.5 } },
-          { when: { heatAbove: 0.9 }, do: { doctrine: "engage", weapons: false, governor: true }, until: { heatBelow: 0.3 } },
-          { when: { overloaded: true }, do: { doctrine: "engage", weapons: false, governor: true }, until: { heatBelow: 0.3 } },
-          { when: {}, do: { doctrine: "engage", weapons: true, modules: { shield_hardener: true }, governor: false } },
-        ] },
-      turtle: { name: "Turtle", desc: "A slow broadside with the hardener up, reinforcing and rolling fresh shields.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto" },
-        rules: [
-          { when: {}, do: { doctrine: "broadside", weapons: true, modules: { shield_hardener: true }, governor: true, repair: "shield" } },
-        ] },
-      hitfade: { name: "Hit & fade", desc: "Engage until a shield runs low, then a tight afterburner orbit until it recovers.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto" },
-        rules: [
-          { when: { weakestBelow: 0.25 }, do: { doctrine: "skirmish", weapons: true, modules: { shield_hardener: false } }, until: { weakestAbove: 0.6 }, holdMax: 45 },
-          { when: {}, do: { doctrine: "engage", weapons: true, modules: { shield_hardener: true }, governor: true } },
-        ] },
-    },
+
     // Enemy scripts: the encounter's doctrine (and play) as rules, so both bridges run the same engine. The enemy AI keeps
     // its own module policies (booster, hardener, afterburner) in enemyai.js. `doctrine` means the encounter's doctrine.
     // Reactions (0.25) are rules like any other, with `callout`: what Tactical says when the rule takes over or calls
@@ -1533,7 +1498,6 @@ BS.Data = {
                         { when: { scanned: true, ourAmmoBeaten: true, remodulating: false }, do: { remodulate: "ammo" }, every: 45, callout: "They're retuning their weapons to our shield frequency." },
                         { when: { blindFor: 3 }, do: { roll: true }, every: 8, callout: "They're coming about to bring their guns round on us." },
                         { when: { enemyFocusing: "shield" }, do: { reinforce: true, roll: true }, every: 20, callout: "They're reinforcing and turning that emitter away from us." },
-                        { when: { enemyHeatAbove: 0.6, dKmBelow: 6 }, do: { doctrine: "kite" }, until: { enemyHeatBelow: 0.35 }, holdMax: 20, callout: "They're opening the range, riding out our strike." },
                         { when: { enemyCloaked: true }, do: { doctrine: "watch" }, until: { enemyCloaked: false }, holdMax: 60, callout: "They're holding at five klicks, waiting for us to show." },
                         { when: { enemyCloaked: false, scanned: false, dKmBelow: 8 }, do: { scan: true }, once: true },
                         { when: {}, do: { doctrine: "encounter" } } ] },
@@ -1557,7 +1521,6 @@ BS.Data = {
                         { when: { scanned: true, ourAmmoBeaten: true, remodulating: false }, do: { remodulate: "ammo" }, every: 45, callout: "The cruiser is retuning its disruptors to our shield frequency." },
                         { when: { blindFor: 2.5 }, do: { roll: true }, every: 10, callout: "The cruiser is coming about to bring its batteries round." },
                         { when: { enemyFocusing: "shield" }, do: { reinforce: true, roll: true }, every: 25, callout: "The cruiser is reinforcing and rolling that emitter away." },
-                        { when: { enemyHeatAbove: 0.6, dKmBelow: 6 }, do: { doctrine: "kite" }, until: { enemyHeatBelow: 0.35 }, holdMax: 15, callout: "The cruiser is opening the range under our strike." },
                         { when: { enemyCloaked: true }, do: { doctrine: "watch" }, until: { enemyCloaked: false }, holdMax: 60, callout: "The cruiser is holding at five klicks, waiting for us to decloak." },
                         { when: { enemyCloaked: false, scanned: false, dKmBelow: 8 }, do: { scan: true }, once: true },
                         { when: {}, do: { doctrine: "encounter" } } ] },

@@ -5,7 +5,7 @@
 //   - a STANDING rule (no `once`, no `every`) whose conditions all hold becomes the standing orders; its actions are
 //     applied once, when it takes over (so a stance is not re-issued every tick). A rule with `until` keeps the
 //     orders until that holds (or `holdMax` seconds pass) unless a rule above it takes over: that is how phases
-//     such as "vent until heat is under 30%" are written. A rule with no conditions is the default: it stands when
+//     such as "disengage until the weakest shield is over 60%" are written. A rule with no conditions is the default: it stands when
 //     nothing above it does.
 //   - a CALL-OUT (`once: true` or `every: N`) fires its actions whenever its conditions hold, once ever or at most
 //     every N seconds, without disturbing the standing orders: scan, reinforce, remodulate.
@@ -71,19 +71,16 @@ BS.Script = (function () {
     var keys = Object.keys(when);
     if (!keys.length) return true;
     var dKm = S.contactKm(ship, target), st = ship.stats, est = target.stats;   // ranges off our contact, not a cloaked ship's true position
-    var heat = st.heatCap ? ship.heat / st.heatCap : 0;
     var facing = S.shieldFrac(ship, S.facingToward(ship, target.pos.x, target.pos.y)), weakest = S.shieldFrac(ship, S.weakestFacing(ship));
     var cap = ship.capMax ? ship.capacitor / ship.capMax : 0, ecap = target.capMax ? target.capacitor / target.capMax : 0;
     var alive = st.alive || {}, ealive = est.alive || {};
     var tai = target.ai, tstate = tai ? tai.state : "";
-    var eheat = est.heatCap ? target.heat / est.heatCap : 0;
     // a flag condition written `flag: false` holds when the flag does not (the engine compares, not just reads)
     function holds(k) { var v = when[k], c = D().conditions[k]; var r = holds0(k, v); return c && c.kind === "flag" && v === false ? !r : r; }
     function holds0(k, v) {
       switch (k) {
         case "dKmBelow": return dKm < v;
         case "dKmAbove": return dKm > v;
-        case "heatAbove": return heat > v;
         case "weakestBelow": return weakest < v;
         case "weakestAbove": return weakest > v;
         case "capBelow": return cap < v;
@@ -98,8 +95,6 @@ BS.Script = (function () {
         case "enemyHullBelow": return target.hull / target.hullMax < v;
         case "enemyCloaked": return S.isCloaked(target);
         case "enemyFocusing": return focusType(target) === v;
-        case "enemyHeatAbove": return eheat > v;
-        case "enemyHeatBelow": return eheat < v;
         case "blindFor": return !!ship.ai && ship.ai.blindTimer > v;
         case "enemyAmmoBeatsOurShields": { if (!ship.scanned) return false; var ta = BS.Grid.dominantTune(BS.Grid.tuningSummary(target.grid).ammo), of = BS.Grid.dominantTune(BS.Grid.tuningSummary(ship.grid).frequency); return !!(ta && of) && BS.Grid.tuneMult(ta, of) > 1; }
         case "ourAmmoBeaten": { if (!ship.scanned) return false; var oa = BS.Grid.dominantTune(BS.Grid.tuningSummary(ship.grid).ammo), tf = BS.Grid.dominantTune(BS.Grid.tuningSummary(target.grid).frequency); return !!(oa && tf) && BS.Grid.tuneMult(oa, tf) < 1; }
@@ -145,7 +140,6 @@ BS.Script = (function () {
     if (act.side && ship.attackSide !== act.side) BS.EnemyAI.setAttackSide(ship, target, act.side);
     if (act.modules) setModules(ship, act.modules);
     if (act.weapons !== undefined) setModules(ship, { weapons: !!act.weapons });
-    if (act.governor !== undefined) ship.heatGovernor = !!act.governor;
     if (act.repair !== undefined) ship.repairPriority = act.repair || null;
     if (act.reinforce) S.startReinforce(ship);
     if (act.scan) { if (!ship.scanned && !ship.scanning) { ship.scanning = D().scanSeconds; ship.scanTarget = target; BS.Events.emit("scanStarted", { ship: ship, target: target, time: ship.scanning }); } }
@@ -272,15 +266,13 @@ BS.Script = (function () {
 
   // ---- what the battle looked like, for the report: extremes of every measured quantity and which rules ever held ----
   function record(ship, target, sc) {
-    var x = sc.extremes || (sc.extremes = { dKmMin: Infinity, dKmMax: 0, weakestMin: 1, heatMax: 0, capMin: 1, hullMin: 1, ehullMin: 1, ever: {} });
+    var x = sc.extremes || (sc.extremes = { dKmMin: Infinity, dKmMax: 0, weakestMin: 1, capMin: 1, hullMin: 1, ehullMin: 1, ever: {} });
     var dKm = S.contactKm(ship, target), st = ship.stats, est = target.stats;
     x.dKmMin = Math.min(x.dKmMin, dKm); x.dKmMax = Math.max(x.dKmMax, dKm);
     x.weakestMin = Math.min(x.weakestMin, S.shieldFrac(ship, S.weakestFacing(ship)));
-    x.heatMax = Math.max(x.heatMax, st.heatCap ? ship.heat / st.heatCap : 0);
     var cap = ship.capMax ? ship.capacitor / ship.capMax : 0; x.capMin = Math.min(x.capMin, cap); x.capMax = Math.max(x.capMax, cap);
     x.hullMin = Math.min(x.hullMin, ship.hull / ship.hullMax);
     x.ehullMin = Math.min(x.ehullMin, target.hull / target.hullMax);
-    x.eheatMax = Math.max(x.eheatMax || 0, est.heatCap ? target.heat / est.heatCap : 0);
     x.blindMax = Math.max(x.blindMax || 0, ship.ai ? ship.ai.blindTimer || 0 : 0);
     var al = BS.Fleet.fightingAllies(ship), hs = BS.Fleet.hostiles(ship).filter(BS.Fleet.fighting);
     x.allyWeakestMin = Math.min(x.allyWeakestMin === undefined ? 1 : x.allyWeakestMin, al.length ? Math.min.apply(null, al.map(function (a) { return S.shieldFrac(a, S.weakestFacing(a)); })) : 1);
@@ -318,13 +310,11 @@ BS.Script = (function () {
             case "dKmBelow": if (!(x.dKmMin < v)) why = "they never came inside " + v + " km (closest " + km(x.dKmMin) + ")"; break;
             case "dKmAbove": if (!(x.dKmMax > v)) why = "they never got beyond " + v + " km (farthest " + km(x.dKmMax) + ")"; break;
             case "weakestBelow": if (!(x.weakestMin < v)) why = "our weakest shield never fell under " + pct(v) + " (lowest " + pct(x.weakestMin) + ")"; break;
-            case "heatAbove": if (!(x.heatMax > v)) why = "our heat never rose over " + pct(v) + " (peak " + pct(x.heatMax) + ")"; break;
             case "capBelow": if (!(x.capMin < v)) why = "our capacitor never fell under " + pct(v) + " (lowest " + pct(x.capMin) + ")"; break;
             case "hullBelow": if (!(x.hullMin < v)) why = "our hull never fell under " + pct(v) + " (lowest " + pct(x.hullMin) + ")"; break;
             case "time": if (!(sc.t > v)) why = "the battle lasted " + Math.round(sc.t) + " s, not " + v; break;
             case "enemyHullBelow": if (!(x.ehullMin < v)) why = "their hull never fell under " + pct(v) + " (lowest " + pct(x.ehullMin) + ")"; break;
             case "scanned": if (v && !x.ever.scanned) why = "we never scanned them"; break;
-            case "enemyHeatAbove": if (!(x.eheatMax > v)) why = "their heat never rose over " + pct(v) + " (peak " + pct(x.eheatMax || 0) + ")"; break;
             case "blindFor": if (!(x.blindMax > v)) why = "our guns never lost them for " + v + " s (at most " + Math.round(x.blindMax || 0) + " s)"; break;
             case "allyShieldBelow": if (!(x.allyWeakestMin < v)) why = "no ally's weakest shield fell under " + pct(v) + " (lowest " + pct(x.allyWeakestMin === undefined ? 1 : x.allyWeakestMin) + ")"; break;
             case "allyHullBelow": if (!(x.allyHullMin < v)) why = "no ally's hull fell under " + pct(v) + " (lowest " + pct(x.allyHullMin === undefined ? 1 : x.allyHullMin) + ")"; break;
@@ -370,7 +360,6 @@ BS.Script = (function () {
       else if (k === "aim") text = a.label.replace("{v}", aimLabel(v));
       else if (k === "modules") text = Object.keys(v).map(function (id) { var m = BS.Data.modules[id]; return (id === "weapons" ? "weapons" : m ? m.name.toLowerCase() : id) + (v[id] ? " on" : " off"); }).join(", ");
       else if (k === "weapons") text = "weapons " + (v ? "on" : "off");
-      else if (k === "governor") text = "heat governor " + (v ? "on" : "off");
       else if (k === "repair") text = v ? a.label.replace("{v}", BS.Data.blocks[v] ? BS.Data.blocks[v].name.toLowerCase() + "s" : v) : "damage control on automatic";
       else if (k === "remodulate") text = a.label.replace("{v}", v === "ammo" ? "weapons to the ammo that beats their shields" : "shields to the frequency that beats their ammo");
       else if (k === "target") text = a.label.replace("{v}", subjectLabel(v));

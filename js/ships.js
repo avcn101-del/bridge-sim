@@ -29,7 +29,7 @@ BS.Ships = (function () {
       grid: grid, stats: st, statMult: statMult, mods: mods, layoutRows: (options.layout || cls.layout).slice(), tuningRows: options.tuning ? options.tuning.slice() : null,
       hullMax: st.hullTotal, hull: st.hullAlive,
       shieldMax: {}, shields: {}, shieldRegen: {},
-      capMax: 0, capacitor: 0, heat: 0, overload: 0, heatGovernor: true, governorHold: false, jammed: 0, partialJam: 0, partialJamBy: null, neuted: 0, shieldDelay: { fore: 0, aft: 0, port: 0, starboard: 0 }, attackSide: "auto", tumble: 0, tumbleDir: 1, breach: 0, hadReactors: false, aimBlock: null, cloak: { state: "off", t: 0, surge: 0, strike: 0 },
+      capMax: 0, capacitor: 0, jammed: 0, partialJam: 0, partialJamBy: null, neuted: 0, shieldDelay: { fore: 0, aft: 0, port: 0, starboard: 0 }, attackSide: "auto", tumble: 0, tumbleDir: 1, breach: 0, hadReactors: false, aimBlock: null, cloak: { state: "off", t: 0, surge: 0, strike: 0 },
       signature: cls.signature,
       flags: { alert: "none", destroyed: false, disabled: false, armed: false },
       selected: null, lock: { target: null, progress: 0, locked: false, time: 0 }, aimType: null,
@@ -466,8 +466,6 @@ BS.Ships = (function () {
     if (ship.partialJam > 0) { ship.partialJam -= dt; if (ship.partialJam <= 0) ship.partialJamBy = null; }
     updateCloak(ship, dt);
     if (ship.reinforceCooldown > 0) ship.reinforceCooldown -= dt;
-    ship.heat = Math.max(0, ship.heat - ship.stats.heatDissipation * dt);
-    if (ship.overload > 0) ship.overload -= dt;
     var r = ship.reinforce;
     if (r) {
       var step = Math.min(r.perSecond * dt, r.remaining, ship.shields[r.from]);

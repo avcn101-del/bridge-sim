@@ -173,8 +173,6 @@ BS.Campaign = (function () {
     });
     D().builtInModules.forEach(function (id) { var m = D().modules[id]; drain += m.cap / m.cycle; });
     Object.keys(D().modules).forEach(function (id) { var m = D().modules[id]; if (m.block && m.cycle && m.cap && st.alive[m.block]) drain += m.cap / m.cycle; });   // jammer, decoy, neutraliser
-    var salvoHeat = 0, heatPerSec = 0;
-    st.weapons.forEach(function (b) { var w = b.def.weapon; if (BS.Grid.arcCoverage(v.grid, b) <= 0) return; salvoHeat += w.heat || 0; heatPerSec += (w.heat || 0) / w.cycle; });
     var capMax = st.cap, tau = g.capRechargeTime, rechargeMult = mods.capRechargeMult;
     var peak = capMax / tau * B.capCurve * 0.25 * rechargeMult;
     var c = capMax, lasts = null, stableAt = null;
@@ -191,8 +189,6 @@ BS.Campaign = (function () {
       dps: Math.round(turretDps + launcherDps), turretDps: Math.round(turretDps), launcherDps: Math.round(launcherDps),
       cap: capMax, drain: drain.toFixed(1), peakRecharge: peak.toFixed(1), stableAt: stableAt, lasts: lasts,
       powerUsed: st.powerUsed, powerMax: st.powerMax, coverFrac: st.coverFrac, exposed: st.exposed, cloakCover: st.cloakCover, jamCover: st.jamCover, poweredFrac: st.poweredFrac, unpowered: st.unpowered,
-      heatCap: Math.round(st.heatCap), heatDissipation: st.heatDissipation.toFixed(1), salvoHeat: salvoHeat, heatPerSec: heatPerSec.toFixed(1),
-      heatNeutral: Math.min(1, heatPerSec > 0 ? st.heatDissipation / heatPerSec : 1),
       speed: (cls.speed * st.speedMult * mods.speedMult / D().units.pxPerKm).toFixed(1), speedMult: st.speedMult.toFixed(2), mass: st.mass, thrust: st.thrust,
       hull: st.hullTotal, shields: st.shieldMax, shieldTotal: shieldTotal, repair: st.repair.toFixed(1), sensors: st.sensors,
       lockTime: (B.lockBase * (B.lockRefSignature / 250) * (B.lockRefSensor / Math.max(1, st.sensors)) * mods.lockMult).toFixed(1),

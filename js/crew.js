@@ -34,12 +34,11 @@ BS.Crew = (function () {
   // ---- commands from the interface ----------------------------------------
   // All execute immediately on the player ship and are acknowledged by the
   // responsible officer.
-  // The top bar's live inputs (0.37: everything else is the script's): red alert, the heat governor, a hail.
+  // The top bar's live inputs (0.37: everything else is the script's): red alert and a hail.
   function command(id, args) {
     args = args || {};
     if (!ship || ship.flags.destroyed) return;
     switch (id) {
-      case "governor": ship.heatGovernor = args.on !== undefined ? !!args.on : !ship.heatGovernor; report("engineering", ship.heatGovernor ? "governorOn" : "governorOff"); break;
       case "redAlert": S.setAlert(ship, "red"); BS.Events.emit("alertChanged", { ship: ship, alert: "red" }); report("tactical", "redAlert"); break;
       case "hail":
         if (enemy && !enemy.flags.destroyed) {
@@ -67,9 +66,6 @@ BS.Crew = (function () {
     var cap = ship.capacitor / ship.capMax;
     if (cap < 0.2 && !rs.capLow) { rs.capLow = true; report("engineering", "capLow", { pct: Math.round(cap * 100) }, "warn"); }
     else if (cap > 0.4 && rs.capLow) rs.capLow = false;
-    var heat = ship.stats.heatCap ? ship.heat / ship.stats.heatCap : 0;
-    if (heat > 0.8 && !rs.heatHigh && ship.overload <= 0) { rs.heatHigh = true; report("engineering", "heatHigh", {}, "warn"); }
-    else if (heat < 0.5 && rs.heatHigh) rs.heatHigh = false;
   }
 
   function subscribe() {
@@ -118,7 +114,6 @@ BS.Crew = (function () {
         else if (e.state === "decloaking") say("tactical", U.template(D().events.enemyDecloak, { facing: S.facingToward(ship, enemy.pos.x, enemy.pos.y) }), "warn");
       }
     });
-    BS.Events.on("governorHold", function (e) { if (e.ship === ship && e.holding) report("engineering", "governorHold"); });
     // the bridge script: every rule that takes over or calls out is read into the log by the computer
     BS.Events.on("scriptRule", function (e) { if (e.ship === ship) say("computer", "Script " + (e.entry.rule !== null && e.entry.rule !== undefined ? (e.entry.rule + 1) + ": " : "") + e.entry.text, "system"); });
     BS.Events.on("bridgeCall", function (e) { if (e.ship === ship) report("helm", "bridgeCall", { text: e.entry.text, left: e.left }); });
@@ -145,7 +140,6 @@ BS.Crew = (function () {
       else if (e.target === ship && now() - (ship._neutOnUsReported || -99) > 12) { ship._neutOnUsReported = now(); report("engineering", "neutOnUs", { amount: Math.round(e.drained) }, "warn"); }
     });
     BS.Events.on("moduleToggled", function (e) { if (e.ship === ship && e.on && e.module.id === "neut" && ship.lock.target && S.distanceKm(ship, ship.lock.target) > BS.Data.ew.neut.rangeKm) report("tactical", "neutRange", { range: BS.Data.ew.neut.rangeKm }); });
-    BS.Events.on("overload", function (e) { if (e.ship === ship) report("engineering", "overload", {}, "warn"); else if (e.ship === enemy) report("tactical", "enemyOverload"); });
     BS.Events.on("shipDisabled", function (e) { if (e.ship === enemy) report("tactical", "enemyDisabled"); else if (e.ship === ship) report("engineering", "shipDisabled", {}, "warn"); });
     BS.Events.on("lockAcquired", function (e) { if (e.ship === ship) { report("tactical", "lockDone"); if (ship.ai) ship.ai.relock = true; } else if (e.target === ship) say("tactical", D().events.enemyLocking, "warn"); });
     var lastExposed = -99;

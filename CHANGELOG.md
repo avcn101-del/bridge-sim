@@ -2,6 +2,26 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.40.0] — 2026-10-19 (the campaign harness; heat measured and removed)
+
+### Added
+- **`tools/campaign.js`**: plays a whole run headless. The campaign picks
+  each encounter as the game would (runs, boss slots, fleet encounters by
+  roster size), every battle is a dry run, credits, salvage and repair
+  bills are settled between fights; one line per battle and a summary.
+
+### Removed
+- **Heat** (`grid.heat`, `weapon.heat`, the overload, the heat governor
+  and its button, the heat bar and gauge ring, the heat conditions and
+  the `governor` action, Engineering's heat lines). Measured first: with
+  the cap at infinity the 1v1, the pack, the cube and the cruiser fights
+  were identical to the second, so heat never bound a scripted fight.
+  With it the `kite` reaction doctrine (its rule read the enemy's heat)
+  and the retired templates of 0.31 (written around heat).
+
+### Measured (DESIGN §8)
+- See §8 v0.40: the references with and without heat, and two whole runs.
+
 ## [0.39.0] — 2026-10-19 (vocabulary cut, tuning per ship, the tutorial tier, the hangar by the loop; 0.39 of DESIGN §10 "Streamline")
 
 ### Changed
