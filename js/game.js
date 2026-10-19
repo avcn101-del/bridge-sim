@@ -55,11 +55,11 @@ BS.Game = (function () {
     state.style = { player: newStyle(), enemy: newStyle() };
     state.zoom = BS.Data.balance.zoom.start; state.zoomBias = 1;
     var save = BS.Campaign.get();
-    var player = BS.Ships.create(save.shipClass, { isPlayer: true, pos: { x: 0, y: 0 }, heading: -Math.PI / 2, layout: BS.Campaign.battleLayout(save.shipClass), mods: BS.Campaign.skillMods() });
+    var player = BS.Ships.create(save.shipClass, { isPlayer: true, pos: { x: 0, y: 0 }, heading: -Math.PI / 2, layout: BS.Campaign.battleLayout(save.shipClass), tuning: BS.Campaign.battleTuning(save.shipClass), mods: BS.Campaign.skillMods() });
     var ang = U.rand(-0.6, 0.6) - Math.PI / 2;
     var dist = BS.Ships.px(B.arenaStartDistanceKm);
     var enc = BS.Campaign.encounter();
-    var enemy = BS.Ships.create(enc.classId, { name: enc.name, layout: enc.rows, element: enc.element || undefined, pos: { x: Math.cos(ang) * dist, y: Math.sin(ang) * dist }, heading: ang + Math.PI, statMult: BS.Campaign.enemyStatMult(enc.aiProfile), mods: { damageMult: enc.damageMult || BS.Data.enemyAI[enc.aiProfile].damageMult } });
+    var enemy = BS.Ships.create(enc.classId, { name: enc.name, layout: enc.rows, tuning: enc.tuning || null, pos: { x: Math.cos(ang) * dist, y: Math.sin(ang) * dist }, heading: ang + Math.PI, statMult: BS.Campaign.enemyStatMult(enc.aiProfile), mods: { damageMult: enc.damageMult || BS.Data.enemyAI[enc.aiProfile].damageMult } });
     var overrides = {};
     if (enc.weakPointChance !== null && enc.weakPointChance !== undefined) overrides.weakPointChance = enc.weakPointChance;
     BS.EnemyAI.attach(enemy, player, enc.aiProfile, enc.doctrine, Object.keys(overrides).length ? overrides : null);
@@ -182,12 +182,6 @@ BS.Game = (function () {
   function templateId(def) { var T = BS.Data.script.templates, id = null; Object.keys(T).forEach(function (k) { if (T[k] === def) id = k; }); return id || (def && def.id) || null; }
   // The doctrine table's sentence for a pair of styles: the first row whose winning tag the winner carried and whose
   // losing tag the loser carried.
-  // The wheel's sentence when the winner's element beats the loser's (BS.Data.elements), else null.
-  function elementSentence(winEl, loseEl) {
-    var E = BS.Data.elements, o = E.order, a = o.indexOf(winEl), b = o.indexOf(loseEl);
-    if (a < 0 || b < 0 || (a + 1) % o.length !== b) return null;
-    return { beats: winEl, loses: loseEl, text: E.list[winEl].how, measured: E.measured[winEl + ":" + loseEl] || null };
-  }
   function counterSentence(winnerTags, loserTags) {
     var rows = BS.Data.enemyAI.doctrineTable;
     for (var i = 0; i < rows.length; i++) if (winnerTags.indexOf(rows[i].beats) >= 0 && loserTags.indexOf(rows[i].loses) >= 0) return rows[i];
@@ -243,6 +237,6 @@ BS.Game = (function () {
 
   function openHangar() { BS.UI.hideOverlays(); state.phase = state.player ? "ended" : "start"; BS.Hangar.show(); }
 
-  var api = { styleTags: styleTags, counterSentence: counterSentence, elementSentence: elementSentence, templateId: templateId, init: init, startBattle: startBattle, dryRun: dryRun, cancelDryRun: cancelDryRun, openHangar: openHangar, command: command, bridgeCall: bridgeCall, setSpeed: setSpeed, togglePause: togglePause, setHover: setHover, setZoom: setZoom, state: state, step: step };
+  var api = { styleTags: styleTags, counterSentence: counterSentence, templateId: templateId, init: init, startBattle: startBattle, dryRun: dryRun, cancelDryRun: cancelDryRun, openHangar: openHangar, command: command, bridgeCall: bridgeCall, setSpeed: setSpeed, togglePause: togglePause, setHover: setHover, setZoom: setZoom, state: state, step: step };
   return api;
 })();

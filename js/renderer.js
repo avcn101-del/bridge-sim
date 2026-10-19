@@ -283,6 +283,11 @@ BS.Renderer = (function () {
     c.save();
     for (i = 0; i < alive.length; i++) { b = alive[i]; if (!b.structural && b.type !== "armor") drawBlockGlyph(c, b.type, b.lx, b.ly, cp, t); }
     c.restore();
+    // tuning (opts.tuning): a dot in the corner of every tuned block in its modulation's colour (hangar, intel, a scanned enemy)
+    if (opts.tuning && BS.Data.tuning) {
+      var TL = BS.Data.tuning.list;
+      for (i = 0; i < alive.length; i++) { b = alive[i]; if (!b.tune || !TL[b.tune]) continue; c.fillStyle = TL[b.tune].color; c.beginPath(); c.arc(b.lx + half * 0.5, b.ly - half * 0.5, cp * 0.17, 0, U.TAU); c.fill(); c.strokeStyle = "rgba(0,0,0,0.6)"; c.lineWidth = 0.3; c.stroke(); }
+    }
     c.save(); c.globalCompositeOperation = "lighter";
     // running lights at the port/starboard extremes
     if (!opts.still && Math.sin(t * 6) > 0.6) {
@@ -488,10 +493,10 @@ BS.Renderer = (function () {
   // Thin union outline of the bubbles in the ship's local frame (hangar editor).
   // Top-down scan drawing of a ship into a w×h box centred on the context origin, bow up: plates with damage tint, the
   // shield bubbles and bare hull in red. Returns the scale used so callers can add overlays in local block coordinates.
-  function drawTopDown(c, ship, w, h) {
+  function drawTopDown(c, ship, w, h, opts) {
     var g = ship.grid, cp = g.cellPx, k = Math.min(w / (g.h * cp), h / (g.w * cp)) * 0.88, half = cp / 2;
     c.save(); c.scale(k, k); c.rotate(-Math.PI / 2);
-    drawGridShip(c, ship, 0.5, { still: true });
+    drawGridShip(c, ship, 0.5, { still: true, tuning: !!(opts && opts.tuning) });
     drawShieldCover(c, ship, "rgba(110,180,255,0.7)");
     c.fillStyle = "rgba(255,70,60,0.45)";
     g.blocks.forEach(function (b) { if (b.alive && !b.structural && !b.covered) c.fillRect(b.lx - half, b.ly - half, cp, cp); });

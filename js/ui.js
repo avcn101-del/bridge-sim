@@ -502,13 +502,21 @@ BS.UI = (function () {
     var sp = state.style ? state.style.player : null, se = state.style ? state.style.enemy : null;
     var pt = sp ? BS.Game.styleTags(sp, p) : [], et = se ? BS.Game.styleTags(se, e) : [];
     var row = won ? BS.Game.counterSentence(pt, et) : BS.Game.counterSentence(et, pt);
-    var EL = BS.Data.elements.list, pe = BS.Grid.elementOf(p.cls, p.layoutRows).id, ee = state.encounter && state.encounter.element ? state.encounter.element : BS.Grid.elementOf(e.cls, e.layoutRows).id;
-    var erow = won ? BS.Game.elementSentence(pe, ee) : BS.Game.elementSentence(ee, pe);
     var html = "<h4>" + (won ? "What carried it" : "Why you lost") + "</h4>";
-    html += "<div class='nf'>Elements: ours <b>" + (EL[pe] ? EL[pe].name : "mixed") + "</b> · theirs <b>" + (EL[ee] ? EL[ee].name : "mixed") + "</b>" + (erow ? " · " + (won ? "our hits ×" + BS.Data.elements.bonus + ", theirs ×" + BS.Data.elements.malus : "their hits ×" + BS.Data.elements.bonus + ", ours ×" + BS.Data.elements.malus) : "") + "<br><span class='why'>" + (erow ? "Ring: " + escapeHtml(erow.text) : "no edge on the ring between these two") + "</span></div>";
+    html += "<div class='nf'>" + escapeHtml(tuningLine(p, e)) + "<br><span class='why'>" + escapeHtml(tuningLine(e, p, true)) + "</span></div>";
     html += "<div class='nf'>" + share + "% of the damage " + (won ? "we dealt landed" : "we took landed") + " while their " + escapeHtml(ruleText(e, parts[0])) + "<br><span class='why'>… and our " + escapeHtml(ruleText(p, parts[1])) + "</span></div>";
     html += "<div class='nf'>Styles: ours " + escapeHtml(pt.join(", ") || "—") + " · theirs " + escapeHtml(et.join(", ") || "—") + "<br><span class='why'>" + (row ? "Table: " + escapeHtml(row.text) : "no pairing of these styles on the doctrine table") + "</span></div>";
     return html;
+  }
+
+  // "Our ammo vs their shields": the dominant ammo of one ship against the dominant frequency and alloy of the other,
+  // with the ring's multipliers (BS.Grid.tuneMult).
+  function tuningLine(a, b, theirs) {
+    var T = BS.Data.tuning, sa = BS.Grid.tuningSummary(a.grid, true), sb = BS.Grid.tuningSummary(b.grid, true);
+    var ammo = BS.Grid.dominantTune(sa.ammo), fq = BS.Grid.dominantTune(sb.frequency), al = BS.Grid.dominantTune(sb.alloy);
+    if (!ammo) return (theirs ? "Their" : "Our") + " ammo: none";
+    function m(d) { return d ? " ×" + BS.Grid.tuneMult(ammo, d).toFixed(2) : ""; }
+    return (theirs ? "Their " : "Our ") + T.list[ammo].name + " ammo vs " + (theirs ? "our" : "their") + " shields " + (fq ? T.list[fq].name + m(fq) : "none") + " · armor " + (al ? T.list[al].name + m(al) : "none");
   }
 
   // Heat bar: fill, warning zones, where the next full salvo would land, governor state, overload countdown.
@@ -663,7 +671,7 @@ BS.UI = (function () {
       var g = e.grid, cp = g.cellPx, k = Math.min(cv.width / (g.h * cp), cv.height / (g.w * cp)) * 0.88;
       c.clearRect(0, 0, cv.width, cv.height);
       c.save(); c.translate(cv.width / 2, cv.height / 2); c.scale(k, k); c.rotate(-Math.PI / 2);   // bow up
-      BS.Renderer.drawGridShip(c, e, 0.5, { still: true });
+      BS.Renderer.drawGridShip(c, e, 0.5, { still: true, tuning: !!p.scanned });
       BS.Renderer.drawShieldCover(c, e, "rgba(110,180,255,0.7)");
       var half = cp / 2, st = e.stats;
       c.fillStyle = "rgba(255,70,60,0.45)";
@@ -718,6 +726,7 @@ BS.UI = (function () {
     if (p.script) { var psc = p.script, stRule = psc.override ? "BRIDGE CALL · " + BS.Script.describeDo(psc.override.rule.do) : psc.suspended ? "manual helm, script paused" : psc.active >= 0 && psc.def.rules[psc.active] ? "rule " + (psc.active + 1) + " · " + BS.Script.describe(psc.def.rules[psc.active], psc.def) : "waiting for a rule"; html += "<div class='sl'><label>Standing</label><span class='v' title='" + escapeHtml(stRule) + "'>" + escapeHtml(stRule.length > 70 ? stRule.slice(0, 68) + "…" : stRule) + "</span></div>"; }
     html += "<div class='sl'><label>Aiming</label><span class='v'>" + (p.aimType === "block" && p.aimBlock ? (p.aimBlock.block.structural ? "structure" : p.aimBlock.block.def.name.toLowerCase()) + " at " + p.aimBlock.block.x + "," + p.aimBlock.block.y : p.aimType === "exposed" ? "bare hull" : p.aimType === "structure" ? "necks and pylons" : p.aimType ? D.blocks[p.aimType].name.toLowerCase() + "s" : "anything") + (pendingFocus ? " · <span class='warn'>focus ready: " + escapeHtml(pendingFocus.label) + " (confirm in Bridge)</span>" : "") + "</span></div>";
     html += "<div class='sl'><label>Scan</label><span class='v'>" + (p.scanned ? "<span class='good'>scanned: weak points readable</span>" : p.scanning > 0 ? "scanning " + p.scanning.toFixed(1) + " s" : "not scanned (scan is a script action)") + (e.scanned ? " · they have scanned us" : "") + "</span></div>";
+    html += "<div class='sl'><label>Tuning</label><span class='v'>" + (p.scanned ? escapeHtml(BS.Grid.tuningText(e.grid)) : "<span class='dim'>unknown until scanned</span>") + "</span></div>";
     html += "<div class='sl'><label>Cloak</label><span class='v'>" + (e.cloak.state !== "off" ? e.cloak.state : e.cloak.surge > 0 ? "surge: shields down" : e.cloak.strike > 0 ? "<span class='bad'>decloak strike " + e.cloak.strike.toFixed(0) + " s</span>" : "off") + (vis < 1 ? " · ghost contact" : "") + "</span></div>";
     html += "</div><div><h4>Weak points · click to focus fire</h4>";
     if (!scanWeak.length) html += "<div class='dim'>Nothing stands out.</div>";

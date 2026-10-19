@@ -2,6 +2,31 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.29.0] — 2026-10-19 (tuning: shield frequencies, alloys, ammo; PR D of the "chess" pillars)
+
+### Added
+- **Tuning** (`BS.Data.tuning`, `save.tuning[classId]`): five modulations
+  (Graviton, Nadion, Tetryon, Polaron, Antiproton) in a ring; every
+  shield emitter has a frequency, every armor plate an alloy, every
+  weapon block an ammo modulation, so hulls and batteries can be hybrid.
+  One rule: ammo that beats the frequency of the emitter it hits is ×1.5
+  for the whole shot while that shield is up, ammo the frequency beats
+  ×0.5; the same against a plate's alloy; systems ×1.
+- Faction defaults (Federation Nadion, Klingon Polaron) and a 15%
+  surcharge for off-faction tuning; retuning pays only the surcharge.
+- Editor **Tune** mode: a modulation palette, "set all weapons / shields /
+  armor", painting per block with Mirror, dots in each block's colour.
+  Build stats Tuning line; Doctrine page redrawn for the ring; Intel
+  "Tuning: theirs … · yours …".
+- The enemy's tuning shows on the scan panel only once scanned; intel,
+  the Book and the signature of a win keep it; the report opens with the
+  ammo-vs-shields multipliers.
+- Harness `--tune` / `--etune`.
+
+### Removed
+- The build-family element ring of 0.27–0.28 (`elements`, `elementOf`,
+  the Build line's element, the element answers in learning).
+
 ## [0.28.0] — 2026-10-19 (the element ring; PR C of the "chess" pillars, second cut)
 
 ### Changed

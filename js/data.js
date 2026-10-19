@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.28.0",
+  version: "0.29.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -224,7 +224,7 @@ BS.Data = {
       ],
       visual: { kind: "grid", sprite: null, nacelleColor: "90,160,255", hullTint: "#c6ccda" },
       presets: {
-        shadowhunter: { element: "phaser", name: "Shadow hunter", desc: "Three cloaking devices (one in the saucer, two deep in the engineering hull) so the whole hull sits inside the cloak field, six phasers, two tubes. Cloak, close, decloak on their flank and hit the reactors. No jammer: a half-covered ECM field would only steer their fire onto the nacelles.", rows: [
+        shadowhunter: { name: "Shadow hunter", desc: "Three cloaking devices (one in the saucer, two deep in the engineering hull) so the whole hull sits inside the cloak field, six phasers, two tubes. Cloak, close, decloak on their flank and hit the reactors. No jammer: a half-covered ECM field would only steer their fire onto the nacelles.", rows: [
           "..........................",
           ".EEEEESAAA.........P......",
           ".EEEEEQAAA......PAAQAAP...",
@@ -242,7 +242,7 @@ BS.Data = {
           ".EEEEESAAA.........P......",
           ".........................."
         ] },
-        courier: { element: "impulse", name: "Courier", desc: "Twelve more engines in the nacelle roots, the stock phasers and tubes: fast enough to pick the range.", rows: [
+        courier: { name: "Courier", desc: "Twelve more engines in the nacelle roots, the stock phasers and tubes: fast enough to pick the range.", rows: [
           "..........................",
           ".EEEEESEEE.........P......",
           ".EEEEEQEEE......PAAQAAP...",
@@ -260,7 +260,7 @@ BS.Data = {
           ".EEEEESEEE.........P......",
           ".........................."
         ] },
-        bulwark: { element: "deflector", name: "Bulwark", desc: "Sixteen shield emitters and a seventh reactor: the saucer and the engineering hull each sit under a double wall.", rows: [
+        bulwark: { name: "Bulwark", desc: "Sixteen shield emitters and a seventh reactor: the saucer and the engineering hull each sit under a double wall.", rows: [
           "..........................",
           ".EEEEESAAA.........P......",
           ".EEEEEQAAA......PAAQAAP...",
@@ -278,7 +278,7 @@ BS.Data = {
           ".EEEEESAAA.........P......",
           ".........................."
         ] },
-        brawler: { element: "armour", name: "Brawler", desc: "Six pulse phasers on the saucer rim and four disruptor cannons on the flanks, three tubes. Orbit close: the pulses track anything, the cannons punch through armor.", rows: [
+        brawler: { name: "Brawler", desc: "Six pulse phasers on the saucer rim and four disruptor cannons on the flanks, three tubes. Orbit close: the pulses track anything, the cannons punch through armor.", rows: [
           "..........................",
           ".EEEEESAAA.........A......",
           ".EEEEEQAAA......AUAUAAA...",
@@ -296,7 +296,7 @@ BS.Data = {
           ".EEEEESAAA.........A......",
           ".........................."
         ] },
-        sniper: { element: "ordnance", name: "Sniper", desc: "Four torpedo tubes, extra sensors and engines, four phasers. Keep at range.", rows: [
+        sniper: { name: "Sniper", desc: "Four torpedo tubes, extra sensors and engines, four phasers. Keep at range.", rows: [
           "..........................",
           ".EEEEEEEEA.........A......",
           ".EEEEEEEEA......SAAQAAA...",
@@ -692,7 +692,7 @@ BS.Data = {
       ],
       visual: { kind: "grid", sprite: null, nacelleColor: "110,255,120", hullTint: "#5d7a5c" },
       variants: {
-        shadow: { element: "armour", name: "Shadow", desc: "Five cloaking devices spread over the hull so the field covers it all, six disruptors. It stalks you cloaked and decloaks at knife range.", rows: [
+        shadow: { name: "Shadow", desc: "Five cloaking devices spread over the hull so the field covers it all, six disruptors. It stalks you cloaked and decloaks at knife range.", rows: [
           "EEE.....................",
           "EEED....................",
           "..SCD...................",
@@ -716,7 +716,7 @@ BS.Data = {
           "EEED....................",
           "EEE....................."
         ] },
-        jammer: { element: "armour", name: "Jammer boat", desc: "Two ECM jammers in the hull, six disruptors. Its field covers only the core, so a jam pushes your fire onto the wings and nacelles instead of breaking the lock.", rows: [
+        jammer: { name: "Jammer boat", desc: "Two ECM jammers in the hull, six disruptors. Its field covers only the core, so a jam pushes your fire onto the wings and nacelles instead of breaking the lock.", rows: [
           "EEE.....................",
           "EEED....................",
           "..SQD...................",
@@ -740,7 +740,7 @@ BS.Data = {
           "EEED....................",
           "EEE....................."
         ] },
-        leech: { element: "armour", name: "Leech", desc: "Two energy neutralisers in the hull, six disruptors. It brawls inside 4 km and drains your capacitor every six seconds until your booster, hardener and afterburner starve.", rows: [
+        leech: { name: "Leech", desc: "Two energy neutralisers in the hull, six disruptors. It brawls inside 4 km and drains your capacitor every six seconds until your booster, hardener and afterburner starve.", rows: [
           "EEE.....................",
           "EEED....................",
           "..SQD...................",
@@ -764,7 +764,7 @@ BS.Data = {
           "EEED....................",
           "EEE....................."
         ] },
-        gunboat: { element: "armour", name: "Gunboat", desc: "Eleven disruptor cannons along the wings, no torpedo, thinner armor.", rows: [
+        gunboat: { name: "Gunboat", desc: "Eleven disruptor cannons along the wings, no torpedo, thinner armor.", rows: [
           "EEE.....................",
           "EEED....................",
           "..AQD...................",
@@ -788,7 +788,7 @@ BS.Data = {
           "EEED....................",
           "EEE....................."
         ] },
-        interceptor: { element: "impulse", name: "Interceptor", desc: "Thirty engines down the wings, six pulse phasers: a tight afterburner orbit nothing can track.", rows: [
+        interceptor: { name: "Interceptor", desc: "Thirty engines down the wings, six pulse phasers: a tight afterburner orbit nothing can track.", rows: [
           "EEE.....................",
           "EEEU....................",
           "..SQU...................",
@@ -812,7 +812,7 @@ BS.Data = {
           "EEEU....................",
           "EEE....................."
         ] },
-        bulwark: { element: "deflector", name: "Bulwark", desc: "Twelve shield emitters and five reactors behind six disruptors: a wall that holds a broadside.", rows: [
+        bulwark: { name: "Bulwark", desc: "Twelve shield emitters and five reactors behind six disruptors: a wall that holds a broadside.", rows: [
           "EEE.....................",
           "EEED....................",
           "..SQD...................",
@@ -836,7 +836,7 @@ BS.Data = {
           "EEED....................",
           "EEE....................."
         ] },
-        pulser: { element: "phaser", name: "Pulser", desc: "Ten pulse phasers in place of the cannons: light, fast, and they track anything.", rows: [
+        pulser: { name: "Pulser", desc: "Ten pulse phasers in place of the cannons: light, fast, and they track anything.", rows: [
           "EEE.....................",
           "EEEU....................",
           "..SQU...................",
@@ -860,7 +860,7 @@ BS.Data = {
           "EEEU....................",
           "EEE....................."
         ] },
-        bombard: { element: "ordnance", name: "Bombard", desc: "Four torpedo tubes on six reactors, two disruptors: it holds station and fires every tube.", rows: [
+        bombard: { name: "Bombard", desc: "Four torpedo tubes on six reactors, two disruptors: it holds station and fires every tube.", rows: [
           "EEE.....................",
           "EEED....................",
           "..SQA...................",
@@ -884,7 +884,7 @@ BS.Data = {
           "EEED....................",
           "EEE....................."
         ] },
-        torpedo: { element: "ordnance", name: "Torpedo boat", desc: "Two forward tubes, six reactors, four disruptors.", rows: [
+        torpedo: { name: "Torpedo boat", desc: "Two forward tubes, six reactors, four disruptors.", rows: [
           "EEE.....................",
           "EEED....................",
           "..SQA...................",
@@ -962,7 +962,7 @@ BS.Data = {
       ],
       visual: { kind: "grid", sprite: null, nacelleColor: "255,120,90", hullTint: "#7a6660" },
       variants: {
-        siege: { element: "ordnance", name: "Siege", desc: "Four forward tubes, eight reactors, four disruptors plus two covering the stern, two decoy launchers: it holds station at torpedo range and decoys your volleys.", rows: [
+        siege: { name: "Siege", desc: "Four forward tubes, eight reactors, four disruptors plus two covering the stern, two decoy launchers: it holds station at torpedo range and decoys your volleys.", rows: [
           "EEEE............................",
           "EEEED...........................",
           "..SQAA..........................",
@@ -1238,39 +1238,27 @@ BS.Data = {
   },
 
   // --------------------------------------------------------------- enemy AI
-  // ------------------------------------------------------------- elements (0.28)
-  // Five Trek "elements", one public rule (pillar 2). A ship's element is the block family its build invests in most
-  // against its class default (BS.Grid.elementOf: family value / default family value, a family the default lacks
-  // measured against baselineFloor of the default's total; under minEmphasis the ship is "mixed"); variants and presets
-  // name theirs. Every element beats the next in `order` (a ring): damage a ship deals to a ship of the element it beats
-  // is ×bonus, to the element that beats it ×malus, otherwise ×1 (BS.Ships.applyDamage). A mixed ship gives and takes
-  // ×1. EW blocks (cloak, jammer, neutraliser, decoy) are abilities outside the ring.
-  elements: {
-    minEmphasis: 1.15, baselineFloor: 0.15,
-    bonus: 1.35, malus: 0.65,   // ±25% left Nadion vs Photon in stalemates (DESIGN §8 v0.28); ±35% is the smallest step that closed the ring
-    order: ["deflector", "phaser", "ordnance", "impulse", "armour"],   // each beats the next; the last beats the first
+  // ------------------------------------------------------------- tuning (0.29)
+  // Five modulations, the Trek "shield frequency" made a rule. Every shield emitter has a frequency, every armor plate
+  // an alloy, every weapon block an ammo modulation (save.tuning[classId]: rows of digits in the layout's shape, 0 = the
+  // faction's default, 1–5 = `list[].digit`). Each modulation beats the next in `order` (a ring, the last beats the
+  // first): a hit whose ammo beats the frequency of the emitter covering the struck block drains that shield ×bonus,
+  // one the frequency beats ×malus; the same against the alloy of a plate it lands on; system blocks take ×1. Tuning a
+  // block off its faction's default costs offFactionCost of its price. EW blocks are outside the ring.
+  tuning: {
+    bonus: 1.5, malus: 0.5,   // measured (DESIGN §8 v0.29): ×1.35 / ×0.65 left the beaten-ammo side at 2 of 4; ×0.5 makes it a loss
+    order: ["graviton", "nadion", "tetryon", "polaron", "antiproton"],
     list: {
-      deflector: { name: "Graviton", family: "Deflector", blocks: ["shield"],             color: "#6ab4ff", desc: "Shield emitters: a graviton field around the hull.",
-                   how: "Graviton beats Nadion: a graviton field scatters a nadion beam; shields were built to stop phasers." },
-      phaser:    { name: "Nadion",   family: "Phaser",    blocks: ["phaser", "pulse"],    color: "#ff8a5c", desc: "Phaser banks and pulse phasers: rapid nadion beams.",
-                   how: "Nadion beats Photon: point-defence beams detonate warheads early, and a precise beam reaches the magazines and the reactors behind them." },
-      ordnance:  { name: "Photon",   family: "Ordnance",  blocks: ["torpedo", "reactor"], color: "#ffb36a", desc: "Torpedo tubes and the reactors that feed them: matter / antimatter warheads.",
-                   how: "Photon beats Plasma: a warhead's blast lands on a light hull built for speed, with nothing to absorb it." },
-      impulse:   { name: "Plasma",   family: "Impulse",   blocks: ["engine"],             color: "#7fd8a0", desc: "Impulse engines: fusion plasma drive, speed and angle.",
-                   how: "Plasma beats Duranium: a plasma drive holds an orbit cannons cannot track, and heavy plating is dead mass that never brings its guns round." },
-      armour:    { name: "Duranium", family: "Armour",    blocks: ["armor", "disruptor"], color: "#c8cfe0", desc: "Duranium plating and disruptor cannons: plates and punch.",
-                   how: "Duranium beats Graviton: disruptor bolts detune a graviton field's harmonics, and duranium plate shrugs off the wall's own beams." },
+      graviton:   { digit: "1", name: "Graviton",   short: "GR", color: "#6ab4ff", how: "Graviton beats Nadion: a graviton lattice scatters nadion particles before they couple to the field." },
+      nadion:     { digit: "2", name: "Nadion",     short: "NA", color: "#ff8a5c", how: "Nadion beats Tetryon: rapid nadion emissions collapse a tetryon field's coherence." },
+      tetryon:    { digit: "3", name: "Tetryon",    short: "TE", color: "#c9a0ff", how: "Tetryon beats Polaron: tetryon bleed disrupts the polaron bias a field or a bolt is built on." },
+      polaron:    { digit: "4", name: "Polaron",    short: "PO", color: "#7fd8a0", how: "Polaron beats Antiproton: a polaron charge cancels an antiproton stream before it annihilates on the target." },
+      antiproton: { digit: "5", name: "Antiproton", short: "AP", color: "#ffd166", how: "Antiproton beats Graviton: antiproton annihilation overloads a graviton lattice faster than it can re-form." },
     },
-    // the enemy's answer when the player's wins carry an element (campaign.learn): the element that beats it, per hull
-    answers: {
-      deflector: { bop: { layout: "bulwark", doctrine: "broadside", script: "cruiser" }, ktinga: { layout: "default", doctrine: "broadside", script: "cruiser" } },
-      phaser:    { bop: { layout: "pulser", doctrine: "brawl", script: "raider" },       ktinga: null },
-      ordnance:  { bop: { layout: "bombard", doctrine: "standoff", script: "torpedoBoat" }, ktinga: { layout: "siege", doctrine: "siege", script: "siegeCruiser" } },
-      impulse:   { bop: { layout: "interceptor", doctrine: "skirmish", script: "raider" }, ktinga: null },
-      armour:    { bop: { layout: "gunboat", doctrine: "brawl", script: "raider" },      ktinga: { layout: "default", doctrine: "brawl", script: "cruiser" } },
-    },
-    // DESIGN §8 v0.28, equal-hull Bird-of-Prey duels, 4 fights each: the beating element as the player / the beaten one as the player
-    measured: { "deflector:phaser": "4 of 4 / 1 of 4 (±25%)", "phaser:ordnance": "4 of 4 / 0 of 4 (±35%; ±25% stalemated)", "ordnance:impulse": "4 of 4 / 0 of 4 (±25%)", "impulse:armour": "4 of 4 / 0 of 4 (±25%)", "armour:deflector": "3 of 4 / 0 of 4 (±25%)" },
+    factionDefault: { federation: "nadion", klingon: "polaron" },
+    offFactionCost: 0.15,
+    tunable: { shield: "frequency", armor: "alloy", phaser: "ammo", pulse: "ammo", disruptor: "ammo", torpedo: "ammo" },
+    measured: { ring: "equal hulls, ×1.5 / ×0.5: ammo that beats the defence 4 of 4, a beaten defence 1 of 4, beaten ammo 0 of 4, a hybrid hull against ammo beating one half 0 of 4 (DESIGN §8 v0.29)" },
   },
 
   enemyAI: {
@@ -1604,7 +1592,7 @@ BS.Data = {
   saveDefaults: {
     version: 2, credits: 600, shipClass: "constitution", ownedShips: ["constitution"],
     layouts: {},                       // classId → array of layout rows; missing = class default layout
-    builds: {},                        // classId → [{ name, rows }] named builds (up to editor.maxSavedBuilds)
+    builds: {},                        // classId → [{ name, rows, tuning }] named builds (up to editor.maxSavedBuilds)
     skills: { gunnery: 0, missiles: 0, navigation: 0, shields: 0, capacitor: 0, targeting: 0 },
     training: null,                    // { skill, level, startedAt, finishesAt } (ms timestamps)
     campaign: { missionIndex: 0, battlesWon: 0, battlesLost: 0, streak: 0, cleanWins: 0, retry: null },   // retry: { encounterId, seed, battlesWon } pins the last enemy for the next fight
@@ -1613,7 +1601,8 @@ BS.Data = {
     scriptByBuild: {},                 // classId → script id or template id the ship undocks with (missing: script.defaultTemplate)
     plans: {},                         // encounterId → { targets: [{ x, y } | { type }], rows } up to script.planTargets targets in order
     book: {},                          // encounterId → { fights, rules: { "<script>:<rule>": { text, n } } } the enemy rules seen firing (opening book)
-    signatures: [],                    // the last campaign.learn.remember wins: { tags, rangeKm, side, aim, script, classId, cost, at } (BS.Game.styleTags); the enemy learns from them
+    signatures: [],                    // the last campaign.learn.remember wins: { tags, rangeKm, side, aim, script, classId, cost, tuning, at } (BS.Game.styleTags); the enemy learns from them
+    tuning: {},                        // classId → rows of digits in the layout's shape (BS.Data.tuning): shield frequencies, armor alloys, ammo per block
     settings: { sound: true, screenShake: true, manualBridge: false },   // manualBridge: show the hand-flown helm controls (debug)
   },
 

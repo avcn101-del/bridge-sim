@@ -107,10 +107,9 @@ these styles on the doctrine table". Every shield or hull hit is booked
 to the rules standing at that moment (`state.attrib`, events `shieldHit`
 / `hullHit`), so the sentence names what actually hurt, not a guess.
 
-**Elements** (0.28): the *Why you lost* block opens with both ships'
-elements and the multipliers in force ("ours Nadion · theirs Graviton ·
-their hits ×1.35, ours ×0.65") and the ring's sentence, else "no edge on
-the ring between these two".
+**Tuning** (0.29): the *Why you lost* block opens with "Our Graviton
+ammo vs their shields Polaron ×1.00 · armor Polaron ×1.00" and the same
+from their side (`BS.Grid.tuningSummary`, dead blocks counted).
 
 **Their bridge** (0.25): under *Never fired*, every rule of the enemy's
 script that fired, with the time and, for a reaction, the callout Tactical
@@ -167,13 +166,14 @@ The left column of the hangar carries the pre-battle thinking:
   say when an aim needs a scan rule, when an Otherwise rule sits above
   other standing rules, or when a rule does nothing. At most
   `script.maxRules` (12) rules. Policies are checkboxes.
-- **Doctrine** (0.28, `#hg-doctrine`): the ring as chips (Graviton →
-  Nadion → Photon → Plasma → Duranium → Graviton, YOU and NEXT marked),
-  "Your ship: … +35% vs … · −35% vs … · next enemy …: your edge / their
-  edge / no edge", the emphasis per family, and each element's sentence
-  with its measured numbers. The Intel box adds "Element: theirs … · yours
-  … · your X beats their Y (your hits ×1.35)"; the Build stats line shows
-  the element.
+- **Doctrine** (0.29, `#hg-doctrine`): the tuning ring as chips
+  (Graviton → Nadion → Tetryon → Polaron → Antiproton → Graviton), the one
+  rule, the factions and the surcharge, "Your Graviton ammo vs their
+  Polaron shields: ×1.00 · their Polaron ammo vs your Nadion shields:
+  ×1.00" (from intel, else the faction default), and each modulation's
+  sentence with its measured numbers. The Intel box adds "Tuning: theirs
+  … · yours …"; the Build stats carry a Tuning line; the editor's *Tune*
+  button opens the modulation palette.
 - **They have watched you** (0.26): when the next encounter learned from
   your signatures (below), a yellow line under the Intel drawing and the
   "Next:" header say so: "They have watched your last 3 fights (standoff ·
@@ -902,43 +902,48 @@ intel, script); in the fight the bridge runs the script. A script is
   3, `{ x, y }` on the intel layout or `{ type }`): read by `aim: { plan: n }`;
   the hangar side arrives with PR B.
 
-### Elements: the ring (0.28, `BS.Data.elements`, `BS.Grid.elementOf`, `BS.Ships.elementMult`)
-Pillar 2 as one public rule. Five Trek elements are block families, named
-for the science behind them:
+### Tuning: shield frequencies, alloys and ammo (0.29, `BS.Data.tuning`, `save.tuning`)
+Pillar 2 in its final form, the Trek "remodulate" made a rule. Five
+modulations, all canon particles, in a ring where each beats the next:
+**Graviton → Nadion → Tetryon → Polaron → Antiproton → Graviton** (each
+with a one-line science, `list[].how`). The ring is a public convention,
+like a type chart, not a claim about physics.
 
-| Element | Family | Blocks | Beats | Why (the sentence the hangar shows) |
-|---|---|---|---|---|
-| **Graviton** | Deflector | shield emitters | Nadion | a graviton field scatters a nadion beam; shields were built to stop phasers |
-| **Nadion** | Phaser | phaser, pulse | Photon | point-defence beams detonate warheads early, and a precise beam reaches the magazines and the reactors behind them |
-| **Photon** | Ordnance | torpedo tubes, reactors | Plasma | a warhead's blast lands on a light hull built for speed, with nothing to absorb it |
-| **Plasma** | Impulse | engines | Duranium | a plasma drive holds an orbit cannons cannot track; heavy plating is dead mass that never brings its guns round |
-| **Duranium** | Armour | armor, disruptors | Graviton | disruptor bolts detune a graviton field's harmonics; duranium plate shrugs off the wall's own beams |
-
-A ship's element is the family its build invests in most against its
-class default (`elementOf`: family value / default family value, a family
-the default lacks measured against `baselineFloor` 15% of the default's
-total; under `minEmphasis` ×1.15 the ship is **mixed**). Variants and
-presets name theirs (`element`); `BS.Ships.create` stores `ship.element`
-(the encounter passes the variant's). **The rule**: damage a ship deals to
-a ship of the element it beats is ×`bonus` 1.35, to the element that beats
-it ×`malus` 0.65, otherwise ×1; a mixed ship gives and takes ×1
-(`elementMult`, applied once at the top of `applyDamage`; the hit result
-carries `elementMult`). Nothing else in the physics changed: the 0.27
-weapon chart and the torpedo exponent are gone (`torpedoSpeedExponent`
-stays in data at its old 0.6). Specialise past ×1.15 for an edge, or stay
-mixed for safety. EW blocks are abilities outside the ring.
-
-The hangar's Doctrine page draws the ring (YOU and NEXT marked), says
-"Your ship: Nadion (Phaser). +35% damage vs Photon · −35% vs Graviton ·
-next enemy Photon: your edge", the emphasis per family, and each
-element's sentence with its measured numbers (`elements.measured`). The
-Intel box reads "Element: theirs Photon · yours Nadion · your Nadion beats
-their Photon (your hits ×1.35)"; the report's *Why you lost* opens with
-both elements and the multipliers in force. The enemy's learning answers
-the dominant element of the remembered wins with the element that beats
-it (`elements.answers[beater][hull]`: Bulwark broadside, Pulser brawl,
-Bombard standoff, Interceptor skirmish, Gunboat brawl; K't'inga where a
-layout exists), then the style rows.
+- **Every block carries a modulation.** A shield emitter has a
+  *frequency*, an armor plate an *alloy*, every weapon block (phaser,
+  pulse, disruptor, torpedo tube) an *ammo* modulation (`tuning.tunable`).
+  `save.tuning[classId]` holds rows of digits in the layout's shape: `0`
+  = the faction's default (`factionDefault`: Federation Nadion, Klingon
+  Polaron), `1–5` = `list[].digit`. `BS.Grid.build` resolves each block's
+  `tune`; saved builds and presets may carry `tuning` rows.
+- **One rule** (`BS.Grid.tuneMult`, in `applyDamage` and `Grid.hit`): a
+  hit whose ammo beats the frequency of the emitter covering the struck
+  block is ×`bonus` 1.5 for the whole shot while that shield is up, one
+  the frequency beats ×`malus` 0.5; on bare hull the alloy of the plate it
+  lands on does the same for that plate; system blocks take ×1. Because
+  it is per emitter and per plate, a hull can be Graviton at the bow and
+  Nadion astern, and a battery can mix ammo: hybrids hedge, specialists
+  gamble. Tuning a block off its faction's default costs `offFactionCost`
+  15% of its price (`layoutDelta`: retuning pays or refunds only the
+  surcharge).
+- **Hangar.** *Tune* in the editor switches the palette to the five
+  modulations plus "faction default" and "set all weapons / shields /
+  armor" dropdowns; painting a tunable block (Mirror applies) sets its
+  digit; every tuned block shows a dot in its modulation's colour. The
+  Build stats carry a Tuning line; the Doctrine page shows the ring, the
+  rule, the factions, "Your Graviton ammo vs their Polaron shields: ×1.00"
+  from intel or the faction default, and each modulation's sentence with
+  its measured numbers.
+- **Hidden until seen.** The enemy's tuning shows on the scan panel
+  (dots on the drawing and a Tuning line) only once scanned; intel stores
+  the tuning it saw (`save.intel[].tuning`), the Book keeps the last
+  tuning text (`save.book[].tuning`), the signature of a win keeps the
+  dominant ammo, frequency and alloy (`signatures[].tuning`). The
+  report's *Why you lost* opens with "Our Graviton ammo vs their shields
+  Polaron ×1.00 · armor Polaron ×1.00" and the same from their side.
+- Enemy variants carry no tuning yet (all Klingon Polaron): the enemy's
+  answer to the player's ammo and frequencies (remodulating in battle, a
+  *Remodulate* bridge call, learning) is the next PR.
 
 ### Honest loss (0.26)
 A loss is meant to be accepted and answered with a new build or script,
@@ -1103,7 +1108,7 @@ ew: { jamPerBlock, jamDuration, cloakTime, decloakTime, surgeTime, cloakDrain, c
 grid.boarding: { rangeKm, minParty, partyMax, transportTime, bridgeGuard, defenderPerQuarters, gapStart, gapAbort, abortRangeMult, rate, floor }
 script: { tickSeconds, chargingKmS, traceMax, planTargets, defaultTemplate, maxRules, dryRun: { maxSeconds, stepsPerChunk }, bridgeCall: { tokens, holdSeconds, focusSeconds, confirmSeconds, disengageUntil, noCallBonus }, conditions: { id: { label, kind, def, negLabel? } }, actions: { id: { label, kind } }, policies: { id: { label } }, weakKinds,
           templates: { id: { name, desc, requires?, policies, rules: [{ when, do, until?, holdMax?, once?, every? }] } }, enemyScripts: { id: { name, rules } } }
-campaign.firstFight: { weakPointChance }; campaign.encounters[].script; campaign.learn; elements (order, list, answers, measured, bonus / malus); shipClasses.*.variants / presets[].element; enemyAI.doctrineTable / signatureCounters; save: scripts[], scriptByBuild{}, plans{}, book{}, signatures[], settings.manualBridge, campaign.cleanWins, campaign.retry
+campaign.firstFight: { weakPointChance }; campaign.encounters[].script; campaign.learn; tuning (order, list, factionDefault, offFactionCost, tunable, measured, bonus / malus); save.tuning{}, builds[].tuning, intel[].tuning, book[].tuning, signatures[].tuning; shipClasses.*.variants / presets[].element; enemyAI.doctrineTable / signatureCounters; save: scripts[], scriptByBuild{}, plans{}, book{}, signatures[], settings.manualBridge, campaign.cleanWins, campaign.retry
 campaign.salvage: { destroyed, disabled, captured }; enemyAI.*: drainedBelow, drainedUntil, drainedTime; enemyAI.counters[].when.neutMin
 shipClasses: { id: { name, className, role, faction, cost, purchasable, speed, turnRate, signature, lockRangeKm, powerBase,
                      mask: [rows], layout: [rows], presets: { id: { name, desc, rows } }, variants: { id: { name, desc, rows } } (enemies),
@@ -1146,6 +1151,38 @@ harness is in the repository: `tools/harness.js` (Playwright, one
 `campaign.encounters`, seeded `Math.random`, `--noreact` for the 0.24 enemy
 bridge, `--eval` for a data tweak, `--debug` for what each bridge saw) and
 `tools/smoke.js` (the headless interface check).
+
+v0.29.0 (tuning per block; equal-hull Bird-of-Prey duels, stock layout
+both sides, Brawler template vs brawl doctrine, `--tune` / `--etune`,
+4 fights each; cells are the player's wins):
+
+| Player tuning | Enemy tuning | ×1.35 / ×0.65 | ×1.5 / ×0.5 |
+|---|---|---|---|
+| faction default (Polaron) | faction default | 4 of 4 keeping 84–98% | |
+| ammo Graviton | shields + armor Nadion | 4 of 4 keeping 91–100% | **4 of 4** keeping 95–100% |
+| shields + armor Nadion | ammo Graviton | 1 of 4 (3 lost) | **1 of 4** (3 lost) |
+| ammo Nadion | shields + armor Graviton | 2 of 4 (2 lost) | **0 of 4** (3 lost, 1 st; malus 0.5) |
+| shields + armor Graviton port / Nadion starboard (hybrid) | ammo Graviton | 2 of 4 (1 lost, 1 st) | 0 of 4 (3 lost, 1 st) |
+
+Before the multiplier was applied to the whole shot (0.29 first cut: the
+shield pool alone drained at the tuned rate, the hull behind untouched),
+beaten defences still won 3 of 4: too weak to decide a fight. Campaign
+regression at faction defaults (Federation Nadion ammo against Klingon
+Polaron shields is a neutral pair, so nothing changes): Brawler vs Raider
+(0 wins) 3 of 4 keeping 74–91%; vs K't'inga (4 wins) 2 of 3; Galaxy vs
+Siege (6 wins) 2 of 2 keeping 91–96%. A stock Constitution (Nadion ammo)
+against a 0-win Raider whose shields and plates are tuned Graviton:
+**0 of 4** (the campaign enemy does not tune yet; this is what its
+learned answer will do).
+
+Honest reading: the rule decides a fight in both directions at ×1.5 /
+×0.5 (beaten defence 1 of 4, beaten ammo 0 of 4). A hybrid hull does
+**not** hedge at that strength: 0 of 4 against ammo that beats one half
+(2 of 4 at ×1.35 / ×0.65), because the beaten half is where the brawl
+flips to and where the plates go first. Not measured: mixed ammo
+batteries. The enemy never retunes yet, so in the campaign the player
+holds every edge until the next PR gives the enemy its answer; the 0 of 4
+above says that answer will bite.
 
 v0.28.0 (the element ring, one multiplier; the 0.27 weapon chart and
 exponent removed; equal-hull duels as in 0.27, the beating element flown
@@ -1639,6 +1676,7 @@ than slower (it is nearly untouched, as intended).
 | v0.11.0 (done) | Cloak and ECM fields: a ship cloaks only with every block inside a cloak field (several devices per hull), a partial ECM field steers the jammed enemy's fire onto the uncovered blocks |
 | v0.12.0 (done) | Disruptor cannons (punch, penetration, poor tracking) and pulse phasers (tracking, knife range) as blocks and weapon groups; Klingons mount cannons |
 | v0.13.0 (done) | Crew: systems need hands, the bridge and crew quarters supply them, manning slows weapons and shields, blocks far from quarters repair slowly; every layout re-fitted |
+| v0.29.0 (done) | Tuning: five modulations on every shield emitter, armor plate and weapon block (shield frequency, alloy, ammo), one ring and one multiplier, faction defaults with an off-faction surcharge, Tune mode in the editor, tuning on scan / intel / Book / report, equal-hull measurements |
 | v0.28.0 (done) | The element ring: five Trek elements (Graviton, Nadion, Photon, Plasma, Duranium) as block families, one rule (×1.35 into the element you beat, ×0.65 into the one that beats you), measured in both directions on every edge; Doctrine page, element answers in the enemy's learning |
 | v0.27.0 (done) | Elements: five block families with a type chart in the damage path, a build's element in the hangar, the measured three-element wheel and the balanced pair on a Doctrine page, element answers in the enemy's learning, five new layouts, equal-hull duels in the harness |
 | v0.26.0 (done) | Honest loss (contact instead of a cloaked ship's position, for both ships), "why you lost" with damage booked to the standing rules and the measured doctrine table, signatures of wins and an enemy that learns from them (same-weight answers, said in the hangar), the 3-win matrix in §8 |
