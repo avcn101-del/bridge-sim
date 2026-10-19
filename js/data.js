@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.30.0",
+  version: "0.31.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -29,6 +29,7 @@ BS.Data = {
     reinforceDuration: 3.0,       // seconds the transfer takes
     reinforceCooldown: 20,        // seconds before Engineering can do it again
     arenaStartDistanceKm: 38,     // enemy spawn distance from player
+    fleetSpacingKm: 1.6,          // a fleet (0.31) spawns line abreast with this much between hull centres, on both sides
     hitRadiusFactor: 0.45,
     // EVE-style capacitor: recharge/s = capMax / rechargeTime × capCurve × (sqrt(f) − f), f = fraction full (peaks at 25%)
     capCurve: 5,
@@ -1381,6 +1382,7 @@ BS.Data = {
     sellBack: 0.6,                      // fraction of price refunded when selling a module
     // the raider gets tougher with every victory: statMult = base + perWin × wins (capped)
     enemyScaling: { perWin: 0.04, maxBonus: 0.4 },
+    fleetMax: 4,                        // hulls a side (0.31): the player's save.fleet and an encounter's ships, flagship included
     // Which enemy shows up: weighted random among the encounters unlocked by battlesWon; "random" layouts are
     // generated from the class default (grid.variant). rewardMult scales the win payout. Seeded by the battle record.
     // `play` names a play (helm.plays) the enemy bridge runs instead of flying its doctrine alone; the doctrine stays
@@ -1402,6 +1404,13 @@ BS.Data = {
       { id: "cruiser",  enemyClass: "ktinga",       layout: "default", doctrine: "broadside", script: "cruiser", minWins: 4, weight: 2, rewardMult: 1.8 },
       { id: "siege",    enemyClass: "ktinga",       layout: "siege",   doctrine: "siege",     script: "siegeCruiser", minWins: 6, weight: 2, rewardMult: 1.9 },
       { id: "warlord",  enemyClass: "ktinga",       layout: "random",  doctrine: ["broadside", "brawl"], script: "cruiser", minWins: 8, weight: 2, rewardMult: 1.9, counter: true },
+      // fleet encounters (0.31): `ships` lists the hulls that come with the first one, each { enemyClass, layout, doctrine,
+      // script, damageMult }. Out of the campaign pool (minWins 999) until the fleet hangar of 0.35 lets the player bring
+      // more than one hull; the harness reaches them by id (--enemy pair / --enemy pack).
+      { id: "pair",     enemyClass: "bird_of_prey", layout: "default", doctrine: "strafe",    script: "raider",  minWins: 999, weight: 1, rewardMult: 1.8,
+        ships: [{ enemyClass: "bird_of_prey", layout: "gunboat", doctrine: "brawl", script: "raider" }] },
+      { id: "pack",     enemyClass: "bird_of_prey", layout: "default", doctrine: "strafe",    script: "raider",  minWins: 999, weight: 1, rewardMult: 3.2,
+        ships: [{ enemyClass: "bird_of_prey", layout: "gunboat", doctrine: "brawl", script: "raider" }, { enemyClass: "bird_of_prey", layout: "torpedo", doctrine: "standoff", script: "torpedoBoat" }, { enemyClass: "bird_of_prey", layout: "jammer", doctrine: "brawl", script: "raider" }] },
     ],
     // the very first fight: the raider does not hunt weak points yet (enemyAI profile override while battlesWon is 0)
     firstFight: { weakPointChance: 0 },
@@ -1410,8 +1419,10 @@ BS.Data = {
     // enemyAI.signatureCounters row matching the dominant tag of those wins: its layout, doctrine and script, provided the
     // counter layout's effective cost (block cost × the enemy's stat multiplier) is within costBand of the player's build
     // cost, so the answer is a ship of the same weight. The hangar says so. Fights 0–2 stay naive.
-    learn: { fromWins: 3, chance: 0.6, remember: 3, costBand: 0.25, tagFraction: 0.3, cloakFraction: 0.1, longRangeKm: 9, closeRangeKm: 4,
-             tuneChance: 0.6 },   // tuneChance: from fromWins on, the enemy's shields take the frequency that beats the ammo of the remembered wins and its ammo the modulation that beats their shields
+    // 0.31 (DESIGN §10): the learning line is closed; chance and tuneChance are 0, so every encounter is a skirmish at
+    // its own tuning. The machinery stays for the harness (--learn) and for bosses.
+    learn: { fromWins: 3, chance: 0, remember: 3, costBand: 0.25, tagFraction: 0.3, cloakFraction: 0.1, longRangeKm: 9, closeRangeKm: 4,
+             tuneChance: 0 },   // tuneChance: from fromWins on, the enemy's shields take the frequency that beats the ammo of the remembered wins and its ammo the modulation that beats their shields
     klingonNames: ["IKS Rotarran", "IKS Hegh'ta", "IKS Pagh", "IKS Koraga", "IKS Vorn", "IKS Amar", "IKS Gr'oth", "IKS Bortas", "IKS Ch'Tang", "IKS Maht-H'a"],
   },
 
@@ -1619,6 +1630,7 @@ BS.Data = {
 
   saveDefaults: {
     version: 2, credits: 600, shipClass: "constitution", ownedShips: ["constitution"],
+    fleet: [],                         // owned class ids that undock with the hangar's ship (0.31, campaign.fleetMax in all); empty = alone
     layouts: {},                       // classId → array of layout rows; missing = class default layout
     builds: {},                        // classId → [{ name, rows, tuning }] named builds (up to editor.maxSavedBuilds)
     skills: { gunnery: 0, missiles: 0, navigation: 0, shields: 0, capacitor: 0, targeting: 0 },

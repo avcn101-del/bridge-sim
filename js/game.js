@@ -3,7 +3,7 @@ window.BS = window.BS || {};
 
 BS.Game = (function () {
   var U = BS.Util;
-  var state = { phase: "start", time: 0, paused: false, player: null, enemy: null, ships: [], result: null, endTimer: 0, hover: null, zoom: 1, zoomBias: 1, reward: null, encounter: null, speed: 1, calls: 0, callsUsed: 0 };
+  var state = { phase: "start", time: 0, paused: false, player: null, enemy: null, ships: [], teams: { player: [], enemy: [] }, result: null, endTimer: 0, hover: null, zoom: 1, zoomBias: 1, reward: null, encounter: null, speed: 1, calls: 0, callsUsed: 0 };
   var accumulator = 0, lastFrame = 0, running = false;
   var subscribed = false;
 
@@ -23,17 +23,37 @@ BS.Game = (function () {
   }
 
   function subscribe() {
-    function endBattle(ship, how) {
+    // A side loses when none of its ships can still fight (BS.Fleet.teamFighting): destroyed, disabled or captured.
+    // `how` is what happened to the last of them, for the report and the salvage rate.
+    function shipOut(ship, how) {
       if (state.phase !== "battle") return;
-      state.result = ship.isPlayer ? "defeat" : "victory";
+      if (how === "captured") ship.flags.captured = true;
+      var lost = ship.team === "player" ? !BS.Fleet.teamFighting("player") : !BS.Fleet.teamFighting("enemy");
+      if (!lost) { syncRoles(); return; }
+      state.result = ship.team === "player" ? "defeat" : "victory";
       state.resultHow = how;
       state.phase = "ending";
       state.endTimer = BS.Data.balance.destroyedEndDelay;
       BS.Events.emit("battleEnded", { result: state.result, how: how, state: state });
     }
-    BS.Events.on("shipDestroyed", function (e) { endBattle(e.ship, "destroyed"); });
-    BS.Events.on("shipDisabled", function (e) { endBattle(e.ship, "disabled"); });
-    BS.Events.on("shipCaptured", function (e) { endBattle(e.ship, "captured"); });
+    BS.Events.on("shipDestroyed", function (e) { shipOut(e.ship, "destroyed"); });
+    BS.Events.on("shipDisabled", function (e) { shipOut(e.ship, "disabled"); });
+    BS.Events.on("shipCaptured", function (e) { shipOut(e.ship, "captured"); });
+  }
+  // The viewer (state.player: the hull the panels, the module bar and the crew voices follow) and the primary enemy
+  // (state.enemy: the scan panel, the overlays and the report's "their bridge"). With one ship a side they never change;
+  // in a fleet the viewer passes to the next fighting hull when it is lost, and the primary enemy follows the viewer's
+  // current target.
+  function syncRoles() {
+    var p = state.player;
+    if (!p || !BS.Fleet.fighting(p)) {
+      var next = state.teams.player.filter(BS.Fleet.fighting)[0] || state.teams.player.filter(function (s) { return !s.flags.destroyed; })[0] || p;
+      if (next && next !== p) { state.player = next; if (!state.dry) { BS.UI.setShipName(next.name.toUpperCase()); BS.UI.buildModuleBar(next); } BS.Events.emit("viewerChanged", { ship: next, prev: p }); }
+    }
+    var v = state.player, e = state.enemy;
+    var want = v && v.target && !v.target.flags.destroyed ? v.target : (e && !e.flags.destroyed ? e : state.teams.enemy.filter(function (s) { return !s.flags.destroyed; })[0] || e);
+    if (want !== e) { state.enemy = want; BS.Events.emit("primaryEnemyChanged", { ship: want, prev: e }); }
+    if (state.player !== p || state.enemy !== e) BS.Crew.reset(state.player, state.enemy);
   }
 
   // opts.dry: a dry run from the hangar (BS.Game.dryRun): the same battle set-up without touching the interface, stepped
@@ -55,23 +75,44 @@ BS.Game = (function () {
     state.style = { player: newStyle(), enemy: newStyle() };
     state.zoom = BS.Data.balance.zoom.start; state.zoomBias = 1;
     var save = BS.Campaign.get();
-    var player = BS.Ships.create(save.shipClass, { isPlayer: true, pos: { x: 0, y: 0 }, heading: -Math.PI / 2, layout: BS.Campaign.battleLayout(save.shipClass), tuning: BS.Campaign.battleTuning(save.shipClass), mods: BS.Campaign.skillMods() });
+    // the player's side: the hulls of save.fleet (the hangar's ship first), one script each, line abreast at the origin
+    var fleet = BS.Campaign.fleet(), spacing = BS.Ships.px(B.fleetSpacingKm), players = [], enemies = [];
+    fleet.forEach(function (classId, i) {
+      var off = (i - (fleet.length - 1) / 2) * spacing;
+      players.push(BS.Ships.create(classId, { isPlayer: true, team: "player", pos: { x: off, y: 0 }, heading: -Math.PI / 2, layout: BS.Campaign.battleLayout(classId), tuning: BS.Campaign.battleTuning(classId), mods: BS.Campaign.skillMods() }));
+    });
+    var player = players[0];
+    // the enemy's side: every ship of the encounter (enc.ships; one for a classic 1v1), spread across their bearing
     var ang = U.rand(-0.6, 0.6) - Math.PI / 2;
     var dist = BS.Ships.px(B.arenaStartDistanceKm);
     var enc = BS.Campaign.encounter();
-    var enemy = BS.Ships.create(enc.classId, { name: enc.name, layout: enc.rows, tuning: enc.tuning || null, pos: { x: Math.cos(ang) * dist, y: Math.sin(ang) * dist }, heading: ang + Math.PI, statMult: BS.Campaign.enemyStatMult(enc.aiProfile), mods: { damageMult: enc.damageMult || BS.Data.enemyAI[enc.aiProfile].damageMult } });
-    var overrides = {};
-    if (enc.weakPointChance !== null && enc.weakPointChance !== undefined) overrides.weakPointChance = enc.weakPointChance;
-    BS.EnemyAI.attach(enemy, player, enc.aiProfile, enc.doctrine, Object.keys(overrides).length ? overrides : null);
+    enc.ships.forEach(function (sp, i) {
+      var off = (i - (enc.ships.length - 1) / 2) * spacing, ox = Math.cos(ang + Math.PI / 2) * off, oy = Math.sin(ang + Math.PI / 2) * off;
+      var e = BS.Ships.create(sp.classId, { name: sp.name, team: "enemy", layout: sp.rows, tuning: sp.tuning || null, pos: { x: Math.cos(ang) * dist + ox, y: Math.sin(ang) * dist + oy }, heading: ang + Math.PI, statMult: BS.Campaign.enemyStatMult(sp.aiProfile), mods: { damageMult: sp.damageMult || BS.Data.enemyAI[sp.aiProfile].damageMult } });
+      e.spec = sp;
+      enemies.push(e);
+    });
+    var enemy = enemies[0];
     state.encounter = enc;
-    player.selected = enemy;
-    // both bridges fight by a script (BS.Script): the enemy's names its doctrine ("encounter") and plays; the player's
-    // is the one assigned to this hull in the hangar, a template by default
-    var es = BS.Script.resolve(BS.Data.script.enemyScripts[enc.script] || BS.Data.script.enemyScripts.doctrine);
-    BS.Script.start(enemy, player, bindDoctrine(es, enc.doctrine));
-    BS.EnemyAI.setStance(player, enemy, BS.Data.helm.defaultStance);   // the helm flies the default stance from the start
-    BS.Script.start(player, enemy, opts.script || BS.Campaign.scriptFor(save.shipClass));
-    state.player = player; state.enemy = enemy; state.ships = [player, enemy];
+    state.player = player; state.enemy = enemy; state.enemyFlag = enemy;
+    state.teams = { player: players, enemy: enemies }; state.ships = players.concat(enemies);
+    // every ship fights its nearest hostile to begin with (BS.Fleet); both bridges fight by a script (BS.Script): the
+    // enemy's names its doctrine ("encounter") and plays; the player's is the one assigned to each hull in the hangar,
+    // a template by default (opts.script overrides the flagship's)
+    enemies.forEach(function (e) {
+      var sp = e.spec, t = BS.Fleet.nearestHostile(e) || player, overrides = {};
+      if (sp.weakPointChance !== null && sp.weakPointChance !== undefined) overrides.weakPointChance = sp.weakPointChance;
+      e.target = t;
+      BS.EnemyAI.attach(e, t, sp.aiProfile, sp.doctrine, Object.keys(overrides).length ? overrides : null);
+      var es = BS.Script.resolve(BS.Data.script.enemyScripts[sp.script] || BS.Data.script.enemyScripts.doctrine);
+      BS.Script.start(e, t, bindDoctrine(es, sp.doctrine));
+    });
+    players.forEach(function (pl, i) {
+      var t = BS.Fleet.nearestHostile(pl) || enemy;
+      pl.target = t; pl.selected = t;
+      BS.EnemyAI.setStance(pl, t, BS.Data.helm.defaultStance);   // the helm flies the default stance from the start
+      BS.Script.start(pl, t, (i === 0 && opts.script) || BS.Campaign.scriptFor(pl.classId));
+    });
     BS.Crew.reset(player, enemy);
     state.phase = "battle";
     if (dry) { state.paused = true; return; }
@@ -97,8 +138,12 @@ BS.Game = (function () {
       while (state.phase === "battle" && state.time < DR.maxSeconds && n++ < DR.stepsPerChunk) step(dt);
       if (state.phase === "battle" && state.time < DR.maxSeconds) { if (onProgress) onProgress(state.time); setTimeout(chunk, 0); return; }
       var guard = 0; while (state.phase === "ending" && guard++ < 2000) step(dt);
-      var blockMax = p.grid.blocks.reduce(function (a, b) { return a + (b.structural ? 0 : b.maxHp); }, 0), blockNow = p.grid.blocks.reduce(function (a, b) { return a + (b.alive && !b.structural ? b.hp : 0); }, 0);
-      var out = { result: state.result || "stalemate", how: state.resultHow, time: state.time, hullPct: Math.round(100 * blockNow / Math.max(1, blockMax)), enemyHullPct: Math.round(100 * e.hull / e.hullMax), trace: (p.scriptTrace || []).slice(), scanned: !!p.scanned, neverFired: BS.Script.explain(p) };
+      var blockMax = 0, blockNow = 0, eHull = 0, eHullMax = 0;
+      state.teams.player.forEach(function (s) { s.grid.blocks.forEach(function (b) { if (!b.structural) { blockMax += b.maxHp; if (b.alive) blockNow += b.hp; } }); });
+      state.teams.enemy.forEach(function (s) { eHullMax += s.hullMax; eHull += s.hull; });   // hull left at the end, destroyed or not (as the single-enemy report read it)
+      var out = { result: state.result || "stalemate", how: state.resultHow, time: state.time, hullPct: Math.round(100 * blockNow / Math.max(1, blockMax)), enemyHullPct: Math.round(100 * eHull / Math.max(1, eHullMax)), trace: (p.scriptTrace || []).slice(), scanned: !!p.scanned, neverFired: BS.Script.explain(p),
+        ships: state.teams.player.map(function (s) { var mx = 0, now = 0; s.grid.blocks.forEach(function (b) { if (!b.structural) { mx += b.maxHp; if (b.alive) now += b.hp; } }); return { name: s.name, classId: s.classId, hullPct: Math.round(100 * now / Math.max(1, mx)), destroyed: s.flags.destroyed, disabled: s.flags.disabled }; }),
+        enemies: state.teams.enemy.map(function (s) { return { name: s.name, classId: s.classId, hullPct: Math.round(100 * s.hull / s.hullMax), destroyed: s.flags.destroyed, disabled: s.flags.disabled, captured: !!s.flags.captured }; }) };
       state.phase = "ended"; state.dry = false; state.paused = false;
       if (onDone) onDone(out);
     }
@@ -189,22 +234,19 @@ BS.Game = (function () {
   }
 
   function step(dt) {
-    var p = state.player, e = state.enemy;
-    if (state.phase === "battle" && state.style) { recordStyle(p, e, state.style.player, dt); recordStyle(e, p, state.style.enemy, dt); }
+    if (state.phase === "battle") { BS.Fleet.update(state); syncRoles(); }
+    var p = state.player, e = state.enemy, ships = state.ships, i, s;
+    if (state.phase === "battle" && state.style && p && e && !e.flags.destroyed) { recordStyle(p, e, state.style.player, dt); recordStyle(e, p, state.style.enemy, dt); }
     BS.Crew.update(dt);
-    BS.Script.update(e, dt);
-    BS.Script.update(p, dt);
-    BS.Plays.update(e, dt);
-    BS.EnemyAI.update(e, p, dt);
-    BS.Plays.update(p, dt);
-    BS.EnemyAI.update(p, e, dt);
-    BS.Ships.update(p, dt);
-    BS.Ships.update(e, dt);
-    BS.Boarding.update(p, dt);
-    BS.Boarding.update(e, dt);
+    // every ship's bridge, helm and hull, enemies first as before (the order only decides who moves first in a step)
+    var order = state.teams.enemy.concat(state.teams.player);
+    for (i = 0; i < order.length; i++) BS.Script.update(order[i], dt);
+    for (i = 0; i < order.length; i++) { s = order[i]; BS.Plays.update(s, dt); BS.EnemyAI.update(s, BS.Fleet.targetOf(s), dt); }
+    for (i = 0; i < ships.length; i++) BS.Ships.update(ships[i], dt);
+    for (i = 0; i < ships.length; i++) BS.Boarding.update(ships[i], dt);
     BS.Weapons.update(dt);
     BS.Effects.update(dt, state.ships, BS.Weapons.torpedoes);
-    if (state.phase === "battle") { state.time += dt; if (p.lock.target === e && p.lock.locked) state.lockTime += dt; }   // lock time feeds intel
+    if (state.phase === "battle") { state.time += dt; if (p && p.lock.target && p.lock.target.team !== p.team && p.lock.locked) state.lockTime += dt; }   // lock time feeds intel
     if (state.phase === "ending") {
       state.endTimer -= dt;
       if (state.endTimer <= 0) { if (state.dry) { state.phase = "ended"; return; } state.phase = "ended"; state.reward = BS.Campaign.settleBattle(state); BS.UI.showResult(state); }
@@ -235,8 +277,14 @@ BS.Game = (function () {
     requestAnimationFrame(frame);
   }
 
+  // A fleet's hull state for the report and the campaign: block hp kept per ship and over the side.
+  function teamHull(team) {
+    var mx = 0, now = 0;
+    (state.teams[team] || []).forEach(function (s) { s.grid.blocks.forEach(function (b) { if (!b.structural) { mx += b.maxHp; if (b.alive) now += b.hp; } }); });
+    return { max: mx, now: now, frac: mx ? now / mx : 0 };
+  }
   function openHangar() { BS.UI.hideOverlays(); state.phase = state.player ? "ended" : "start"; BS.Hangar.show(); }
 
-  var api = { styleTags: styleTags, counterSentence: counterSentence, templateId: templateId, init: init, startBattle: startBattle, dryRun: dryRun, cancelDryRun: cancelDryRun, openHangar: openHangar, command: command, bridgeCall: bridgeCall, setSpeed: setSpeed, togglePause: togglePause, setHover: setHover, setZoom: setZoom, state: state, step: step };
+  var api = { teamHull: teamHull, styleTags: styleTags, counterSentence: counterSentence, templateId: templateId, init: init, startBattle: startBattle, dryRun: dryRun, cancelDryRun: cancelDryRun, openHangar: openHangar, command: command, bridgeCall: bridgeCall, setSpeed: setSpeed, togglePause: togglePause, setHover: setHover, setZoom: setZoom, state: state, step: step };
   return api;
 })();

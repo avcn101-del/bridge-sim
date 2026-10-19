@@ -1,7 +1,9 @@
 # CLAUDE.md — Project rules for Bridge Sim
 
-Private single-player Star Trek style bridge combat simulator. The player is the
-captain: they give orders by clicking buttons, AI crew officers execute them.
+Private single-player Star Trek style fleet combat simulator. The player is the
+admiral: they build the hulls and write each bridge's script in the hangar, then
+watch the fight (two bridge calls a battle). The direction since 0.31 is in
+`DESIGN.md` §10: a fleet of up to four, roles from blocks, skirmishes and bosses.
 
 These rules apply to every session working in this repository.
 
@@ -34,7 +36,8 @@ These rules apply to every session working in this repository.
   - `js/weapons.js` — turret blocks (tracking/falloff) and launcher blocks (signature/velocity), hit resolution, decoys
   - `js/boarding.js` — boarding parties: transporter window, party vs defenders, capture
   - `js/crew.js` — crew voices: instant commands with reports, warnings
-  - `js/enemyai.js` — doctrine machine for both ships (enemy doctrines, player stances, auto-flip)
+  - `js/enemyai.js` — doctrine machine for every ship (enemy doctrines, player stances, auto-flip)
+  - `js/fleet.js` — teams, target selection and retargeting, team elimination
   - `js/plays.js` — plays: scripted phase sequences (stance/doctrine, module policy, governor, aim, exit conditions) from `helm.plays`
   - `js/script.js` — bridge scripts: ordered when → do rules with policies and call-outs, run by both bridges; sentences from `script.conditions/actions`
   - `js/campaign.js` — progress between battles: save/load/export/import, credits, ownership, fitting rules, fit stats, real-time skills, enemy scaling
@@ -60,6 +63,13 @@ These rules apply to every session working in this repository.
   always the helm's: a stance or doctrine is flown by `BS.EnemyAI` with the
   same doctrine machine and the same `BS.Ships.setCommand` /
   `BS.Modules.setActive` the enemy uses.
+- **Battles are N ships against M.** `BS.Game.state.ships` holds every hull,
+  `state.teams.player / .enemy` the sides, `ship.team` the side; each ship
+  fights its own `ship.target`, chosen and re-chosen by `BS.Fleet`. `state.player`
+  is the viewer (the hull the panels follow) and `state.enemy` the primary
+  enemy (what the scan panel shows): presentation helpers, never game logic.
+  A side loses when none of its ships can fight. Encounters list their ships
+  in `campaign.encounters[].ships`; the player's side is `save.fleet`.
 - **Ships are block grids.** A class gives a hull `mask` (`.` empty, `#`
   fillable, `n` nacelle, `p` fixed structure) and a default `layout`
   (letters from `grid.layoutLegend`). `BS.Grid.build` turns them into
@@ -107,13 +117,12 @@ These rules apply to every session working in this repository.
   or a real one, play for at least 30 simulated seconds, and confirm **zero
   console errors** (a blocked Google Fonts request in the sandbox is not a
   game error). Report the result honestly.
-- Balance changes must be checked with an accelerated simulation: start a
-  battle, set `BS.Game.state.paused = true`, then call `BS.Game.step(1/60)`
-  in a loop with a scripted captain that uses `BS.Game.command` and
-  `BS.Modules.setActive`. Targets: a straightforward fight (weapons and
-  hardener, orbit 6 km) wins in 3–5 min losing 30–50% of block hp; a
-  speed-tanking captain (booster pulsed, afterburner) wins slower but
-  nearly untouched; a ship with no orders is lost in about 3 min.
+- Balance changes must be checked with the accelerated simulation in
+  `tools/harness.js` (seeded and deterministic; `--fleet` / `--efleet` for
+  fleets, `--perf` for cost) and recorded in `DESIGN.md` §8. The 1v1
+  reference: the Brawler template against the Raider wins 3–4 of 4 in 2–4
+  min keeping 70–90% of block hp. Fleet and boss targets are set per PR by
+  §10.
 - Keep `README.md` "tweakable values" section in sync with `data.js`.
 - Commit messages: short imperative subject, body explains why.
 - Do not add build tooling, package.json, linters or test frameworks unless

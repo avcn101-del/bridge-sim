@@ -48,6 +48,7 @@ BS.Campaign = (function () {
     out.signatures = (s.signatures || []).filter(function (g) { return g && Array.isArray(g.tags); }).slice(-D().campaign.learn.remember);
     out.tuning = {}; Object.keys(s.tuning || {}).forEach(function (id) { if (D().shipClasses[id] && Array.isArray(s.tuning[id])) out.tuning[id] = s.tuning[id]; });
     out.book = {}; Object.keys(s.book || {}).forEach(function (id) { var bk = s.book[id]; if (bk && typeof bk.fights === "number" && bk.rules && typeof bk.rules === "object") out.book[id] = bk; });
+    out.fleet = (Array.isArray(s.fleet) ? s.fleet : []).filter(function (id, i, a) { return D().shipClasses[id] && out.ownedShips.indexOf(id) >= 0 && a.indexOf(id) === i; }).slice(0, D().campaign.fleetMax);
     out.version = 2;
     return out;
   }
@@ -138,6 +139,14 @@ BS.Campaign = (function () {
     save.credits -= cls.cost; save.ownedShips.push(classId); save.shipClass = classId; layoutFor(classId); persist(); return null;
   }
   function selectShip(classId) { if (save.ownedShips.indexOf(classId) >= 0) { save.shipClass = classId; persist(); } }
+  // The hulls that undock together (0.31, campaign.fleetMax): the hangar's ship first, then the rest of save.fleet. One
+  // hull per class (a class has one layout, one tuning and one script in the save). Empty save.fleet = the ship alone.
+  function fleet() {
+    var max = D().campaign.fleetMax, out = [save.shipClass];
+    (save.fleet || []).forEach(function (id) { if (out.length < max && out.indexOf(id) < 0 && save.ownedShips.indexOf(id) >= 0 && D().shipClasses[id]) out.push(id); });
+    return out;
+  }
+  function setFleet(ids) { save.fleet = (ids || []).filter(function (id, i, a) { return D().shipClasses[id] && save.ownedShips.indexOf(id) >= 0 && a.indexOf(id) === i; }).slice(0, D().campaign.fleetMax); persist(); }
 
   // ---- skills (real time) -------------------------------------------------
   function skillHours(skillId, level) { return D().skills[skillId].hoursPerLevel[level - 1]; }
@@ -284,8 +293,27 @@ BS.Campaign = (function () {
         learnedTuning = (spec.frequency ? "shields " + T.list[spec.frequency].name + " against your " + T.list[pAmmo].name + " ammo" : "") + (spec.frequency && spec.ammo ? ", " : "") + (spec.ammo ? "ammo " + T.list[spec.ammo].name + " against your " + T.list[pShield].name + " shields" : "");
       }
     }
-    return { id: pick.id, classId: pick.enemyClass, cls: cls, rows: rows, name: name, variantName: variantName, tuning: tuningRows, learnedTuning: learnedTuning, seed: seed, battlesWon: wonAt, retry: !!rt, rewardMult: pick.rewardMult, play: pick.play || null, script: script, damageMult: pick.damageMult || null, counterReason: counterReason, weakPointChance: counterWeak, aiProfile: cls.aiProfile || "default", learned: learned,
+    var enc = { id: pick.id, classId: pick.enemyClass, cls: cls, rows: rows, name: name, variantName: variantName, tuning: tuningRows, learnedTuning: learnedTuning, seed: seed, battlesWon: wonAt, retry: !!rt, rewardMult: pick.rewardMult, play: pick.play || null, script: script, damageMult: pick.damageMult || null, counterReason: counterReason, weakPointChance: counterWeak, aiProfile: cls.aiProfile || "default", learned: learned,
       doctrine: doc || D().enemyAI[cls.aiProfile || "default"].doctrine, label: cls.className + (variantName ? " · " + variantName : "") };
+    // the enemy side (0.31): the ship above, then every entry of pick.ships (a fleet encounter), each rolled from the
+    // same seeded stream so the hangar and the battle agree
+    enc.ships = [shipSpec(enc)].concat((pick.ships || []).map(function (ent) { return extraSpec(ent, rng, name); }));
+    if (enc.ships.length > 1) enc.label += " +" + (enc.ships.length - 1);
+    return enc;
+  }
+  // What BS.Game needs to spawn one enemy ship.
+  function shipSpec(e) { return { classId: e.classId, rows: e.rows, name: e.name, tuning: e.tuning || null, doctrine: e.doctrine, script: e.script, aiProfile: e.aiProfile, damageMult: e.damageMult, weakPointChance: e.weakPointChance, variantName: e.variantName }; }
+  // An extra ship of a fleet encounter ({ enemyClass, layout, doctrine, script, damageMult }): no learning, no counter.
+  function extraSpec(ent, rng, usedName) {
+    var cls = D().shipClasses[ent.enemyClass], rows, variantName = null;
+    if (ent.layout === "random") { rows = BS.Grid.randomVariant(cls, cls.layout, rng); variantName = "Variant"; }
+    else if (ent.layout !== "default" && cls.variants && cls.variants[ent.layout]) { rows = cls.variants[ent.layout].rows; variantName = cls.variants[ent.layout].name; }
+    else rows = cls.layout;
+    var names = D().campaign.klingonNames.filter(function (n) { return n !== usedName; }), name = names.length ? names[Math.floor(rng() * names.length)] : cls.name;
+    var doc = ent.doctrine; if (Array.isArray(doc)) doc = doc[Math.floor(rng() * doc.length)];
+    var variant = null; if (cls.variants) Object.keys(cls.variants).forEach(function (k) { if (cls.variants[k].rows === rows) variant = cls.variants[k]; });
+    var prof = cls.aiProfile || "default";
+    return { classId: ent.enemyClass, rows: rows, name: name, tuning: variant && variant.tuning ? variant.tuning : null, doctrine: doc || D().enemyAI[prof].doctrine, script: ent.script || "doctrine", aiProfile: prof, damageMult: ent.damageMult || null, weakPointChance: null, variantName: variantName };
   }
   // Refit & retry: pin the last enemy for the next fight (cleared when that fight is settled, or by letGo).
   function setRetry(enc) { if (!enc) return; save.campaign.retry = { encounterId: enc.id, seed: enc.seed, battlesWon: enc.battlesWon !== undefined ? enc.battlesWon : save.campaign.battlesWon }; persist(); }
@@ -358,10 +386,13 @@ BS.Campaign = (function () {
   }
   function settleBattle(state) {
     var cr = D().campaign.credits, p = state.player, won = state.result === "victory";
-    if (state.encounter && ((state.lockTime || 0) >= D().campaign.intelMinLockSeconds || p.scanned)) recordIntel(state.encounter, "scanned");
-    recordBook(state.encounter, state.enemy);
+    var team = state.teams && state.teams.player && state.teams.player.length ? state.teams.player : [p], eteam = state.teams && state.teams.enemy && state.teams.enemy.length ? state.teams.enemy : (state.enemy ? [state.enemy] : []);
+    if (state.encounter && ((state.lockTime || 0) >= D().campaign.intelMinLockSeconds || team.some(function (s) { return s.scanned; }))) recordIntel(state.encounter, "scanned");
+    recordBook(state.encounter, state.enemyFlag || state.enemy);
     if (won) recordSignature(state);
-    var hullLostPct = Math.round(100 * (1 - p.hull / p.hullMax));
+    // hull lost over the whole side (every hull's block hp, a destroyed hull counting as all lost)
+    var hMax = 0, hNow = 0; team.forEach(function (s) { hMax += s.hullMax; hNow += s.flags.destroyed ? 0 : s.hull; });
+    var hullLostPct = Math.round(100 * (1 - hNow / Math.max(1, hMax)));
     var earned, salvage = 0, cleanBonus = 0, clean = won && !(state.callsUsed > 0);
     if (won) {
       save.campaign.battlesWon++; save.campaign.streak++;
@@ -370,8 +401,11 @@ BS.Campaign = (function () {
       // a clean bridge (no bridge call spent) pays script.bridgeCall.noCallBonus on the win credits, before salvage
       if (clean) { cleanBonus = Math.round(Math.max(50, earned) * (D().script.bridgeCall.noCallBonus - 1)); save.campaign.cleanWins = (save.campaign.cleanWins || 0) + 1; }
       // salvage: whatever of the enemy is still in one piece has value; a disabled ship is captured nearly intact
-      var e = state.enemy, frac = D().campaign.salvage[state.resultHow === "disabled" ? "disabled" : state.resultHow === "captured" ? "captured" : "destroyed"];
-      if (e) salvage = Math.round(e.grid.blocks.reduce(function (a, b) { return a + (b.alive && !b.structural ? b.def.cost : 0); }, 0) * frac);
+      // every enemy hull still in one piece pays by how it ended: a captured or disabled hull is worth more than a wreck
+      eteam.forEach(function (e) {
+        var how = e.flags.captured ? "captured" : e.flags.disabled && !e.flags.destroyed ? "disabled" : "destroyed", frac = D().campaign.salvage[how];
+        salvage += Math.round(e.grid.blocks.reduce(function (a, b) { return a + (b.alive && !b.structural ? b.def.cost : 0); }, 0) * frac);
+      });
     } else {
       save.campaign.battlesLost++; save.campaign.streak = 0;
       earned = cr.loss;
@@ -386,7 +420,7 @@ BS.Campaign = (function () {
   function get() { return save; }
 
   return { load: load, persist: persist, reset: reset, exportJSON: exportJSON, importJSON: importJSON, hasSave: hasSave, get: get,
-    currentClass: currentClass, layoutFor: layoutFor, setLayout: setLayout, battleLayout: battleLayout, buyShip: buyShip, selectShip: selectShip,
+    currentClass: currentClass, layoutFor: layoutFor, setLayout: setLayout, battleLayout: battleLayout, buyShip: buyShip, selectShip: selectShip, fleet: fleet, setFleet: setFleet,
     layoutDelta: layoutDelta, countBlocks: countBlocks, applyLayout: applyLayout, tuningFor: tuningFor, battleTuning: battleTuning, builds: builds, saveBuild: saveBuild, deleteBuild: deleteBuild, intelFor: intelFor, buyIntel: buyIntel, bookFor: bookFor, layoutCost: layoutCost, effectiveCost: effectiveCost, dominantTag: dominantTag,
     scriptFor: scriptFor, setScriptFor: setScriptFor, saveScript: saveScript, deleteScript: deleteScript, planFor: planFor, setPlan: setPlan, setRetry: setRetry, letGo: letGo,
     updateTraining: updateTraining, startTraining: startTraining, cancelTraining: cancelTraining, skillMods: skillMods, skillHours: skillHours,

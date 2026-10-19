@@ -10,7 +10,7 @@ BS.Ships = (function () {
   function km(px) { return px / BS.Data.units.pxPerKm; }
   function px(kmv) { return kmv * BS.Data.units.pxPerKm; }
 
-  // options: { name, pos, heading, statMult, mods, isPlayer, layout }
+  // options: { name, pos, heading, statMult, mods, isPlayer, team, layout, tuning }
   function create(classId, options) {
     options = options || {};
     var cls = BS.Data.shipClasses[classId];
@@ -23,7 +23,7 @@ BS.Ships = (function () {
     var grid = Gr.build(cls, options.layout || cls.layout, statMult, options.tuning || null);
     var st = Gr.derive(grid);
     var ship = {
-      id: nextId++, classId: classId, cls: cls, name: options.name || cls.name, faction: cls.faction, isPlayer: !!options.isPlayer,
+      id: nextId++, classId: classId, cls: cls, name: options.name || cls.name, faction: cls.faction, isPlayer: !!options.isPlayer, team: options.team || (options.isPlayer ? "player" : "enemy"), target: null, contacts: {},
       pos: { x: options.pos ? options.pos.x : 0, y: options.pos ? options.pos.y : 0 }, prevPos: { x: 0, y: 0 },
       heading: options.heading || 0, prevHeading: options.heading || 0, speed: 0, vel: { x: 0, y: 0 },
       grid: grid, stats: st, statMult: statMult, mods: mods, layoutRows: (options.layout || cls.layout).slice(), tuningRows: options.tuning ? options.tuning.slice() : null,
@@ -31,7 +31,7 @@ BS.Ships = (function () {
       shieldMax: {}, shields: {}, shieldRegen: {},
       capMax: 0, capacitor: 0, heat: 0, overload: 0, heatGovernor: true, governorHold: false, jammed: 0, partialJam: 0, partialJamBy: null, neuted: 0, boarding: null, shieldDelay: { fore: 0, aft: 0, port: 0, starboard: 0 }, attackSide: "auto", tumble: 0, tumbleDir: 1, breach: 0, hadReactors: false, aimBlock: null, cloak: { state: "off", t: 0, surge: 0, strike: 0 },
       signature: cls.signature,
-      flags: { alert: "none", destroyed: false, disabled: false, armed: false },
+      flags: { alert: "none", destroyed: false, disabled: false, captured: false, armed: false },
       selected: null, lock: { target: null, progress: 0, locked: false, time: 0 }, aimType: null, stance: null, play: null,
       cmd: { type: "idle", target: null, range: 0, point: null, orbitDir: Math.random() < 0.5 ? 1 : -1, facing: null, bearing: 0 },
       desiredHeading: options.heading || 0, desiredSpeed: 0,
@@ -148,8 +148,8 @@ BS.Ships = (function () {
   // helm and the script conditions read ranges and bearings from this, never from a cloaked ship's true position.
   function contact(viewer, target) {
     if (!target) return null;
-    var k = viewer.contact;
-    if (!k || k.of !== target) k = viewer.contact = { of: target, pos: { x: target.pos.x, y: target.pos.y }, heading: target.heading, live: true, lostAt: 0, ghost: null };
+    var k = viewer.contacts[target.id];   // one contact per ship seen (a fleet: switching targets keeps the others' last positions)
+    if (!k) k = viewer.contacts[target.id] = { of: target, pos: { x: target.pos.x, y: target.pos.y }, heading: target.heading, live: true, lostAt: 0, ghost: null };
     if (visibility(target, viewer) > 0) { k.pos.x = target.pos.x; k.pos.y = target.pos.y; k.heading = target.heading; k.live = true; k.ghost = null; return target; }
     if (k.live || !k.ghost) { k.live = false; k.lostAt = BS.Game && BS.Game.state ? BS.Game.state.time : 0; k.ghost = { ghost: true, pos: { x: k.pos.x, y: k.pos.y }, vel: { x: 0, y: 0 }, heading: k.heading, speed: 0, flags: {}, cmd: { type: "idle" } }; }
     return k.ghost;
