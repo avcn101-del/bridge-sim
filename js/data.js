@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.45.0",
+  version: "0.46.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -1377,7 +1377,10 @@ BS.Data = {
     // enemies grow perWin a win up to maxBonus; a fleet encounter (kind "fleet") takes fleetFactor of the bonus. Measured at
     // 0.5 in 0.45 (DESIGN §8): the pack at 8 wins was not easier for the Wolf pack (3 of 4 with a stalemate against 4 of 4),
     // so it ships at 1; the knob stays for the next pass
-    enemyScaling: { perWin: 0.04, maxBonus: 0.4, fleetFactor: 1 },
+    // fleetStatMult / fleetDamageMult (0.46): the ships of a fleet encounter are built on the 1v1 profiles (default: stat
+    // ×1.4, damage ×1.5, sized to challenge one scripted hull), so a 4v4 compounds them four times; these scale a fleet
+    // encounter's hull and damage multipliers back (DESIGN §8 v0.46)
+    enemyScaling: { perWin: 0.04, maxBonus: 0.4, fleetFactor: 1, fleetStatMult: 0.8, fleetDamageMult: 0.8 },
     fleetMax: 4,                        // hulls a side (0.31): the player's save.fleet and an encounter's ships, flagship included
     // runs (0.35, DESIGN §10): every bossEvery-th battle (counting wins and losses) is a boss fight, once the roster has
     // two or more hulls and bossFromWins wins are in; fleet skirmishes (encounter kind "fleet") need two hulls too. A

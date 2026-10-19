@@ -56,7 +56,9 @@ loop in §2 does it serve?** A system that serves none is cut (§10,
 5. **Progress**: credits buy hulls and blocks (gear); understanding the
    boss buys a better script (skill). Enemies scale +4% a win up to +40%
    (`enemyScaling`; a fleet encounter takes `fleetFactor` of it, 1 since
-   it was measured, §8 v0.45);
+   it was measured, §8 v0.45, and its ships' hull and damage multipliers
+   are scaled back by `fleetStatMult` / `fleetDamageMult` 0.8, since the
+   1v1 profiles compound four times in a 4v4, §8 v0.46);
    the real difficulty is the next boss's mechanic.
 
 Decision pressure: the build (what each hull can do at all), the roster
@@ -1308,6 +1310,7 @@ campaign.firstFight: { weakPointChance }; campaign.encounters[].script; tuning (
 campaign.salvage: { destroyed, disabled, captured }; enemyAI.*: drainedBelow, drainedUntil, drainedTime
 0.31: balance.fleetSpacingKm; campaign.fleetMax; campaign.encounters[].ships: [{ enemyClass, layout, doctrine, script, damageMult }]; save.fleet: [classId]; ship: team, target, contacts{}, flags.captured; state: teams { player: [], enemy: [] }, enemyFlag
 0.32: script.subjects; rule.about; action target; conditions allyShieldBelow / allyHullBelow / allyUnderFire / outnumbered / enemiesAtMost / unfocused; templates.wolfpack; ship: scannedOf{}, scanTarget
+0.46: campaign.enemyScaling.fleetStatMult / fleetDamageMult (BS.Campaign.enemyDamageMult(spec, kind))
 0.45: campaign.enemyScaling.fleetFactor (BS.Campaign.enemyStatMult(profileId, kind)); save.settings.devMode (BS.Campaign.devMode / setDevMode / canAfford); state.encounter is set before the enemies spawn
 0.44: save.fleetScriptByBuild (scriptFor / scriptIdFor / setScriptFor take kind "fleet"); tools/campaign.js --fleetscripts
 0.43: save.soloScriptByBuild (BS.Campaign.scriptFor(classId, kind), scriptIdFor, setScriptFor(classId, id, kind)); tools/campaign.js --soloscript; templates.warbreaker answers the cube too (the beam rule, the aft side)
@@ -1360,6 +1363,45 @@ harness is in the repository: `tools/harness.js` (Playwright, one
 `campaign.encounters`, seeded `Math.random`, `--noreact` for the 0.24 enemy
 bridge, `--eval` for a data tweak, `--debug` for what each bridge saw) and
 `tools/smoke.js` (the headless interface check).
+
+v0.46.0 (the pack as a farm fight. `--enemy pack`, the Galaxy fleet on the
+Wolf pack, seeds 1–4, `--max 660`; `enemyScaling.fleetStatMult /
+fleetDamageMult` scale a fleet encounter's hull and damage multipliers,
+which come from the 1v1 profiles: default stat ×1.4, damage ×1.5, sized to
+challenge one scripted hull):
+
+Who dies to what (per-ship trace, the pack at 8 wins, both at ×1): the
+Defiant (7k of block hp) died in the first 35–47 s in three fights of four,
+dealing 600–900; the Constitution at 1:30–3:00 in two of four, taking 14k;
+the gunboat alone dealt 10–12.5k a fight. Four enemies of 13.5k each against
+our 56k, focusing whoever closed first: an even brawl, and even brawls cost
+hulls. A disengage rule for the hunted ship (weakest shield under 30% →
+disengage on the afterburner until 70%, 40 s at most) made it worse: 1 of
+4 at 8 wins, 3 of 4 at 0 wins; the Defiant was dead before the rule could
+fire. Not kept.
+
+| fleetStatMult / fleetDamageMult | Pack at 0 wins | Pack at 8 wins |
+|---|---|---|
+| 1 / 1 (0.45) | 4 of 4 in 2:31–3:59 keeping 71–85% | 4 of 4 in 4:02–5:07 keeping 66–81%, 1–2 hulls lost a fight |
+| 0.9 / 0.8 | 4 of 4 in 2:27–2:52 keeping 83–90%, 2 hulls lost over four | 4 of 4 in 2:58–4:22 keeping 77–87%, a hull lost in every fight |
+| **0.8 / 0.8** | 4 of 4 in 2:02–2:31 keeping 85–91%, the Defiant lost in three of four | 4 of 4 in 2:08–3:22 keeping 81–89%, **no hull lost** |
+
+The pair (`--enemy pair --wins 2`, Constitution + Galaxy + Excelsior): 4
+of 4 in 1:36–1:55 keeping 89–96% at ×1, 0:55–1:21 keeping 95–97% at 0.8.
+
+Runs (`tools/campaign.js --battles 12`, seed 1, as v0.44):
+
+| Run | The pack at 9 | Bosses | Credits |
+|---|---|---|---|
+| Four Cube breakers | won 2:42 keeping 89%, one hull lost (v0.44: a stalemate, two lost) | cube 5:00; warbird 6:32 keeping 54%, the Galaxy lost | 600 → 8,665 (12 of 12; v0.44: 3,486) |
+| Mixed | won 2:34 keeping 91%, no hull lost (v0.44: two lost) | cube 7:33; warbird 3:37 keeping 78% | 600 → 16,185 (12 of 12, **no hull lost**; v0.44: 9,873) |
+
+Honest reading: the pack is a farm fight again, two to three minutes as
+§10 asks, and the run's cost moved back to where the design puts it, the
+boss (the breaker fleet still pays 5,896 for the Galaxy it loses to the
+warbird). The Defiant remains the pack's first kill at full strength
+(three of four at 0 wins): 7k of block hp against four focusing hulls is a
+composition question, not a scaling one, and it is in §10 "next".
 
 v0.45.0 (the fleet-tier scaling knob. `--enemy pack --wins 8`, the Galaxy
 fleet on the Wolf pack, seeds 1–4, `--max 660`; `enemyScaling.fleetFactor`
@@ -2006,7 +2048,8 @@ script; learning off since 0.31; plays shadowed by the script since 0.21):
 | 0.43 (done) | A script per fight kind: a hull flies one script in fleet and boss fights and may fly another alone (`soloScriptByBuild`, two assign buttons, `--soloscript`); the Warbird breaker answers the cube too, so one boss script serves a run. Measured over 12-battle runs in §8 v0.43 (the Brawler alone wins the solo fights a boss script lost) |
 | 0.44 (done) | The third script kind: a hull may fly its own script in a fleet skirmish (`fleetScriptByBuild`, the Wolf pack), so the pack is not fought with a boss script. Measured over 12-battle runs in §8 v0.44 |
 | 0.45 (done) | Dev mode (nothing costs credits, to try builds); the fleet-tier scaling knob `enemyScaling.fleetFactor`, measured at 0.5 and shipped at 1: halving the pack's win bonus did not make it cheaper for the Wolf pack (§8 v0.45) |
-| next | The pack itself (its composition and payout against a two-hull repair bill: both fleets lose two hulls to it at 8 wins whatever the scaling), skirmish modifiers (§10 "Skirmishes"), the third boss (damage the healer can race: phases, not a bigger hull) |
+| 0.46 (done) | The pack as a farm fight: a fleet encounter's ships take `fleetStatMult` / `fleetDamageMult` 0.8 on the 1v1 profile multipliers (stat ×1.4, damage ×1.5, sized for one hull); the pack at 8 wins goes from two hulls lost to none (§8 v0.46). A disengage rule for the hunted ship was tried and not kept |
+| next | Skirmish modifiers (§10 "Skirmishes"); the third boss (damage the healer can race: phases, not a bigger hull); the Defiant in a fleet (7k of block hp, the pack's first kill in three fights of four at full strength) |
 
 Known risks: the pivot touches nearly every file; 8 grids measured in 0.31
 (12 ms a frame headless without a GPU, the simulation negligible); the §8
