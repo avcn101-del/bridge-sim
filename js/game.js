@@ -76,7 +76,8 @@ BS.Game = (function () {
     state.zoom = BS.Data.balance.zoom.start; state.zoomBias = 1;
     var save = BS.Campaign.get();
     // the player's side: the hulls of save.fleet (the hangar's ship first), one script each, line abreast at the origin
-    var fleet = BS.Campaign.fleet(), spacing = BS.Ships.px(B.fleetSpacingKm), players = [], enemies = [];
+    var enc = BS.Campaign.encounter();
+    var fleet = enc.roster || BS.Campaign.fleet(), spacing = BS.Ships.px(B.fleetSpacingKm), players = [], enemies = [];
     fleet.forEach(function (classId, i) {
       var off = (i - (fleet.length - 1) / 2) * spacing;
       players.push(BS.Ships.create(classId, { isPlayer: true, team: "player", pos: { x: off, y: 0 }, heading: -Math.PI / 2, layout: BS.Campaign.battleLayout(classId), tuning: BS.Campaign.battleTuning(classId), mods: BS.Campaign.skillMods() }));
@@ -85,7 +86,6 @@ BS.Game = (function () {
     // the enemy's side: every ship of the encounter (enc.ships; one for a classic 1v1), spread across their bearing
     var ang = U.rand(-0.6, 0.6) - Math.PI / 2;
     var dist = BS.Ships.px(B.arenaStartDistanceKm);
-    var enc = BS.Campaign.encounter();
     enc.ships.forEach(function (sp, i) {
       var off = (i - (enc.ships.length - 1) / 2) * spacing, ox = Math.cos(ang + Math.PI / 2) * off, oy = Math.sin(ang + Math.PI / 2) * off;
       enemies.push(spawnEnemy(sp, { x: Math.cos(ang) * dist + ox, y: Math.sin(ang) * dist + oy }, ang + Math.PI));

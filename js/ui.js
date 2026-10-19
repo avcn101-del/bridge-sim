@@ -17,7 +17,7 @@ BS.UI = (function () {
     ["own-speed", "own-cmd", "own-subsystems", "enemy-subsystems", "gauge", "help-screen", "btn-help", "btn-help-close",
      "target-none", "target-info", "tg-name", "tg-hull", "tg-hull-val", "tg-shield", "tg-shield-val", "tg-range", "tg-angular", "tg-chance", "tg-aim",
      "clock", "alert-label", "btn-pause", "btn-redalert", "btn-zoom-in", "btn-zoom-out", "pause-overlay", "start-screen", "result-screen", "result-title", "result-sub", "result-head",
-     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "rs-credits", "rs-salvage", "heat-bar", "heat-num", "btn-governor", "own-heat", "own-crew", "own-boarding", "own-boarding-row", "btn-board", "scan-view", "scan-info", "btn-log", "side-buttons", "ship-name", "view", "module-bar", "overview", "sel-name", "play-buttons", "trace", "speed-buttons", "call-tokens", "call-play", "call-side", "btn-focus", "bridge-calls", "rs-clean", "rs-script", "btn-retry"]
+     "rs-time", "rs-dealt", "rs-taken", "rs-hull", "rs-phasers", "rs-torps", "rs-credits", "rs-salvage", "rs-repairs", "heat-bar", "heat-num", "btn-governor", "own-heat", "own-crew", "own-boarding", "own-boarding-row", "btn-board", "scan-view", "scan-info", "btn-log", "side-buttons", "ship-name", "view", "module-bar", "overview", "sel-name", "play-buttons", "trace", "speed-buttons", "call-tokens", "call-play", "call-side", "btn-focus", "bridge-calls", "rs-clean", "rs-script", "btn-retry"]
       .forEach(function (id) { el[id] = $(id); });
     logList = $("log");
     buildGauge();
@@ -453,6 +453,7 @@ BS.UI = (function () {
     el["rs-credits"].textContent = rw ? "+" + rw.earned + " cr" + (rw.streak > 1 ? " (streak " + rw.streak + ")" : "") + " · " + BS.Campaign.get().credits.toLocaleString() + " cr total" : "—";
     el["rs-salvage"].textContent = rw && rw.salvage ? "+" + rw.salvage + " cr from the " + (rw.how === "captured" ? "prize (taken by boarding)" : rw.how === "disabled" ? "wreck (captured intact)" : "wreck") : "—";
     el["rs-clean"].textContent = rw && rw.clean ? "no bridge call spent · ×" + BS.Data.script.bridgeCall.noCallBonus + " (+" + rw.cleanBonus + " cr) · " + rw.cleanWins + " clean win" + (rw.cleanWins === 1 ? "" : "s") : won ? (state.callsUsed || 0) + " bridge call" + (state.callsUsed === 1 ? "" : "s") + " spent" : "—";
+    el["rs-repairs"].textContent = rw && rw.repairs ? "−" + rw.repairs + " cr · " + rw.repairLines.map(function (l) { return l.name + (l.lost ? " rebuilt" : "") + " " + l.cost; }).join(", ") : rw ? "nothing to repair" : "—";
     el["btn-retry"].textContent = "Refit & retry · " + (state.enemy ? state.enemy.name : "same enemy");
     renderReport(state);
   }

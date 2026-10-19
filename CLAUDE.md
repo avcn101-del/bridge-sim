@@ -88,7 +88,9 @@ These rules apply to every session working in this repository.
 - **Progress lives in `BS.Campaign`** (localStorage key `bridgesim.save`,
   shape in `BS.Data.saveDefaults`). Battle code never reads localStorage;
   `BS.Game.startBattle` asks Campaign for the layout, skill mods and enemy
-  scaling, and `settleBattle` awards credits. A layout that fails
+  scaling, and `settleBattle` awards credits and bills repairs (`campaign.repair`).
+  Encounters carry a `kind` (solo / fleet / boss): `encounter()` applies
+  the run (`campaign.run`, boss slots) and lists who undocks in `enc.roster`. A layout that fails
   `BS.Grid.validateLayout` never undocks; the class default is used.
 - **Events, not direct calls, for presentation.** Game logic emits events
   (`BS.Events.emit("shieldHit", {...})`); renderer/effects/UI/audio subscribe.

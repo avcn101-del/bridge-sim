@@ -234,7 +234,18 @@ BS.Campaign = (function () {
     // a retry pins the last fight: the same seed and unlock pool give the same enemy, layout and name
     var seed = rt ? rt.seed : c.battlesWon * 7919 + c.battlesLost * 104729, wonAt = rt ? rt.battlesWon : c.battlesWon;
     var rng = U.seededRandom(1 + seed);
-    var pool = D().campaign.encounters.filter(function (e) { return wonAt >= e.minWins && D().shipClasses[e.enemyClass]; });
+    // runs (0.35): a boss slot every bossEvery-th battle once the roster can meet it; fleet encounters need the roster too
+    var R = D().campaign.run, hulls = fleet().length, battles = rt ? rt.battles || 0 : c.battlesWon + c.battlesLost;
+    var bossSlot = hulls >= R.fleetMinHulls && wonAt >= R.bossFromWins && battles % R.bossEvery === R.bossEvery - 1;
+    var pool = D().campaign.encounters.filter(function (e) {
+      if (!(wonAt >= e.minWins && D().shipClasses[e.enemyClass])) return false;
+      var kind = e.kind || "solo";
+      if (bossSlot) return kind === "boss";
+      if (kind === "boss") return false;
+      if (kind === "fleet") return hulls >= R.fleetMinHulls;
+      return true;
+    });
+    if (!pool.length) pool = D().campaign.encounters.filter(function (e) { return (e.kind || "solo") === "solo" && wonAt >= e.minWins; });
     var total = pool.reduce(function (a, e) { return a + e.weight; }, 0), r = rng() * total, pick = pool[0];
     for (var i = 0; i < pool.length; i++) { r -= pool[i].weight; if (r < 0) { pick = pool[i]; break; } }
     var cls = D().shipClasses[pick.enemyClass], rows, variantName = null;
@@ -298,7 +309,11 @@ BS.Campaign = (function () {
     // the enemy side (0.31): the ship above, then every entry of pick.ships (a fleet encounter), each rolled from the
     // same seeded stream so the hangar and the battle agree
     enc.ships = [shipSpec(enc)].concat((pick.ships || []).map(function (ent) { return extraSpec(ent, rng, name); }));
-    enc.kind = pick.kind || "skirmish";
+    enc.kind = pick.kind || "solo";
+    enc.battles = battles; enc.bossSlot = bossSlot;
+    // who undocks (0.35): a solo encounter sends the hangar's ship alone, the rest send the roster
+    enc.roster = enc.kind === "solo" ? [save.shipClass] : fleet();
+    enc.nextBoss = !bossSlot && hulls >= R.fleetMinHulls && wonAt >= R.bossFromWins ? (R.bossEvery - 1 - (battles % R.bossEvery)) : null;
     // a boss's reinforcements (0.33): spawned by its script's `summon` action, rolled here so hangar and battle agree
     enc.reinforcements = (pick.reinforcements || []).map(function (ent) { return extraSpec(ent, rng, name); });
     if (enc.ships.length > 1) enc.label += " +" + (enc.ships.length - 1);
@@ -319,7 +334,7 @@ BS.Campaign = (function () {
     return { classId: ent.enemyClass, rows: rows, name: name, tuning: variant && variant.tuning ? variant.tuning : null, doctrine: doc || D().enemyAI[prof].doctrine, script: ent.script || "doctrine", aiProfile: prof, damageMult: ent.damageMult || null, weakPointChance: null, variantName: variantName };
   }
   // Refit & retry: pin the last enemy for the next fight (cleared when that fight is settled, or by letGo).
-  function setRetry(enc) { if (!enc) return; save.campaign.retry = { encounterId: enc.id, seed: enc.seed, battlesWon: enc.battlesWon !== undefined ? enc.battlesWon : save.campaign.battlesWon }; persist(); }
+  function setRetry(enc) { if (!enc) return; save.campaign.retry = { encounterId: enc.id, seed: enc.seed, battlesWon: enc.battlesWon !== undefined ? enc.battlesWon : save.campaign.battlesWon, battles: enc.battles }; persist(); }
   function letGo() { save.campaign.retry = null; persist(); }
 
   // Intel: a layout held under lock long enough is remembered for that encounter id (random variants by seed).
@@ -415,9 +430,19 @@ BS.Campaign = (function () {
     }
     earned = Math.max(50, Math.round(earned)) + cleanBonus + salvage;
     save.credits += earned;
+    // repair bills (0.35): destroyed blocks are rebuilt at a fraction of their price, a lost hull at a larger one
+    var RP = D().campaign.repair, repairs = 0, repairLines = [];
+    team.forEach(function (s) {
+      var lost = s.flags.destroyed, cost = 0;
+      s.grid.blocks.forEach(function (b) { if (b.structural) return; if (lost) cost += b.def.cost * RP.lostHull; else if (!b.alive) cost += b.def.cost * RP.destroyedBlock; });
+      cost = Math.round(cost);
+      if (cost > 0) { repairs += cost; repairLines.push({ name: s.name, cost: cost, lost: lost }); }
+    });
+    repairs = Math.min(repairs, save.credits);   // never below zero: the yard works on credit it will never collect
+    save.credits -= repairs;
     save.campaign.retry = null;   // the pinned fight, won or lost, is over
     persist();
-    return { earned: earned, salvage: salvage, cleanBonus: cleanBonus, clean: clean, hullLostPct: hullLostPct, streak: save.campaign.streak, how: state.resultHow, cleanWins: save.campaign.cleanWins || 0 };
+    return { earned: earned, salvage: salvage, cleanBonus: cleanBonus, clean: clean, hullLostPct: hullLostPct, streak: save.campaign.streak, how: state.resultHow, cleanWins: save.campaign.cleanWins || 0, repairs: repairs, repairLines: repairLines };
   }
 
   function get() { return save; }

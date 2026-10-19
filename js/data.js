@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.34.0",
+  version: "0.35.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -168,8 +168,8 @@ BS.Data = {
     // boss weapon (0.33, enemy only): a cutting beam that charges for `charge` seconds (event weaponCharging, the tell)
     // before it fires at the ship it was charging on, and cuts `pierceBonus` blocks deep. Low tracking: an orbit on the
     // afterburner is nearly immune, a ship holding station or closing is not.
-    lance:    { letter: "L", name: "Cutting beam",    short: "CB", hp: 90, mass: 4, cost: 600, power: 10, crew: 3, color: "#7dff9e", glyph: "lens", enemyOnly: true, desc: "Boss weapon: charges for 6 s, then a beam that cuts 8 blocks deep into the ship it charged on, every 22 s. Tracking 0.35 rad/s: outrun it on the afterburner, or be the ship built to take it.",
-                weapon: { kind: "turret", damage: 600, cycle: 22, cap: 30, heat: 20, optimalKm: 7, falloffKm: 2.5, tracking: 0.35, accuracy: 1, arc: 100, pierceBonus: 8, charge: 6, color: "#9dffb0", coreColor: "#ffffff", beamLife: 0.9 } },
+    lance:    { letter: "L", name: "Cutting beam",    short: "CB", hp: 90, mass: 4, cost: 600, power: 10, crew: 3, color: "#7dff9e", glyph: "lens", enemyOnly: true, desc: "Boss weapon: charges for 6 s, then a beam with 4 extra penetration points (through two plates of armor) into the ship it charged on, every 22 s. Tracking 0.35 rad/s: outrun it on the afterburner, or be the ship built to take it.",
+                weapon: { kind: "turret", damage: 600, cycle: 22, cap: 30, heat: 20, optimalKm: 7, falloffKm: 2.5, tracking: 0.35, accuracy: 1, arc: 100, pierceBonus: 4, charge: 6, color: "#9dffb0", coreColor: "#ffffff", beamLife: 0.9 } },
     neut:     { letter: "X", name: "Energy neutraliser", short: "NT", hp: 40, mass: 2, cost: 110, power: 4, crew: 1, color: "#ff6ad5", glyph: "drain", desc: "Module (F-key, 6 s cycle, 20 cap, needs a lock inside 4 km): drains 30 capacitor per neutraliser block from the target each cycle. A ship with no capacitor loses its booster, hardener, afterburner and cloak and fires nothing. It drains your own capacitor too: fit reactors." },
   },
 
@@ -581,25 +581,25 @@ BS.Data = {
       ],
       visual: { kind: "grid", sprite: null, nacelleColor: "90,160,255", hullTint: "#d2d7e3" },
       presets: {
-        anchor: { name: "Anchor", desc: "Tank: the default Galaxy with a signature beacon on a role cell. Switched on, it is the loudest thing in the sky, so a boss that turns on the loudest ship turns on it.", rows: [
+        anchor: { name: "Anchor", desc: "Tank: the default Galaxy with a signature beacon on a role cell and its saucer-rim reactors moved inboard, out of a cutting beam's reach. Switched on, the beacon makes it the loudest thing in the sky, so a boss that turns on the loudest ship turns on it.", rows: [
           "....................................",
           "..EEEEEEEESA..........AAAPAAAA......",
-          "..EEEEEEEEAA........AARAAAAAAAAP....",
+          "..EEEEEEEEAA........AAAAAAAAAAAP....",
           "...................AAAAAAAAAAAQAA...",
           "..................AAAAAAAAAAAAAAAA..",
           ".................TSAAAAAASAAAAAASAP.",
           "....SAQSAAAA.....AAAAAAAAAAAAAAAAAA.",
-          "...AAAARARAAA...AAAAAAAAAAQANAAAAAP.",
+          "...AAAARARAAA...AAAAAAAARAQANAAAAAP.",
           "...AAAAAAAARA...AAAAKAAAAAQAAAAAAAAP",
           "...AAAAAAAAAA...AAAAAAAAAABQANAAAAAA",
           "...AAAAAAAAAA...AAAAAAAAAAQQANAAAAAA",
           "...AAAAAAAARA...AAAAAAAAAAQAAAAAAAAP",
-          "...AAAARARAAA...AAAAAAAAAAQANAAAAAP.",
+          "...AAAARARAAA...AAAAAAAARAQANAAAAAP.",
           "....SAQSAAAA.....AAAAAAAAAAAAAAAAAA.",
           ".................TSAAAAAASAAAAAASAP.",
           "..................AAAAAAAAAAAAAAAA..",
           "...................AAAAAAAAAAAQAA...",
-          "..EEEEEEEEAA........AARAAAAAAAAP....",
+          "..EEEEEEEEAA........AAAAAAAAAAAP....",
           "..EEEEEEEESA..........AAAPAAAA......",
           "...................................."
         ] },
@@ -1525,6 +1525,13 @@ BS.Data = {
     // the raider gets tougher with every victory: statMult = base + perWin × wins (capped)
     enemyScaling: { perWin: 0.04, maxBonus: 0.4 },
     fleetMax: 4,                        // hulls a side (0.31): the player's save.fleet and an encounter's ships, flagship included
+    // runs (0.35, DESIGN §10): every bossEvery-th battle (counting wins and losses) is a boss fight, once the roster has
+    // two or more hulls and bossFromWins wins are in; fleet skirmishes (encounter kind "fleet") need two hulls too. A
+    // solo encounter sends only the hangar's ship; fleet and boss encounters send the whole roster.
+    run: { bossEvery: 6, bossFromWins: 4, fleetMinHulls: 2 },
+    // repair bills (0.35): after a battle every destroyed block of ours costs its price × destroyedBlock, a hull that was
+    // lost costs its whole block value × lostHull; credits never go below zero
+    repair: { destroyedBlock: 0.2, lostHull: 0.3 },
     // Which enemy shows up: weighted random among the encounters unlocked by battlesWon; "random" layouts are
     // generated from the class default (grid.variant). rewardMult scales the win payout. Seeded by the battle record.
     // `play` names a play (helm.plays) the enemy bridge runs instead of flying its doctrine alone; the doctrine stays
@@ -1546,15 +1553,15 @@ BS.Data = {
       { id: "cruiser",  enemyClass: "ktinga",       layout: "default", doctrine: "broadside", script: "cruiser", minWins: 4, weight: 2, rewardMult: 1.8 },
       { id: "siege",    enemyClass: "ktinga",       layout: "siege",   doctrine: "siege",     script: "siegeCruiser", minWins: 6, weight: 2, rewardMult: 1.9 },
       { id: "warlord",  enemyClass: "ktinga",       layout: "random",  doctrine: ["broadside", "brawl"], script: "cruiser", minWins: 8, weight: 2, rewardMult: 1.9, counter: true },
-      // fleet encounters (0.31): `ships` lists the hulls that come with the first one, each { enemyClass, layout, doctrine,
-      // script, damageMult }. Out of the campaign pool (minWins 999) until the fleet hangar of 0.35 lets the player bring
-      // more than one hull; the harness reaches them by id (--enemy pair / --enemy pack).
-      { id: "pair",     enemyClass: "bird_of_prey", layout: "default", doctrine: "strafe",    script: "raider",  minWins: 999, weight: 1, rewardMult: 1.8,
+      // fleet encounters (0.31, in the pool since 0.35 once the roster has two hulls): `ships` lists the hulls that come
+      // with the first one, each { enemyClass, layout, doctrine, script, damageMult }.
+      { id: "pair",     kind: "fleet", enemyClass: "bird_of_prey", layout: "default", doctrine: "strafe",    script: "raider",  minWins: 2, weight: 2, rewardMult: 1.8,
         ships: [{ enemyClass: "bird_of_prey", layout: "gunboat", doctrine: "brawl", script: "raider" }] },
-      // the first boss (0.33): `kind: "boss"`, its own script with the mechanics, `reinforcements` summoned by the script
-      { id: "cube",     kind: "boss", enemyClass: "borg_cube", layout: "default", doctrine: "broadside", script: "borg", minWins: 999, weight: 1, rewardMult: 6,
+      // the first boss (0.33; in the pool since 0.35 on every campaign.run.bossEvery-th battle): `kind: "boss"`, its own
+      // script with the mechanics, `reinforcements` summoned by the script
+      { id: "cube",     kind: "boss", enemyClass: "borg_cube", layout: "default", doctrine: "broadside", script: "borg", minWins: 4, weight: 1, rewardMult: 6,
         reinforcements: [{ enemyClass: "bird_of_prey", layout: "default", doctrine: "strafe", script: "raider" }, { enemyClass: "bird_of_prey", layout: "gunboat", doctrine: "brawl", script: "raider" }] },
-      { id: "pack",     enemyClass: "bird_of_prey", layout: "default", doctrine: "strafe",    script: "raider",  minWins: 999, weight: 1, rewardMult: 3.2,
+      { id: "pack",     kind: "fleet", enemyClass: "bird_of_prey", layout: "default", doctrine: "strafe",    script: "raider",  minWins: 5, weight: 2, rewardMult: 3.2,
         ships: [{ enemyClass: "bird_of_prey", layout: "gunboat", doctrine: "brawl", script: "raider" }, { enemyClass: "bird_of_prey", layout: "torpedo", doctrine: "standoff", script: "torpedoBoat" }, { enemyClass: "bird_of_prey", layout: "jammer", doctrine: "brawl", script: "raider" }] },
     ],
     // the very first fight: the raider does not hunt weak points yet (enemyAI profile override while battlesWon is 0)
