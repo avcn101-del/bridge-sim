@@ -2,6 +2,19 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [Unreleased] — direction from 0.31
+
+- DESIGN §10 records the decided direction: a PvE fleet game (admiral,
+  up to four hulls, roles from blocks on role cells, 1v1 / 4v4 / 4 vs
+  boss, skirmish-then-boss runs). The 1v1 "chess" line (counter table,
+  learning, learned tuning) is closed; tuning and `remodulate` stay as
+  boss material.
+- Templates Alpha strike, Turtle and Hit & fade leave the hangar list
+  (`script.retiredTemplates`, kept for the harness and as syntax
+  examples; a save that assigned one undocks with the Brawler). DESIGN
+  §10 records why only the Brawler wins and the rule for role templates
+  in 0.32.
+
 ## [0.30.0] — 2026-10-19 (remodulating; PR E of the "chess" pillars)
 
 ### Added

@@ -1,6 +1,6 @@
 # DESIGN.md — Bridge Sim
 
-Version: 0.18.0 (cut the neck, hangar intel). Keep this file in sync with the game.
+Version: 0.30.0 (remodulating); direction from 0.31 in §10. Keep this file in sync with the game.
 
 ## 1. Concept
 
@@ -22,6 +22,7 @@ Decided parameters:
 | Shields | Four facings kept (fore / starboard / aft / port) |
 | Enemies | One ship per battle, picked from `campaign.encounters` by battles won: Bird-of-Prey layouts and random variants, then the K't'inga battlecruiser; small groups later |
 | Crew | Voices and warnings only; orders execute instantly |
+| From 0.31 | Fleet of up to four hulls, roles from blocks, skirmishes and bosses: §10 |
 | Battle length | 3–5 minutes for an attentive captain |
 | Sound | None yet; events exist for an audio module |
 | Camera | Follows the player ship; mouse-wheel zoom 0.5–1.6× |
@@ -887,8 +888,10 @@ intel, script); in the fight the bridge runs the script. A script is
   `scriptRule`, read into the log by the computer) records every takeover
   and call-out with the reason an action could not be done.
 - **Templates** (`script.templates`): Brawler (the default fight: Engage,
-  weapons, hardener, governor), Alpha strike, Siege, Turtle, Hunter, Ambush,
-  Hit & fade, each the play rewritten as rules. A hull undocks with
+  weapons, hardener, governor), Siege, Hunter, Ambush, each the play
+  rewritten as rules. Alpha strike, Turtle and Hit & fade moved to
+  `script.retiredTemplates` (§10): not in the hangar list, still readable
+  by the harness; a save that assigned one undocks with the default. A hull undocks with
   `save.scriptByBuild[classId]` (an own script by id, PR B's editor, or a
   template), else `script.defaultTemplate`. A manual helm order (stance,
   play, side, fly-to, stop) suspends the player's script: the Helm row
@@ -1718,6 +1721,7 @@ than slower (it is nearly untouched, as intended).
 | B (done, v0.4) | Hangar with slot fitting, market, credits, real-time skills, save |
 | v0.5 PR 1 (done) | Block grid hulls, nine block types, per-block damage with penetration, splash and section loss, grid renderer, build preview and statistics |
 | v0.5 PR 2 (done) | Hangar block editor (paint, erase, mirror, presets), block costs and refunds, saved builds |
+| v0.31–0.35 (planned) | Fleet direction, §10: N v M engine, script subjects and fleet actions, the first boss with three mechanics, role blocks (shield transfer, remote repair, beacon) on role cells, fleet hangar with roster and repair bills, skirmish-then-boss runs |
 | v0.5 PR 3 (done) | Masks for Miranda, Defiant, Excelsior, Galaxy, Sovereign; K't'inga; enemy layouts, random variants and encounters; fragments and shatter; balance pass |
 | v0.5.3 (done) | Enemy doctrines: strafe, brawl, standoff, broadside; tail-chase detection; status labels and callouts |
 | v0.6.0 (done) | Cosmoteer ideas: reactor breaches that chain, line of fire blocked by the own hull, armor pierce cost, disabled ships and salvage |
@@ -1747,3 +1751,126 @@ than slower (it is nearly untouched, as intended).
 | later | Science scan (`science.scanDuration`) gating the panel's detail; weakness bonus |
 | later | Fire spreading put out by crew quarters; reactor power range; audio; sector map; sprites |
 | later | Audio via events, sector map and missions, science scans and cloaked ships, optional image sprites |
+
+## 10. Direction from 0.31: fleet, roles, boss (decided 2026-10-19)
+
+The 1v1 "chess" line (0.25–0.30: reactions, learning, tuning, the counter
+table) is **closed**. Its own measurements say why: the Brawler template
+and an emitter hunter win 3–4 of 4 against every Bird-of-Prey variant
+(§8 v0.26), the enemy has nothing to learn against them, and learned
+tuning turns a tuned player into a 0 of 4 (§8 v0.30). From 0.31 the game
+is a **PvE fleet game**: the player is the admiral, writes the scripts,
+and the fights are a mix of skirmishes and designer-written bosses.
+
+### Decisions
+
+| Topic | Decision |
+|---|---|
+| The player | Admiral of a fleet of up to **4** hulls, each with its own build and script; the player watches the fight, with 2 bridge calls per battle for the whole fleet |
+| In the fight | The scripts run; mechanics are solved by rules written beforehand, never by hand (the manual bridge stays a debug setting) |
+| Formats | **1v1** (one hull picked from the fleet), **4v4** (fleet against an enemy fleet), **4 vs boss** (fleet against one large hull with phases, plus adds). Chosen per encounter in `campaign.encounters` |
+| Structure | A run of 4–6 short fights (1v1 or 4v4, 2–3 minutes) then a boss (5–8 minutes); a boss win opens the next chapter. A list first, a sector map later |
+| Roster | Picked per fight (one hull for a 1v1, up to four otherwise); the whole fleet is not always deployed |
+| Losing a hull | A repair bill in credits; never permanent loss |
+| Skirmishes | Fast and cheaply varied: environment and objective modifiers in data (nebula without shields, asteroid line-of-fire cover, escort a freighter, a time limit). The Brawler winning them is accepted: they are the farm |
+| Bosses | Where the challenge is. A boss invalidates the Brawler with **mechanics**, not numbers; each mechanic is an enemy script rule with a callout, and the opening book records the tells across attempts |
+| Enemy fleets | Built from the **player's own role blocks and script templates** (four scripts side by side); no separate fleet AI |
+| Balance target | PvE only: the intended solution wins, a pure Brawler fleet loses. No symmetric counter table. If a dominant 4v4 composition appears, it is accepted or answered with a modifier, never with a counter table |
+| Stopped | Pillars 2 / 4 / 6: the counter table, signatures and learning, learned tuning, the ghost of the player's build. Their data stays; `campaign.learn` probability goes to 0 for skirmishes |
+| Kept | The script engine, battle report (timeline, never fired, why you lost), dry run, refit & retry, opening book, tuning and `remodulate` |
+
+### Roles come from blocks
+
+Roles are labels read off a build, not hull classes. Role blocks go only on
+**role cells** in the hull mask (a new mask letter, as `n` is for engines),
+and hulls differ in how many they offer, so a Galaxy heals better and an
+Oberth jams better while any hull can still be built freely.
+
+| Role | Already there | To add |
+|---|---|---|
+| DPS | phaser, pulse, disruptor, torpedo tube, ammo tuning | — |
+| Tank | armor, shield emitters, hardener, decoys, alloys and frequencies | **beacon** block: raises the ship's signature so a boss rule "fire at the largest signature" picks it |
+| Healer | — | **remote shield transfer** and **remote repair** blocks, 3–4 km |
+| Jammer / support | ECM, neutraliser, cloak | tractor beam (hold adds), remote sensor boost (later) |
+| Marines | boarding parties | — |
+
+- **No aggro table.** A boss picks its target by a public rule in its
+  script (largest signature, nearest, the ship hurting it most); the tank
+  satisfies that rule (beacon, armor, decoys). Each boss can use a different
+  rule, which is a mechanic for free.
+- **Healing is a transfer, not creation.** Shield transfer moves shield and
+  capacitor out of the healer; remote repair restores hp to damaged blocks
+  only (destroyed blocks stay gone, as `repair` today), slower than the
+  shield transfer. A healer cannot heal itself. Short range means the
+  healer must stand near the boss; boss mechanics that punish clustering
+  make "move in to heal or pull back" a scripted decision. Every boss has
+  an **enrage** timer so a healer cannot stretch a fight forever.
+- Tuning multipliers: `bonus` 1.35 / `malus` 0.65 (the hedgeable pair of
+  §8 v0.29) so a hybrid hull is a real build choice and a boss remodulation
+  punishes without one-shotting.
+
+### The first boss (three mechanics)
+
+1. **Lance**: a 6 s tell (callout), then a hull-penetrating beam at the
+   nearest ship. Punishes a close orbit; needs a tank or a spread.
+2. **Exposed core**: shields down on one side only while the boss rolls;
+   the reactors are reachable there. Needs positioning rules.
+3. **Adds** at 60% hull: two Birds-of-Prey. Needs "switch target" rules.
+4. **Remodulation** (optional fourth, Borg style): the boss changes shield
+   frequency with a callout; the fleet answers with `remodulate: ammo`.
+
+### Templates: why only the Brawler wins, and the rule for new ones
+
+The seven 0.21 templates never touched the vocabulary added in 0.25–0.30
+(no `scan`, `remodulate`, `enemyStance`, `enemyAimingAt`, `rangeBand`,
+`blindFor`, `enemyFocusing`, `roll`, `side`, `board`, no tuning
+condition). Some are broken outright: Alpha strike's two heat rules wait
+for `heatAbove 0.9` on hulls that peak at 19%, Turtle has no win
+condition, Siege's torpedoes miss a small fast target. But the deeper
+reason is structural: the Brawler is **one rule** ("engage, everything
+on") and wins because the intelligence sits below the script, in the
+stance helm (auto-flip), the auto policies (booster, reinforce, decoy,
+neut) and the doctrine machine. A script only earns its place by stating
+something that layer cannot see, so in a 1v1 every template richer than
+the Brawler can only be worse.
+
+Decisions:
+- Alpha strike, Turtle and Hit & fade are **retired** from the hangar
+  list (`script.retiredTemplates`, kept as syntax examples and for the
+  harness). Brawler stays the default, Siege stays (the Torpedo boat's
+  play), Hunter stays, Ambush stays (a cloak has a place against a boss
+  lance).
+- The 1v1 templates are **not** tuned further: the harness would only
+  confirm the Brawler.
+- 0.32 rewrites templates **by role**, measured against the first boss,
+  not the Raider: Tank (beacon, hold near the boss, reinforce on the
+  tell), Healer (transfer to the ship the boss aims at, pull back on the
+  sweep), DPS (switch to adds, remodulate on the callout), Jammer.
+- **Rule for every new template**: it must use at least one condition the
+  automatic layer cannot see (a boss callout, who the boss is aiming at,
+  the weakest ally). A template without one is the Brawler in disguise.
+
+### Scripts for a fleet
+
+- Conditions get a **subject**: the boss, the nearest enemy, the enemy
+  with the lowest shield, the ally with the lowest shield, "who the boss
+  is aiming at". All existing `enemy…` conditions read against the
+  script's current target.
+- Actions: **target** (a named enemy, the boss, an add, the ally the boss
+  aims at), **transfer shields to / repair** an ally, `remodulate` (exists).
+- One script per hull; the battle report keeps one timeline per hull.
+
+### Order of work
+
+| PR | Scope |
+|---|---|
+| 0.31 | Engine for N v M: teams, ship arrays per side, target selection, camera fitting every ship, harness for fleets; measure fps with **8 block grids** on screen |
+| 0.32 | Script subjects and the target / transfer actions; one script per hull; report per hull |
+| 0.33 | The first boss hull with the three mechanics, callouts, book; enrage |
+| 0.34 | Role blocks (shield transfer, remote repair, beacon) and role cells in the masks |
+| 0.35 | Fleet hangar (four hulls, roster per fight, repair bills), the skirmish-then-boss run in `campaign.encounters`, skirmish modifiers |
+
+Known risks: the pivot touches nearly every file; 8 grids at 60 fps is
+unmeasured; the §8 matrix must not be re-grown for 4v4 (measure intended
+solution vs pure Brawler only). `CLAUDE.md` still describes the single
+captain and is to be updated with 0.31.
