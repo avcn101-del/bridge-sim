@@ -27,6 +27,7 @@ BS.Ships = (function () {
       pos: { x: options.pos ? options.pos.x : 0, y: options.pos ? options.pos.y : 0 }, prevPos: { x: 0, y: 0 },
       heading: options.heading || 0, prevHeading: options.heading || 0, speed: 0, vel: { x: 0, y: 0 },
       grid: grid, stats: st, statMult: statMult, mods: mods, layoutRows: (options.layout || cls.layout).slice(),
+      element: options.element || Gr.elementOf(cls, options.layout || cls.layout).id,   // the element ring (BS.Data.elements)
       hullMax: st.hullTotal, hull: st.hullAlive,
       shieldMax: {}, shields: {}, shieldRegen: {},
       capMax: 0, capacitor: 0, heat: 0, overload: 0, heatGovernor: true, governorHold: false, jammed: 0, partialJam: 0, partialJamBy: null, neuted: 0, boarding: null, shieldDelay: { fore: 0, aft: 0, port: 0, starboard: 0 }, attackSide: "auto", tumble: 0, tumbleDir: 1, breach: 0, hadReactors: false, aimBlock: null, cloak: { state: "off", t: 0, surge: 0, strike: 0 },
@@ -260,10 +261,19 @@ BS.Ships = (function () {
   }
 
   // ---- damage -----------------------------------------------------------
-  function applyDamage(ship, amount, fromX, fromY, aimType, attacker, kind, pierceBonus, wtype) {
+  // The element ring (BS.Data.elements): ×bonus into the element this ship beats, ×malus into the one that beats it.
+  function elementMult(attacker, target) {
+    var E = BS.Data.elements; if (!E || !attacker || !attacker.element || !target.element) return 1;
+    var o = E.order, a = o.indexOf(attacker.element), t = o.indexOf(target.element);
+    if (a < 0 || t < 0 || a === t) return 1;
+    if ((a + 1) % o.length === t) return E.bonus;
+    if ((t + 1) % o.length === a) return E.malus;
+    return 1;
+  }
+  function applyDamage(ship, amount, fromX, fromY, aimType, attacker, kind, pierceBonus) {
     if (ship.flags.destroyed) return null;
     var B = BS.Data.balance;
-    var ch = wtype && BS.Data.elements ? BS.Data.elements.chart[wtype] : null, shieldMult = ch && ch.shield !== undefined ? ch.shield : 1;   // the element chart: torpedoes drain shields faster, cannon bolts slower
+    var em = elementMult(attacker, ship); amount *= em;
     // the shot lands on `first`; it is shielded only while an emitter covers that block, and then draws from that emitter's facing
     var first = Gr.resolveEntry(ship, fromX, fromY, aimType);
     var exposed = !!first && !first.covered;
@@ -275,8 +285,8 @@ BS.Ships = (function () {
     if (strike) amount *= strike.damageMult;
     var bypass = strike && !exposed ? amount * strike.shieldBypass : 0;
     var shieldAmount = (amount - bypass) * (1 - resist);
-    var drained = Math.min(shield, shieldAmount * shieldMult), absorbed = drained / shieldMult;   // the pool loses `drained`; the shot spends `absorbed` of its damage on it
-    ship.shields[facing] = shield - drained;
+    var absorbed = Math.min(shield, shieldAmount);
+    ship.shields[facing] = shield - absorbed;
     var leftover = shieldAmount - absorbed;
     var hullDamage = leftover / Math.max(0.01, 1 - resist) + absorbed * B.shieldBleedThrough + bypass;
     if (absorbed <= 0) hullDamage = amount;
@@ -288,11 +298,11 @@ BS.Ships = (function () {
       var ew = Gr.blockWorld(ship, emitter), ea = U.angleTo(ew.x, ew.y, fromX, fromY), R = BS.Data.grid.shieldRadius * ship.grid.cellPx;
       impact = { x: ew.x + Math.cos(ea) * R, y: ew.y + Math.sin(ea) * R };
     }
-    var result = { ship: ship, facing: facing, absorbed: absorbed, hullDamage: hullDamage, shieldsDown: shieldsDown, impact: impact, angle: ang, kind: kind, amount: amount, attacker: attacker, exposed: exposed, emitter: emitter, strike: !!strike, hits: [], destroyed: [], cutOff: [], explosions: [] };
+    var result = { ship: ship, facing: facing, absorbed: absorbed, hullDamage: hullDamage, shieldsDown: shieldsDown, impact: impact, angle: ang, kind: kind, amount: amount, attacker: attacker, exposed: exposed, emitter: emitter, strike: !!strike, elementMult: em, hits: [], destroyed: [], cutOff: [], explosions: [] };
     if (absorbed > 0) BS.Events.emit("shieldHit", result);
     if (!exposed) ship.shieldDelay[facing] = BS.Data.grid.shieldRechargeDelay;   // a facing under fire does not recharge
     if (hullDamage > 0) {
-      var hr = Gr.hit(ship, hullDamage, fromX, fromY, aimType, kind, first, pierceBonus, wtype);
+      var hr = Gr.hit(ship, hullDamage, fromX, fromY, aimType, kind, first, pierceBonus);
       result.hits = hr.hits; result.destroyed = hr.destroyed; result.cutOff = hr.cutOff; result.explosions = hr.explosions; result.crits = hr.crits;
       hr.crits.forEach(function (cr) { applyCrit(ship, cr.block, cr.kind, attacker); });
       var dealt = hr.hits.reduce(function (a, h) { return a + h.dmg; }, 0);
@@ -451,6 +461,6 @@ BS.Ships = (function () {
     distanceTo: distanceTo, distanceKm: distanceKm, bearingTo: bearingTo, angularVelocity: angularVelocity, speedKmS: speedKmS,
     setCommand: setCommand, setAlert: setAlert, startReinforce: startReinforce, startLock: startLock, clearLock: clearLock, lockTime: lockTime,
     trackingMult: trackingMult, maxSpeed: maxSpeed, firingBearings: firingBearings, shieldsUp: shieldsUp, effectiveAim: effectiveAim, setAimBlock: setAimBlock, cloakFieldComplete: cloakFieldComplete, debrisHit: debrisHit, capRechargeMult: capRechargeMult, blockTypes: blockTypes,
-    isCloaked: isCloaked, visibility: visibility, detectRangeKm: detectRangeKm, setCloak: setCloak, contact: contact, contactKm: contactKm,
+    isCloaked: isCloaked, visibility: visibility, detectRangeKm: detectRangeKm, setCloak: setCloak, contact: contact, contactKm: contactKm, elementMult: elementMult,
   };
 })();

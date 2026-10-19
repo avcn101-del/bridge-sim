@@ -384,16 +384,14 @@ BS.Grid = (function () {
   // kind "phaser": penetrates up to grid.penetration blocks along the shot line.
   // kind "torpedo": explodes on the entry block and splashes into its neighbours.
   // `first` is the entry block from resolveEntry when the caller already looked it up (so shield cover and the hit agree).
-  function hit(ship, amount, fromX, fromY, aimType, kind, first, pierceBonus, wtype) {
+  function hit(ship, amount, fromX, fromY, aimType, kind, first, pierceBonus) {
     var grid = ship.grid, g = G();
     var res = { hits: [], destroyed: [], cutOff: [], explosions: [], crits: [] };
     if (first === undefined) first = resolveEntry(ship, fromX, fromY, aimType);
     if (!first) return res;
     var toExplode = [], C = g.crits;
-    var ch = wtype && BS.Data.elements ? BS.Data.elements.chart[wtype] : null, armorMult = ch && ch.armor !== undefined ? ch.armor : 1;   // the element chart: beams into plating
     function damage(b, d) {
       if (!b.alive || d <= 0) return 0;
-      if (b.type === "armor" && armorMult !== 1) { var taken0 = Math.min(b.hp, d * armorMult); b.hp -= taken0; res.hits.push({ block: b, dmg: taken0 }); if (b.hp <= 0) { b.alive = false; res.destroyed.push(b); } return taken0 / armorMult; }   // a plate soaks the shot's share at the chart's rate
       var taken = Math.min(b.hp, d);
       b.hp -= taken; res.hits.push({ block: b, dmg: taken });
       if (b.hp <= 0) { b.alive = false; res.destroyed.push(b); if (b.def.explosion) toExplode.push(b); }

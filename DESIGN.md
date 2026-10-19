@@ -107,10 +107,10 @@ these styles on the doctrine table". Every shield or hull hit is booked
 to the rules standing at that moment (`state.attrib`, events `shieldHit`
 / `hullHit`), so the sentence names what actually hurt, not a guess.
 
-**Elements** (0.27): the *Why you lost* block opens with both builds'
-elements ("ours Impulse · theirs Ordnance") and, when a measured edge
-joins them, the wheel's sentence ("Wheel: Ordnance beats Impulse: …"),
-else "no edge on the wheel between these two".
+**Elements** (0.28): the *Why you lost* block opens with both ships'
+elements and the multipliers in force ("ours Nadion · theirs Graviton ·
+their hits ×1.35, ours ×0.65") and the ring's sentence, else "no edge on
+the ring between these two".
 
 **Their bridge** (0.25): under *Never fired*, every rule of the enemy's
 script that fired, with the time and, for a reaction, the callout Tactical
@@ -167,12 +167,12 @@ The left column of the hangar carries the pre-battle thinking:
   say when an aim needs a scan rule, when an Otherwise rule sits above
   other standing rules, or when a rule does nothing. At most
   `script.maxRules` (12) rules. Policies are checkboxes.
-- **Doctrine** (0.27, `#hg-doctrine`): the measured wheel as chips
-  (Ordnance → Impulse → Deflector → Ordnance, YOU and NEXT marked), the
-  balanced elements, what the current build reads as with its emphasis
-  per family, the chart multipliers, and every measured edge as a sentence
-  with its numbers. The Intel box adds "Element: theirs Ordnance · yours
-  Impulse · their Ordnance beats your Impulse"; the Build stats line shows
+- **Doctrine** (0.28, `#hg-doctrine`): the ring as chips (Graviton →
+  Nadion → Photon → Plasma → Duranium → Graviton, YOU and NEXT marked),
+  "Your ship: … +35% vs … · −35% vs … · next enemy …: your edge / their
+  edge / no edge", the emphasis per family, and each element's sentence
+  with its measured numbers. The Intel box adds "Element: theirs … · yours
+  … · your X beats their Y (your hits ×1.35)"; the Build stats line shows
   the element.
 - **They have watched you** (0.26): when the next encounter learned from
   your signatures (below), a yellow line under the Intel drawing and the
@@ -902,41 +902,43 @@ intel, script); in the fight the bridge runs the script. A script is
   3, `{ x, y }` on the intel layout or `{ type }`): read by `aim: { plan: n }`;
   the hangar side arrives with PR B.
 
-### Elements: the measured wheel (0.27, `BS.Data.elements`, `BS.Grid.elementOf`)
-Pillar 2, done the way the measurements allowed. Five Trek elements are
-block families: **Impulse** (engines), **Ordnance** (torpedo tubes and
-reactors), **Deflector** (shield emitters), **Armour** (plating and
-disruptor cannons), **Phaser** (phaser banks and pulse phasers). A build's
-element is the family it invests in most against its class default
-(`elementOf`: family value / default family value, a family the default
-lacks measured against `baselineFloor` 15% of the default's total value;
-under `minEmphasis` ×1.15 the build is "mixed"). Variants and presets name
-theirs (`element`): Bird-of-Prey Interceptor (30 engines, 6 pulses),
-Bombard (4 tubes, 6 reactors), Bulwark (12 emitters), Gunboat (11
-cannons), Pulser (10 pulses); Constitution Courier (32 engines), Bulwark
-(16 emitters), Sniper, Brawler, Shadow hunter. EW blocks stay outside the
-wheel as abilities.
+### Elements: the ring (0.28, `BS.Data.elements`, `BS.Grid.elementOf`, `BS.Ships.elementMult`)
+Pillar 2 as one public rule. Five Trek elements are block families, named
+for the science behind them:
 
-The **type chart** (`elements.chart`) is applied in the damage path: a
-torpedo drains a shield facing at ×1.5 per point of damage (the pool loses
-more, the hull behind does not), a disruptor bolt at ×0.7, and a beam or
-pulse hit on armor plating does ×0.75 (`applyDamage`, `Grid.hit`, by the
-firing block's type). `balance.torpedoSpeedExponent` (1.0, was 0.6 in the
-formula) makes a warhead lose damage faster against a target quicker than
-its explosion velocity.
+| Element | Family | Blocks | Beats | Why (the sentence the hangar shows) |
+|---|---|---|---|---|
+| **Graviton** | Deflector | shield emitters | Nadion | a graviton field scatters a nadion beam; shields were built to stop phasers |
+| **Nadion** | Phaser | phaser, pulse | Photon | point-defence beams detonate warheads early, and a precise beam reaches the magazines and the reactors behind them |
+| **Photon** | Ordnance | torpedo tubes, reactors | Plasma | a warhead's blast lands on a light hull built for speed, with nothing to absorb it |
+| **Plasma** | Impulse | engines | Duranium | a plasma drive holds an orbit cannons cannot track; heavy plating is dead mass that never brings its guns round |
+| **Duranium** | Armour | armor, disruptors | Graviton | disruptor bolts detune a graviton field's harmonics; duranium plate shrugs off the wall's own beams |
 
-**Measured edges only** (`elements.edges`, DESIGN §8 v0.27: equal-hull
-Bird-of-Prey duels, every pair in both directions, 4 fights each):
-Ordnance beats Impulse, Impulse beats Deflector, Deflector beats Ordnance
-(a three-element wheel), and Impulse beats Armour. Armour and Phaser have
-no edge that held both ways and are listed as balanced. Each edge carries
-the public sentence (`how`), its numbers (`measured`) and the enemy's
-answer per hull (`enemy`): the learning of 0.26 now looks up the wheel
-first (the edge whose `loses` is the dominant element of the remembered
-wins, `BS.Campaign.elementEdge`) and the style rows after; the report
-quotes the edge (`BS.Game.elementSentence`). The ladder the first chart
-produced (torpedoes ×2 vs shields, cannons ×0.5: Ordnance beat
-everything, the K't'inga became harmless) is why the chart is moderate.
+A ship's element is the family its build invests in most against its
+class default (`elementOf`: family value / default family value, a family
+the default lacks measured against `baselineFloor` 15% of the default's
+total; under `minEmphasis` ×1.15 the ship is **mixed**). Variants and
+presets name theirs (`element`); `BS.Ships.create` stores `ship.element`
+(the encounter passes the variant's). **The rule**: damage a ship deals to
+a ship of the element it beats is ×`bonus` 1.35, to the element that beats
+it ×`malus` 0.65, otherwise ×1; a mixed ship gives and takes ×1
+(`elementMult`, applied once at the top of `applyDamage`; the hit result
+carries `elementMult`). Nothing else in the physics changed: the 0.27
+weapon chart and the torpedo exponent are gone (`torpedoSpeedExponent`
+stays in data at its old 0.6). Specialise past ×1.15 for an edge, or stay
+mixed for safety. EW blocks are abilities outside the ring.
+
+The hangar's Doctrine page draws the ring (YOU and NEXT marked), says
+"Your ship: Nadion (Phaser). +35% damage vs Photon · −35% vs Graviton ·
+next enemy Photon: your edge", the emphasis per family, and each
+element's sentence with its measured numbers (`elements.measured`). The
+Intel box reads "Element: theirs Photon · yours Nadion · your Nadion beats
+their Photon (your hits ×1.35)"; the report's *Why you lost* opens with
+both elements and the multipliers in force. The enemy's learning answers
+the dominant element of the remembered wins with the element that beats
+it (`elements.answers[beater][hull]`: Bulwark broadside, Pulser brawl,
+Bombard standoff, Interceptor skirmish, Gunboat brawl; K't'inga where a
+layout exists), then the style rows.
 
 ### Honest loss (0.26)
 A loss is meant to be accepted and answered with a new build or script,
@@ -1101,7 +1103,7 @@ ew: { jamPerBlock, jamDuration, cloakTime, decloakTime, surgeTime, cloakDrain, c
 grid.boarding: { rangeKm, minParty, partyMax, transportTime, bridgeGuard, defenderPerQuarters, gapStart, gapAbort, abortRangeMult, rate, floor }
 script: { tickSeconds, chargingKmS, traceMax, planTargets, defaultTemplate, maxRules, dryRun: { maxSeconds, stepsPerChunk }, bridgeCall: { tokens, holdSeconds, focusSeconds, confirmSeconds, disengageUntil, noCallBonus }, conditions: { id: { label, kind, def, negLabel? } }, actions: { id: { label, kind } }, policies: { id: { label } }, weakKinds,
           templates: { id: { name, desc, requires?, policies, rules: [{ when, do, until?, holdMax?, once?, every? }] } }, enemyScripts: { id: { name, rules } } }
-campaign.firstFight: { weakPointChance }; campaign.encounters[].script; campaign.learn; elements (chart, list, edges); balance.torpedoSpeedExponent; shipClasses.*.variants / presets[].element; enemyAI.doctrineTable / signatureCounters; save: scripts[], scriptByBuild{}, plans{}, book{}, signatures[], settings.manualBridge, campaign.cleanWins, campaign.retry
+campaign.firstFight: { weakPointChance }; campaign.encounters[].script; campaign.learn; elements (order, list, answers, measured, bonus / malus); shipClasses.*.variants / presets[].element; enemyAI.doctrineTable / signatureCounters; save: scripts[], scriptByBuild{}, plans{}, book{}, signatures[], settings.manualBridge, campaign.cleanWins, campaign.retry
 campaign.salvage: { destroyed, disabled, captured }; enemyAI.*: drainedBelow, drainedUntil, drainedTime; enemyAI.counters[].when.neutMin
 shipClasses: { id: { name, className, role, faction, cost, purchasable, speed, turnRate, signature, lockRangeKm, powerBase,
                      mask: [rows], layout: [rows], presets: { id: { name, desc, rows } }, variants: { id: { name, desc, rows } } (enemies),
@@ -1144,6 +1146,35 @@ harness is in the repository: `tools/harness.js` (Playwright, one
 `campaign.encounters`, seeded `Math.random`, `--noreact` for the 0.24 enemy
 bridge, `--eval` for a data tweak, `--debug` for what each bridge saw) and
 `tools/smoke.js` (the headless interface check).
+
+v0.28.0 (the element ring, one multiplier; the 0.27 weapon chart and
+exponent removed; equal-hull duels as in 0.27, the beating element flown
+by the player as attacker, then the beaten element flown by the player as
+defender; 4 fights each):
+
+| Edge | ±25%: attacker / defender | ±35% |
+|---|---|---|
+| Graviton (Bulwark, Turtle / broadside) beats Nadion (Pulser, Brawler / brawl) | **4 of 4** / 1 of 4 (2 st) | |
+| Nadion beats Photon (Bombard, Siege / standoff) | 2 of 4 (2 st) / 1 of 4 (3 st): **stalemates** | **4 of 4** / 0 of 4 (4 st) |
+| Photon beats Plasma (Interceptor, Brawler / skirmish) | **4 of 4** / 0 of 4 | |
+| Plasma beats Duranium (Gunboat, Brawler / brawl) | **4 of 4** / 0 of 4 (1 st) | |
+| Duranium beats Graviton | **3 of 4** / 0 of 4 | |
+
+±50% on Nadion vs Photon gave the same as ±35% (4 of 4 / 0 of 4), so
+the smaller step is the one shipped; the four edges that held at ±25% hold
+at ±35% a fortiori. Campaign regression at ±35% (stock hulls are mixed, so
+only the named variants and presets feel the ring): Brawler vs Raider (0
+wins) 4 of 4 in 2:21–6:57 keeping 44–91%; vs Torpedo boat (1 win) 4 of 4
+keeping 97–99%; vs K't'inga (4 wins) 2 of 3 keeping 65–83%; vs Shadow (3
+wins) 2 of 2; Galaxy vs Siege (6 wins) 2 of 2 keeping 91–96%; Brawler vs
+Bombard (3 wins) 1 of 4 (two losses, one stalemate). The ring in the
+campaign: the Brawler preset (Duranium) on the Brawler template vs the
+Interceptor (Plasma, 3 wins) **0 of 4**, as the ring says.
+
+Honest reading: the ring is one number and it holds on every edge, both
+ways, at ±35%. What it does not do yet: a mixed stock hull never feels
+it, and the Nadion-Photon edge is a wall (the Photon ship cannot win, it
+also does not die: four stalemates) rather than a kill.
 
 v0.27.0 (elements; `tools/harness.js --ship bird_of_prey --rows variant:X
 --equal`: both ships a Bird-of-Prey, the enemy's stat, damage and accuracy
@@ -1608,6 +1639,7 @@ than slower (it is nearly untouched, as intended).
 | v0.11.0 (done) | Cloak and ECM fields: a ship cloaks only with every block inside a cloak field (several devices per hull), a partial ECM field steers the jammed enemy's fire onto the uncovered blocks |
 | v0.12.0 (done) | Disruptor cannons (punch, penetration, poor tracking) and pulse phasers (tracking, knife range) as blocks and weapon groups; Klingons mount cannons |
 | v0.13.0 (done) | Crew: systems need hands, the bridge and crew quarters supply them, manning slows weapons and shields, blocks far from quarters repair slowly; every layout re-fitted |
+| v0.28.0 (done) | The element ring: five Trek elements (Graviton, Nadion, Photon, Plasma, Duranium) as block families, one rule (×1.35 into the element you beat, ×0.65 into the one that beats you), measured in both directions on every edge; Doctrine page, element answers in the enemy's learning |
 | v0.27.0 (done) | Elements: five block families with a type chart in the damage path, a build's element in the hangar, the measured three-element wheel and the balanced pair on a Doctrine page, element answers in the enemy's learning, five new layouts, equal-hull duels in the harness |
 | v0.26.0 (done) | Honest loss (contact instead of a cloaked ship's position, for both ships), "why you lost" with damage booked to the standing rules and the measured doctrine table, signatures of wins and an enemy that learns from them (same-weight answers, said in the hangar), the 3-win matrix in §8 |
 | v0.25.0 (done) | Enemy reactions as script rules with callouts (roll when shadowed, reinforce and roll when their emitters are hunted, kite under an alpha, hold off a cloaked ship), new observations (enemy stance, aim, range band off our weapons, afterburner, heat, blind time), opening book per encounter, `tools/harness.js` and `tools/smoke.js` |

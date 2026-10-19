@@ -2,6 +2,21 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.28.0] — 2026-10-19 (the element ring; PR C of the "chess" pillars, second cut)
+
+### Changed
+- **One rule instead of a chart**: five Trek elements named for their
+  science (Graviton / Deflector, Nadion / Phaser, Photon / Ordnance,
+  Plasma / Impulse, Duranium / Armour), each beats the next in a ring; a
+  ship's hits do ×1.35 into the element it beats and ×0.65 into the one
+  that beats it, a mixed ship gives and takes ×1 (`BS.Ships.elementMult`).
+  The 0.27 weapon-type chart and the torpedo exponent change are removed.
+- Every edge measured in both directions on equal hulls (DESIGN §8): ±25%
+  held four edges and stalemated Nadion vs Photon; ±35% holds all five.
+- Doctrine page redrawn as the ring with "Your ship: … +35% vs … · −35% vs
+  …"; Intel and the battle report show the multipliers in force; the
+  enemy's learning answers the player's element with the one that beats it.
+
 ## [0.27.0] — 2026-10-19 (elements: the measured wheel; PR C of the "chess" pillars)
 
 ### Added

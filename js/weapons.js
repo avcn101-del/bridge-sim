@@ -93,7 +93,7 @@ BS.Weapons = (function () {
         b.damageApplied = true;
         if (b.hit) {
           var e = beamEndpoints(b, 1);
-          var res = S.applyDamage(b.target, b.damage, e.x1, e.y1, S.effectiveAim(b.source, b.target), b.source, "phaser", b.w.pierceBonus || 0, b.block.type);
+          var res = S.applyDamage(b.target, b.damage, e.x1, e.y1, S.effectiveAim(b.source, b.target), b.source, "phaser", b.w.pierceBonus || 0);
           if (res && res.impact) b.hitPos = { x: res.impact.x, y: res.impact.y };
         }
       }
@@ -128,7 +128,7 @@ BS.Weapons = (function () {
         var hitR = tg.visual.length * BS.Data.balance.hitRadiusFactor;
         if (U.dist(t.x, t.y, tg.pos.x, tg.pos.y) < hitR) {
           var mult = torpedoDamageMult(t.w, tg);
-          var r2 = S.applyDamage(tg, t.damage * mult, t.x, t.y, S.effectiveAim(t.source, tg), t.source, "torpedo", 0, "torpedo");
+          var r2 = S.applyDamage(tg, t.damage * mult, t.x, t.y, S.effectiveAim(t.source, tg), t.source, "torpedo");
           t.source.battle.torpedoHits++; t.dead = true;
           BS.Events.emit("torpedoHit", { torpedo: t, ship: tg, result: r2, mult: mult });
         }

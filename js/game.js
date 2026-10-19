@@ -59,7 +59,7 @@ BS.Game = (function () {
     var ang = U.rand(-0.6, 0.6) - Math.PI / 2;
     var dist = BS.Ships.px(B.arenaStartDistanceKm);
     var enc = BS.Campaign.encounter();
-    var enemy = BS.Ships.create(enc.classId, { name: enc.name, layout: enc.rows, pos: { x: Math.cos(ang) * dist, y: Math.sin(ang) * dist }, heading: ang + Math.PI, statMult: BS.Campaign.enemyStatMult(enc.aiProfile), mods: { damageMult: enc.damageMult || BS.Data.enemyAI[enc.aiProfile].damageMult } });
+    var enemy = BS.Ships.create(enc.classId, { name: enc.name, layout: enc.rows, element: enc.element || undefined, pos: { x: Math.cos(ang) * dist, y: Math.sin(ang) * dist }, heading: ang + Math.PI, statMult: BS.Campaign.enemyStatMult(enc.aiProfile), mods: { damageMult: enc.damageMult || BS.Data.enemyAI[enc.aiProfile].damageMult } });
     var overrides = {};
     if (enc.weakPointChance !== null && enc.weakPointChance !== undefined) overrides.weakPointChance = enc.weakPointChance;
     BS.EnemyAI.attach(enemy, player, enc.aiProfile, enc.doctrine, Object.keys(overrides).length ? overrides : null);
@@ -184,8 +184,9 @@ BS.Game = (function () {
   // losing tag the loser carried.
   // The wheel's sentence when the winner's element beats the loser's (BS.Data.elements), else null.
   function elementSentence(winEl, loseEl) {
-    var e = BS.Data.elements.edges.filter(function (x) { return x.beats === winEl && x.loses === loseEl; })[0];
-    return e ? { beats: winEl, loses: loseEl, text: e.how, measured: e.measured } : null;
+    var E = BS.Data.elements, o = E.order, a = o.indexOf(winEl), b = o.indexOf(loseEl);
+    if (a < 0 || b < 0 || (a + 1) % o.length !== b) return null;
+    return { beats: winEl, loses: loseEl, text: E.list[winEl].how, measured: E.measured[winEl + ":" + loseEl] || null };
   }
   function counterSentence(winnerTags, loserTags) {
     var rows = BS.Data.enemyAI.doctrineTable;

@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.27.0",
+  version: "0.28.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -11,7 +11,7 @@ BS.Data = {
 
   // ---------------------------------------------------------------- balance
   balance: {
-    torpedoSpeedExponent: 1.0,   // torpedo damage vs a target faster than the warhead's explosion velocity: (sig × v_expl / v_target) ^ this (the Impulse edge of the element wheel)
+    torpedoSpeedExponent: 0.6,   // torpedo damage vs a target faster than the warhead's explosion velocity: (sig × v_expl / v_target) ^ this
     simStep: 1 / 60,
     maxFrameTime: 0.1,
     maxStepsPerFrame: 32,         // fixed steps a frame may run (speed 4× at 60 fps needs 4)
@@ -1238,43 +1238,39 @@ BS.Data = {
   },
 
   // --------------------------------------------------------------- enemy AI
-  // ------------------------------------------------------------- elements (0.27)
-  // Five Trek "elements", a public wheel of who beats whom (pillar 2). An element is read off a layout: the block family
-  // a build invests in most against its class default (BS.Grid.elementOf: family value / default family value, "mixed"
-  // under minEmphasis); variants and presets name theirs. Each element beats the next (`beats`) by a mechanic the game
-  // already has plus the type chart below; `how` is the public sentence. EW (cloak, jammer, neutraliser, decoy) stays
-  // outside the wheel as abilities. `enemy` is the answer an encounter takes when it learns that the player's wins carry
-  // the element this one beats (campaign.learn): per hull, the variant, doctrine and script.
+  // ------------------------------------------------------------- elements (0.28)
+  // Five Trek "elements", one public rule (pillar 2). A ship's element is the block family its build invests in most
+  // against its class default (BS.Grid.elementOf: family value / default family value, a family the default lacks
+  // measured against baselineFloor of the default's total; under minEmphasis the ship is "mixed"); variants and presets
+  // name theirs. Every element beats the next in `order` (a ring): damage a ship deals to a ship of the element it beats
+  // is ×bonus, to the element that beats it ×malus, otherwise ×1 (BS.Ships.applyDamage). A mixed ship gives and takes
+  // ×1. EW blocks (cloak, jammer, neutraliser, decoy) are abilities outside the ring.
   elements: {
-    minEmphasis: 1.15, baselineFloor: 0.15,   // a family the class default lacks is measured against this share of the default's total value
-    chart: {   // weapon block type → damage multiplier against shields (shield pool drained per point) and into armor plating
-      torpedo:   { shield: 1.5, armor: 1.0 },
-      disruptor: { shield: 0.7, armor: 1.0 },
-      phaser:    { shield: 1.0, armor: 0.75 },
-      pulse:     { shield: 1.0, armor: 0.75 },
-    },
-    order: ["ordnance", "impulse", "deflector", "armour", "phaser"],
+    minEmphasis: 1.15, baselineFloor: 0.15,
+    bonus: 1.35, malus: 0.65,   // ±25% left Nadion vs Photon in stalemates (DESIGN §8 v0.28); ±35% is the smallest step that closed the ring
+    order: ["deflector", "phaser", "ordnance", "impulse", "armour"],   // each beats the next; the last beats the first
     list: {
-      impulse:   { name: "Impulse",   blocks: ["engine"],             color: "#7fd8a0", desc: "Engines and the afterburner: speed and angle." },
-      ordnance:  { name: "Ordnance",  blocks: ["torpedo", "reactor"], color: "#ffb36a", desc: "Torpedo tubes and the reactors to feed them: mass and salvo." },
-      deflector: { name: "Deflector", blocks: ["shield"],             color: "#6ab4ff", desc: "Shield emitters, hardener and booster: absorb." },
-      armour:    { name: "Armour",    blocks: ["armor", "disruptor"], color: "#c8cfe0", desc: "Armor plating and disruptor cannons: plates and punch." },
-      phaser:    { name: "Phaser",    blocks: ["phaser", "pulse"],    color: "#ff8a5c", desc: "Phaser banks and pulse phasers: energy that tracks." },
+      deflector: { name: "Graviton", family: "Deflector", blocks: ["shield"],             color: "#6ab4ff", desc: "Shield emitters: a graviton field around the hull.",
+                   how: "Graviton beats Nadion: a graviton field scatters a nadion beam; shields were built to stop phasers." },
+      phaser:    { name: "Nadion",   family: "Phaser",    blocks: ["phaser", "pulse"],    color: "#ff8a5c", desc: "Phaser banks and pulse phasers: rapid nadion beams.",
+                   how: "Nadion beats Photon: point-defence beams detonate warheads early, and a precise beam reaches the magazines and the reactors behind them." },
+      ordnance:  { name: "Photon",   family: "Ordnance",  blocks: ["torpedo", "reactor"], color: "#ffb36a", desc: "Torpedo tubes and the reactors that feed them: matter / antimatter warheads.",
+                   how: "Photon beats Plasma: a warhead's blast lands on a light hull built for speed, with nothing to absorb it." },
+      impulse:   { name: "Plasma",   family: "Impulse",   blocks: ["engine"],             color: "#7fd8a0", desc: "Impulse engines: fusion plasma drive, speed and angle.",
+                   how: "Plasma beats Duranium: a plasma drive holds an orbit cannons cannot track, and heavy plating is dead mass that never brings its guns round." },
+      armour:    { name: "Duranium", family: "Armour",    blocks: ["armor", "disruptor"], color: "#c8cfe0", desc: "Duranium plating and disruptor cannons: plates and punch.",
+                   how: "Duranium beats Graviton: disruptor bolts detune a graviton field's harmonics, and duranium plate shrugs off the wall's own beams." },
     },
-    // Measured edges only (DESIGN §8 v0.27, equal-hull duels, both directions): the three-element wheel Ordnance →
-    // Impulse → Deflector → Ordnance plus Impulse over Armour. Armour and Phaser have no edge that held both ways; they
-    // are the balanced elements until a mechanic gives them one (point-defence phasers are the candidate). `enemy` is the
-    // answer an encounter takes when the player's wins carry `loses` (campaign.learn): per hull, variant, doctrine, script.
-    edges: [
-      { beats: "ordnance",  loses: "impulse",   measured: "4 of 4 / 1 of 4", how: "Ordnance beats Impulse: a light fast hull has no wall to soak four warheads, and its pulses cannot crack eight emitters before the tubes reload",
-        enemy: { bop: { layout: "bombard", doctrine: "standoff", script: "torpedoBoat" }, ktinga: { layout: "siege", doctrine: "siege", script: "siegeCruiser" } } },
-      { beats: "impulse",   loses: "deflector", measured: "4 of 4 / 0 of 4", how: "Impulse beats Deflector: a tight afterburner orbit sits where a broadside's cannons cannot track, and pulse phasers drain the wall at full rate",
-        enemy: { bop: { layout: "interceptor", doctrine: "skirmish", script: "raider" }, ktinga: null } },
-      { beats: "deflector", loses: "ordnance",  measured: "4 of 4 / 1 of 4", how: "Deflector beats Ordnance: a double wall recharges faster than four tubes reload, even with warheads draining it at ×1.5",
-        enemy: { bop: { layout: "bulwark", doctrine: "broadside", script: "cruiser" }, ktinga: { layout: "default", doctrine: "broadside", script: "cruiser" } } },
-      { beats: "impulse",   loses: "armour",    measured: "4 of 4 / 0 of 4", how: "Impulse beats Armour: cannons track 0.75 rad/s and an afterburner orbit turns faster, so the bolts miss while the pulses do not",
-        enemy: { bop: { layout: "interceptor", doctrine: "skirmish", script: "raider" }, ktinga: null } },
-    ],
+    // the enemy's answer when the player's wins carry an element (campaign.learn): the element that beats it, per hull
+    answers: {
+      deflector: { bop: { layout: "bulwark", doctrine: "broadside", script: "cruiser" }, ktinga: { layout: "default", doctrine: "broadside", script: "cruiser" } },
+      phaser:    { bop: { layout: "pulser", doctrine: "brawl", script: "raider" },       ktinga: null },
+      ordnance:  { bop: { layout: "bombard", doctrine: "standoff", script: "torpedoBoat" }, ktinga: { layout: "siege", doctrine: "siege", script: "siegeCruiser" } },
+      impulse:   { bop: { layout: "interceptor", doctrine: "skirmish", script: "raider" }, ktinga: null },
+      armour:    { bop: { layout: "gunboat", doctrine: "brawl", script: "raider" },      ktinga: { layout: "default", doctrine: "brawl", script: "cruiser" } },
+    },
+    // DESIGN §8 v0.28, equal-hull Bird-of-Prey duels, 4 fights each: the beating element as the player / the beaten one as the player
+    measured: { "deflector:phaser": "4 of 4 / 1 of 4 (±25%)", "phaser:ordnance": "4 of 4 / 0 of 4 (±35%; ±25% stalemated)", "ordnance:impulse": "4 of 4 / 0 of 4 (±25%)", "impulse:armour": "4 of 4 / 0 of 4 (±25%)", "armour:deflector": "3 of 4 / 0 of 4 (±25%)" },
   },
 
   enemyAI: {

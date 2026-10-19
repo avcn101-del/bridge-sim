@@ -316,9 +316,9 @@ BS.Campaign = (function () {
     Object.keys(count).forEach(function (t) { if (best === null || count[t] > count[best]) best = t; });
     return best;
   }
-  // The measured edge that beats a given element (BS.Data.elements.edges: loses === id), or null.
-  function elementEdge(id) { return D().elements.edges.filter(function (e) { return e.loses === id; })[0] || null; }
-  function elementBeating(id) { var e = elementEdge(id); return e ? e.beats : null; }
+  // The element that beats a given one on the ring (BS.Data.elements.order: the one before it), with its answer.
+  function elementBeating(id) { var o = D().elements.order, i = o.indexOf(id); return i < 0 ? null : o[(i + o.length - 1) % o.length]; }
+  function elementEdge(id) { var w = elementBeating(id); return w ? { beats: w, loses: id, how: D().elements.list[w].how, enemy: D().elements.answers[w] } : null; }
   // The tag the enemy learns from: the most frequent over the remembered wins, the latest win breaking ties.
   function dominantTag() {
     var sigs = save.signatures || [], count = {}, best = null;
