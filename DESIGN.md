@@ -1079,10 +1079,14 @@ The role layer of §10: roles are what a hull carries on its **role cells**.
   Sovereign 3. The default layouts keep whatever stood there.
 - **Role blocks** (`roleOnly`, letters W / H / K):
   - *Shield transfer emitter* (`transfer`) and module `shield_transfer`
-    (5 s, 24 cap): moves `support.transferPerBlock` 100 shield per emitter
-    from the healer's strongest facing to the supported ally's weakest,
-    within `support.rangeKm` 4. A transfer, not creation: the healer's own
-    pool pays, and it cannot support itself.
+    (5 s): feeds up to `support.transferPerBlock` 140 shield per emitter
+    into the supported ally within `support.rangeKm` 4, paid from the
+    healer's capacitor at `support.transferCapPerShield` 0.25 a point
+    (0.47; until 0.46 it came out of the healer's own shield pool, which
+    ran dry in thirty seconds and never held a tank, §8 v0.47). The facing
+    under a tractor beam first (`ally.drainedFacing`), the remainder into
+    the weakest facing. What a healer can keep giving is its reactors'
+    recharge, a build decision; it cannot support itself.
   - *Remote repair projector* (`repairbeam`) and module `remote_repair`
     (6 s, 18 cap): `support.repairPerBlock` 300 hp per projector (45 until
     0.41: a healer moving 7 hp/s never held a tank under a boss, §8 v0.41)
@@ -1143,37 +1147,55 @@ them by weight).
   the tail. Faction `romulan` (default modulation Tetryon), signature
   1100, speed 220 (1.3 km/s), turn 30°/s.
 - **Tractor beam** (block `tractor`, `enemyOnly`; module `tractor`,
-  `ew.tractor { rangeKm 9, hold 20, aiMinCap 0.2 }`): with a lock inside
-  9 km the AI runs the module (enemyai.js, like the neutraliser); each
-  30 s cycle holds the target for 20 s (`BS.Ships.tractor`: `ship.tractored`
-  seconds left, `tractoredBy`, `tractorBlock`; the helm's speed is zero
-  while held, so every turret on it hits at angular velocity 0, and the
-  afterburner moves nothing). The hold ends with its time, or at once when
-  the holder is gone or its last emitter dies (event `tractorReleased`).
-  Event `tractored` is the tell: Helm calls "Tractor beam has us",
-  Tactical "The {name} is caught in their tractor beam", the scan panel
-  lists who it holds, the renderer draws the beam (`drawTractors`).
-  Conditions `tractored` (us) and `allyTractored`; ally subject
-  `heldAlly`.
+  `ew.tractor { rangeKm 9, hold 30, aiMinCap 0.2, shieldDrain 25,
+  drainedBelow 0.4, overloadEvery 5, overloadDamage 1600 }`): with a lock
+  inside 9 km the AI runs the module (enemyai.js, like the neutraliser);
+  the 30 s cycle holds the target for 30 s, so the hold is continuous
+  while the target stays locked and in reach (`BS.Ships.tractor`:
+  `ship.tractored` seconds left, `tractoredBy`, `tractorBlock`; the helm's
+  speed is zero while held, so every turret on it hits at angular velocity
+  0, and the afterburner moves nothing). The hold ends with its time, or at
+  once when the holder is gone or its last emitter dies (event
+  `tractorReleased`). Event `tractored` is the tell: Helm calls "Tractor
+  beam has us", Tactical "The {name} is caught in their tractor beam", the
+  scan panel lists who it holds and the drained facing, the renderer draws
+  the beam (`drawTractors`). Conditions `tractored` (us) and
+  `allyTractored`; ally subject `heldAlly`.
+- **The heal check** (0.47, §10 "Role checks"): the beam drains the held
+  ship's shield facing toward the holder by `shieldDrain` 25 a second
+  (`ship.drainedFacing`). A facing counts as fed only above `drainedBelow`
+  40% of its pool; below it the overload clock runs (event `tractorDrained`,
+  Engineering: "Overload in 5 seconds unless it is fed") and every
+  `overloadEvery` 5 s `BS.Ships.surge` burns `overloadDamage` 1,600 into
+  the hull from the facing's bearing inward, rim first, wrapping round the
+  hull once that side is gone (`Gr.surge`: a fixed total, so the time a
+  held hull lasts does not depend on its size; event `tractorOverload`,
+  kind `overload` on `hullHit`). Regen (2/s), the booster (~10/s) and
+  reinforce lose the race to the drain and the bolts (~35/s together); a
+  healer's transfer onto the drained facing (~40/s) wins it. Measured in
+  §8 v0.47: four breakers and the Anchor without a healer die in order,
+  the Anchor with a Lifeline takes no overload.
 - **Plasma cannons** (block `plasma`, `enemyOnly`): 30-damage bolts every
-  2 s, one extra penetration point, optimal 7 km, tracking 0.6 rad/s:
-  chip damage that a held ship takes in full.
+  2 s, one extra penetration point, optimal 7 km, tracking 0.6 rad/s: at
+  the profile's ×0.3 a nuisance (~10/s on the held ship's shield) whose job
+  is to keep the drained facing from refilling on its own.
 - **The script** (`enemyScripts.warbird`): scan inside 20 km; every 30 s
   turn on the **loudest** ship (the beacon's rule, as the cube); remodulate
-  shields when our ammo beats them; at 480 s **overdrive**; roll when blind.
+  shields when our ammo beats them; at 540 s **overdrive**; roll when blind.
   No escorts: measured with a raider and a gunboat at half hull, the role
   fleet (a minute slower than four breakers) was eaten by them in every
   run and the fight was about the escorts, not the hold (§8 v0.41).
-- **Profile `warbird`**: never retreats, `statMult` 1.6, `damageMult`
-  2.4, `shieldMult` 3, `shieldRegenMult` 2, and it **hunts reactors**
+- **Profile `warbird`**: never retreats, `statMult` 3.0, `damageMult`
+  0.3 (0.41–0.46: 1.6 and 2.4, the damage race that any fleet could win),
+  `shieldMult` 3, `shieldRegenMult` 2, and it **hunts reactors**
   (`targetWeights` reactor 0.45): a rim reactor under a plasma bolt goes
   up with its neighbours, the Anchor's inboard reactors do not.
-- **The intended answer**: the Anchor (beacon lit: it is held and shot),
-  the Lifeline (`allyTractored` → escort and support `heldAlly`: the
-  transfer and the repair projector on the held ship), two **Warbird
-  breakers** (`allyTractored` → target the biggest, aim at the plasma
-  cannons: disarm it while the tank is held; escorts first otherwise;
-  retune the ammo; then the reactors). Measured in §8 v0.41.
+- **The intended answer**: the Anchor (beacon lit: it is held and
+  drained), the Lifeline (`allyTractored` → escort and support `heldAlly`,
+  **guns cold** so every point of capacitor feeds the held ship's drained
+  facing), two **Warbird breakers** (`allyTractored` → target the biggest,
+  aim at the plasma cannons; escorts first otherwise; retune the ammo;
+  then the reactors from the aft). Measured in §8 v0.41 and v0.47.
 
 ### Runs, roster and repair bills (0.35, `campaign.run`, `campaign.repair`, `enc.kind / roster`)
 The skirmish-then-boss run of §10 and the fleet hangar's roster.
@@ -1310,6 +1332,7 @@ campaign.firstFight: { weakPointChance }; campaign.encounters[].script; tuning (
 campaign.salvage: { destroyed, disabled, captured }; enemyAI.*: drainedBelow, drainedUntil, drainedTime
 0.31: balance.fleetSpacingKm; campaign.fleetMax; campaign.encounters[].ships: [{ enemyClass, layout, doctrine, script, damageMult }]; save.fleet: [classId]; ship: team, target, contacts{}, flags.captured; state: teams { player: [], enemy: [] }, enemyFlag
 0.32: script.subjects; rule.about; action target; conditions allyShieldBelow / allyHullBelow / allyUnderFire / outnumbered / enemiesAtMost / unfocused; templates.wolfpack; ship: scannedOf{}, scanTarget
+0.47: ew.tractor { hold 30, shieldDrain, drainedBelow, overloadEvery, overloadDamage }; ship.drainedFacing / overloadTimer; BS.Ships.surge / settleHit, Gr.surge; events tractorDrained / tractorOverload, hullHit kind "overload"; support.transferCapPerShield (transfer paid from capacitor, the drained facing first), transferPerBlock 100 → 140; enemyAI.warbird statMult 3.0, damageMult 0.3; the warbird's enrage at 540 s; the Lifeline's guns cold while an ally is held
 0.46: campaign.enemyScaling.fleetStatMult / fleetDamageMult (BS.Campaign.enemyDamageMult(spec, kind))
 0.45: campaign.enemyScaling.fleetFactor (BS.Campaign.enemyStatMult(profileId, kind)); save.settings.devMode (BS.Campaign.devMode / setDevMode / canAfford); state.encounter is set before the enemies spawn
 0.44: save.fleetScriptByBuild (scriptFor / scriptIdFor / setScriptFor take kind "fleet"); tools/campaign.js --fleetscripts
@@ -1363,6 +1386,63 @@ harness is in the repository: `tools/harness.js` (Playwright, one
 `campaign.encounters`, seeded `Math.random`, `--noreact` for the 0.24 enemy
 bridge, `--eval` for a data tweak, `--debug` for what each bridge saw) and
 `tools/smoke.js` (the headless interface check).
+
+v0.47.0 (the first hard check: the warbird's heal check. `--enemy warbird
+--wins 4`, seeds 1–4, `--max 660`; "mixed" = Anchor + Lifeline + two
+Warbird breakers, "no healer" = Anchor + three Warbird breakers (the
+Excelsior on its default layout), "healer, no tank" = Lifeline + three
+Cube breakers on default layouts, "four breakers" = Cube breakers on
+default layouts; the facing economy is the per-fight sum on the Galaxy of
+the beam's drain, the bolts absorbed by its shields, the transfer it
+received and its booster):
+
+The road to the numbers, each step measured (3–4 seeds), kept here because
+every one of them was a reasonable guess that the harness refused:
+
+| Step | Four breakers | Mixed | No healer |
+|---|---|---|---|
+| Drain 40/s, overload 30 a block on the facing's blocks, clock reset by any shield point, bolts ×2.4 | 4 of 4 (the warbird at stat 1.6 died in 2:32–3:38) | 4 of 4 | 4 of 4: a booster trickle reset the clock, 1–6 overloads a fight |
+| Clock reset only above 25% of the pool, drain 60, bolts ×1.2, stat 2.0 | 0 of 4 | 2 of 4 | 3 of 4: the overload killed, but it killed the healed tank too (the healer's transfer came out of its own shields, dry in thirty seconds) |
+| Transfer paid from capacitor, hold 25 s, drain 45, stat 3.0 | 0 of 4 | 0 of 4 | 0 of 4: the bolts (×1.2, ~80/s on the facing) were the real drain; the healer never mattered |
+| Hold continuous, bolts ×0.5, drain 20, overload 12 a block | 0 of 4 | 2 of 4 | 4 of 4: the Lifeline shooting left 7/s of transfer; its capacitor went to its phasers |
+| Lifeline guns cold while an ally is held, drain 25, overload 15 a block | 0 of 3 (stat 2.5) | 3 of 3 keeping 86–99% | 3 of 3: the fight (3:30–4:00) was shorter than the un-healed tank's life |
+| Stat 3.5, enrage 9 min | 0 of 3 | 2 of 3, a stalemate | 3 of 3: the Anchor survived 59 overloads a fight at 15 a block |
+| Overload a fixed 1,200–1,600 from the rim inward, stat 3.0, bolts ×0.3, transfer 140 at 0.25 cap | 0 of 4 | 1 of 4 | 0 of 4: the burn wraps round the hull, lethal at last, but the transfer landed on the weakest facing, not the drained one (20/s of 56) |
+| **Transfer to the drained facing first (shipped)** | **0 of 4** (the Galaxy at 28–67 s, the Excelsior, the Constitution; over by 2:00–2:53) | **4 of 4 in 4:33–5:55 keeping 100%**, 0 overloads, transfer 38–44/s | **0 of 4** (the Galaxy at 69–82 s; over by 3:00) |
+
+Shipped numbers: `ew.tractor { hold 30, shieldDrain 25, drainedBelow 0.4,
+overloadEvery 5, overloadDamage 1600 }`, `support { transferPerBlock 140,
+transferCapPerShield 0.25 }`, `enemyAI.warbird { statMult 3.0, damageMult
+0.3 }`, enrage 540 s. The facing economy on the Galaxy in the shipped
+mixed fights: drain 6.0–8.6k, bolts 2.9–3.9k (9–15/s held), transfer in
+10.6–14.2k (38–44/s), booster 2.8–3.5k; without the healer the same drain
+and bolts against the booster alone (~10/s).
+
+Also measured on the shipped numbers: **healer, no tank** 4 of 4 in
+4:02–6:12 keeping 100%, 0 overloads (the default Galaxy is the loudest
+hull without a beacon and the Lifeline keeps it fed): this boss is a heal
+check and a heal check only; the taunt check is still unenforced (§10
+"Role checks"). Mixed vs the cube 2 of 2 in 4:41–4:46 keeping 87% (0.46:
+5:29–6:22; the capacitor-paid transfer heals more there too).
+
+Runs (`tools/campaign.js --battles 12`, seed 1, as v0.46):
+
+| Run | Warbird at 12 (10 wins) | Credits |
+|---|---|---|
+| Four Cube breakers | **lost** 2:31, four hulls lost, −10,706 → 0 cr | 600 → 0 (11 of 12) |
+| Mixed | won 5:06 keeping 100%, repairs 8 cr | 600 → 13,285 (11 of 12: the Siege cruiser stalemated the Brawler alone; the cube at 6 cost a hull) |
+
+Honest reading: this is the first boss that a fleet without the right
+role **loses**, 4 of 4 and 0 of 4 on four seeds, with the role fleet
+taking no overload at all. It took eight measured steps to get there, and
+the lesson of the table is the §10 rule itself: damage-shaped checks were
+beaten by hull pools every time; the check started working only when the
+thing being raced (a shield facing) was small, the race was between two
+rates (drain against transfer), and the penalty for losing it did not
+depend on the size of the hull. The 100% kept is too comfortable for the
+fleet that passes (no tension in the pass) and is the drama track's
+question, not a balance one. The taunt check is not enforced: the beacon
+is not needed because the biggest hull is the loudest without it.
 
 v0.46.0 (the pack as a farm fight. `--enemy pack`, the Galaxy fleet on the
 Wolf pack, seeds 1–4, `--max 660`; `enemyScaling.fleetStatMult /
@@ -1968,6 +2048,31 @@ The answers: the beacon (so the hold lands on the hull built for it), the
 healer on the held ship (`heldAlly`), the breakers disarming the cannons
 while an ally is held (`aim: plasma`). Measured in §8 v0.41.
 
+### Role checks (decided 2026-10-19, 0.47): the system every boss idea goes through
+
+0.41–0.46 measured the same thing five ways: a boss that checks the fleet
+with **damage** is beaten by any fleet with enough block hp, and the role
+fleet is only *cheaper* (§8 v0.41–v0.46). Raids make roles necessary with
+**hard checks**, not with more damage, and there are only four kinds:
+
+| Check | Role it tests | Form in this game | State |
+|---|---|---|---|
+| Taunt | tank | the boss's target rule (loudest; the beacon) and the hold | present since 0.41; without a punishment for the wrong hull being held it checked nothing |
+| Heal | healer | damage that only a transfer onto the held ship can race: the tractor beam's shield drain and overload (0.47) | **0.47** |
+| Dispel / interrupt | support (jammer) | a mark or a charge that only a jam, a scan or a repair clears | not yet |
+| DPS | damage | the enrage | present since 0.33 |
+
+Rules:
+- A boss is **two or three checks** from this table, each with a hard
+  criterion measured in §8: the fleet missing that role loses at least 3
+  of 4; the fleet with it wins at least 3 of 4.
+- Nothing (a block, a hull, a bridge call, a phase) is added unless it
+  serves a check that §8 says is missing. Drama (phases, countdowns,
+  slow-motion) is a separate track, decided after play, never in a
+  balance PR.
+- Role tools come from role blocks on role cells (§10 "Roles come from
+  blocks"); no hull is locked to a role.
+
 ### Templates: why only the Brawler wins, and the rule for new ones
 
 The seven 0.21 templates never touched the vocabulary added in 0.25–0.30
@@ -2049,7 +2154,8 @@ script; learning off since 0.31; plays shadowed by the script since 0.21):
 | 0.44 (done) | The third script kind: a hull may fly its own script in a fleet skirmish (`fleetScriptByBuild`, the Wolf pack), so the pack is not fought with a boss script. Measured over 12-battle runs in §8 v0.44 |
 | 0.45 (done) | Dev mode (nothing costs credits, to try builds); the fleet-tier scaling knob `enemyScaling.fleetFactor`, measured at 0.5 and shipped at 1: halving the pack's win bonus did not make it cheaper for the Wolf pack (§8 v0.45) |
 | 0.46 (done) | The pack as a farm fight: a fleet encounter's ships take `fleetStatMult` / `fleetDamageMult` 0.8 on the 1v1 profile multipliers (stat ×1.4, damage ×1.5, sized for one hull); the pack at 8 wins goes from two hulls lost to none (§8 v0.46). A disengage rule for the hunted ship was tried and not kept |
-| next | Skirmish modifiers (§10 "Skirmishes"); the third boss (damage the healer can race: phases, not a bigger hull); the Defiant in a fleet (7k of block hp, the pack's first kill in three fights of four at full strength) |
+| 0.47 (done) | The system (§10 "Role checks") and the first hard check: the warbird's hold drains the held ship's shield and overloads its hull while the facing is empty; the healer's transfer is paid from capacitor and feeds the drained facing. Measured: the role fleet 4 of 4 with no overload, four breakers 0 of 4, the Anchor without a healer 0 of 4 (§8 v0.47) |
+| next | The dispel check (a support/jammer role) on the cube or the warbird; drama after play (phases, countdowns); skirmish modifiers; the Defiant in a fleet |
 
 Known risks: the pivot touches nearly every file; 8 grids measured in 0.31
 (12 ms a frame headless without a GPU, the simulation negligible); the §8

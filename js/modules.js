@@ -103,11 +103,16 @@ BS.Modules = (function () {
       if (!ally) { m.state = "nosupport"; ship.capacitor += def.cap; return false; }
       if (BS.Ships.distanceKm(ship, ally) > SP.rangeKm) { m.state = "range"; ship.capacitor += def.cap; return false; }
       var n = weaponBlocks(ship, m).length;
-      if (def.effect.transfer) {
-        var from = BS.Ships.strongestFacing(ship), to = BS.Ships.weakestFacing(ally);
-        var amount = Math.min(n * SP.transferPerBlock, ship.shields[from], ally.shieldMax[to] - ally.shields[to]);
-        if (amount > 0) { ship.shields[from] -= amount; ally.shields[to] += amount; }
-        BS.Events.emit("shieldTransferred", { ship: ship, target: ally, amount: amount, from: from, to: to });
+      if (def.effect.transfer) {   // 0.47: paid from the healer's capacitor (transferCapPerShield), not its own shields
+        // the facing under a tractor beam first (ally.drainedFacing), the remainder into the weakest other facing
+        var from = BS.Ships.strongestFacing(ship), cps = SP.transferCapPerShield || 0, budget = Math.min(n * SP.transferPerBlock, cps > 0 ? ship.capacitor / cps : ship.shields[from]);
+        var first = ally.tractored > 0 && ally.drainedFacing ? ally.drainedFacing : BS.Ships.weakestFacing(ally), to = first, amount = 0;
+        [first, BS.Ships.weakestFacing(ally)].forEach(function (f) {
+          var give = Math.min(budget - amount, ally.shieldMax[f] - ally.shields[f]);
+          if (give > 0) { ally.shields[f] += give; amount += give; if (f !== first) to = f; }
+        });
+        if (amount > 0) { if (cps > 0) ship.capacitor -= amount * cps; else ship.shields[from] -= amount; }
+        BS.Events.emit("shieldTransferred", { ship: ship, target: ally, amount: amount, from: from, to: first });
       } else {
         var before = ally.hull;
         BS.Grid.repair(ally.grid, n * SP.repairPerBlock, ally.repairPriority, 1);

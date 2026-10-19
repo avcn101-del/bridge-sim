@@ -596,7 +596,7 @@ BS.UI = (function () {
     var chg = BS.Modules.chargingOn(e, null);
     if (chg.length) html += "<div class='sl'><label>Charging</label><span class='v bad'>" + chg.map(function (c) { return c.block.def.name.toLowerCase() + " on " + (c.block.chargeTarget ? escapeHtml(c.block.chargeTarget.name) : "?") + ": " + c.left.toFixed(1) + " s"; }).join(" · ") + "</span></div>";
     var held = BS.Ships.heldBy(e);   // its tractor beam (0.41)
-    if (held.length) html += "<div class='sl'><label>Tractor</label><span class='v bad'>holding " + held.map(function (s) { return escapeHtml(s.name) + ": " + Math.ceil(s.tractored) + " s"; }).join(", ") + "</span></div>";
+    if (held.length) html += "<div class='sl'><label>Tractor</label><span class='v bad'>holding " + held.map(function (s) { return escapeHtml(s.name) + ": " + Math.ceil(s.tractored) + " s" + (s.drainedFacing ? ", " + s.drainedFacing + " shield " + Math.round(s.shields[s.drainedFacing]) : ""); }).join(", ") + "</span></div>";
     html += "</div><div><h4>Tactical</h4>";
     var total = st2.weapons.filter(function (b) { return b.alive; }).length, bearing = BS.EnemyAI.bearingCount(e, p, false);
     html += "<div class='sl'><label>Bearing</label><span class='v " + (bearing === 0 ? "good" : bearing >= total * 0.6 ? "bad" : "warn") + "'>" + bearing + " of " + total + " weapons on us</span></div>";

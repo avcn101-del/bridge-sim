@@ -135,6 +135,9 @@ BS.Crew = (function () {
     // the tractor beam (0.41): the hold on us or on an ally, and the release
     BS.Events.on("tractored", function (e) { if (!ship || !e.target || e.target.team !== ship.team) return; if (e.target === ship) report("helm", "tractorOnUs", { t: Math.round(e.time) }, "warn"); else report("tactical", "tractorOnAlly", { name: e.target.name }, "warn"); });
     BS.Events.on("tractorReleased", function (e) { if (ship && e.ship === ship) report("helm", "tractorFree"); });
+    // the heal check (0.47): the drained facing and the overloads
+    BS.Events.on("tractorDrained", function (e) { if (!ship || e.ship.team !== ship.team) return; if (e.ship === ship) report("engineering", "tractorDrained", { facing: e.facing, t: Math.round(e.time) }, "warn"); else report("engineering", "allyDrained", { name: e.ship.name, facing: e.facing }, "warn"); });
+    BS.Events.on("tractorOverload", function (e) { if (ship && e.ship === ship) report("engineering", "tractorOverload", { n: e.blocks, facing: e.facing }, "warn"); });
     // second-generation EW
     BS.Events.on("decoyLaunched", function (e) { if (e.ship === ship) report("tactical", e.incoming > 0 ? "decoyLaunched" : "decoyNoTorpedoes"); else if (e.ship === enemy) report("tactical", "enemyDecoy"); });
     BS.Events.on("torpedoLured", function (e) { if (e.ship === ship && now() - (ship._luredReported || -99) > 6) { ship._luredReported = now(); report("tactical", "decoyLured"); } });

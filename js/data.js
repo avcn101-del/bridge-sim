@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.46.0",
+  version: "0.47.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -144,9 +144,11 @@ BS.Data = {
     // the locked target's capacitor at short range, so its booster, hardener, afterburner and cloak starve
     decoy:    { letter: "Y", name: "Decoy launcher",  short: "DY", hp: 40, mass: 1, cost: 90,  power: 2, color: "#ffc96b", glyph: "flare", desc: "Module (F-key, 20 s cycle, 15 cap): drops a decoy astern that burns for 8 s. Every torpedo within 3 km of it that was hunting you turns on the decoy instead and blows up on it. Fire it when the volley is 2–4 km out: too early and the decoy burns out before they arrive, too late and they are already on you. One decoy per launcher block per cycle." },
     // role blocks (0.34, DESIGN §10): they fit only the hull's role cells (mask `r`), and hulls differ in how many they have.
-    // The healer's transfer is a transfer, not creation: it comes out of its own shield pool. Remote repair restores hp to
-    // damaged blocks only. The beacon makes the ship the loudest contact so a boss that turns on the loudest turns on it.
-    transfer: { letter: "W", name: "Shield transfer emitter", short: "ST", hp: 40, mass: 2, cost: 220, power: 6, color: "#6ad5ff", glyph: "shield", roleOnly: true, desc: "Role cell only. Module (5 s cycle, 24 cap): moves 100 shield per emitter from our strongest facing to the supported ally's weakest facing, within 4 km. Our own shields pay for it; it cannot support ourselves." },
+    // The healer's transfer is paid for, not created: since 0.47 it converts the healer's capacitor into the ally's shield
+    // (support.transferCapPerShield), so what a healer can keep giving is its reactors' recharge, a build decision; until
+    // 0.46 it came out of the healer's own shield pool, which ran dry in thirty seconds and never held a tank (DESIGN §8
+    // v0.47). Remote repair restores hp to damaged blocks only. The beacon makes the ship the loudest contact so a boss that turns on the loudest turns on it.
+    transfer: { letter: "W", name: "Shield transfer emitter", short: "ST", hp: 40, mass: 2, cost: 220, power: 6, color: "#6ad5ff", glyph: "shield", roleOnly: true, desc: "Role cell only. Module (5 s cycle): feeds up to 100 shield per emitter into the supported ally's weakest facing, within 4 km, at 0.4 capacitor per point of shield. Our reactors pay for it: more reactors, more healing. It cannot support ourselves." },
     repairbeam: { letter: "H", name: "Remote repair projector", short: "RR", hp: 40, mass: 2, cost: 200, power: 5, color: "#ffb86a", glyph: "windows", roleOnly: true, desc: "Role cell only. Module (6 s cycle, 18 cap): repairs 45 hp per projector on the supported ally's damaged blocks, within 4 km. Destroyed blocks stay gone." },
     beacon:   { letter: "K", name: "Signature beacon", short: "BC", hp: 40, mass: 1, cost: 160, power: 3, color: "#ff7a7a", glyph: "dish", roleOnly: true, desc: "Role cell only. Module (4 s cycle, 6 cap): while it runs our signature is ×2.5: we are the loudest contact (a boss turns on us), we are locked faster and torpedoes hit us for full damage." },
     // boss weapon (0.33, enemy only): a cutting beam that charges for `charge` seconds (event weaponCharging, the tell)
@@ -158,7 +160,7 @@ BS.Data = {
     // cannon, and the tractor emitter: no weapon of its own, the `tractor` module holds the locked ship (ew.tractor)
     plasma:   { letter: "M", name: "Plasma cannon",   short: "PC", hp: 60, mass: 3, cost: 300, power: 6, color: "#7cff8a", glyph: "bolt", enemyOnly: true, desc: "Boss weapon: a 30-damage plasma bolt every 2 s with an extra penetration point, optimal 7 km, falloff 4 km, tracking 0.6 rad/s. A ship held in a tractor beam cannot outrun it.",
                 weapon: { kind: "turret", damage: 30, cycle: 2, cap: 2, optimalKm: 7, falloffKm: 4, tracking: 0.6, accuracy: 0.95, arc: 160, pierceBonus: 1, bolt: true, color: "#7cff8a", coreColor: "#eaffe6", beamLife: 0.35 } },
-    tractor:  { letter: "G", name: "Tractor emitter", short: "TR", hp: 120, mass: 3, cost: 400, power: 8, color: "#9ad7ff", glyph: "dish", enemyOnly: true, desc: "Boss system: with a lock inside 9 km the tractor beam holds the target for 20 s of every 30: it cannot move, and every bolt lands. The hold breaks when every emitter is destroyed." },
+    tractor:  { letter: "G", name: "Tractor emitter", short: "TR", hp: 120, mass: 3, cost: 400, power: 8, color: "#9ad7ff", glyph: "dish", enemyOnly: true, desc: "Boss system: with a lock inside 9 km the tractor beam holds the target for 25 s of every 30: it cannot move, every bolt lands, and the beam drains the shield facing it by 40 a second. While that facing is empty the hull behind it burns every 5 s, 1,600 from the rim inward. Keep the facing fed or lose the ship; the hold breaks when every emitter is destroyed." },
     neut:     { letter: "X", name: "Energy neutraliser", short: "NT", hp: 40, mass: 2, cost: 110, power: 4, color: "#ff6ad5", glyph: "drain", desc: "Module (F-key, 6 s cycle, 20 cap, needs a lock inside 4 km): drains 30 capacitor per neutraliser block from the target each cycle. A ship with no capacitor loses its booster, hardener, afterburner and cloak and fires nothing. It drains your own capacitor too: fit reactors." },
   },
 
@@ -177,11 +179,11 @@ BS.Data = {
     jammer: { kind: "active", block: "jammer", name: "ECM jammer", short: "JAM", cycle: 5, cap: 10, effect: { jam: true }, desc: "Every 5 s: jam strength (3 per jammer block) against the enemy's sensor strength. A hit breaks their lock for 4 s and blinds their torpedoes." },
     cloak: { kind: "cloak", block: "cloak", name: "Cloaking device", short: "CLK", cycle: 0, cap: 0, capText: "8 cap/s", desc: "Cloak in 3 s: unlockable and unseen beyond their sensors. Shields down, weapons cold, capacitor drains. Decloak takes 2 s; shields recover 5 s later; 10 s decloak strike: double damage, 60% of it straight through their shields." },
     decoy: { kind: "active", block: "decoy", name: "Decoy", short: "DCY", cycle: 20, cap: 15, effect: { decoy: true }, desc: "Drops one decoy per launcher block astern for 8 s; torpedoes hunting you within 3 km of it turn on the decoy and blow up on it. Time it for when the volley is 2–4 km out." },
-    shield_transfer: { kind: "active", block: "transfer", name: "Shield transfer", short: "XFER", cycle: 5, cap: 24, effect: { transfer: true }, desc: "Every 5 s: 100 shield per emitter from our strongest facing to the supported ally's weakest, within 4 km." },
+    shield_transfer: { kind: "active", block: "transfer", name: "Shield transfer", short: "XFER", cycle: 5, cap: 0, effect: { transfer: true }, desc: "Every 5 s: up to 100 shield per emitter into the supported ally's weakest facing, within 4 km, at 0.4 capacitor a point." },
     remote_repair: { kind: "active", block: "repairbeam", name: "Remote repair", short: "RREP", cycle: 6, cap: 18, effect: { repair: true }, desc: "Every 6 s: 300 hp per projector to the supported ally's damaged blocks (destroyed blocks stay gone), within 4 km." },
     beacon: { kind: "active", block: "beacon", name: "Signature beacon", short: "BCN", cycle: 4, cap: 6, effect: { sigMult: 2.5 }, desc: "While running: signature ×2.5. The loudest contact draws the boss." },
     neut: { kind: "active", block: "neut", name: "Energy neutraliser", short: "NEUT", cycle: 6, cap: 20, effect: { neut: true }, desc: "Every 6 s, with a lock inside 4 km: drains 30 capacitor per neutraliser block from the target. Starves their booster, hardener, afterburner and cloak." },
-    tractor: { kind: "active", block: "tractor", name: "Tractor beam", short: "TRAC", cycle: 30, cap: 40, effect: { tractor: true }, desc: "Boss (0.41): every 30 s, with a lock inside 9 km, holds the target for 20 s. A held ship cannot move; it breaks free when every emitter is gone." },
+    tractor: { kind: "active", block: "tractor", name: "Tractor beam", short: "TRAC", cycle: 30, cap: 40, effect: { tractor: true }, desc: "Boss (0.41): every 30 s, with a lock inside 9 km, holds the target for 25 s and drains the shield facing the beam; an empty facing burns the hull behind it every 5 s. A held ship cannot move; it breaks free when every emitter is gone." },
   },
   builtInModules: ["shield_booster", "shield_hardener", "afterburner"],
 
@@ -479,7 +481,7 @@ BS.Data = {
       ],
       visual: { kind: "grid", sprite: null, nacelleColor: "90,160,255", hullTint: "#cdd3e0" },
       presets: {
-        lifeline: { name: "Lifeline", desc: "Healer: the default Excelsior with two shield transfer emitters and a remote repair projector on its role cells, two torpedo tubes given up for the power. Support an ally within 4 km; the transfer comes out of its own shields.", rows: [
+        lifeline: { name: "Lifeline", desc: "Healer: the default Excelsior with two shield transfer emitters and a remote repair projector on its role cells, two torpedo tubes given up for the power. Support an ally within 4 km; the transfer is paid from its capacitor, so its reactors are its healing.", rows: [
           "..............................",
           ".EEEEEEAAAA..........APA......",
           ".EEEEEEQAAA........AARAAAA....",
@@ -1145,6 +1147,9 @@ BS.Data = {
       tractorOnUs: "Tractor beam has us, Captain! Helm is dead in the water: {t} seconds.",
       tractorOnAlly: "The {name} is caught in their tractor beam.",
       tractorFree: "Tractor beam is off us. Helm answering.",
+      tractorDrained: "The {facing} shield is gone under their beam, Captain! Overload in {t} seconds unless it is fed.",
+      tractorOverload: "Shield overload! {n} blocks burned on the {facing} side.",
+      allyDrained: "The {name}'s {facing} shield is gone under the beam.",
       aimWeak: "Aye. {label}.",
       reinforceShields: "Reinforcing the {weak} shield from the {strong} grid.",
       reinforceShields_none: "Shields are already balanced, Captain.",
@@ -1337,7 +1342,7 @@ BS.Data = {
     // retreats, never hunts weak points; its answers are in its script (script.enemyScripts.warbird)
     warbird: {
       doctrine: "broadside",
-      accuracyMult: 0.85, reactionDelay: 1.5, statMult: 1.6, damageMult: 2.4,   // measured in DESIGN §8 v0.41: at 1.0–1.8 four breakers never lost a hull
+      accuracyMult: 0.85, reactionDelay: 1.5, statMult: 3.0, damageMult: 0.3,   // 0.47: the bolts are the nuisance, the overload the killer (DESIGN §8 v0.47); 0.41–0.46 flew stat 1.6, damage 2.4
       shieldMult: 3, shieldRegenMult: 2,
       retreatHull: 0, retreatMinTime: 8, retreatMaxTime: 16,
       repositionShield: 0.15, repositionDuration: 8,
@@ -1426,10 +1431,15 @@ BS.Data = {
 
   // electronic warfare: ECM rolls jam / (jam + target sensors); cloak timings in seconds; detection grows with sensor arrays
   // support (0.34): the healer's reach, what each emitter and projector moves per cycle, and how close an escort keeps
-  support: { rangeKm: 4, transferPerBlock: 100, repairPerBlock: 300, escortKm: 2.5 },   // repairPerBlock 45 → 300 in 0.41: a healer that moves 7 hp/s never held a tank under a boss (DESIGN §8 v0.41)
+  support: { rangeKm: 4, transferPerBlock: 140, transferCapPerShield: 0.25, repairPerBlock: 300, escortKm: 2.5 },   // repairPerBlock 45 → 300 in 0.41: a healer that moves 7 hp/s never held a tank under a boss (DESIGN §8 v0.41)
   ew: {
     // the warbird's tractor beam (0.41, module `tractor`): reach, how long a hold lasts, the capacitor the AI keeps for it
-    tractor: { rangeKm: 9, hold: 20, aiMinCap: 0.2 },
+    // 0.47, the heal check (DESIGN §10 "Role checks"): the beam drains the held ship's shield facing toward the holder by
+    // shieldDrain a second; while that facing is empty, every overloadEvery seconds overloadDamage burns the hull on that
+    // side from the rim inward (BS.Ships.surge: a fixed total, so the time a held hull lasts does not depend on its size).
+    // A facing counts as fed only above drainedBelow of its pool, so a booster trickle does not reset the clock. Regen,
+    // booster and reinforce alone lose the race; a healer's transfer onto that facing wins it.
+    tractor: { rangeKm: 9, hold: 30, aiMinCap: 0.2, shieldDrain: 25, drainedBelow: 0.4, overloadEvery: 5, overloadDamage: 1600 },
     cloakDetectRangeKm: 10,   // a cloaked ship inside this range (plus detectPerSensor per sensor) is a contact jamPerBlock: 3, jamDuration: 4, cloakTime: 3, decloakTime: 2, surgeTime: 5, cloakDrain: 8, cloakMinCap: 5, detectPerSensor: 1, ghostAlpha: 0.25, ownCloakAlpha: 0.35,
         // fields (cells from the block): a ship cloaks only with every block inside a cloak field; a jam breaks the lock only
         // with every block inside an ECM field, otherwise it just forces their fire onto the blocks outside it
@@ -1557,10 +1567,10 @@ BS.Data = {
           { when: { weakestBelow: 0.3 }, do: { reinforce: true }, every: 20 },
           { when: {}, do: { target: "biggest", doctrine: "engage", weapons: true, modules: { beacon: true, shield_hardener: true }, repair: "shield" } },
         ] },
-      lifeline: { name: "Lifeline", desc: "Healer: keep station on the ally under most fire, transfer shields and repair the weakest, skirmish away from a charging beam. Needs transfer emitters or repair projectors.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto", support: "auto" },
+      lifeline: { name: "Lifeline", desc: "Healer: keep station on the ally under most fire, transfer shields and repair the weakest, skirmish away from a charging beam; while an ally is held in a tractor beam, guns cold and everything into its shield. Needs transfer emitters or repair projectors.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto", support: "auto" },
         rules: [
           { when: { lanceCharging: true }, do: { doctrine: "skirmish", modules: { afterburner: true } }, until: { lanceCharging: false }, holdMax: 9 },
-          { when: { allyTractored: true }, do: { escort: "heldAlly", support: "heldAlly", weapons: true, modules: { shield_transfer: true, remote_repair: true, shield_hardener: true } } },
+          { when: { allyTractored: true }, do: { escort: "heldAlly", support: "heldAlly", weapons: false, modules: { shield_transfer: true, remote_repair: true, shield_hardener: true } } },   // 0.47: guns cold, every point of capacitor goes into the held ally's shield
           { when: {}, do: { escort: "huntedAlly", weapons: true, modules: { shield_transfer: true, remote_repair: true, shield_hardener: true } } },
         ] },
       // 0.33: the intended answer to the first boss (DESIGN §4 "Bosses"): outrun the cutting beam on the afterburner
@@ -1647,7 +1657,7 @@ BS.Data = {
                         { when: { scanned: false, dKmBelow: 20 }, do: { scan: true }, once: true },
                         { when: { notTargeting: "loudest" }, do: { target: "loudest" }, every: 30, callout: "The warbird is turning on the loudest ship." },
                         { when: { scanned: true, enemyAmmoBeatsOurShields: true, remodulating: false }, do: { remodulate: "shields" }, every: 45, callout: "The warbird is remodulating its shields." },
-                        { when: { time: 480 }, do: { overdrive: true }, once: true, callout: "The warbird is venting its singularity into the weapons. Finish it now or not at all." },
+                        { when: { time: 540 }, do: { overdrive: true }, once: true, callout: "The warbird is venting its singularity into the weapons. Finish it now or not at all." },
                         { when: { blindFor: 4 }, do: { roll: true }, every: 12, callout: "The warbird is coming about to bring the other wing round." },
                         { when: {}, do: { doctrine: "encounter" } } ] },
       cruiser:       { name: "Cruiser", rules: [
