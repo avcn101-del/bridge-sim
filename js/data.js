@@ -1533,22 +1533,11 @@ BS.Data = {
         rules: [
           { when: {}, do: { stance: "engage", weapons: true, modules: { shield_hardener: true }, governor: true } },
         ] },
-      alpha: { name: "Alpha strike", desc: "Close with weapons cold, dump everything with the governor off, vent, strike again.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto" },
-        rules: [
-          { when: { dKmAbove: 4.5, time: 0 }, do: { doctrine: "closein", weapons: false, modules: { shield_hardener: true }, governor: true }, until: { dKmBelow: 4.5 } },
-          { when: { heatAbove: 0.9 }, do: { stance: "engage", weapons: false, governor: true }, until: { heatBelow: 0.3 } },
-          { when: { overloaded: true }, do: { stance: "engage", weapons: false, governor: true }, until: { heatBelow: 0.3 } },
-          { when: {}, do: { stance: "engage", weapons: true, modules: { shield_hardener: true }, governor: false } },
-        ] },
       siege: { name: "Siege", desc: "Hold at torpedo range with everything that reaches; fight close only when they come inside 5 km.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto" },
         rules: [
           { when: { noTubes: true }, do: { stance: "engage", weapons: true, modules: { shield_hardener: true } } },
           { when: { dKmBelow: 5 }, do: { stance: "engage", weapons: true, modules: { shield_hardener: true } }, until: { dKmAbove: 9 }, holdMax: 30 },
           { when: {}, do: { stance: "standoff", weapons: true, modules: { shield_hardener: true }, governor: true } },
-        ] },
-      turtle: { name: "Turtle", desc: "A slow broadside with the hardener up, reinforcing and rolling fresh shields.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto" },
-        rules: [
-          { when: {}, do: { doctrine: "broadside", weapons: true, modules: { shield_hardener: true }, governor: true, repair: "shield" } },
         ] },
       hunter: { name: "Hunter", desc: "Engage aiming at their reactors; when they are gone, or after a minute, pick at bare hull.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto" },
         rules: [
@@ -1563,6 +1552,22 @@ BS.Data = {
           { when: { dKmBelow: 3.5 }, do: { stance: "engage", modules: { cloak: false, shield_hardener: true }, weapons: true, governor: false, aim: "reactor" }, until: { heatAbove: 0.85 }, holdMax: 14 },
           { when: { capBelow: 0.15 }, do: { stance: "engage", modules: { cloak: false, shield_hardener: true }, weapons: true, governor: false, aim: "reactor" }, until: { heatAbove: 0.85 }, holdMax: 14 },
           { when: {}, do: { doctrine: "closein", weapons: false, modules: { cloak: true, shield_hardener: false }, governor: true } },
+        ] },
+    },
+    // Retired from the hangar list (DESIGN §10): written at 0.21 and never below the Brawler in the §8 matrix (Alpha's
+    // heat rules never fire on a stock hull, Turtle and Hit & fade lose to the strafe). Kept as syntax examples and for
+    // tools/harness.js --script; a save that assigned one falls back to defaultTemplate. Role templates replace them in 0.32.
+    retiredTemplates: {
+      alpha: { name: "Alpha strike", desc: "Close with weapons cold, dump everything with the governor off, vent, strike again.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto" },
+        rules: [
+          { when: { dKmAbove: 4.5, time: 0 }, do: { doctrine: "closein", weapons: false, modules: { shield_hardener: true }, governor: true }, until: { dKmBelow: 4.5 } },
+          { when: { heatAbove: 0.9 }, do: { stance: "engage", weapons: false, governor: true }, until: { heatBelow: 0.3 } },
+          { when: { overloaded: true }, do: { stance: "engage", weapons: false, governor: true }, until: { heatBelow: 0.3 } },
+          { when: {}, do: { stance: "engage", weapons: true, modules: { shield_hardener: true }, governor: false } },
+        ] },
+      turtle: { name: "Turtle", desc: "A slow broadside with the hardener up, reinforcing and rolling fresh shields.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto" },
+        rules: [
+          { when: {}, do: { doctrine: "broadside", weapons: true, modules: { shield_hardener: true }, governor: true, repair: "shield" } },
         ] },
       hitfade: { name: "Hit & fade", desc: "Engage until a shield runs low, then a tight afterburner orbit until it recovers.", policies: { lock: true, booster: "auto", reinforce: "auto", decoy: "auto" },
         rules: [

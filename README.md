@@ -40,8 +40,8 @@ tell the helm how to fly relative to it, and you switch modules on and off.
 - Pick an **attack side** (B): shadow their blind sector, a flank or their
   tail instead of circling; the scan panel shows their fire per sector.
 - The bridge fights by a **script**: ordered "when → do" rules. In the
-  hangar's Script section pick a template (Brawler, Alpha strike, Siege,
-  Turtle, Hunter, Ambush, Hit & fade), *Copy as new*, and build rules from
+  hangar's Script section pick a template (Brawler, Siege, Hunter,
+  Ambush), *Copy as new*, and build rules from
   dropdowns that read as sentences ("When they are closer than 5 km: run
   the Alpha strike play"); *Assign to this build* and the ship flies it.
   **Plan** names up to three targets on the next enemy (tap its intel

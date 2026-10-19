@@ -83,7 +83,7 @@ function fmt(t) { var m = Math.floor(t / 60), s = Math.floor(t % 60); return m +
         if (o.learn) { BS.Data.campaign.learn.chance = 1; BS.Data.campaign.learn.tuneChance = 1; }
         if (o.eval) (new Function(o.eval))();
         BS.Data.script.dryRun.maxSeconds = o.max;
-        var script = typeof o.script === "string" ? JSON.parse(JSON.stringify(BS.Data.script.templates[o.script])) : o.script;
+        var script = typeof o.script === "string" ? JSON.parse(JSON.stringify(BS.Data.script.templates[o.script] || BS.Data.script.retiredTemplates[o.script] || null)) : o.script;
         if (!script) throw new Error("no script " + o.script);
         if (o.side) script.rules.forEach(function (r) { if (r.do && (r.do.stance || r.do.doctrine)) r.do.side = o.side; });
         var encInfo = BS.Campaign.encounter();

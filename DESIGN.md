@@ -888,8 +888,10 @@ intel, script); in the fight the bridge runs the script. A script is
   `scriptRule`, read into the log by the computer) records every takeover
   and call-out with the reason an action could not be done.
 - **Templates** (`script.templates`): Brawler (the default fight: Engage,
-  weapons, hardener, governor), Alpha strike, Siege, Turtle, Hunter, Ambush,
-  Hit & fade, each the play rewritten as rules. A hull undocks with
+  weapons, hardener, governor), Siege, Hunter, Ambush, each the play
+  rewritten as rules. Alpha strike, Turtle and Hit & fade moved to
+  `script.retiredTemplates` (§10): not in the hangar list, still readable
+  by the harness; a save that assigned one undocks with the default. A hull undocks with
   `save.scriptByBuild[classId]` (an own script by id, PR B's editor, or a
   template), else `script.defaultTemplate`. A manual helm order (stance,
   play, side, fly-to, stop) suspends the player's script: the Helm row
@@ -1816,6 +1818,37 @@ Oberth jams better while any hull can still be built freely.
 3. **Adds** at 60% hull: two Birds-of-Prey. Needs "switch target" rules.
 4. **Remodulation** (optional fourth, Borg style): the boss changes shield
    frequency with a callout; the fleet answers with `remodulate: ammo`.
+
+### Templates: why only the Brawler wins, and the rule for new ones
+
+The seven 0.21 templates never touched the vocabulary added in 0.25–0.30
+(no `scan`, `remodulate`, `enemyStance`, `enemyAimingAt`, `rangeBand`,
+`blindFor`, `enemyFocusing`, `roll`, `side`, `board`, no tuning
+condition). Some are broken outright: Alpha strike's two heat rules wait
+for `heatAbove 0.9` on hulls that peak at 19%, Turtle has no win
+condition, Siege's torpedoes miss a small fast target. But the deeper
+reason is structural: the Brawler is **one rule** ("engage, everything
+on") and wins because the intelligence sits below the script, in the
+stance helm (auto-flip), the auto policies (booster, reinforce, decoy,
+neut) and the doctrine machine. A script only earns its place by stating
+something that layer cannot see, so in a 1v1 every template richer than
+the Brawler can only be worse.
+
+Decisions:
+- Alpha strike, Turtle and Hit & fade are **retired** from the hangar
+  list (`script.retiredTemplates`, kept as syntax examples and for the
+  harness). Brawler stays the default, Siege stays (the Torpedo boat's
+  play), Hunter stays, Ambush stays (a cloak has a place against a boss
+  lance).
+- The 1v1 templates are **not** tuned further: the harness would only
+  confirm the Brawler.
+- 0.32 rewrites templates **by role**, measured against the first boss,
+  not the Raider: Tank (beacon, hold near the boss, reinforce on the
+  tell), Healer (transfer to the ship the boss aims at, pull back on the
+  sweep), DPS (switch to adds, remodulate on the callout), Jammer.
+- **Rule for every new template**: it must use at least one condition the
+  automatic layer cannot see (a boss callout, who the boss is aiming at,
+  the weakest ally). A template without one is the Brawler in disguise.
 
 ### Scripts for a fleet
 
