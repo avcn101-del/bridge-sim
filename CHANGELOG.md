@@ -2,6 +2,28 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.30.0] — 2026-10-19 (remodulating; PR E of the "chess" pillars)
+
+### Added
+- **Remodulate** in battle (`BS.Ships.remodulate`, `tuning.remodulate`):
+  shields take the frequency that beats their ammo (10 s with the
+  deflector down) or weapons take the ammo that beats their shields (5 s
+  cold); needs a scan. Script conditions `enemyAmmoBeatsOurShields`,
+  `ourAmmoBeaten`, `remodulating` and action `remodulate`; the Raider,
+  Cruiser and Siege cruiser scripts react with callouts; two bridge calls
+  *Remodulate shields* / *Remodulate ammo* (a call with nothing to do
+  spends no token).
+- Weak point **frequency**: the facing whose shield frequency our ammo
+  beats, on the scan panel, the intel box and in the enemy's aim.
+- **They read your tuning**: from 3 wins on, the enemy's shields and ammo
+  answer the tuning of the remembered wins (`campaign.learn.tuneChance`);
+  the hangar says so.
+- Harness `--sigtune`; the summary shows the enemy's tuning and how often
+  it remodulated.
+
+### Fixed
+- A script flag condition written `flag: false` was read as `true`.
+
 ## [0.29.0] — 2026-10-19 (tuning: shield frequencies, alloys, ammo; PR D of the "chess" pillars)
 
 ### Added

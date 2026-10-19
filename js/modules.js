@@ -46,6 +46,7 @@ BS.Modules = (function () {
       if (ship.overload > 0) { reason = "overload"; return; }
       if (ship.cloak.state !== "off") { reason = "cloaked"; return; }
       if (ship.scanning > 0 && w.kind === "turret") { reason = "scan"; return; }   // a science scan borrows the beam emitters
+      if (ship.remod && ship.remod.kind === "ammo") { reason = "remodulate"; return; }   // weapons cold while their ammo is retuned
       if (ship.heat >= ship.stats.heatCap || (ship.aiProfile && ship.heat > ship.stats.heatCap * BS.Data.grid.heat.aiFireBelow)) { reason = "heat"; return; }
       if (ship.governorHold) { reason = "heat"; return; }
       if (!target) { reason = "nolock"; return; }

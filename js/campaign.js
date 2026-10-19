@@ -270,7 +270,21 @@ BS.Campaign = (function () {
     }
     if (wonAt === 0 && D().campaign.firstFight && counterWeak === null) counterWeak = D().campaign.firstFight.weakPointChance;   // the first fight: no weak-point hunting
     var variant = null; if (cls.variants) Object.keys(cls.variants).forEach(function (k) { if (cls.variants[k].rows === rows) variant = cls.variants[k]; });
-    return { id: pick.id, classId: pick.enemyClass, cls: cls, rows: rows, name: name, variantName: variantName, tuning: variant && variant.tuning ? variant.tuning : null, seed: seed, battlesWon: wonAt, retry: !!rt, rewardMult: pick.rewardMult, play: pick.play || null, script: script, damageMult: pick.damageMult || null, counterReason: counterReason, weakPointChance: counterWeak, aiProfile: cls.aiProfile || "default", learned: learned,
+    // they read your tuning (campaign.learn.tuneChance): from fromWins on, the enemy's emitters take the frequency that
+    // beats the ammo of the remembered wins, its weapons the ammo that beats the shields it saw
+    var tuningRows = variant && variant.tuning ? variant.tuning : null, learnedTuning = null, tuneRoll = rng();
+    if (wonAt >= L.fromWins && (save.signatures || []).length && tuneRoll < L.tuneChance) {
+      var T = D().tuning, cnt = { ammo: {}, shield: {} };
+      (save.signatures || []).forEach(function (g, i) { if (g.tuning) { if (g.tuning.ammo) cnt.ammo[g.tuning.ammo] = (cnt.ammo[g.tuning.ammo] || 0) + 1 + i * 0.01; if (g.tuning.shield) cnt.shield[g.tuning.shield] = (cnt.shield[g.tuning.shield] || 0) + 1 + i * 0.01; } });
+      var pAmmo = BS.Grid.dominantTune(cnt.ammo), pShield = BS.Grid.dominantTune(cnt.shield), spec = {};
+      if (pAmmo) spec.frequency = BS.Ships.beats(pAmmo);
+      if (pShield) spec.ammo = BS.Ships.beats(pShield);
+      if (spec.frequency || spec.ammo) {
+        tuningRows = BS.Grid.tuningRowsFor(cls, rows, spec, tuningRows);
+        learnedTuning = (spec.frequency ? "shields " + T.list[spec.frequency].name + " against your " + T.list[pAmmo].name + " ammo" : "") + (spec.frequency && spec.ammo ? ", " : "") + (spec.ammo ? "ammo " + T.list[spec.ammo].name + " against your " + T.list[pShield].name + " shields" : "");
+      }
+    }
+    return { id: pick.id, classId: pick.enemyClass, cls: cls, rows: rows, name: name, variantName: variantName, tuning: tuningRows, learnedTuning: learnedTuning, seed: seed, battlesWon: wonAt, retry: !!rt, rewardMult: pick.rewardMult, play: pick.play || null, script: script, damageMult: pick.damageMult || null, counterReason: counterReason, weakPointChance: counterWeak, aiProfile: cls.aiProfile || "default", learned: learned,
       doctrine: doc || D().enemyAI[cls.aiProfile || "default"].doctrine, label: cls.className + (variantName ? " · " + variantName : "") };
   }
   // Refit & retry: pin the last enemy for the next fight (cleared when that fight is settled, or by letGo).

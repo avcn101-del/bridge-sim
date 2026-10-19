@@ -941,9 +941,41 @@ like a type chart, not a claim about physics.
   dominant ammo, frequency and alloy (`signatures[].tuning`). The
   report's *Why you lost* opens with "Our Graviton ammo vs their shields
   Polaron ×1.00 · armor Polaron ×1.00" and the same from their side.
-- Enemy variants carry no tuning yet (all Klingon Polaron): the enemy's
-  answer to the player's ammo and frequencies (remodulating in battle, a
-  *Remodulate* bridge call, learning) is the next PR.
+- **Remodulating** (0.30, `tuning.remodulate`, `BS.Ships.remodulate`):
+  either bridge may retune in the fight, as an answer to something seen.
+  *Shields*: every emitter takes the frequency that beats the other ship's
+  dominant ammo, with the deflector down for `shieldsSeconds` 10
+  (`shieldsUp` false: the pools keep, nothing is projected). *Ammo*: every
+  weapon block takes the ammo that beats their dominant frequency, with
+  the weapons cold for `ammoSeconds` 5 (module reason `remodulate`). It
+  needs a scan ("scan them first"), refuses when already on that
+  modulation, and rewrites the ship's `tuningRows` so intel and the Book
+  see the new tuning. Script vocabulary: conditions
+  `enemyAmmoBeatsOurShields`, `ourAmmoBeaten` (both false until scanned),
+  `remodulating`; action `remodulate: "shields" | "ammo"`. A flag
+  condition written `flag: false` now holds when the flag does not (the
+  engine compared only `true` flags before). The Raider, Cruiser and Siege
+  cruiser scripts carry both reactions (every 45 s, with callouts: "They're
+  remodulating their shields, Captain. Ten seconds with the deflector
+  down."); Tactical reports the enemy's remodulation finishing ("Their
+  shields are back, retuned to Antiproton"). Two more **bridge calls**,
+  *Remodulate shields* and *Remodulate ammo* (`remodShields` /
+  `remodAmmo`, once rules); a call with nothing to do (no scan, already on
+  that modulation) spends no token and Engineering says why
+  (`bridgeCallNothing`).
+- **Weak point `frequency`** (`BS.Grid.weakPoints(ship, attacker)`): the
+  facing whose emitters' frequency the attacker's dominant ammo beats
+  ("Their aft emitters are Tetryon: our Nadion ammo hits ×1.5 there"),
+  scored above the emitter point; the scan panel, the intel box (against
+  the build in the editor), the enemy's `pickTarget` and `aim: { weak }`
+  all pass the attacker, and both AI profiles list the kind first.
+- **They read your tuning** (`campaign.learn.tuneChance` 0.6): from
+  `fromWins` on, the enemy's emitters take the frequency that beats the
+  ammo of the remembered wins and its weapons the ammo that beats the
+  shields it saw (`signatures[].tuning`, `encounter().tuning` /
+  `learnedTuning`); the hangar says "They have read your tuning: shields
+  Antiproton against your Graviton ammo, ammo Graviton against your Nadion
+  shields." Intel bought or scanned shows the exact rows.
 
 ### Honest loss (0.26)
 A loss is meant to be accepted and answered with a new build or script,
@@ -1151,6 +1183,26 @@ harness is in the repository: `tools/harness.js` (Playwright, one
 `campaign.encounters`, seeded `Math.random`, `--noreact` for the 0.24 enemy
 bridge, `--eval` for a data tweak, `--debug` for what each bridge saw) and
 `tools/smoke.js` (the headless interface check).
+
+v0.30.0 (remodulating; equal-hull Bird-of-Prey duels as in 0.29, 4 fights):
+
+| Matchup | Enemy bridge | Outcome |
+|---|---|---|
+| our ammo Graviton vs their shields Nadion | 0.24 bridge (no reactions) | 4 of 4 in 1:11–2:12 keeping 95–100% |
+| same | Raider script with the remodulate reactions (it remodulated once per fight) | 3 of 4 in 3:09–7:43 keeping 94–100%, one stalemate: the answer costs them the ten seconds and buys them the fight back only once |
+| our shields Nadion vs their ammo Graviton, Brawler template (no scan, no answer) | Raider | 1 of 4 (3 lost) |
+| same, our bridge runs scan → remodulate shields / ammo (the example script above) | Raider (an arms race: 22 remodulations over 4 fights, both sides) | 2 of 4 (2 lost) keeping 61–94% |
+| our ammo Graviton vs their shields Nadion, both bridges remodulating | Raider (17 remodulations) | 4 of 4 in 2:22–3:42 keeping 82–100% |
+| **They read your tuning**: Constitution with Graviton ammo (three wins with it on record) vs Raider at 3 wins, learning on | enemy answers shields Antiproton, ammo Graviton | **0 of 4** |
+| same, learning off | faction default | 4 of 4 in 2:55–3:21 keeping 70–89% |
+
+Campaign regression at faction defaults: Brawler vs Raider (0 wins) 4 of
+4 keeping 44–91%; vs K't'inga (4 wins) 2 of 3 keeping 65–82%.
+
+The engine bug the first run exposed: `remodulating: false` in a rule
+was read as `remodulating: true` (flags were only ever written `true`), so
+the reaction never fired; fixed in the engine, with the report's "never
+fired" reason for negated flags.
 
 v0.29.0 (tuning per block; equal-hull Bird-of-Prey duels, stock layout
 both sides, Brawler template vs brawl doctrine, `--tune` / `--etune`,
@@ -1676,6 +1728,7 @@ than slower (it is nearly untouched, as intended).
 | v0.11.0 (done) | Cloak and ECM fields: a ship cloaks only with every block inside a cloak field (several devices per hull), a partial ECM field steers the jammed enemy's fire onto the uncovered blocks |
 | v0.12.0 (done) | Disruptor cannons (punch, penetration, poor tracking) and pulse phasers (tracking, knife range) as blocks and weapon groups; Klingons mount cannons |
 | v0.13.0 (done) | Crew: systems need hands, the bridge and crew quarters supply them, manning slows weapons and shields, blocks far from quarters repair slowly; every layout re-fitted |
+| v0.30.0 (done) | Remodulating in battle (enemy reactions with callouts, two bridge calls, script vocabulary), the frequency weak point, the enemy reading the player's tuning from the last wins |
 | v0.29.0 (done) | Tuning: five modulations on every shield emitter, armor plate and weapon block (shield frequency, alloy, ammo), one ring and one multiplier, faction defaults with an off-faction surcharge, Tune mode in the editor, tuning on scan / intel / Book / report, equal-hull measurements |
 | v0.28.0 (done) | The element ring: five Trek elements (Graviton, Nadion, Photon, Plasma, Duranium) as block families, one rule (×1.35 into the element you beat, ×0.65 into the one that beats you), measured in both directions on every edge; Doctrine page, element answers in the enemy's learning |
 | v0.27.0 (done) | Elements: five block families with a type chart in the damage path, a build's element in the hangar, the measured three-element wheel and the balanced pair on a Doctrine page, element answers in the enemy's learning, five new layouts, equal-hull duels in the harness |

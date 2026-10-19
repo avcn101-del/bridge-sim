@@ -48,6 +48,8 @@ BS.Script = (function () {
       case "disengage": return { when: {}, do: { stance: "disengage" }, until: { weakestAbove: BC.disengageUntil }, holdMax: BC.holdSeconds, call: true };
       case "reinforce": return { when: {}, do: { reinforce: true }, once: true, call: true };
       case "focus": return { when: {}, do: { aim: { x: call.value.x, y: call.value.y } }, holdMax: BC.focusSeconds, call: true };
+      case "remodShields": return { when: {}, do: { remodulate: "shields" }, once: true, call: true };
+      case "remodAmmo": return { when: {}, do: { remodulate: "ammo" }, once: true, call: true };
       default: return null;
     }
   }
@@ -55,7 +57,7 @@ BS.Script = (function () {
     var sc = ship.script, r = callRule(call);
     if (!sc || !r) return false;
     var target = sc.target;
-    if (r.once) { var n0 = apply(ship, target, r.do, r); trace(ship, null, "BRIDGE CALL: " + describeDo(r.do) + (n0 ? " (" + n0 + ")" : ""), "call"); return true; }
+    if (r.once) { var n0 = apply(ship, target, r.do, r); if (n0 && r.do.remodulate) { BS.Events.emit("bridgeCallNothing", { ship: ship, call: call, why: n0 }); return false; } trace(ship, null, "BRIDGE CALL: " + describeDo(r.do) + (n0 ? " (" + n0 + ")" : ""), "call"); return true; }
     sc.override = { rule: r, since: sc.t };
     var n1 = apply(ship, target, r.do, r);
     trace(ship, null, "BRIDGE CALL: " + describe(r, sc.def) + (n1 ? " (" + n1 + ")" : ""), "call");
@@ -77,8 +79,9 @@ BS.Script = (function () {
     var alive = st.alive || {}, ealive = est.alive || {};
     var tai = target.ai, tstate = tai ? tai.state : "";
     var eheat = est.heatCap ? target.heat / est.heatCap : 0;
-    function holds(k) {
-      var v = when[k];
+    // a flag condition written `flag: false` holds when the flag does not (the engine compares, not just reads)
+    function holds(k) { var v = when[k], c = D().conditions[k]; var r = holds0(k, v); return c && c.kind === "flag" && v === false ? !r : r; }
+    function holds0(k, v) {
       switch (k) {
         case "dKmBelow": return dKm < v;
         case "dKmAbove": return dKm > v;
@@ -121,6 +124,9 @@ BS.Script = (function () {
         case "enemyHeatAbove": return eheat > v;
         case "enemyHeatBelow": return eheat < v;
         case "blindFor": return !!ship.ai && ship.ai.blindTimer > v;
+        case "enemyAmmoBeatsOurShields": { if (!ship.scanned) return false; var ta = BS.Grid.dominantTune(BS.Grid.tuningSummary(target.grid).ammo), of = BS.Grid.dominantTune(BS.Grid.tuningSummary(ship.grid).frequency); return !!(ta && of) && BS.Grid.tuneMult(ta, of) > 1; }
+        case "ourAmmoBeaten": { if (!ship.scanned) return false; var oa = BS.Grid.dominantTune(BS.Grid.tuningSummary(ship.grid).ammo), tf = BS.Grid.dominantTune(BS.Grid.tuningSummary(target.grid).frequency); return !!(oa && tf) && BS.Grid.tuneMult(oa, tf) < 1; }
+        case "remodulating": return !!ship.remod;
         default: return false;
       }
     }
@@ -187,6 +193,7 @@ BS.Script = (function () {
     if (act.scan) { if (!ship.scanned && !ship.scanning) { ship.scanning = BS.Data.science.scanDuration; BS.Events.emit("scanStarted", { ship: ship, target: target, time: ship.scanning }); } }
     if (act.board) { var br = BS.Boarding.start(ship, target); if (br !== "ok") note = "boarding: " + br; }
     if (act.roll) { if (!BS.EnemyAI.roll(ship, target)) note = "cannot come about"; }
+    if (act.remodulate) { var rn = S.remodulate(ship, act.remodulate, target); if (rn) note = "remodulate: " + rn; }
     if (act.aim !== undefined) { var an = aim(ship, target, act.aim); if (an) { note = an; if (ship.script && /scan/.test(an)) ship.script.waitingAim = act.aim; } else if (ship.script) ship.script.waitingAim = null; }
     return note;
   }
@@ -198,7 +205,7 @@ BS.Script = (function () {
     if (a.x !== undefined && a.plan === undefined) { var fb = target.grid.at[a.x + "," + a.y]; if (!fb || !fb.alive) return "that block is already gone"; S.setAimBlock(ship, target, fb); ship.scriptAim = true; BS.Events.emit("scriptAim", { ship: ship, target: target, block: fb, label: (fb.structural ? "structure" : fb.def.name) + " at " + fb.x + "," + fb.y }); return null; }
     if (!ship.scanned) return "waiting for a scan before aiming at " + (a.weak ? "their " + a.weak : "plan target " + (a.plan + 1));
     var block = null, label = null;
-    if (a.weak) { var wps = BS.Grid.weakPoints(target).filter(function (w) { return a.weak === "any" || w.kind === a.weak; }); if (wps.length) { block = wps[0].block; label = wps[0].label; } }
+    if (a.weak) { var wps = BS.Grid.weakPoints(target, ship).filter(function (w) { return a.weak === "any" || w.kind === a.weak; }); if (wps.length) { block = wps[0].block; label = wps[0].label; } }
     if (a.plan !== undefined) {
       var plan = BS.Campaign.planFor ? BS.Campaign.planFor(BS.Game.state.encounter) : null, tg = plan && plan.targets ? plan.targets[a.plan] : null;
       if (!tg) return "no plan target " + (a.plan + 1);
@@ -313,7 +320,7 @@ BS.Script = (function () {
     x.incomingMax = Math.max(x.incomingMax, BS.Weapons.incoming(ship, 99));
     x.eheatMax = Math.max(x.eheatMax || 0, est.heatCap ? target.heat / est.heatCap : 0);
     x.blindMax = Math.max(x.blindMax || 0, ship.ai ? ship.ai.blindTimer || 0 : 0);
-    ["scanned", "boardable", "overloaded", "cloaked", "cloakOff", "noCloak", "noTubes", "noPhasers", "enemyReactorsGone", "enemyShieldsDown", "enemyCharging", "enemyCloaking", "enemyCloaked", "enemyRolling", "enemyBreaching", "enemyKiting", "enemyAfterburner"].forEach(function (k) {
+    ["scanned", "boardable", "overloaded", "cloaked", "cloakOff", "noCloak", "noTubes", "noPhasers", "enemyReactorsGone", "enemyShieldsDown", "enemyCharging", "enemyCloaking", "enemyCloaked", "enemyRolling", "enemyBreaching", "enemyKiting", "enemyAfterburner", "enemyAmmoBeatsOurShields", "ourAmmoBeaten", "remodulating"].forEach(function (k) {
       if (!x.ever[k]) { var w = {}; w[k] = true; if (conditions(ship, target, w, sc.t)) x.ever[k] = sc.t; }
     });
     // per rule: whether all its conditions ever held together, and each condition on its own (for the report)
@@ -357,7 +364,7 @@ BS.Script = (function () {
             case "enemyHeatAbove": if (!(x.eheatMax > v)) why = "their heat never rose over " + pct(v) + " (peak " + pct(x.eheatMax || 0) + ")"; break;
             case "blindFor": if (!(x.blindMax > v)) why = "our guns never lost them for " + v + " s (at most " + Math.round(x.blindMax || 0) + " s)"; break;
             default:
-              if (V[k] && V[k].kind === "flag" && !(x.ever && x.ever[k])) why = "\"" + V[k].label + "\" never happened";
+              if (V[k] && V[k].kind === "flag" && v !== false && !(x.ever && x.ever[k])) why = "\"" + V[k].label + "\" never happened";
               else if (V[k] && (V[k].kind === "stance" || V[k].kind === "aiming" || V[k].kind === "band" || V[k].kind === "state" || V[k].kind === "type") && !(sc.everKey && sc.everKey[i] && sc.everKey[i][k])) why = V[k].kind === "type" ? "they never shot at our " + fmtValue("type", v) : "they were never " + fmtValue(V[k].kind, v);
               break;
           }
@@ -401,6 +408,7 @@ BS.Script = (function () {
       else if (k === "weapons") text = "weapons " + (v ? "on" : "off");
       else if (k === "governor") text = "heat governor " + (v ? "on" : "off");
       else if (k === "repair") text = v ? a.label.replace("{v}", BS.Data.blocks[v] ? BS.Data.blocks[v].name.toLowerCase() + "s" : v) : "damage control on automatic";
+      else if (k === "remodulate") text = a.label.replace("{v}", v === "ammo" ? "weapons to the ammo that beats their shields" : "shields to the frequency that beats their ammo");
       else text = a.label;
       parts.push(text);
     });

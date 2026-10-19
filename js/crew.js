@@ -197,6 +197,9 @@ BS.Crew = (function () {
     BS.Events.on("bridgeCallRefused", function () { report("helm", "bridgeCallNone", {}, "warn"); });
     BS.Events.on("scanStarted", function (e) { if (e.ship === ship) report("tactical", "scanStart", { t: Math.round(e.time) }); else if (e.ship === enemy) report("tactical", "enemyScanning"); });
     BS.Events.on("scanned", function (e) { if (e.ship === ship) report("tactical", "scanDone"); });
+    BS.Events.on("remodulateStarted", function (e) { if (e.ship === ship) report(e.kind === "shields" ? "engineering" : "tactical", e.kind === "shields" ? "remodShields" : "remodAmmo", { mod: BS.Data.tuning.list[e.to].name, t: Math.round(e.time) }); });
+    BS.Events.on("remodulated", function (e) { var what = e.kind === "shields" ? "shields" : "weapons", mod = BS.Data.tuning.list[e.to].name; if (e.ship === ship) report("engineering", "remodDone", { what: what, mod: mod }); else if (e.ship === enemy) report("tactical", "enemyRemodDone", { what: what, mod: mod }, "warn"); });
+    BS.Events.on("bridgeCallNothing", function (e) { if (e.ship === ship) report("engineering", "remodNothing", { why: e.why.replace(/^remodulate: /, "") }, "warn"); });
     BS.Events.on("scriptAim", function (e) { if (e.ship === ship) report("tactical", "aimWeak", { label: e.label }); });
     // an enemy reaction rule with a callout: Tactical reads it out (the enemy's script stays hidden, its moves do not)
     BS.Events.on("scriptCallout", function (e) { if (e.ship === enemy) say("tactical", e.text, "warn"); });
