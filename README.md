@@ -215,8 +215,7 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `grid.boarding` | Transporter range, party size, transport time, shield window thresholds, defenders per crew deck and bridge guard, fight rate |
 | `script.*` | Rule tick, charging speed, trace length, plan targets, default template, rules per script, own scripts per save (`maxScripts`), range bands (`rangeBands`), subjects a rule can be about and the `target` action switches to (`subjects`), dry-run length, bridge calls (`bridgeCall`: tokens, hold and focus seconds, confirm window), the sentence for every condition / action / policy, the templates (Wolf pack for a fleet) and the enemy scripts with their reaction rules and callouts |
 | `enemyAI.stanceLabels`, `enemyAI.aimLabels` | The words the conditions `enemyStance` / `enemyAimingAt` read as |
-| `tuning.order`, `tuning.bonus / malus`, `tuning.list`, `tuning.factionDefault`, `tuning.offFactionCost`, `tuning.tunable`, `tuning.remodulate`, `tuning.measured`, `campaign.learn.tuneChance` | The modulation ring (each beats the next), the one multiplier (×1.5 for ammo that beats the frequency or alloy it hits, ×0.5 when beaten), each modulation's digit, colour and sentence, the faction defaults, the surcharge for off-faction tuning, which block types carry a modulation, how long a remodulation takes (shields down / weapons cold), the measured numbers, how often the enemy answers the tuning of your last wins |
-| `enemyAI.doctrineTable`, `enemyAI.signatureCounters`, `campaign.learn` | The measured who-beats-whom table the battle report quotes; which style tag of your last wins the enemy answers with which layout, doctrine and script; from which win, with what chance, how many wins are remembered, the same-weight cost band and the style-tag thresholds |
+| `tuning.order`, `tuning.bonus / malus`, `tuning.list`, `tuning.factionDefault`, `tuning.offFactionCost`, `tuning.tunable`, `tuning.remodulate`, `tuning.measured` | The modulation ring (each beats the next), the one multiplier (×1.5 for ammo that beats the frequency or alloy it hits, ×0.5 when beaten), each modulation's digit, colour and sentence, the faction defaults, the surcharge for off-faction tuning, which block types carry a modulation, how long a remodulation takes (shields down / weapons cold), the measured numbers |
 | `balance.speeds / maxStepsPerFrame` | Battle speed buttons and the fixed steps a frame may run |
 | `campaign.firstFight`, `campaign.encounters[].script` | The first fight's enemy overrides; which script each encounter runs |
 | `campaign.salvage` | Share of the enemy's surviving block value paid after a win (destroyed / disabled / captured) |
@@ -231,12 +230,11 @@ All numbers live in `js/data.js`. Edit with any text editor and reload.
 | `campaign.fleetMax`, `balance.fleetSpacingKm`, `save.fleet` | Hulls a side, how far apart they spawn, which owned hulls undock with the flagship on fleet and boss fights (the shipyard's "Add to fleet" buttons; the harness sets it with `--fleet`) |
 | `campaign.run.bossEvery / bossFromWins / fleetMinHulls`, `campaign.encounters[].kind` | Runs (0.35): every n-th battle is a boss fight once the roster has the hulls and the wins; which encounters are solo (the flagship alone), fleet (the roster undocks, two hulls needed) or boss |
 | `campaign.repair.destroyedBlock / lostHull` | Repair bills (0.35): the share of a destroyed block's price and of a lost hull's block value paid after a fight, capped at the credits in hand |
-| `campaign.learn.chance / tuneChance` | 0 since 0.31: the enemy no longer answers your last wins (DESIGN §10); the harness forces the path with `--learn` |
 | `campaign.*`, `skills.*` | Economy, training |
 | `balance.capCurve / lockBase / zoom` | Capacitor curve, lock time, zoom |
 | `enemyAI.doctrines` | How each doctrine flies (enemy encounters and player stances): strafe pass range and timing, brawl orbit and flip timer, standoff hold and kite ranges, broadside band and roll timer, evade range, the reaction doctrines `kite` (9 km) and `watch` (5 km) |
 | `enemyAI.default / ktinga` | Enemy accuracy, damage and stat multipliers, retreat thresholds, aim weights (`none` = spray), `weakPointChance` and `weakPointKinds` |
-| `enemyAI.counters`, `campaign.encounters[].counter`, `grid.weakPoints` | Which builds trigger which enemy doctrine and what the hangar says; weak-point analysis thresholds |
+| `grid.weakPoints` | Weak-point analysis thresholds |
 | `visuals.fragments` | Section break-off and ship shatter: piece count, speed, spin, lifetime, inertia, engine burn, reactor fuse and blast, debris damage per cell |
 | `crew.reports`, `crew.events`, `blockReports` | All officer dialogue |
 
@@ -250,7 +248,7 @@ index.html      entry point
 css/            LCARS interface styles
 js/             data, grid, game loop, ships, modules, weapons, boarding, crew, enemy AI, plays, scripts, campaign, hangar, UI, renderer, effects
 assets/         optional sprites / sounds (empty in MVP)
-tools/          harness.js (accelerated balance runs, DESIGN.md §8: forced encounter, enemy variant, learning path, equal-hull duels, tuning per side, fleets on both sides, --perf cost) and smoke.js (headless interface check, desktop, phone and a fleet of four); plain Node + Playwright, not needed to play
+tools/          harness.js (accelerated balance runs, DESIGN.md §8: forced encounter, enemy variant, equal-hull duels, tuning per side, fleets on both sides, --perf cost) and smoke.js (headless interface check, desktop, phone and a fleet of four); plain Node + Playwright, not needed to play
 DESIGN.md       full game design and data structures
 CHANGELOG.md    version history
 CLAUDE.md       rules for AI-assisted development sessions

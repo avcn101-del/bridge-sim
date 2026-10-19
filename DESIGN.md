@@ -1,53 +1,65 @@
 # DESIGN.md — Bridge Sim
 
-Version: 0.35.0 (runs, roster, repair bills); direction in §10. Keep this file in sync with the game.
+Version: 0.36.0 (the vision, first cut); direction in §10. Keep this file in sync with the game.
 
-## 1. Concept
+## 1. Concept: WoW raids, in Trek ships, in an arena
 
-Building the ship is the heart of the game. A starship is a grid of blocks
-inside a Trek-shaped hull mask; every block adds hull, a weapon, shields,
-capacitor, thrust, sensors or repair, and where it sits decides what it
-protects and where it can fire. Combat is EVE Online style: select a
-target, lock it, give the helm a relative movement command (approach, orbit
-at a range, keep at range), and run weapon groups and built-in systems on
-a capacitor budget. Four Trek shield facings decide where damage lands;
-after that, damage lands on blocks. Officers report and warn.
+**You are the admiral of a fleet of up to four starships. You win a boss
+by preparing right, never by flying.** Decided 2026-10-19 (§10): the
+game is a raid game. Three pillars, each borrowed on purpose:
 
-Decided parameters:
+| Pillar | Borrowed from | In this game |
+|---|---|---|
+| **Roles and bosses** | World of Warcraft raids | A party of four with tank, healer and damage roles that come from the blocks on a hull; bosses with public rules, tells, adds and an enrage; composition is a choice the boss forces |
+| **Ships, bridges, crews** | Star Trek | Hulls are block grids in Trek masks with four shield facings; a bridge runs each ship on a script and the crew calls the fight out; Klingon raiders, a Borg cube |
+| **The arena** | Arena games | A fight is 3–7 minutes in open space, N against M, no map, no travel; everything that matters is on screen |
+
+The player's craft is **preparation**: build the hulls, write one bridge
+script per hull (ordered when → do rules), read what is known about the
+next enemy, dry-run, undock. In the fight the player watches and has two
+bridge calls. The report says which rule fired, which never could, and
+who died of what. Then back to the hangar.
+
+Every system in this file must answer one question: **which step of the
+loop in §2 does it serve?** A system that serves none is cut (§10,
+"Streamline"). Decided parameters that stand:
 
 | Topic | Decision |
 |---|---|
-| Control | EVE-style commands relative to the target; no direct steering keys |
-| Units | km and km/s in the interface (`units.pxPerKm` = 150); a Constitution measures about 1 km, three times its real size, so blocks stay readable at combat ranges. The camera auto-fits both ships (`balance.zoom.autoMin/autoMax/fitMargin`); wheel and +/− scale a bias on top |
-| Shields | Four facings kept (fore / starboard / aft / port) |
-| Enemies | One encounter per battle, picked from `campaign.encounters` by battles won: Bird-of-Prey layouts and random variants, then the K't'inga battlecruiser. Since 0.31 an encounter may list several ships (`ships`) and the player brings a fleet (`save.fleet`) |
+| Control | The script has the conn (§4 "Bridge scripts"); movement is the helm's doctrine machine; the player's live input is two bridge calls a fight |
+| Fleet | Up to four hulls a side; roles from blocks on role cells; one script per hull |
+| Encounters | Runs of skirmishes (1v1, 4v4) leading to a boss (`campaign.run`); enemy fleets are built from the same templates the player has; bosses are hand-built hulls with their own script |
+| Losing | A lost hull is a repair bill, never permanent |
+| Units | km and km/s in the interface (`units.pxPerKm` 150); a Constitution is about 1 km, three times its real size, so blocks stay readable; the camera fits every ship |
+| Shields | Four facings (fore / starboard / aft / port) |
 | Crew | Voices and warnings only; orders execute instantly |
-| From 0.31 | Fleet of up to four hulls a side (engine done in 0.31), roles from blocks, skirmishes and bosses: §10 |
-| Battle length | 3–5 minutes for an attentive captain |
+| Battle length | 3–7 minutes; every boss has an enrage |
+| Difficulty | Comes from boss mechanics and composition, not from stat scaling; the harness proves the intended answer wins and the naive one loses (§8) |
 | Sound | None yet; events exist for an audio module |
-| Camera | Follows the player ship; mouse-wheel zoom 0.5–1.6× |
 
 ## 2. Gameplay loop
 
-1. **Start screen** → Enter the hangar.
-2. **Hangar** (Starbase 11): see your ship and its fit, buy modules and
-   ships with credits, fit modules into high/mid/low slots within power grid
-   and CPU, read the fit statistics (dps, capacitor stability, defence,
-   mobility), train one skill at a time in real time, export/import the save,
-   then **Undock**.
-3. **Battle**: the Klingon closes from 38 km. Click it to select and
-   lock (3 s lock). Pick a stance (Engage by default); the helm flies it.
-   Switch on phasers, torpedoes, hardener; pulse the shield booster as the
-   capacitor allows. Aim at a part once its shield is down, or at hull
-   outside their shield cover.
-4. **Result screen**: Victory/Defeat, time, damage, hit counts, credits
-   earned, Return to hangar. Enemies get 4% stronger per victory (up to
-   +40%) and tougher encounters unlock with wins, so credits must go into
-   better builds, bigger hulls and skills.
+1. **Hangar** = raid preparation. Build each hull from blocks (role blocks
+   only on role cells); write or pick a script per hull; set the roster
+   (up to four); read the Intel box (the next enemy's hull, weapons,
+   doctrine, the boss's public rules); dry-run against it; **Undock**.
+2. **Run** = the dungeon. Skirmishes (solo or fleet) lead to a boss slot
+   every sixth battle once the fleet has two hulls. Skirmishes teach a
+   mechanic; the boss tests it.
+3. **Battle** = watch. Every bridge runs its script; the crew calls out
+   the boss's tells; the player has two bridge calls (play, side,
+   disengage, reinforce, focus a block). 3–7 minutes.
+4. **Report** = the combat log. Victory or defeat, time, damage, which
+   rule stood when the damage landed, which rules never fired and why,
+   each hull's fate, credits, salvage, the repair bill. Return to the
+   hangar and fix the script.
+5. **Progress**: credits buy hulls and blocks (gear); understanding the
+   boss buys a better script (skill). Enemies scale +4% a win up to +40%;
+   the real difficulty is the next boss's mechanic.
 
-Decision pressure: the build (what the ship can do at all), the stance
-(which fight the helm flies), capacitor budget (what runs now), heat,
-shield facing management, part targeting. Movement is the helm's job.
+Decision pressure: the build (what each hull can do at all), the roster
+(who comes), the script (what each bridge does when), the two calls.
+Movement is the helm's job; the player never steers.
 
 ## 3. Screens and layout
 
@@ -93,7 +105,7 @@ fell under 25% (lowest 41%)", "we never scanned them"), or "it held at
 encounterId, seed, battlesWon }`): `BS.Campaign.encounter()` re-rolls from
 that seed and unlock pool, so the hangar's "Retry:" line, the intel on
 file, the dry run and the next undock all meet the same ship, layout and
-name, while the counter-doctrine is read off the new build. A lost fight
+name. A lost fight
 still counts (loss credits, streak reset). The pin clears when that fight
 is settled, or with *Let it go* in the Intel box.
 
@@ -101,12 +113,11 @@ is settled, or with *Let it go* in the Intel box.
 of standing rules (theirs | ours) under which the largest share of the
 damage landed ("61% of the damage we took landed while their r4 stood:
 'The cruiser is opening the range under our strike' … and our r2 stood:
-'When our heat is over 90%: weapons off'"), then both fights' style tags
-(`BS.Game.styleTags`) and the doctrine table's sentence for the pair
-(`enemyAI.doctrineTable`, `BS.Game.counterSentence`), or "no pairing of
-these styles on the doctrine table". Every shield or hull hit is booked
-to the rules standing at that moment (`state.attrib`, events `shieldHit`
-/ `hullHit`), so the sentence names what actually hurt, not a guess.
+'When our heat is over 90%: weapons off'"). Every shield or hull hit is
+booked to the rules standing at that moment (`state.attrib`, events
+`shieldHit` / `hullHit`), so the sentence names what actually hurt, not
+a guess. (0.36: the style tags and the doctrine table's sentence are
+gone with the learning line, §10 "Streamline".)
 
 **Tuning** (0.29): the *Why you lost* block opens with "Our Graviton
 ammo vs their shields Polaron ×1.00 · armor Polaron ×1.00" and the same
@@ -115,8 +126,7 @@ from their side (`BS.Grid.tuningSummary`, dead blocks counted).
 **Their bridge** (0.25): under *Never fired*, every rule of the enemy's
 script that fired, with the time and, for a reaction, the callout Tactical
 read out ("The cruiser is coming about to bring its batteries round").
-The enemy's script itself stays hidden; what it did is on record and goes
-into the opening book (§4 *Enemy reactions and the opening book*).
+The enemy's script itself stays hidden; what it did is on record.
 
 ### Battle screen since 0.23: watch, trace, bridge calls
 The tactical view is the screen; the captain does not fly. Left panel as
@@ -175,17 +185,6 @@ The left column of the hangar carries the pre-battle thinking:
   sentence with its measured numbers. The Intel box adds "Tuning: theirs
   … · yours …"; the Build stats carry a Tuning line; the editor's *Tune*
   button opens the modulation palette.
-- **They have watched you** (0.26): when the next encounter learned from
-  your signatures (below), a yellow line under the Intel drawing and the
-  "Next:" header say so: "They have watched your last 3 fights (standoff ·
-  standoff · brawl): expect fast passes: torpedoes lose their damage to
-  speed."
-- **Book** (0.25) under the Intel text: "Book · 3 fights: scanned us
-  inside 12 km (3) · They're coming about to bring their guns round on us
-  (2)": the enemy rules seen firing against this encounter, most often
-  first (`save.book[encounterId]`, `BS.Campaign.bookFor`); with no fight
-  on record, "their bridge is a closed book". *Copy as new* refuses beyond
-  `script.maxScripts` (12) own scripts.
 - **Dry run vs next enemy**: `BS.Game.dryRun(script, onProgress, onDone)`
   sets up the battle exactly as Undock would (same build, same seeded
   enemy, this script) with `dry: true`, so no interface changes, and steps
@@ -723,25 +722,9 @@ exact rows, so a different roll is stale); or buy the next encounter's
 layout in the hangar for 150 cr. The hangar's **Intel** section draws the
 known layout top-down (`BS.Renderer.drawTopDown`: plates with damage tint,
 shield bubbles, bare hull) with its weapons, shields, hull, reactors,
-quarters, cover and its top three weak points, next to the doctrine and the
-counter reason, so you fit against what you will actually meet. Unknown:
+quarters, cover and its top three weak points, next to the doctrine, so
+you fit against what you will actually meet. Unknown:
 "No layout on file" and the buy button.
-
-### Counter-doctrines (`enemyAI.counters`, `campaign.encounters[].counter`)
-A flagged encounter (Raider, random Bird-of-Prey variant, K't'inga
-warlord) reads your battle layout in `BS.Campaign.encounter()` and takes
-the first rule it meets: 4+ tubes → it strafes (torpedoes lose damage to
-fast passes; the K't'inga keeps its broadside), 4+ pulse phasers with at
-most 2 other beams → it stands off outside pulse range (K't'inga: siege),
-a cloak → it brawls and sticks close, a shield facing under 60% of the
-strongest → a K't'inga broadsides and any hull hunts your weak points
-twice as often (`weakPointChance` 0.6 for that fight; a Bird-of-Prey keeps
-its doctrine: making it brawl turned the stock Constitution fight into a
-coin flip). The hangar's
-"Next:" line says the doctrine and why ("brawl (they have seen your weak
-shield facing)"), so the build → fight → build loop is visible before
-undocking. Encounters with their own plays or fixed doctrines (Torpedo
-boat, Shadow, Jammer boat, Gunboat, K't'inga Siege) do not counter.
 
 ### Enemy scan panel (`#scan`, `BS.UI.updateScan`)
 The bottom row shows the locked enemy (no lock: a prompt; cloaked: "sensors
@@ -941,9 +924,7 @@ like a type chart, not a claim about physics.
   its measured numbers.
 - **Hidden until seen.** The enemy's tuning shows on the scan panel
   (dots on the drawing and a Tuning line) only once scanned; intel stores
-  the tuning it saw (`save.intel[].tuning`), the Book keeps the last
-  tuning text (`save.book[].tuning`), the signature of a win keeps the
-  dominant ammo, frequency and alloy (`signatures[].tuning`). The
+  the tuning it saw (`save.intel[].tuning`). The
   report's *Why you lost* opens with "Our Graviton ammo vs their shields
   Polaron ×1.00 · armor Polaron ×1.00" and the same from their side.
 - **Remodulating** (0.30, `tuning.remodulate`, `BS.Ships.remodulate`):
@@ -974,13 +955,6 @@ like a type chart, not a claim about physics.
   scored above the emitter point; the scan panel, the intel box (against
   the build in the editor), the enemy's `pickTarget` and `aim: { weak }`
   all pass the attacker, and both AI profiles list the kind first.
-- **They read your tuning** (`campaign.learn.tuneChance` 0.6): from
-  `fromWins` on, the enemy's emitters take the frequency that beats the
-  ammo of the remembered wins and its weapons the ammo that beats the
-  shields it saw (`signatures[].tuning`, `encounter().tuning` /
-  `learnedTuning`); the hangar says "They have read your tuning: shields
-  Antiproton against your Graviton ammo, ammo Graviton against your Nadion
-  shields." Intel bought or scanned shows the exact rows.
 
 ### Honest loss (0.26)
 A loss is meant to be accepted and answered with a new build or script,
@@ -999,35 +973,8 @@ so the enemy may never win by information the player cannot have:
   known point, not followed.
 - Every reaction carries a callout, read out when the rule takes over,
   before its effect lands; the report shows which rule hurt.
-- The enemy learns only from fights the player won (signatures below),
-  and the hangar says what it learned before the undock.
 
-### Signatures and learning (0.26, `campaign.learn`, `save.signatures`, `enemyAI.signatureCounters`)
-Pillar 4. `settleBattle` records the signature of a win: the fight's
-style tags (`BS.Game.styleTags`: the dominant doctrine as brawl /
-standoff / strafe / turtle / hitfade / ambush / kite / alpha, plus
-`shadow` when a side was held over `learn.tagFraction` 30% of the time,
-`alpha` for governor-off fire, `cloak` over `cloakFraction` 10%, `emitter`
-for weak-point or emitter aim, `roll`, `long` / `close` by average range
-against `longRangeKm` 9 / `closeRangeKm` 4), the average range, side,
-aim, script and build cost; the last `remember` (3) are kept. From
-`fromWins` (3) wins on, `BS.Campaign.encounter()` rolls `chance` (0.6,
-seeded with the encounter so a reload or a retry agrees) and, when it
-hits, takes the first `signatureCounters` row for the dominant tag over
-the remembered wins (ties to the latest) whose answer exists for the
-rolled hull: that layout, doctrine and script replace the encounter's,
-provided the answer's **effective cost** (block cost × the enemy's stat
-multiplier: a Bird-of-Prey at ×1.52 weighs about a stock Constitution)
-is within `costBand` 25% of the player's build cost, so the answer is a
-ship of the same weight. A learned answer keeps its doctrine against the
-build counter (`enemyAI.counters`); the first-fight and weak-point rules
-still apply. Rows are measured only (DESIGN §8 v0.26): standoff / long /
-turtle / hitfade → the Raider's strafing passes; cloak / ambush → the
-Gunboat brawling. Nothing of Bird-of-Prey weight beats a Brawler or an
-emitter hunter yet and the K't'inga rows are unmeasured, so those tags
-learn nothing and the hangar says nothing. Fights 0–2 stay naive.
-
-### Enemy reactions and the opening book (0.25, `script.enemyScripts`, `save.book`)
+### Enemy reactions (0.25, `script.enemyScripts`)
 Pillar 3 of the "build & fight" direction: the enemy answers in the fight
 with rules on the same engine, not with code in `enemyai.js`. The Raider
 script (also flown by the Gunboat, the random variant, the Jammer boat and
@@ -1051,13 +998,6 @@ to it breaks the fight. The blind-sector roll moved out of `enemyai.js`
 states) into the scripts, so the harness's `--noreact` enemy (scan, blind
 roll, doctrine) is exactly the 0.24 bridge.
 
-**Opening book**: `settleBattle` records, per encounter id, how many
-fights and which enemy rules were seen firing (`save.book[id] = { fights,
-rules: { "script:ruleIndex": { text, n } } }`, text = the callout or the
-rule's sentence; dry runs record nothing). The battle report shows the
-fight's enemy rules under *Their bridge*, the hangar Intel box the book.
-The enemy's script stays hidden; only what it did is known.
-
 ### Fleet engine (0.31, `js/fleet.js`, `ship.team`, `state.teams`, `save.fleet`, `campaign.encounters[].ships`)
 A battle holds N ships on the player's side and M on the enemy's.
 - **Sides.** `BS.Campaign.fleet()` is the hangar's ship followed by
@@ -1066,7 +1006,7 @@ A battle holds N ships on the player's side and M on the enemy's.
   4. `BS.Campaign.encounter()` returns `ships`: the encounter's ship as
   before, then one spec per entry of `campaign.encounters[].ships`
   (`{ enemyClass, layout, doctrine, script, damageMult }`, rolled from the
-  same seeded stream, no learning or counter for the extras). Both sides
+  same seeded stream). Both sides
   spawn line abreast, `balance.fleetSpacingKm` 1.6 km between centres, the
   enemy across its bearing at `arenaStartDistanceKm`.
 - **Targets.** Every ship has `ship.target`. `BS.Fleet.update` runs each
@@ -1088,13 +1028,13 @@ A battle holds N ships on the player's side and M on the enemy's.
   module bar and the crew voices follow: the flagship, then the next
   fighting hull when it is lost (`viewerChanged`, the module bar is rebuilt);
   `state.enemy` is the viewer's current target (`primaryEnemyChanged`): the
-  scan panel, the overlays, the report's "their bridge" and the opening
-  book (`state.enemyFlag`, the encounter's first ship) read it. They are
+  scan panel, the overlays and the report's "their bridge"
+  (`state.enemyFlag`, the encounter's first ship) read it. They are
   presentation, never logic. The camera leans two thirds of the way from the
   viewer toward the centre of everything in view (a third toward the enemy
   with two ships, as before) and fits every ship; only the viewer's hits
-  shake the screen. Attribution and style (§4 "why you lost") are booked
-  between the viewer and the primary enemy.
+  shake the screen. Attribution (§4 "why you lost") is booked between the
+  viewer and the primary enemy.
 - **What 0.31 leaves to 0.32+:** the scan panel, the enemy chips, click and
   tap hit-testing and the crew voices follow the viewer and the primary
   enemy only (allied hulls fight silently); `ship.scanned` is per ship, not
@@ -1372,8 +1312,8 @@ ew: { jamPerBlock, jamDuration, cloakTime, decloakTime, surgeTime, cloakDrain, c
 grid.boarding: { rangeKm, minParty, partyMax, transportTime, bridgeGuard, defenderPerQuarters, gapStart, gapAbort, abortRangeMult, rate, floor }
 script: { tickSeconds, chargingKmS, traceMax, planTargets, defaultTemplate, maxRules, dryRun: { maxSeconds, stepsPerChunk }, bridgeCall: { tokens, holdSeconds, focusSeconds, confirmSeconds, disengageUntil, noCallBonus }, conditions: { id: { label, kind, def, negLabel? } }, actions: { id: { label, kind } }, policies: { id: { label } }, weakKinds,
           templates: { id: { name, desc, requires?, policies, rules: [{ when, do, until?, holdMax?, once?, every? }] } }, enemyScripts: { id: { name, rules } } }
-campaign.firstFight: { weakPointChance }; campaign.encounters[].script; campaign.learn; tuning (order, list, factionDefault, offFactionCost, tunable, measured, bonus / malus); save.tuning{}, builds[].tuning, intel[].tuning, book[].tuning, signatures[].tuning; shipClasses.*.variants / presets[].element; enemyAI.doctrineTable / signatureCounters; save: scripts[], scriptByBuild{}, plans{}, book{}, signatures[], settings.manualBridge, campaign.cleanWins, campaign.retry
-campaign.salvage: { destroyed, disabled, captured }; enemyAI.*: drainedBelow, drainedUntil, drainedTime; enemyAI.counters[].when.neutMin
+campaign.firstFight: { weakPointChance }; campaign.encounters[].script; tuning (order, list, factionDefault, offFactionCost, tunable, measured, bonus / malus); save.tuning{}, builds[].tuning, intel[].tuning; shipClasses.*.variants / presets[].element; save: scripts[], scriptByBuild{}, plans{}, settings.manualBridge, campaign.cleanWins, campaign.retry
+campaign.salvage: { destroyed, disabled, captured }; enemyAI.*: drainedBelow, drainedUntil, drainedTime
 0.31: balance.fleetSpacingKm; campaign.fleetMax; campaign.encounters[].ships: [{ enemyClass, layout, doctrine, script, damageMult }]; save.fleet: [classId]; ship: team, target, contacts{}, flags.captured; state: teams { player: [], enemy: [] }, enemyFlag
 0.32: script.subjects; rule.about; action target; conditions allyShieldBelow / allyHullBelow / allyUnderFire / outnumbered / enemiesAtMost / unfocused; templates.wolfpack; ship: scannedOf{}, scanTarget
 0.35: campaign.run { bossEvery, bossFromWins, fleetMinHulls }; campaign.repair { destroyedBlock, lostHull }; campaign.encounters[].kind: solo | fleet | boss; encounter(): kind, roster, battles, bossSlot, nextBoss; retry.battles; settleBattle(): repairs, repairLines[]
@@ -2101,6 +2041,7 @@ than slower (it is nearly untouched, as intended).
 | v0.33.0 (done) | The first boss (§4 "Bosses"): the Borg cube, the cutting beam with a charge tell, summoned escorts, overdrive, the boss script with callouts, the Cube breaker template, enemy-only blocks and actions |
 | v0.32.0 (done) | Fleet scripts (§4): subjects (`about`), the `target` action, ally and count conditions, scans per ship, the Wolf pack template, enemy packs that concentrate fire, the report per hull |
 | v0.31.0 (done) | Fleet engine (§4, §10): teams, N ships against M, target selection and retargeting, team elimination, viewer and primary enemy, camera over every ship, encounters with `ships`, `save.fleet`, harness fleets and `--perf`, deterministic harness, learning zeroed |
+| v0.36.0 (done) | The vision (§1–§2: WoW raids in Trek ships in an arena) and the first cut (§10 "Streamline"): learning, signatures, the opening book, the counter table and the doctrine table removed; the report keeps the rule pair and the tuning line |
 | v0.35.0 (done) | Runs, roster and repair bills (§4): encounter kinds solo / fleet / boss, a boss slot every 6th battle from 4 wins with two hulls, the shipyard's roster buttons, repair bills per destroyed block and lost hull with a Repairs row in the report; cutting beam penetration 4 and the Anchor v2 preset; §8 re-measured with every hull's script set (correction to the 0.33–0.34 fleet rows) |
 | v0.5 PR 3 (done) | Masks for Miranda, Defiant, Excelsior, Galaxy, Sovereign; K't'inga; enemy layouts, random variants and encounters; fragments and shatter; balance pass |
 | v0.5.3 (done) | Enemy doctrines: strafe, brawl, standoff, broadside; tail-chase detection; status labels and callouts |
@@ -2253,6 +2194,30 @@ Decisions:
 | 0.33 (done) | The Borg cube (§4 "Bosses"): cutting beam with a tell, bare aft over the core, summoned escorts, remodulation, enrage at 7 min; the Cube breaker wins 4 of 4 where the Brawler loses 0 of 4 |
 | 0.34 (done) | Role blocks (shield transfer, remote repair, beacon) on role cells, ally subjects, support and escort actions, Anchor and Lifeline. Measured: the pair draws the boss as designed but loses to two more breakers; the numbers pass is 0.35's |
 | 0.35 (done) | Roster in the shipyard (four hulls, "Add to fleet"), repair bills, the skirmish-then-boss run (`campaign.run`: a boss slot every 6th battle from 4 wins with two hulls; fleet encounters in the pool with two hulls). Numbers pass: beam penetration 4, Anchor v2: the mixed fleet wins 8 of 8 but four breakers are still faster (§8). Skirmish modifiers not done, deferred |
+
+### Streamline (decided 2026-10-19, 0.36–0.39)
+
+The game grew by adding ideas for 35 versions and became two games in
+one file: a hand-flown EVE-style duel (§1–§3 up to 0.35) and the raid
+game of this section. The vision in §1–§2 is now the test: a system
+stays only if it serves a step of the loop. Ranking, decided with the
+numbers of 0.35 (54 script conditions, 28 used by no template or enemy
+script; learning off since 0.31; plays shadowed by the script since 0.21):
+
+| Rank | Systems | Decision |
+|---|---|---|
+| Core | block grids and role cells; the script engine, dry run and the report's "never fired"; the fleet engine, subjects, support and escort; bosses with public rules, tells, adds and enrage; runs, roster and repair bills; the doctrine machine; shields, capacitor, booster / hardener / afterburner; crew callouts; bridge calls; credits and salvage | keep |
+| Support, simplify | script vocabulary (keep what a fleet reads: ranges, our and allies' shields and hull, counts, the boss's charge, tuning; cut the 1v1 micro conditions); stances and doctrines (one list); tuning per ship instead of per cell, kept as boss material (remodulation); the solo encounter list (a tutorial tier, 5–6 entries); intel as the boss's journal; EW blocks (jammer, cloak, decoy, neutraliser) as the future control role, no new work | simplify |
+| Foreign | learning / signatures / opening book / counter table / doctrine table (0.26); plays; boarding and crew manning; real-time skills and science; the hand-flown bridge | cut |
+| Unknown | heat and overload: gates the alpha strike, but a micro resource; measure before deciding | measure |
+
+| PR | Scope |
+|---|---|
+| 0.36 (done) | §1–§2 rewritten as the vision; learning, signatures, the book, the counter table and the doctrine table removed (`campaign.learn`, `save.signatures / book`, `enemyAI.counters / signatureCounters / doctrineTable`, `encounters[].counter`, harness `--signature / --learn / --sigtune`); the report keeps the rule pair and the tuning line. Measured unchanged: 1v1 3 of 4, Wolf pack 2 of 2 |
+| 0.37 | Plays and the hand-flown bridge out; stances folded into doctrines |
+| 0.38 | Boarding, crew manning, real-time skills and science out |
+| 0.39 | Script vocabulary cut with a save migration (a rule naming a removed condition is dropped and the hangar says so); tuning per ship; the solo list trimmed; the hangar regrouped by the loop; §8 history moved to an appendix |
+| then | The second boss (damage one afterburner burst cannot dodge, so the pair pays off); a campaign harness that plays a whole run |
 
 Known risks: the pivot touches nearly every file; 8 grids measured in 0.31
 (12 ms a frame headless without a GPU, the simulation negligible); the §8

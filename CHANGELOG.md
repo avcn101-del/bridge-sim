@@ -2,6 +2,32 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.36.0] — 2026-10-19 (the vision and the first cut; DESIGN §10 "Streamline")
+
+### Changed
+- **DESIGN §1–§2 rewritten as the vision**: WoW raids in Trek ships in an
+  arena. The admiral prepares (build, roster, script, intel, dry run) and
+  watches; roles and bosses are the game; every system must serve a step
+  of the loop. §10 ranks every system (core / simplify / cut / measure)
+  and lists the cut PRs 0.36–0.39.
+- The report's *Why you lost* keeps the tuning line and the pair of
+  standing rules; the style tags and the doctrine table's sentence are
+  gone. The hangar's Doctrine box is now the Tuning box (the ring only).
+
+### Removed
+- Learning and signatures (`campaign.learn`, `save.signatures`,
+  `enemyAI.signatureCounters`, the "They have watched you" and "They
+  read your tuning" lines), the opening book (`save.book`, the hangar's
+  "Book ·" line), the build counter table (`enemyAI.counters`,
+  `encounters[].counter`, the "Next:" counter reason), the doctrine
+  table (`enemyAI.doctrineTable`), style recording (`state.style`,
+  `BS.Game.styleTags / counterSentence`), harness `--signature`,
+  `--learn` and `--sigtune`. Old saves load: the two fields are dropped.
+
+### Measured (DESIGN §8)
+- Unchanged: 1v1 Brawler vs Raider 3 of 4 in 2:35–2:59 keeping 73–92%;
+  Wolf pack vs pack 2 of 2 in 3:21–3:49.
+
 ## [0.35.0] — 2026-10-19 (runs, roster and repair bills; 0.35 of DESIGN §10)
 
 ### Added

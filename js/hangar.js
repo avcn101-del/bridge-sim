@@ -65,9 +65,9 @@ BS.Hangar = (function () {
     if (!it) {
       c.fillStyle = "rgba(255,255,255,0.08)"; c.font = "13px Antonio, 'Arial Narrow', sans-serif"; c.textAlign = "center"; c.fillText("NO LAYOUT ON FILE", cv.width / 2, cv.height / 2);
       info.innerHTML = (enc.retry ? "<div class='warn'>Retry of the last fight: " + enc.name + " waits for you. <button id='btn-letgo' class='lcars-btn c-lilac'>Let it go</button></div>" : "") +
-        "<div class='dim'>" + enc.cls.className + (enc.variantName ? " · " + enc.variantName : "") + " · " + enc.doctrine + (enc.counterReason ? " (" + enc.counterReason + ")" : "") + ".<br>Hold a lock for " + BS.Data.campaign.intelMinLockSeconds + " s in battle to record its layout, or buy it now.</div>" +
+        "<div class='dim'>" + enc.cls.className + (enc.variantName ? " · " + enc.variantName : "") + " · " + enc.doctrine + ".<br>Hold a lock for " + BS.Data.campaign.intelMinLockSeconds + " s in battle to record its layout, or buy it now.</div>" +
         "<button id='btn-intel' class='lcars-btn c-purple'>Buy intel · " + BS.Data.campaign.intelCost + " cr</button>";
-      info.innerHTML += bookLine(enc);
+      info.innerHTML += tuningLineFor(enc);
       var btn = document.getElementById("btn-intel");
       btn.addEventListener("click", function () { var err = C.buyIntel(enc); if (err) el["hg-msg"].textContent = err; render(); });
       var lg0 = document.getElementById("btn-letgo"); if (lg0) lg0.addEventListener("click", function () { C.letGo(); render(); say("Let it go. The sector sends what it sends."); });
@@ -82,25 +82,18 @@ BS.Hangar = (function () {
     st.weapons.forEach(function (b) { weapons[b.def.short] = (weapons[b.def.short] || 0) + 1; });
     var facings = BS.Ships.FACINGS.map(function (f) { return f.charAt(0).toUpperCase() + " " + ship.shieldMax[f]; }).join(" · ");
     info.innerHTML = (enc.retry ? "<div class='warn'>Retry of the last fight: " + enc.name + " waits for you. <button id='btn-letgo' class='lcars-btn c-lilac'>Let it go</button></div>" : "") +
-      "<div><b>" + enc.cls.className + (enc.variantName ? " · " + enc.variantName : "") + "</b> <span class='dim'>(" + it.how + ")</span> · " + enc.doctrine + (enc.counterReason ? " <span class='dim'>(" + enc.counterReason + ")</span>" : "") + "</div>" +
+      "<div><b>" + enc.cls.className + (enc.variantName ? " · " + enc.variantName : "") + "</b> <span class='dim'>(" + it.how + ")</span> · " + enc.doctrine + "</div>" +
       "<div>Weapons " + (Object.keys(weapons).map(function (k) { return k + " " + weapons[k]; }).join(" · ") || "none") + " · shields " + facings + " · hull " + st.hullTotal + "</div>" +
       "<div>Reactors " + (st.counts.reactor || 0) + " · quarters " + (st.counts.quarters || 0) + " · cover " + Math.round(100 * st.coverFrac) + "%" + (st.cloakCover.sources ? " · cloak" : "") + (st.jamCover.sources ? " · ECM" : "") + "</div>" +
       (wps.length ? "<div class='hg-wps'>" + wps.slice(0, 3).map(function (w) { return "<div class='wp'>" + w.label + "</div>"; }).join("") + "</div>" : "") +
-      bookLine(enc);
+      tuningLineFor(enc);
     var lg = document.getElementById("btn-letgo"); if (lg) lg.addEventListener("click", function () { C.letGo(); render(); say("Let it go. The sector sends what it sends."); });
   }
-  // Opening book: what this encounter's bridge has been seen doing (save.book), most often first.
-  function bookLine(enc) {
+  // The Intel box's tuning line: theirs (from intel, else the faction default) against yours.
+  function tuningLineFor(enc) {
     var T = BS.Data.tuning, it0 = C.intelFor(enc), ecls = enc.cls, eDflt = T.list[T.factionDefault[ecls.faction]].name;
     var theirs = it0 ? Gr.tuningText(Gr.build(ecls, it0.rows, 1, it0.tuning || null)) + " (intel)" : eDflt + " throughout unless tuned: scan or buy intel to be sure";
-    var elLine = "<div class='hg-element'>Tuning: theirs " + escapeHtml(theirs) + " · yours " + escapeHtml(Gr.tuningText(Gr.build(BS.Data.shipClasses[ed.classId], ed.rows, 1, ed.tuning))) + "</div>";
-    var b = C.bookFor(enc), lr = elLine + (enc.learned ? "<div class='warn hg-learned'>They have watched your last " + enc.learned.fights + " fight" + (enc.learned.fights === 1 ? "" : "s") + " (" + escapeHtml(enc.learned.tags.join(" · ")) + "): " + escapeHtml(enc.learned.reason) + ".</div>" : "") + (enc.learnedTuning ? "<div class='warn hg-learned'>They have read your tuning: " + escapeHtml(enc.learnedTuning) + ".</div>" : "");
-    return lr + bookLine0(b);
-  }
-  function bookLine0(b) {
-    if (!b || !b.fights) return "<div class='dim hg-book'>Book · no fights on record: their bridge is a closed book.</div>";
-    var rules = Object.keys(b.rules).map(function (k) { return b.rules[k]; }).sort(function (a, c) { return c.n - a.n; });
-    return "<div class='dim hg-book'>Book · " + b.fights + " fight" + (b.fights === 1 ? "" : "s") + ": " + rules.map(function (r) { return escapeHtml(r.text) + " (" + r.n + ")"; }).join(" · ") + "</div>";
+    return "<div class='hg-element'>Tuning: theirs " + escapeHtml(theirs) + " · yours " + escapeHtml(Gr.tuningText(Gr.build(BS.Data.shipClasses[ed.classId], ed.rows, 1, ed.tuning))) + "</div>";
   }
   function render() {
     var s = C.get(), cls = C.currentClass();
@@ -111,8 +104,8 @@ BS.Hangar = (function () {
     var enc = C.encounter();
     var docLabel = BS.Data.enemyAI.stateLabels[enc.doctrine] || enc.doctrine;
     var kindLabel = enc.kind === "boss" ? "BOSS" : enc.kind === "fleet" ? "Fleet" : "Solo";
-    el["hg-threat"].textContent = (enc.retry ? "Retry: " : "Next: ") + kindLabel + " · " + enc.label + " · strength " + Math.round(C.enemyStatMult(enc.aiProfile) * 100) + "% · " + enc.doctrine + (enc.learned ? " (they have watched you: " + enc.learned.reason + ")" : enc.counterReason ? " (" + enc.counterReason + ")" : "") + " · " + enc.roster.length + " hull" + (enc.roster.length === 1 ? "" : "s") + " undock" + (enc.nextBoss !== null && enc.nextBoss !== undefined ? " · boss in " + (enc.nextBoss + 1) : "");
-    el["hg-threat"].title = "Sensors report a " + enc.cls.className + (enc.variantName ? " (" + enc.variantName + " layout)" : "") + ". Reward ×" + enc.rewardMult + ". Doctrine: " + enc.doctrine + (enc.counterReason ? ": " + enc.counterReason + ". Change your build and they change their plan." : ".");
+    el["hg-threat"].textContent = (enc.retry ? "Retry: " : "Next: ") + kindLabel + " · " + enc.label + " · strength " + Math.round(C.enemyStatMult(enc.aiProfile) * 100) + "% · " + enc.doctrine + " · " + enc.roster.length + " hull" + (enc.roster.length === 1 ? "" : "s") + " undock" + (enc.nextBoss !== null && enc.nextBoss !== undefined ? " · boss in " + (enc.nextBoss + 1) : "");
+    el["hg-threat"].title = "Sensors report a " + enc.cls.className + (enc.variantName ? " (" + enc.variantName + " layout)" : "") + ". Reward ×" + enc.rewardMult + ". Doctrine: " + enc.doctrine + ".";
     renderIntel(enc);
     renderPlan(enc);
     renderDoctrine(enc);
