@@ -475,6 +475,38 @@ BS.Grid = (function () {
     return res;
   }
 
+  // A shield overload (0.47, the tractor beam's heal check): `total` damage burns the hull on `facing`'s side from the rim
+  // inward, block by block, with the reactor chain and the cut-off rule of hit(). A fixed total, so the time a held hull
+  // lasts does not depend on how many blocks that side has. The same result shape as hit().
+  function surge(ship, facing, total) {
+    var grid = ship.grid, res = { hits: [], destroyed: [], cutOff: [], explosions: [], crits: [] }, toExplode = [], left = total;
+    function damage(b, d) {
+      if (!b.alive || d <= 0) return 0;
+      var taken = Math.min(b.hp, d); b.hp -= taken; res.hits.push({ block: b, dmg: taken });
+      if (b.hp <= 0) { b.alive = false; res.destroyed.push(b); if (b.def.explosion) toExplode.push(b); }
+      return taken;
+    }
+    // every alive block, nearest to the facing's bearing first (the rim before the core at the same bearing), so the
+    // burn wraps round the hull once that side is gone and the total always lands while anything is left
+    var fa = { fore: 0, starboard: Math.PI / 2, aft: Math.PI, port: -Math.PI / 2 }[facing] || 0;
+    var side = grid.blocks.filter(function (b) { return b.alive && !b.structural; }).map(function (b) {
+      var d = Math.abs(U.normAngle(Math.atan2(b.ly, b.lx) - fa)), r = Math.sqrt(b.lx * b.lx + b.ly * b.ly);
+      return { b: b, k: Math.floor(d / 0.2) * 10000 - r };   // 0.2 rad bands, rim first within a band
+    }).sort(function (p, q) { return p.k - q.k; });
+    for (var i = 0; i < side.length && left > 0.01; i++) left -= damage(side[i].b, left);
+    while (toExplode.length) {
+      var src = toExplode.shift(), ex = src.def.explosion;
+      res.explosions.push(src);
+      for (var dy = -ex.radius; dy <= ex.radius; dy++) for (var dx = -ex.radius; dx <= ex.radius; dx++) {
+        if (!dx && !dy) continue;
+        var q = grid.at[(src.x + dx) + "," + (src.y + dy)];
+        if (q && q.alive) damage(q, ex.damage);
+      }
+    }
+    if (res.destroyed.length) { res.cutOff = pruneDisconnected(grid); grid.dirty = true; }
+    return res;
+  }
+
   // Blocks that no longer connect to the bridge break away. Connectivity counts all eight neighbours, so a
   // section is lost only when a cut runs clean through the hull (corner contact still holds).
   var NEIGHBOURS8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
@@ -584,6 +616,6 @@ BS.Grid = (function () {
   }
 
   return { isSystem: isSystem, tuneOf: tuneOf, tuneMult: tuneMult, blankTuning: blankTuning, tuningRowsFor: tuningRowsFor, tuningSummary: tuningSummary, dominantTune: dominantTune, tuningText: tuningText, build: build, derive: derive, facingOf: facingOf, worldToLocal: worldToLocal, localToWorld: localToWorld, cellOfLocal: cellOfLocal,
-    blockAtWorld: blockAtWorld, blockWorld: blockWorld, entryBlock: entryBlock, entryBlockThrough: entryBlockThrough, resolveEntry: resolveEntry, hit: hit, blockFacing: facingOf, lineOfFireClear: lineOfFireClear, arcCoverage: arcCoverage, weaponFacing: weaponFacingOf, bearingProfile: bearingProfile, fieldCover: fieldCover, weakPoints: weakPoints, repair: repair, pruneDisconnected: pruneDisconnected,
+    blockAtWorld: blockAtWorld, blockWorld: blockWorld, entryBlock: entryBlock, entryBlockThrough: entryBlockThrough, resolveEntry: resolveEntry, hit: hit, surge: surge, blockFacing: facingOf, lineOfFireClear: lineOfFireClear, arcCoverage: arcCoverage, weaponFacing: weaponFacingOf, bearingProfile: bearingProfile, fieldCover: fieldCover, weakPoints: weakPoints, repair: repair, pruneDisconnected: pruneDisconnected,
     layoutFromGrid: layoutFromGrid, validateLayout: validateLayout, randomVariant: randomVariant, layoutCost: layoutCost, typeForLetter: typeForLetter };
 })();

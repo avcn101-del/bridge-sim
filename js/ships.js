@@ -31,7 +31,7 @@ BS.Ships = (function () {
       shieldMax: {}, shields: {}, shieldRegen: {},
       capMax: 0, capacitor: 0, jammed: 0, partialJam: 0, partialJamBy: null, neuted: 0, shieldDelay: { fore: 0, aft: 0, port: 0, starboard: 0 }, attackSide: "auto", tumble: 0, tumbleDir: 1, breach: 0, hadReactors: false, aimBlock: null, cloak: { state: "off", t: 0, surge: 0, strike: 0 },
       signature: cls.signature,
-      tractored: 0, tractoredBy: null, tractorBlock: null,   // held in a tractor beam (0.41): seconds left, the holder and its emitter
+      tractored: 0, tractoredBy: null, tractorBlock: null, drainedFacing: null, overloadTimer: 0,   // held in a tractor beam (0.41 / 0.47): seconds left, the holder, its emitter, the facing it drains
       flags: { alert: "none", destroyed: false, disabled: false, armed: false },
       selected: null, lock: { target: null, progress: 0, locked: false, time: 0 }, aimType: null,
       cmd: { type: "idle", target: null, range: 0, point: null, orbitDir: Math.random() < 0.5 ? 1 : -1, facing: null, bearing: 0 },
@@ -348,6 +348,14 @@ BS.Ships = (function () {
     if (!exposed) ship.shieldDelay[facing] = BS.Data.grid.shieldRechargeDelay;   // a facing under fire does not recharge
     if (hullDamage > 0) {
       var hr = Gr.hit(ship, hullDamage, fromX, fromY, aimType, kind, first, pierceBonus, ammo);
+      settleHit(ship, hr, attacker, result);
+      if (!(hr.destroyed.length || hr.cutOff.length)) ship.hull = ship.stats.hullAlive = ship.grid.blocks.reduce(function (a, b) { return a + (b.alive && !b.structural ? b.hp : 0); }, 0);
+    }
+    return result;
+  }
+  // What a hit result (Gr.hit or Gr.surge) does to the ship: crits, stats, the hullHit / blockDestroyed / blockExploded /
+  // sectionLost events, destruction and disabling. `result` is the event payload the hit started (0.47: shared).
+  function settleHit(ship, hr, attacker, result) {
       result.hits = hr.hits; result.destroyed = hr.destroyed; result.cutOff = hr.cutOff; result.explosions = hr.explosions; result.crits = hr.crits;
       hr.crits.forEach(function (cr) { applyCrit(ship, cr.block, cr.kind, attacker); });
       var dealt = hr.hits.reduce(function (a, h) { return a + h.dmg; }, 0);
@@ -367,8 +375,15 @@ BS.Ships = (function () {
           ship.flags.destroyed = true; ship.destroyedTimer = 0;
           BS.Events.emit("shipDestroyed", { ship: ship, killer: attacker });
         } else checkDisabled(ship, attacker);
-      } else ship.hull = ship.stats.hullAlive = ship.grid.blocks.reduce(function (a, b) { return a + (b.alive && !b.structural ? b.hp : 0); }, 0);
-    }
+      }
+  }
+  // The tractor beam's overload (0.47): the shield facing the holder is empty, the hull on that side burns from the rim in.
+  function surge(ship, facing, total, attacker) {
+    if (ship.flags.destroyed) return null;
+    var hr = Gr.surge(ship, facing, total), ang = facingOffset(facing) + ship.heading;
+    var result = { ship: ship, facing: facing, absorbed: 0, hullDamage: hr.hits.reduce(function (a, h) { return a + h.dmg; }, 0), shieldsDown: true, impact: { x: ship.pos.x + Math.cos(ang) * ship.visual.length * 0.4, y: ship.pos.y + Math.sin(ang) * ship.visual.length * 0.4 }, angle: ang, kind: "overload", amount: total, attacker: attacker, exposed: true, emitter: null, strike: false, tuneMult: 1 };
+    settleHit(ship, hr, attacker, result);
+    BS.Events.emit("tractorOverload", { ship: ship, by: attacker, facing: facing, blocks: hr.hits.length, destroyed: hr.destroyed.length });
     return result;
   }
 
@@ -474,9 +489,19 @@ BS.Ships = (function () {
     if (ship.jammed > 0) ship.jammed -= dt;
     if (ship.neuted > 0) ship.neuted -= dt;
     if (ship.tractored > 0) {
-      var holding = ship.tractoredBy && holdsTractor(ship.tractoredBy);
+      var holder = ship.tractoredBy, holding = holder && holdsTractor(holder), T = BS.Data.ew.tractor;
       ship.tractored = holding ? ship.tractored - dt : 0;
-      if (ship.tractored <= 0) { var by = ship.tractoredBy; ship.tractored = 0; ship.tractoredBy = null; ship.tractorBlock = null; BS.Events.emit("tractorReleased", { ship: ship, by: by, broken: !holding }); }
+      if (ship.tractored <= 0) { ship.tractored = 0; ship.tractoredBy = null; ship.tractorBlock = null; ship.drainedFacing = null; ship.overloadTimer = 0; BS.Events.emit("tractorReleased", { ship: ship, by: holder, broken: !holding }); }
+      else if (T.shieldDrain) {   // the heal check (0.47): the beam empties the facing toward the holder; an empty facing burns the hull behind it
+        // the facing counts as fed only above drainedBelow of its pool: a trickle from the booster does not reset the overload
+        var tf = facingToward(ship, holder.pos.x, holder.pos.y), low = ship.shieldMax[tf] * T.drainedBelow, wasFed = ship.shields[tf] >= low;
+        ship.shields[tf] = Math.max(0, ship.shields[tf] - T.shieldDrain * dt); ship.shieldDelay[tf] = BS.Data.grid.shieldRechargeDelay; ship.drainedFacing = tf;
+        if (ship.shields[tf] < low) {
+          if (wasFed) { ship.overloadTimer = 0; BS.Events.emit("tractorDrained", { ship: ship, by: holder, facing: tf, time: T.overloadEvery }); }
+          ship.overloadTimer = (ship.overloadTimer || 0) + dt;
+          if (ship.overloadTimer >= T.overloadEvery) { ship.overloadTimer = 0; surge(ship, tf, T.overloadDamage, holder); }
+        } else ship.overloadTimer = 0;
+      }
     }
     if (ship.breach > 0) { ship.breach -= dt; if (ship.breach <= 0) coreBlast(ship); }
     if (ship.partialJam > 0) { ship.partialJam -= dt; if (ship.partialJam <= 0) ship.partialJamBy = null; }
@@ -510,6 +535,6 @@ BS.Ships = (function () {
     distanceTo: distanceTo, distanceKm: distanceKm, bearingTo: bearingTo, angularVelocity: angularVelocity, speedKmS: speedKmS,
     setCommand: setCommand, setAlert: setAlert, startReinforce: startReinforce, startLock: startLock, clearLock: clearLock, lockTime: lockTime,
     trackingMult: trackingMult, maxSpeed: maxSpeed, firingBearings: firingBearings, shieldsUp: shieldsUp, effectiveAim: effectiveAim, setAimBlock: setAimBlock, cloakFieldComplete: cloakFieldComplete, debrisHit: debrisHit, capRechargeMult: capRechargeMult, blockTypes: blockTypes,
-    isCloaked: isCloaked, visibility: visibility, detectRangeKm: detectRangeKm, setCloak: setCloak, contact: contact, contactKm: contactKm, remodulate: remodulate, beats: beats, overdrive: overdrive, tractor: tractor, heldBy: heldBy, FACINGS_: FACINGS,
+    isCloaked: isCloaked, visibility: visibility, detectRangeKm: detectRangeKm, setCloak: setCloak, contact: contact, contactKm: contactKm, remodulate: remodulate, beats: beats, overdrive: overdrive, tractor: tractor, heldBy: heldBy, surge: surge, FACINGS_: FACINGS,
   };
 })();

@@ -2,6 +2,40 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.47.0] — 2026-10-19 (the first hard check: the warbird's heal check)
+
+### Added
+- **Role checks** (DESIGN §10): the system every boss idea goes through
+  from now on. A boss is two or three checks (taunt, heal, dispel, DPS),
+  each with a hard criterion: the fleet missing that role loses at least
+  3 of 4, the fleet with it wins at least 3 of 4.
+- **The heal check** on the warbird: the tractor beam (now continuous
+  while the target is locked and in reach) drains the held ship's shield
+  facing by 25 a second; a facing below 40% of its pool starts the
+  overload clock, and every 5 s 1,600 burns the hull from that facing's
+  bearing inward, wrapping round the hull (`BS.Ships.surge`, `Gr.surge`,
+  events `tractorDrained` / `tractorOverload`). Engineering calls the
+  drained facing and the overload; the scan panel shows the drained
+  facing's shield.
+
+### Changed
+- **The healer's transfer is paid from its capacitor**
+  (`support.transferCapPerShield` 0.25), up to 140 a cycle per emitter,
+  and feeds the facing under the beam first. Until 0.46 it came out of the
+  healer's own shields, which ran dry in thirty seconds and never held a
+  tank. The Lifeline's guns go cold while an ally is held, so every point
+  of capacitor heals.
+- The warbird: stat ×3.0, bolts ×0.3 (a nuisance; the overload is the
+  killer), enrage at 9 minutes.
+
+### Measured (DESIGN §8 v0.47)
+- Mixed fleet 4 of 4 in 4:33–5:55 keeping 100% with no overload; four
+  Cube breakers 0 of 4; the Anchor without a healer 0 of 4 (the Galaxy
+  dies at 69–82 s). A healer without a tank 4 of 4: this boss checks the
+  healer only; the taunt check is still unenforced. Mixed vs the cube 2 of
+  2 in 4:41–4:46. 12-battle runs: mixed 600 → 13,285; four breakers lose
+  the warbird with every hull, 600 → 0.
+
 ## [0.46.0] — 2026-10-19 (the pack as a farm fight)
 
 ### Changed
