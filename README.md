@@ -160,6 +160,11 @@ tell the helm how to fly relative to it, and you switch modules on and off.
   mode** makes hulls, blocks, tuning and intel free while it is on, to try
   builds; your credits are kept.
 
+## Status
+
+The MVP concept demo closed at 0.48 (2026-10-20). `HANDOFF.md` says what
+it proved, what it disproved and what to lift into the next project.
+
 ## Tweaking balance
 
 All numbers live in `js/data.js`. Edit with any text editor and reload.
