@@ -2,6 +2,21 @@
 
 All notable changes to Bridge Sim. Versions follow `DESIGN.md` roadmap.
 
+## [0.48.0] — 2026-10-20 (the road to the boss)
+
+### Changed
+- **Boss slots every 4th battle from 2 wins** (`campaign.run` 4 / 2 / 2,
+  was 6 / 4 / 2; the cube and the warbird unlock from 2 wins). Four solo
+  fights before the first boss was the game hiding its point.
+- The hangar's "Next:" line says what opens the boss slot while it is
+  closed: "boss needs 2 hulls in the fleet (1 now) and 2 wins (0 now)".
+
+### Measured (DESIGN §8 v0.48)
+- 12-battle runs: the role fleet meets the cube at 4 and the warbird at 8
+  and 12, wins all three keeping 81–100%, 600 → 20,072; four Cube breakers
+  lose the warbird twice with every hull, 600 → 0. Smoke test zero console
+  errors in four passes.
+
 ## [0.47.0] — 2026-10-19 (the first hard check: the warbird's heal check)
 
 ### Added
