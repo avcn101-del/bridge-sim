@@ -101,8 +101,16 @@ BS.Hangar = (function () {
     el["hg-record"].textContent = s.campaign.battlesWon + " won · " + s.campaign.battlesLost + " lost" + (s.campaign.cleanWins ? " · " + s.campaign.cleanWins + " clean" : "") + (s.campaign.streak > 1 ? " · streak " + s.campaign.streak : "");
     var enc = C.encounter();
     var docLabel = BS.Data.enemyAI.stateLabels[enc.doctrine] || enc.doctrine;
+    // 0.48: when the boss slot is closed, say what opens it instead of hiding the boss behind a dim line
+    function bossGate(enc) {
+      if (enc.kind === "boss") return "";
+      var R = BS.Data.campaign.run, won = s.campaign.battlesWon, roster = C.fleet(), need = [];
+      if (roster.length < R.fleetMinHulls) need.push(R.fleetMinHulls + " hulls in the fleet (" + roster.length + " now)");
+      if (won < R.bossFromWins) need.push(R.bossFromWins + " wins (" + won + " now)");
+      return need.length ? " · boss needs " + need.join(" and ") : "";
+    }
     var kindLabel = enc.kind === "boss" ? "BOSS" : enc.kind === "fleet" ? "Fleet" : "Solo";
-    el["hg-threat"].textContent = (enc.retry ? "Retry: " : "Next: ") + kindLabel + " · " + enc.label + " · strength " + Math.round(C.enemyStatMult(enc.aiProfile, enc.kind) * 100) + "% · " + enc.doctrine + " · " + enc.roster.length + " hull" + (enc.roster.length === 1 ? "" : "s") + " undock" + (enc.nextBoss !== null && enc.nextBoss !== undefined ? " · boss in " + (enc.nextBoss + 1) : "");
+    el["hg-threat"].textContent = (enc.retry ? "Retry: " : "Next: ") + kindLabel + " · " + enc.label + " · strength " + Math.round(C.enemyStatMult(enc.aiProfile, enc.kind) * 100) + "% · " + enc.doctrine + " · " + enc.roster.length + " hull" + (enc.roster.length === 1 ? "" : "s") + " undock" + (enc.nextBoss !== null && enc.nextBoss !== undefined ? " · boss in " + (enc.nextBoss + 1) : bossGate(enc));
     el["hg-threat"].title = "Sensors report a " + enc.cls.className + (enc.variantName ? " (" + enc.variantName + " layout)" : "") + ". Reward ×" + enc.rewardMult + ". Doctrine: " + enc.doctrine + ".";
     renderIntel(enc);
     renderPlan(enc);

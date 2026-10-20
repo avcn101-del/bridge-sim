@@ -3,7 +3,7 @@
 window.BS = window.BS || {};
 
 BS.Data = {
-  version: "0.47.0",
+  version: "0.48.0",
 
   // ------------------------------------------------------------------ units
   // World space is pixels; the interface shows kilometres and km/s.
@@ -1390,7 +1390,7 @@ BS.Data = {
     // runs (0.35, DESIGN §10): every bossEvery-th battle (counting wins and losses) is a boss fight, once the roster has
     // two or more hulls and bossFromWins wins are in; fleet skirmishes (encounter kind "fleet") need two hulls too. A
     // solo encounter sends only the hangar's ship; fleet and boss encounters send the whole roster.
-    run: { bossEvery: 6, bossFromWins: 4, fleetMinHulls: 2 },
+    run: { bossEvery: 4, bossFromWins: 2, fleetMinHulls: 2 },   // 0.48: 6 / 4 until then; four solo fights before the first boss was the game hiding its point
     // repair bills (0.35): after a battle every destroyed block of ours costs its price × destroyedBlock, a hull that was
     // lost costs its whole block value × lostHull; credits never go below zero
     repair: { destroyedBlock: 0.2, lostHull: 0.3 },
@@ -1414,13 +1414,13 @@ BS.Data = {
         ships: [{ enemyClass: "bird_of_prey", layout: "gunboat", doctrine: "brawl", script: "raider" }] },
       // the first boss (0.33; in the pool since 0.35 on every campaign.run.bossEvery-th battle): `kind: "boss"`, its own
       // script with the mechanics, `reinforcements` summoned by the script
-      { id: "cube",     kind: "boss", enemyClass: "borg_cube", layout: "default", doctrine: "broadside", script: "borg", name: "Borg cube", minWins: 4, weight: 1, rewardMult: 6,
+      { id: "cube",     kind: "boss", enemyClass: "borg_cube", layout: "default", doctrine: "broadside", script: "borg", name: "Borg cube", minWins: 2, weight: 1, rewardMult: 6,
         reinforcements: [{ enemyClass: "bird_of_prey", layout: "default", doctrine: "strafe", script: "raider" }, { enemyClass: "bird_of_prey", layout: "gunboat", doctrine: "brawl", script: "raider" }] },
       // the second boss (0.41): the warbird. In a boss slot the pool is the bosses not yet beaten, in this order
       // (save.campaign.bossesBeaten); once every boss is beaten the slot rolls among all of them by weight.
       // No escorts: the hold is its mechanic (measured with two Birds-of-Prey at half hull, DESIGN §8 v0.41: a role fleet
       // that fights a minute longer than four breakers is eaten by the escorts, so the fight was about them, not the hold).
-      { id: "warbird",  kind: "boss", enemyClass: "dderidex", layout: "default", doctrine: "broadside", script: "warbird", name: "IRW Valdore", minWins: 4, weight: 1, rewardMult: 8 },
+      { id: "warbird",  kind: "boss", enemyClass: "dderidex", layout: "default", doctrine: "broadside", script: "warbird", name: "IRW Valdore", minWins: 2, weight: 1, rewardMult: 8 },
       { id: "pack",     kind: "fleet", enemyClass: "bird_of_prey", layout: "default", doctrine: "strafe",    script: "raider",  minWins: 5, minHulls: 4, weight: 2, rewardMult: 3.2,
         ships: [{ enemyClass: "bird_of_prey", layout: "gunboat", doctrine: "brawl", script: "raider" }, { enemyClass: "bird_of_prey", layout: "torpedo", doctrine: "bombard", script: "torpedoBoat" }, { enemyClass: "bird_of_prey", layout: "jammer", doctrine: "brawl", script: "raider" }] },
     ],

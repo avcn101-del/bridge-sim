@@ -1201,15 +1201,18 @@ them by weight).
 The skirmish-then-boss run of §10 and the fleet hangar's roster.
 - **Encounter kinds** (`campaign.encounters[].kind`): `solo` (the default:
   the hangar's ship alone), `fleet` (`pair` from 2 wins, `pack` from 5:
-  the whole roster undocks) and `boss` (`cube` from 4 wins). `enc.roster`
+  the whole roster undocks) and `boss` (`cube`, `warbird`, from 2 wins since 0.48). `enc.roster`
   lists who undocks, `[save.shipClass]` for a solo fight and `save.fleet`
   (flagship first) otherwise; `BS.Game.startBattle` spawns that list.
 - **Boss slots** (`campaign.run`): counting wins and losses, every
-  `bossEvery`-th battle (6: battles 6, 12, …) is a boss fight once the
-  roster has `fleetMinHulls` (2) hulls and `bossFromWins` (4) wins are in;
+  `bossEvery`-th battle (4 since 0.48: battles 4, 8, 12, …; 6 before) is
+  a boss fight once the roster has `fleetMinHulls` (2) hulls and
+  `bossFromWins` (2 since 0.48; 4 before) wins are in;
   the pool is then the boss encounters only. Otherwise bosses stay out of
   the pool, and fleet encounters need the roster too. A retry keeps its
-  slot (`retry.battles`). The hangar's threat line reads "Next: Solo /
+  slot (`retry.battles`). While the slot is closed the threat line says
+  what opens it ("boss needs 2 hulls in the fleet (1 now) and 2 wins (0
+  now)", 0.48). The hangar's threat line reads "Next: Solo /
   Fleet / BOSS · … · n hulls undock" and counts down "boss in n"; with one
   hull it says a second hull is needed.
 - **Roster** (`save.fleet`, at most `campaign.fleetMax` 4 with the
@@ -1257,8 +1260,8 @@ with stats.
   4) so a two-hull roster never meets a fight it cannot win. Klingon ship
   names come from `campaign.klingonNames`.
 - **Kinds and runs** (0.35): each encounter has a `kind` (solo / fleet /
-  boss); `encounter()` applies `campaign.run` (a boss slot every 6th battle
-  from 4 wins with two hulls, fleet encounters only with two hulls) and
+  boss); `encounter()` applies `campaign.run` (a boss slot every 4th battle
+  from 2 wins with two hulls, fleet encounters only with two hulls) and
   names who undocks in `enc.roster` (§4 "Runs, roster and repair bills").
 - **Repair bills** (`campaign.repair`, 0.35): settled with the credits,
   20% of each destroyed block's price and 30% of a lost hull's block value,
@@ -1332,6 +1335,7 @@ campaign.firstFight: { weakPointChance }; campaign.encounters[].script; tuning (
 campaign.salvage: { destroyed, disabled, captured }; enemyAI.*: drainedBelow, drainedUntil, drainedTime
 0.31: balance.fleetSpacingKm; campaign.fleetMax; campaign.encounters[].ships: [{ enemyClass, layout, doctrine, script, damageMult }]; save.fleet: [classId]; ship: team, target, contacts{}, flags.captured; state: teams { player: [], enemy: [] }, enemyFlag
 0.32: script.subjects; rule.about; action target; conditions allyShieldBelow / allyHullBelow / allyUnderFire / outnumbered / enemiesAtMost / unfocused; templates.wolfpack; ship: scannedOf{}, scanTarget
+0.48: campaign.run { bossEvery 6 → 4, bossFromWins 4 → 2 }; the bosses' minWins 2; the hangar's boss gate line
 0.47: ew.tractor { hold 30, shieldDrain, drainedBelow, overloadEvery, overloadDamage }; ship.drainedFacing / overloadTimer; BS.Ships.surge / settleHit, Gr.surge; events tractorDrained / tractorOverload, hullHit kind "overload"; support.transferCapPerShield (transfer paid from capacitor, the drained facing first), transferPerBlock 100 → 140; enemyAI.warbird statMult 3.0, damageMult 0.3; the warbird's enrage at 540 s; the Lifeline's guns cold while an ally is held
 0.46: campaign.enemyScaling.fleetStatMult / fleetDamageMult (BS.Campaign.enemyDamageMult(spec, kind))
 0.45: campaign.enemyScaling.fleetFactor (BS.Campaign.enemyStatMult(profileId, kind)); save.settings.devMode (BS.Campaign.devMode / setDevMode / canAfford); state.encounter is set before the enemies spawn
@@ -1386,6 +1390,22 @@ harness is in the repository: `tools/harness.js` (Playwright, one
 `campaign.encounters`, seeded `Math.random`, `--noreact` for the 0.24 enemy
 bridge, `--eval` for a data tweak, `--debug` for what each bridge saw) and
 `tools/smoke.js` (the headless interface check).
+
+v0.48.0 (the road to the boss. `tools/campaign.js --battles 12`, seed 1, the
+fleets and scripts as v0.46; `campaign.run` 4 / 2 / 2, the bosses from 2
+wins; boss slots at battles 4, 8 and 12):
+
+| Run | Boss slots | Credits |
+|---|---|---|
+| Mixed | cube at 4 won 5:59 keeping 81%; warbird at 8 won 6:59 keeping 100% (repairs 4 cr); warbird again at 12 (all beaten: rolled by weight) won 6:36 keeping 100% | 600 → 20,072 (10 of 12: two solo losses with the Brawler at 8–9 wins, the Jammer boat cost a hull; no hull lost to a boss) |
+| Four Cube breakers | cube at 4 won 4:26; warbird at 8 **lost** 1:59 with every hull (−7,700 → 0); warbird at 12 **lost** 2:15 with every hull | 600 → 0 (10 of 12; 8 hulls lost) |
+
+Honest reading: the first boss now comes at battle 4 instead of 6 and
+needs 2 wins instead of 4, with the gate spelled out in the hangar; the
+cube at 2 wins is still won by both fleets, the warbird still sorts them.
+Once every boss is beaten the slot rolls among them, so a 12-battle run
+meets the warbird twice; a third boss or a chapter end is what stops that
+(§10 "next").
 
 v0.47.0 (the first hard check: the warbird's heal check. `--enemy warbird
 --wins 4`, seeds 1–4, `--max 660`; "mixed" = Anchor + Lifeline + two
@@ -2155,7 +2175,8 @@ script; learning off since 0.31; plays shadowed by the script since 0.21):
 | 0.45 (done) | Dev mode (nothing costs credits, to try builds); the fleet-tier scaling knob `enemyScaling.fleetFactor`, measured at 0.5 and shipped at 1: halving the pack's win bonus did not make it cheaper for the Wolf pack (§8 v0.45) |
 | 0.46 (done) | The pack as a farm fight: a fleet encounter's ships take `fleetStatMult` / `fleetDamageMult` 0.8 on the 1v1 profile multipliers (stat ×1.4, damage ×1.5, sized for one hull); the pack at 8 wins goes from two hulls lost to none (§8 v0.46). A disengage rule for the hunted ship was tried and not kept |
 | 0.47 (done) | The system (§10 "Role checks") and the first hard check: the warbird's hold drains the held ship's shield and overloads its hull while the facing is empty; the healer's transfer is paid from capacitor and feeds the drained facing. Measured: the role fleet 4 of 4 with no overload, four breakers 0 of 4, the Anchor without a healer 0 of 4 (§8 v0.47) |
-| next | The dispel check (a support/jammer role) on the cube or the warbird; drama after play (phases, countdowns); skirmish modifiers; the Defiant in a fleet |
+| 0.48 (done) | The road to the boss: a boss slot every 4th battle from 2 wins (was 6 / 4), the bosses from 2 wins, the hangar says what opens the slot. Measured over two 12-battle runs (§8 v0.48) |
+| next | The dispel check (a support/jammer role) on the cube or the warbird; a chapter end (the slot rolls among beaten bosses forever); drama after play (phases, countdowns); skirmish modifiers; the Defiant in a fleet |
 
 Known risks: the pivot touches nearly every file; 8 grids measured in 0.31
 (12 ms a frame headless without a GPU, the simulation negligible); the §8
